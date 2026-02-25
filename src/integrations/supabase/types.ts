@@ -14,6 +14,53 @@ export type Database = {
   }
   public: {
     Tables: {
+      enterprise_certifications: {
+        Row: {
+          business_license_url: string | null
+          company_name: string | null
+          created_at: string
+          credit_code: string | null
+          enterprise_id: string
+          id: string
+          legal_person: string | null
+          reviewed_at: string | null
+          status: string
+          submitted_at: string | null
+        }
+        Insert: {
+          business_license_url?: string | null
+          company_name?: string | null
+          created_at?: string
+          credit_code?: string | null
+          enterprise_id: string
+          id?: string
+          legal_person?: string | null
+          reviewed_at?: string | null
+          status?: string
+          submitted_at?: string | null
+        }
+        Update: {
+          business_license_url?: string | null
+          company_name?: string | null
+          created_at?: string
+          credit_code?: string | null
+          enterprise_id?: string
+          id?: string
+          legal_person?: string | null
+          reviewed_at?: string | null
+          status?: string
+          submitted_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "enterprise_certifications_enterprise_id_fkey"
+            columns: ["enterprise_id"]
+            isOneToOne: true
+            referencedRelation: "enterprises"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       enterprises: {
         Row: {
           created_at: string
