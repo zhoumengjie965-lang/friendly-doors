@@ -1,10 +1,10 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
-import { getCurrentPhone, getUserEnterprises } from "@/lib/auth";
+import { getCurrentPhone, getUserEnterprises, clearCurrentPhone } from "@/lib/auth";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import WorkspaceSidebar from "@/components/WorkspaceSidebar";
 import EnterpriseInfo from "@/pages/EnterpriseInfo";
-import { Building2, Users, Key, Link, TrendingUp } from "lucide-react";
+import { Building2, Users, Key, Link, TrendingUp, LogOut, ChevronDown } from "lucide-react";
 
 interface Enterprise {
   id: string;
@@ -24,6 +24,23 @@ export default function Workspace() {
   const navigate = useNavigate();
   const phone = getCurrentPhone();
   const location = useLocation();
+  const [userMenuOpen, setUserMenuOpen] = useState(false);
+  const userMenuRef = useRef<HTMLDivElement>(null);
+
+  const handleLogout = () => {
+    clearCurrentPhone();
+    navigate("/login");
+  };
+
+  useEffect(() => {
+    const handleClick = (e: MouseEvent) => {
+      if (userMenuRef.current && !userMenuRef.current.contains(e.target as Node)) {
+        setUserMenuOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, []);
 
   useEffect(() => {
     if (!phone) { navigate("/login"); return; }
@@ -69,6 +86,36 @@ export default function Workspace() {
             <span className="text-sm text-muted-foreground">AI 网关平台</span>
             <span className="text-sm text-muted-foreground">/</span>
             <span className="text-sm font-medium text-foreground">{enterprise.name}</span>
+            <div className="flex-1" />
+            {/* User avatar menu */}
+            <div className="relative" ref={userMenuRef}>
+              <button
+                onClick={() => setUserMenuOpen((v) => !v)}
+                className="flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-muted transition-colors"
+              >
+                <div className="w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-semibold"
+                  style={{ background: "linear-gradient(135deg, hsl(224,76%,48%), hsl(262,60%,58%))" }}>
+                  {phone?.slice(-4)}
+                </div>
+                <span className="text-sm text-foreground hidden sm:block">{phone}</span>
+                <ChevronDown className={`w-4 h-4 text-muted-foreground transition-transform ${userMenuOpen ? "rotate-180" : ""}`} />
+              </button>
+              {userMenuOpen && (
+                <div className="absolute right-0 top-full mt-1 w-44 bg-popover border border-border rounded-lg shadow-lg z-50 py-1">
+                  <div className="px-3 py-2 border-b border-border">
+                    <p className="text-xs text-muted-foreground">当前账号</p>
+                    <p className="text-sm font-medium text-foreground truncate">{phone}</p>
+                  </div>
+                  <button
+                    onClick={handleLogout}
+                    className="w-full flex items-center gap-2 px-3 py-2 text-sm text-foreground hover:bg-muted transition-colors"
+                  >
+                    <LogOut className="w-4 h-4" />
+                    退出登录
+                  </button>
+                </div>
+              )}
+            </div>
           </header>
 
           {/* Content */}

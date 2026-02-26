@@ -1,16 +1,15 @@
-import { useLocation, useNavigate } from "react-router-dom";
+import { useLocation } from "react-router-dom";
 import { NavLink } from "@/components/NavLink";
 import {
   Sidebar, SidebarContent, SidebarGroup, SidebarGroupContent,
   SidebarGroupLabel, SidebarMenu, SidebarMenuButton, SidebarMenuItem,
-  SidebarHeader, SidebarFooter,
+  SidebarHeader,
 } from "@/components/ui/sidebar";
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from "@/components/ui/collapsible";
 import {
   LayoutGrid, Key, BarChart3, FileText, Building2, Users,
-  LogOut, ChevronDown, ChevronRight, Wallet, Network, Settings, UserCog
+  ChevronDown, ChevronRight, Wallet, Network, Settings, UserCog
 } from "lucide-react";
-import { clearCurrentPhone, getCurrentPhone } from "@/lib/auth";
 
 interface NavChild { title: string; url: string; icon: React.ElementType }
 interface NavItem { title: string; url?: string; icon: React.ElementType; children?: NavChild[] }
@@ -41,20 +40,13 @@ interface Props {
 }
 
 export default function WorkspaceSidebar({ enterpriseName, enterpriseCode }: Props) {
-  const navigate = useNavigate();
   const location = useLocation();
-  const phone = getCurrentPhone();
-
-  const handleLogout = () => {
-    clearCurrentPhone();
-    navigate("/login");
-  };
 
   const isChildActive = (children?: NavChild[]) =>
     children?.some((c) => location.pathname.startsWith(c.url)) ?? false;
 
   return (
-    <Sidebar className="border-r-0" style={{ background: "hsl(224,76%,18%)" }}>
+    <Sidebar className="border-r-0 h-screen" style={{ background: "hsl(224,76%,18%)" }}>
       <SidebarHeader className="p-4 border-b border-white/10">
         <div className="flex items-center gap-3">
           <div className="w-9 h-9 rounded-lg flex items-center justify-center shrink-0"
@@ -69,7 +61,7 @@ export default function WorkspaceSidebar({ enterpriseName, enterpriseCode }: Pro
         </div>
       </SidebarHeader>
 
-      <SidebarContent className="py-2">
+      <SidebarContent className="py-2 flex-1 overflow-y-auto">
         <SidebarGroup>
           <SidebarGroupLabel className="text-white/40 text-xs px-4 mb-1">主菜单</SidebarGroupLabel>
           <SidebarGroupContent>
@@ -123,24 +115,6 @@ export default function WorkspaceSidebar({ enterpriseName, enterpriseCode }: Pro
         </SidebarGroup>
       </SidebarContent>
 
-      <SidebarFooter className="p-4 border-t border-white/10">
-        <div className="flex items-center gap-3 mb-3">
-          <div className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center">
-            <span className="text-white text-xs font-medium">{phone?.slice(-4)}</span>
-          </div>
-          <div className="flex-1 min-w-0">
-            <p className="text-white text-xs font-medium truncate">{phone}</p>
-            <p className="text-white/40 text-xs">管理员</p>
-          </div>
-        </div>
-        <button
-          onClick={handleLogout}
-          className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-white/60 hover:text-white hover:bg-white/10 transition-colors text-sm"
-        >
-          <LogOut className="w-4 h-4" />
-          退出登录
-        </button>
-      </SidebarFooter>
     </Sidebar>
   );
 }
