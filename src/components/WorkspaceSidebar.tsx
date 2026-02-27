@@ -26,12 +26,7 @@ const navItems: NavItem[] = [
       { title: "组织管理", url: "/workspace/enterprise/orgs", icon: Network },
     ],
   },
-  {
-    title: "组织管理", icon: Users, children: [
-      { title: "额度管理", url: "/workspace/org/quota", icon: BarChart3 },
-      { title: "成员管理", url: "/workspace/org/members", icon: UserCog },
-    ],
-  },
+  { title: "组织治理", url: "/workspace/org/governance", icon: Users },
 ];
 
 interface Props {

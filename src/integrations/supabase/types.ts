@@ -217,26 +217,32 @@ export type Database = {
       members: {
         Row: {
           created_at: string
+          daily_limit: number | null
           enterprise_id: string
           id: string
           organization_id: string | null
           role: string
+          status: string
           user_phone: string
         }
         Insert: {
           created_at?: string
+          daily_limit?: number | null
           enterprise_id: string
           id?: string
           organization_id?: string | null
           role?: string
+          status?: string
           user_phone: string
         }
         Update: {
           created_at?: string
+          daily_limit?: number | null
           enterprise_id?: string
           id?: string
           organization_id?: string | null
           role?: string
+          status?: string
           user_phone?: string
         }
         Relationships: [
