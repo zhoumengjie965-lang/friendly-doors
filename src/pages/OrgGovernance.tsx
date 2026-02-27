@@ -166,31 +166,47 @@ export default function OrgGovernance({ enterprise, role }: Props) {
   async function addMember() {
     if (!addPhone.trim()) { toast({ title: "请输入手机号", variant: "destructive" }); return; }
     setSaving(true);
-    // Check if user exists
+
+    // Check if already a member of this enterprise
     const { data: existing } = await supabase
       .from("members")
-      .select("id")
+      .select("id, organization_id")
       .eq("enterprise_id", enterprise.id)
       .eq("user_phone", addPhone.trim())
       .maybeSingle();
+
     if (existing) {
-      toast({ title: "该成员已在企业中", variant: "destructive" });
-      setSaving(false);
-      return;
+      if (existing.organization_id === selectedOrgId) {
+        toast({ title: "该成员已在本组织中", variant: "destructive" });
+        setSaving(false);
+        return;
+      }
+      // Existing enterprise member → add directly as active
+      await supabase.from("members").insert({
+        enterprise_id: enterprise.id,
+        organization_id: selectedOrgId,
+        user_phone: addPhone.trim(),
+        role: addRole,
+        daily_limit: Number(addLimit),
+        status: "active",
+      });
+      toast({ title: "成员已添加" });
+    } else {
+      // New user → create invitation, show as 邀请中
+      await supabase.from("invitations").insert({
+        enterprise_id: enterprise.id,
+        organization_id: selectedOrgId,
+        inviter_phone: phone ?? "",
+        invitee_phone: addPhone.trim(),
+        invited_role: addRole,
+      });
+      toast({ title: "邀请已发送", description: "对方接受邀请后将出现在成员列表" });
     }
-    await supabase.from("members").insert({
-      enterprise_id: enterprise.id,
-      organization_id: selectedOrgId,
-      user_phone: addPhone.trim(),
-      role: addRole,
-      daily_limit: Number(addLimit),
-      status: "active",
-    });
+
     setSaving(false);
     setShowAdd(false);
     setAddPhone(""); setAddRole("member"); setAddLimit("2000");
     fetchMembers();
-    toast({ title: "成员已添加" });
   }
 
   async function generateInviteLink() {
