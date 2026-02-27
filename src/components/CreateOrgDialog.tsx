@@ -8,6 +8,7 @@ import { Label } from "@/components/ui/label";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { getCurrentPhone } from "@/lib/auth";
+import { Link, Copy, Check } from "lucide-react";
 
 interface Props {
   open: boolean;
@@ -22,8 +23,48 @@ export default function CreateOrgDialog({ open, onOpenChange, enterpriseId, exis
   const [adminPhone, setAdminPhone] = useState("");
   const [monthlyBudget, setMonthlyBudget] = useState("");
   const [loading, setLoading] = useState(false);
+  const [inviteLink, setInviteLink] = useState("");
+  const [inviteId, setInviteId] = useState("");
+  const [generatingLink, setGeneratingLink] = useState(false);
+  const [copied, setCopied] = useState(false);
   const { toast } = useToast();
   const phone = getCurrentPhone();
+
+  const handleGenerateLink = async () => {
+    setGeneratingLink(true);
+    try {
+      const { data: inv, error } = await supabase
+        .from("invitations")
+        .insert({
+          enterprise_id: enterpriseId,
+          organization_id: null,
+          inviter_phone: phone!,
+          invited_role: "org_admin",
+          max_uses: 1,
+        } as any)
+        .select()
+        .single();
+      if (error || !inv) throw error || new Error("生成失败");
+      const link = `${window.location.origin}/workspace/join?code=${inv.invite_code}`;
+      setInviteLink(link);
+      setInviteId(inv.id);
+      setAdminPhone(""); // mutual exclusion
+      await navigator.clipboard.writeText(link);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+      toast({ title: "邀请链接已生成并复制到剪贴板" });
+    } catch (e: any) {
+      toast({ title: "生成失败", description: e?.message, variant: "destructive" });
+    } finally {
+      setGeneratingLink(false);
+    }
+  };
+
+  const handleCopyLink = async () => {
+    await navigator.clipboard.writeText(inviteLink);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
 
   const handleCreate = async () => {
     if (!orgName.trim()) {
@@ -32,7 +73,6 @@ export default function CreateOrgDialog({ open, onOpenChange, enterpriseId, exis
     }
     setLoading(true);
     try {
-      // 1. Create org
       const { data: org, error: orgErr } = await supabase
         .from("organizations")
         .insert({
@@ -45,18 +85,16 @@ export default function CreateOrgDialog({ open, onOpenChange, enterpriseId, exis
         .single();
       if (orgErr || !org) throw orgErr || new Error("创建失败");
 
-      // 2. Handle admin assignment
+      // Handle admin via phone
       if (adminPhone.trim()) {
         const existingMember = existingMembers.find(m => m.user_phone === adminPhone.trim());
         if (existingMember) {
-          // Update existing member to org_admin
           await supabase
             .from("members")
             .update({ role: "org_admin", organization_id: org.id } as any)
             .eq("user_phone", adminPhone.trim())
             .eq("enterprise_id", enterpriseId);
         } else {
-          // Create invitation with org_admin role
           await supabase.from("invitations").insert({
             enterprise_id: enterpriseId,
             organization_id: org.id,
@@ -68,8 +106,16 @@ export default function CreateOrgDialog({ open, onOpenChange, enterpriseId, exis
         }
       }
 
+      // Link pre-generated invite link to the new org
+      if (inviteId && !adminPhone.trim()) {
+        await supabase
+          .from("invitations")
+          .update({ organization_id: org.id } as any)
+          .eq("id", inviteId);
+      }
+
       toast({ title: "创建成功", description: `组织「${orgName}」已创建` });
-      setOrgName(""); setAdminPhone(""); setMonthlyBudget("");
+      setOrgName(""); setAdminPhone(""); setMonthlyBudget(""); setInviteLink(""); setInviteId("");
       onCreated();
       onOpenChange(false);
     } catch (e: any) {
@@ -78,6 +124,8 @@ export default function CreateOrgDialog({ open, onOpenChange, enterpriseId, exis
       setLoading(false);
     }
   };
+
+  const isExistingMember = adminPhone.trim() && existingMembers.find(m => m.user_phone === adminPhone.trim());
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -93,19 +141,63 @@ export default function CreateOrgDialog({ open, onOpenChange, enterpriseId, exis
             <Input placeholder="请输入组织名称" value={orgName} onChange={e => setOrgName(e.target.value)} />
           </div>
 
-          <div className="space-y-2">
-            <Label>组织管理员手机号 <span className="text-muted-foreground text-xs">（可选）</span></Label>
-            <Input
-              placeholder="现有成员或新手机号（将收到邀请）"
-              value={adminPhone}
-              onChange={e => setAdminPhone(e.target.value)}
-            />
-            {adminPhone.trim() && (
-              <p className="text-xs text-muted-foreground">
-                {existingMembers.find(m => m.user_phone === adminPhone.trim())
-                  ? "✓ 企业现有成员，将直接设为组织管理员"
-                  : "→ 非企业成员，将发送邀请并设为组织管理员"}
-              </p>
+          <div className="space-y-3">
+            <Label>指定组织管理员 <span className="text-muted-foreground text-xs">（可选）</span></Label>
+
+            {/* Phone input */}
+            <div className="space-y-1.5">
+              <Input
+                placeholder="请输入手机号"
+                value={adminPhone}
+                onChange={e => { setAdminPhone(e.target.value); if (e.target.value) { setInviteLink(""); setInviteId(""); } }}
+              />
+              {adminPhone.trim() && (
+                <p className={`text-xs ${isExistingMember ? "text-primary" : "text-muted-foreground"}`}>
+                  {isExistingMember
+                    ? "✓ 企业现有成员，将直接设为组织管理员"
+                    : "→ 将发送邀请并设为组织管理员"}
+                </p>
+              )}
+            </div>
+
+            {/* Divider */}
+            <div className="flex items-center gap-3">
+              <div className="flex-1 h-px bg-border" />
+              <span className="text-xs text-muted-foreground">或</span>
+              <div className="flex-1 h-px bg-border" />
+            </div>
+
+            {/* Invite link */}
+            {!inviteLink ? (
+              <Button
+                type="button"
+                variant="outline"
+                className="w-full"
+                onClick={handleGenerateLink}
+                disabled={generatingLink || !!adminPhone.trim()}
+              >
+                <Link className="h-4 w-4 mr-2" />
+                {generatingLink ? "生成中..." : "生成邀请链接"}
+              </Button>
+            ) : (
+              <div className="space-y-1.5">
+                <div className="flex gap-2">
+                  <Input value={inviteLink} readOnly className="text-xs" />
+                  <Button type="button" variant="outline" size="icon" onClick={handleCopyLink}>
+                    {copied ? <Check className="h-4 w-4 text-green-600" /> : <Copy className="h-4 w-4" />}
+                  </Button>
+                </div>
+                <p className="text-xs text-muted-foreground">链接已生成，创建组织后自动关联。角色：组织管理员</p>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="text-xs h-auto p-0 text-muted-foreground"
+                  onClick={() => { setInviteLink(""); setInviteId(""); }}
+                >
+                  重新生成
+                </Button>
+              </div>
             )}
           </div>
 
