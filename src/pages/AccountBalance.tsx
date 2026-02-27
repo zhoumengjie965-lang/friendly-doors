@@ -10,7 +10,8 @@ import { Label } from "@/components/ui/label";
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
-import { Wallet, TrendingUp, Activity, Search, Ticket, Mail, MessageSquare, ChevronLeft, ChevronRight, Inbox } from "lucide-react";
+import { Wallet, TrendingUp, Activity, Ticket, Mail, MessageSquare, ChevronLeft, ChevronRight, Inbox } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
 
 interface Enterprise { id: string; name: string; enterprise_code: string }
@@ -50,8 +51,7 @@ export default function AccountBalance({ enterprise, role }: Props) {
   const [records, setRecords] = useState<BalanceRecord[]>([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
-  const [search, setSearch] = useState("");
-  const [searchInput, setSearchInput] = useState("");
+  const [typeFilter, setTypeFilter] = useState("all");
   const [loading, setLoading] = useState(true);
 
   // Alert settings
@@ -99,8 +99,8 @@ export default function AccountBalance({ enterprise, role }: Props) {
       .order("created_at", { ascending: false })
       .range((page - 1) * PAGE_SIZE, page * PAGE_SIZE - 1);
 
-    if (search) {
-      query = query.ilike("id", `%${search}%`);
+    if (typeFilter !== "all") {
+      query = query.eq("type", typeFilter);
     }
 
     const { data, count, error } = await query;
@@ -120,7 +120,7 @@ export default function AccountBalance({ enterprise, role }: Props) {
 
   useEffect(() => {
     fetchRecords();
-  }, [enterprise.id, page, search]);
+  }, [enterprise.id, page, typeFilter]);
 
   const handleSaveAlert = async () => {
     if (!balanceData) return;
@@ -261,41 +261,30 @@ export default function AccountBalance({ enterprise, role }: Props) {
 
       {/* Alert Settings - admin only */}
       {isAdmin && (
-        <div className="bg-card border border-border rounded-xl p-4">
-          <h2 className="font-semibold text-foreground mb-3">余额预警设置</h2>
-          <div className="flex gap-6 items-start">
-            {/* Left: notification method + email stacked */}
-            <div className="space-y-3 flex-1">
-              <div className="space-y-1">
-                <Label className="text-xs text-muted-foreground">通知方式</Label>
-                <RadioGroup value={alertMethod} onValueChange={setAlertMethod} className="flex gap-3">
-                  <div className="flex items-center gap-1.5">
-                    <RadioGroupItem value="email" id="method-email" />
-                    <Label htmlFor="method-email" className="flex items-center gap-1 cursor-pointer text-sm">
-                      <Mail className="w-3 h-3" /> 邮件通知
-                    </Label>
-                  </div>
-                  <div className="flex items-center gap-1.5">
-                    <RadioGroupItem value="sms" id="method-sms" />
-                    <Label htmlFor="method-sms" className="flex items-center gap-1 cursor-pointer text-sm">
-                      <MessageSquare className="w-3 h-3" /> 短信通知
-                    </Label>
-                  </div>
-                </RadioGroup>
-              </div>
-              <div className="space-y-1">
-                <Label className="text-xs text-muted-foreground">通知邮箱</Label>
-                <Input
-                  placeholder="留空则使用账号绑定邮箱"
-                  value={alertEmail}
-                  onChange={(e) => setAlertEmail(e.target.value)}
-                  className="h-8 text-sm"
-                />
-              </div>
+        <div className="bg-card border border-border rounded-xl p-5">
+          <h2 className="font-semibold text-foreground mb-4">余额预警设置</h2>
+          <div className="grid grid-cols-2 gap-x-8 gap-y-3 items-end">
+            {/* Row 1 left: notification method */}
+            <div className="space-y-1.5">
+              <Label className="text-xs text-muted-foreground">通知方式</Label>
+              <RadioGroup value={alertMethod} onValueChange={setAlertMethod} className="flex gap-4">
+                <div className="flex items-center gap-1.5">
+                  <RadioGroupItem value="email" id="method-email" />
+                  <Label htmlFor="method-email" className="flex items-center gap-1 cursor-pointer text-sm">
+                    <Mail className="w-3.5 h-3.5" /> 邮件通知
+                  </Label>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <RadioGroupItem value="sms" id="method-sms" />
+                  <Label htmlFor="method-sms" className="flex items-center gap-1 cursor-pointer text-sm">
+                    <MessageSquare className="w-3.5 h-3.5" /> 短信通知
+                  </Label>
+                </div>
+              </RadioGroup>
             </div>
 
-            {/* Right: threshold by amount */}
-            <div className="space-y-1 flex-1">
+            {/* Row 1 right: threshold amount */}
+            <div className="space-y-1.5">
               <Label className="text-xs text-muted-foreground">预警金额（元）</Label>
               <Input
                 type="number"
@@ -307,17 +296,30 @@ export default function AccountBalance({ enterprise, role }: Props) {
                   const yuan = parseFloat(e.target.value);
                   setAlertThreshold(isNaN(yuan) ? "" : String(Math.round(yuan / 0.01)));
                 }}
-                className="h-8 text-sm"
+                className="h-9 text-sm"
               />
               <p className="text-xs text-muted-foreground">
                 {alertThreshold ? `等同于 ${alertThreshold} 额度` : "1 额度 = ¥0.01"}
               </p>
             </div>
 
-            {/* Save button bottom-right */}
-            <Button onClick={handleSaveAlert} disabled={savingAlert} size="sm" className="self-end">
-              {savingAlert ? "保存中..." : "保存设置"}
-            </Button>
+            {/* Row 2 left: email */}
+            <div className="space-y-1.5">
+              <Label className="text-xs text-muted-foreground">通知邮箱</Label>
+              <Input
+                placeholder="留空则使用账号绑定邮箱"
+                value={alertEmail}
+                onChange={(e) => setAlertEmail(e.target.value)}
+                className="h-9 text-sm"
+              />
+            </div>
+
+            {/* Row 2 right: save button bottom-aligned */}
+            <div className="flex justify-end">
+              <Button onClick={handleSaveAlert} disabled={savingAlert}>
+                {savingAlert ? "保存中..." : "保存设置"}
+              </Button>
+            </div>
           </div>
         </div>
       )}
@@ -326,21 +328,16 @@ export default function AccountBalance({ enterprise, role }: Props) {
       <div className="bg-card border border-border rounded-xl p-6 space-y-4">
         <div className="flex items-center justify-between gap-4 flex-wrap">
           <h2 className="font-semibold text-foreground">充值记录</h2>
-          <div className="flex items-center gap-2">
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-              <Input
-                placeholder="搜索订单号..."
-                className="pl-9 w-52"
-                value={searchInput}
-                onChange={(e) => setSearchInput(e.target.value)}
-                onKeyDown={(e) => { if (e.key === "Enter") { setSearch(searchInput); setPage(1); } }}
-              />
-            </div>
-            <Button variant="outline" size="sm" onClick={() => { setSearch(searchInput); setPage(1); }}>
-              搜索
-            </Button>
-          </div>
+          <Select value={typeFilter} onValueChange={(v) => { setTypeFilter(v); setPage(1); }}>
+            <SelectTrigger className="w-36 h-8 text-sm">
+              <SelectValue placeholder="筛选类型" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">全部类型</SelectItem>
+              <SelectItem value="redeem_code">兑换码充值</SelectItem>
+              <SelectItem value="manual">后台充值</SelectItem>
+            </SelectContent>
+          </Select>
         </div>
 
         <div className="rounded-lg border border-border overflow-hidden">
