@@ -1,74 +1,132 @@
 
-# 完善「创建组织」弹窗的邀请管理员功能
+# 成员管理「邀请中」状态增强方案
 
-## 当前问题
+## 核心目标
 
-`CreateOrgDialog.tsx` 的"组织管理员手机号"字段功能较弱：
-- 只能输入手机号，没有生成邀请链接的选项
-- 对于非企业成员，只是静默插入一条 invitation 记录，用户无法复制链接发给对方
-- 没有角色选择（固定为 org_admin，但 UI 不直观）
+在组织治理的成员管理表格中，将**待接受邀请的用户**作为独立行展示，配有橙色「邀请中」状态标签，并支持管理员一键撤回或重新发送邀请。
 
-## 目标
+---
 
-对齐组织治理中"添加成员"弹窗的交互模式，让创建组织时指定管理员的体验一致。
+## 数据模型理解
 
-## 改动方案
+当前表格只显示 `members` 表的数据（已加入成员）。邀请中的用户存在于 `invitations` 表但尚未出现在 `members` 表。
 
-### 重构 `CreateOrgDialog.tsx` 中的管理员邀请区域
+需要在同一个表格中**合并展示**两类数据：
+- `members` 表：已加入成员（正常 / 禁用）
+- `invitations` 表：邀请中（`status = 'pending'`，未过期，且 `organization_id` = 当前组织）
 
-将现有的单一文本输入框替换为与组织治理一致的双模式输入：
+---
 
-**方式一：手机号直接邀请**
-- 输入框：`请输入手机号`
-- 智能提示：
-  - 若为企业现有成员 → `✓ 企业现有成员，将直接设为组织管理员`
-  - 若为新手机号 → `→ 将发送邀请并设为组织管理员`
+## 视觉设计
 
-**分隔线：`—— 或 ——`**
+### 状态标签对比
 
-**方式二：生成邀请链接**
-- 按钮：`🔗 生成邀请链接`（点击后调用 Supabase 生成 invite_code，链接自动复制到剪贴板）
-- 生成后显示链接文本框（可二次复制）
-- 链接对应角色固定为 `org_admin`
+| 状态 | 颜色 | 样式 |
+|------|------|------|
+| 正常 | 绿色 | 绿色边框 + 绿色文字 |
+| 禁用 | 灰色 | 灰色边框 + 灰色文字 |
+| **邀请中** | 橙色/黄色 | 橙色边框 + 橙色文字 |
 
-### 逻辑调整
+### 邀请中行的额外细节
+- **成员列**：显示被邀请手机号（`invitee_phone`），若是链接邀请（invitee_phone 为空）显示「链接邀请」
+- **角色列**：显示 `invited_role` 对应的角色标签
+- **今日消耗 / 本月消耗 / 单日上限**：均显示 `—`
+- **状态列**：
+  - 橙色「邀请中」Badge
+  - Badge 下方一行灰色小字：
+    - 链接邀请 → `链接 Xh 后过期`（动态计算剩余小时）
+    - 手机号邀请 → `邀请 X 天前发送`
 
-- **生成邀请链接**时：直接创建 invitation 记录（invited_role = org_admin），不需要先填写手机号
-- **填写手机号时**：保持原逻辑（现有成员直接升级，新用户创建 invitation）
-- 两种方式互斥：填了手机号则不用生成链接，生成了链接则手机号置空
-- 创建组织时，如果手机号为空但已生成邀请链接，则创建时先创建 org，然后更新该 invitation 的 organization_id
+### 操作菜单（邀请中行）
+与已加入成员不同，邀请中行的 `…` 菜单显示：
+- **撤回邀请**（红色，删除该 invitation 记录）
+- **重新发送** → 对于手机号邀请：重置 `expires_at`（延长 7 天）并 toast 提示；对于链接邀请：重新复制链接到剪贴板
 
-### 注意
+---
 
-- 邀请链接的生成**在点击"创建组织"按钮之前**也可以触发（提前生成），但需要先有 org_id，所以实现上：点击"生成邀请链接"时先创建 org，再生成链接，再展示链接并允许继续（**改为**：生成临时邀请记录，organization_id 留 null，创建 org 后再 update）
-- 更简单的方案：生成邀请链接按钮只在点击"创建组织"之后触发（在成功回调里生成），或者先创建组织，再生成链接。为了 UX 流畅，采用**先生成 invitation（organization_id=null）→ 显示链接 → 创建组织时 update organization_id**的方式。
+## 技术实现
+
+### 1. 新增数据类型
+
+```typescript
+interface PendingInvite {
+  id: string;
+  invitee_phone: string | null;
+  invited_role: string;
+  invite_code: string;
+  expires_at: string;
+  created_at: string;
+}
+```
+
+### 2. fetchMembers 同时拉取 invitations
+
+在 `fetchMembers()` 中新增一个查询，获取当前组织中 `status = 'pending'` 且 `expires_at > now` 的邀请记录，存入 `pendingInvites` state。
+
+```typescript
+const { data: invData } = await supabase
+  .from("invitations")
+  .select("*")
+  .eq("organization_id", selectedOrgId)
+  .eq("status", "pending")
+  .gt("expires_at", new Date().toISOString());
+setPendingInvites(invData ?? []);
+```
+
+### 3. 撤回邀请
+
+```typescript
+async function revokeInvite(inviteId: string) {
+  await supabase.from("invitations").update({ status: "revoked" }).eq("id", inviteId);
+  fetchMembers();
+  toast({ title: "邀请已撤回" });
+}
+```
+
+### 4. 重新发送
+
+```typescript
+async function resendInvite(inv: PendingInvite) {
+  if (inv.invitee_phone) {
+    // 手机号邀请：延长有效期
+    await supabase.from("invitations")
+      .update({ expires_at: new Date(Date.now() + 7*24*60*60*1000).toISOString() })
+      .eq("id", inv.id);
+    toast({ title: "邀请已重新发送", description: `有效期延长至 7 天后` });
+  } else {
+    // 链接邀请：复制链接
+    const link = `${window.location.origin}/workspace/join?code=${inv.invite_code}`;
+    await navigator.clipboard.writeText(link);
+    toast({ title: "邀请链接已复制" });
+  }
+}
+```
+
+### 5. 过期时间计算
+
+```typescript
+function formatExpiry(expiresAt: string): string {
+  const hours = Math.round((new Date(expiresAt).getTime() - Date.now()) / 3600000);
+  if (hours <= 0) return "已过期";
+  if (hours < 24) return `链接 ${hours}h 后过期`;
+  return `链接 ${Math.round(hours / 24)} 天后过期`;
+}
+```
+
+### 6. 表格渲染
+
+在 `members.map(...)` 之后，追加 `pendingInvites.map(...)` 渲染邀请行，两者共享同一 `<TableBody>`，视觉上连续。
+
+---
 
 ## 改动范围
 
-仅修改一个文件：**`src/components/CreateOrgDialog.tsx`**
+**仅修改一个文件**：`src/pages/OrgGovernance.tsx`
 
-## 新增状态
+- 新增 `pendingInvites` state 和 `PendingInvite` interface
+- `fetchMembers()` 中增加 invitations 查询
+- 新增 `revokeInvite()`、`resendInvite()`、`formatExpiry()` 函数
+- `statusBadge` 增加邀请中样式
+- 表格 `TableBody` 中追加邀请行渲染（含过期小字 + 操作菜单）
 
-```typescript
-const [inviteLink, setInviteLink] = useState("");
-const [inviteId, setInviteId] = useState("");  // 记录预生成的 invitation id
-const [generatingLink, setGeneratingLink] = useState(false);
-```
-
-## 核心 UI 结构
-
-```
-组织名称 [必填]
-────────────────────────
-组织管理员手机号（可选）
-[输入框] 现有成员或新手机号
-
-────── 或 ──────
-
-[🔗 生成邀请链接] 按钮
-[展示生成的链接 + 已复制提示]
-────────────────────────
-默认月预算（元）（可选）
-────────────────────────
-[取消]  [创建组织]
-```
+无数据库结构变更，无新文件。
