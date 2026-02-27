@@ -5,6 +5,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { getCurrentPhone } from "@/lib/auth";
@@ -21,6 +22,7 @@ interface Props {
 export default function CreateOrgDialog({ open, onOpenChange, enterpriseId, existingMembers, onCreated }: Props) {
   const [orgName, setOrgName] = useState("");
   const [adminPhone, setAdminPhone] = useState("");
+  const [inviteRole, setInviteRole] = useState<"org_admin" | "member">("org_admin");
   const [monthlyBudget, setMonthlyBudget] = useState("");
   const [loading, setLoading] = useState(false);
   const [inviteLink, setInviteLink] = useState("");
@@ -39,7 +41,7 @@ export default function CreateOrgDialog({ open, onOpenChange, enterpriseId, exis
           enterprise_id: enterpriseId,
           organization_id: null,
           inviter_phone: phone!,
-          invited_role: "org_admin",
+          invited_role: inviteRole,
           max_uses: 1,
         } as any)
         .select()
@@ -100,7 +102,7 @@ export default function CreateOrgDialog({ open, onOpenChange, enterpriseId, exis
             organization_id: org.id,
             inviter_phone: phone!,
             invitee_phone: adminPhone.trim(),
-            invited_role: "org_admin",
+            invited_role: inviteRole,
             max_uses: 1,
           } as any);
         }
@@ -142,20 +144,31 @@ export default function CreateOrgDialog({ open, onOpenChange, enterpriseId, exis
           </div>
 
           <div className="space-y-3">
-            <Label>指定组织管理员 <span className="text-muted-foreground text-xs">（可选）</span></Label>
+            <Label>邀请初始成员 <span className="text-muted-foreground text-xs">（可选）</span></Label>
 
-            {/* Phone input */}
+            {/* Phone input + role select */}
             <div className="space-y-1.5">
-              <Input
-                placeholder="请输入手机号"
-                value={adminPhone}
-                onChange={e => { setAdminPhone(e.target.value); if (e.target.value) { setInviteLink(""); setInviteId(""); } }}
-              />
+              <div className="flex gap-2">
+                <Input
+                  placeholder="请输入手机号"
+                  value={adminPhone}
+                  onChange={e => { setAdminPhone(e.target.value); if (e.target.value) { setInviteLink(""); setInviteId(""); } }}
+                />
+                <Select value={inviteRole} onValueChange={v => setInviteRole(v as "org_admin" | "member")}>
+                  <SelectTrigger className="w-32 shrink-0">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="org_admin">管理员</SelectItem>
+                    <SelectItem value="member">普通成员</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
               {adminPhone.trim() && (
                 <p className={`text-xs ${isExistingMember ? "text-primary" : "text-muted-foreground"}`}>
                   {isExistingMember
-                    ? "✓ 企业现有成员，将直接设为组织管理员"
-                    : "→ 将发送邀请并设为组织管理员"}
+                    ? `✓ 企业现有成员，将直接设为${inviteRole === "org_admin" ? "组织管理员" : "普通成员"}`
+                    : `→ 将发送邀请并设为${inviteRole === "org_admin" ? "组织管理员" : "普通成员"}`}
                 </p>
               )}
             </div>
@@ -184,10 +197,10 @@ export default function CreateOrgDialog({ open, onOpenChange, enterpriseId, exis
                 <div className="flex gap-2">
                   <Input value={inviteLink} readOnly className="text-xs" />
                   <Button type="button" variant="outline" size="icon" onClick={handleCopyLink}>
-                    {copied ? <Check className="h-4 w-4 text-green-600" /> : <Copy className="h-4 w-4" />}
+                    {copied ? <Check className="h-4 w-4 text-primary" /> : <Copy className="h-4 w-4" />}
                   </Button>
                 </div>
-                <p className="text-xs text-muted-foreground">链接已生成，创建组织后自动关联。角色：组织管理员</p>
+                <p className="text-xs text-muted-foreground">链接已生成，创建组织后自动关联。角色：{inviteRole === "org_admin" ? "组织管理员" : "普通成员"}</p>
                 <Button
                   type="button"
                   variant="ghost"
