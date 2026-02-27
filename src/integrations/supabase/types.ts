@@ -92,6 +92,7 @@ export type Database = {
           expires_at: string
           id: string
           invite_code: string
+          invited_role: string
           invitee_phone: string | null
           inviter_phone: string
           max_uses: number
@@ -105,6 +106,7 @@ export type Database = {
           expires_at?: string
           id?: string
           invite_code?: string
+          invited_role?: string
           invitee_phone?: string | null
           inviter_phone: string
           max_uses?: number
@@ -118,6 +120,7 @@ export type Database = {
           expires_at?: string
           id?: string
           invite_code?: string
+          invited_role?: string
           invitee_phone?: string | null
           inviter_phone?: string
           max_uses?: number
@@ -186,22 +189,34 @@ export type Database = {
       }
       organizations: {
         Row: {
+          admin_phone: string | null
           created_at: string
+          current_month_budget: number | null
           enterprise_id: string
           id: string
+          monthly_budget: number | null
           name: string
+          status: string
         }
         Insert: {
+          admin_phone?: string | null
           created_at?: string
+          current_month_budget?: number | null
           enterprise_id: string
           id?: string
+          monthly_budget?: number | null
           name: string
+          status?: string
         }
         Update: {
+          admin_phone?: string | null
           created_at?: string
+          current_month_budget?: number | null
           enterprise_id?: string
           id?: string
+          monthly_budget?: number | null
           name?: string
+          status?: string
         }
         Relationships: [
           {

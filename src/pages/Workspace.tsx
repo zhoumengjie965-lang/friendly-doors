@@ -4,6 +4,7 @@ import { getCurrentPhone, getUserEnterprises, clearCurrentPhone } from "@/lib/au
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import WorkspaceSidebar from "@/components/WorkspaceSidebar";
 import EnterpriseInfo from "@/pages/EnterpriseInfo";
+import OrgManagement from "@/pages/OrgManagement";
 import { Building2, Users, Key, Link, TrendingUp, LogOut, ChevronDown } from "lucide-react";
 
 interface Enterprise {
@@ -122,6 +123,8 @@ export default function Workspace() {
           <div className="flex-1 p-6 bg-background overflow-auto">
             {location.pathname === "/workspace/enterprise/info" ? (
               <EnterpriseInfo enterprise={enterprise} role={role} />
+            ) : location.pathname === "/workspace/enterprise/orgs" ? (
+              <OrgManagement enterprise={enterprise} role={role} />
             ) : (
               <>
                 {/* Welcome */}
