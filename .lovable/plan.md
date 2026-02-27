@@ -1,115 +1,101 @@
 
-# 组织管理页面实现方案
+# 账户余额页面实现方案
 
-## 背景与确认信息
-根据用户回答：
-- **顶部统计**：组织数和成员数读真实值，API Key 显示 `—`
-- **组织管理员角色**：三级角色体系（企业管理员 / 组织管理员 / 普通成员），创建邀请时可指定目标角色为组织管理员
-- **预算存储**：直接加在 `organizations` 表（简洁方案）
-- **危险操作权限**：仅企业管理员
-- **status 字段**：确认添加启用/禁用状态
+## 页面结构（基于图1 PRD 和图3 UI 参考）
+
+### 一、顶部余额总览卡片（蓝色渐变背景，参考图3）
+蓝绿渐变大横幅卡片，与图3保持一致风格：
+- **当前可用余额**（主视觉，大号字体，¥0.00）
+- **历史消耗**（¥0.00）
+- **请求次数**（0，占位，待接入）
+- **右侧按钮：兑换码充值**（白色按钮）
+
+### 二、余额预警设置区域（图2 + 图4）
+仅企业管理员（role=admin）可见：
+- **通知方式**：单选，邮件通知 / 短信通知
+- **额度预警阈值**：数字输入，旁边显示等价金额（按固定比率换算，1额度=¥0.01）
+- **通知邮箱**：文本输入，留空则使用账号绑定邮箱（placeholder提示）
+- **保存**按钮
+
+### 三、充值记录列表（图1 + 图3 的充值账单）
+- 搜索框（按订单号搜索）
+- 表格列：**时间 / 类型（兑换码充值/后台充值）/ 金额 / 操作人 / 备注**
+- 无数据时展示空状态插图 + "暂无数据"
+- 分页支持
 
 ---
 
-## 1. 数据库变更（迁移脚本）
+## 数据库变更（需要新建两张表）
 
-### organizations 表新增字段
-
+### 1. `enterprise_balances` 表（企业账户余额）
 | 字段 | 类型 | 说明 |
 |------|------|------|
-| status | text | 'active' / 'disabled'，默认 'active' |
-| monthly_budget | numeric | 默认月预算（元），可为 null 表示不限 |
-| current_month_budget | numeric | 当前月预算覆盖，可为 null 表示使用默认值 |
-| admin_phone | text | 组织管理员手机号，可为 null |
+| id | uuid | 主键 |
+| enterprise_id | uuid | 关联企业（唯一） |
+| balance | numeric | 当前可用余额（元），默认 0 |
+| total_consumed | numeric | 累计消耗，默认 0 |
+| request_count | integer | 请求次数（占位），默认 0 |
+| alert_threshold | numeric | 预警阈值，默认 null |
+| alert_email | text | 预警邮箱，默认 null |
+| alert_method | text | 通知方式 'email'/'sms'，默认 'email' |
+| updated_at | timestamptz | 更新时间 |
+| created_at | timestamptz | 创建时间 |
 
-### organizations 表新增 RLS 策略
+### 2. `balance_records` 表（充值记录）
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| id | uuid | 主键 |
+| enterprise_id | uuid | 关联企业 |
+| type | text | 'redeem_code' / 'manual' |
+| amount | numeric | 充值金额 |
+| operator | text | 操作人（手机号或名称） |
+| remark | text | 备注 |
+| created_at | timestamptz | 充值时间 |
 
-- **UPDATE**：任何人都可以（与现有其他表保持一致，auth 由 app.current_phone 控制）
-- **DELETE**：任何人都可以
+### 3. `redeem_codes` 表（兑换码）
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| id | uuid | 主键 |
+| code | text | 兑换码（唯一索引） |
+| amount | numeric | 面值金额 |
+| status | text | 'unused'/'used' |
+| used_by | text | 使用者手机号 |
+| used_at | timestamptz | 使用时间 |
+| created_at | timestamptz | 创建时间 |
 
-### members 表：角色值扩展
-`role` 字段支持 'admin'（企业管理员）、'org_admin'（组织管理员）、'member'（普通成员）。现有字段无需变更，只是增加新的 role 值。
-
----
-
-## 2. 页面结构（图1 - 主页面）
-
-### 顶部统计栏（3个卡片）
-- **组织总数**：从 organizations 表 count
-- **企业成员数**：从 members 表 count（当前企业）
-- **API Key 数**：显示 `—`（待实现）
-
-### 组织列表表格
-每行显示：
-
-| 列名 | 内容 |
-|------|------|
-| 组织名称 | 文字 |
-| 组织管理员 | 手机号 / 未设置 |
-| 成员数 | 该组织下 members 数量 |
-| 月预算 | 数字 + 设置图标按钮（点击弹出抽屉） |
-| 状态 | 启用/禁用 Badge |
-| 操作 | 管理按钮（下拉菜单） |
-
-### 右上角：创建组织按钮（仅企业管理员可见）
-
----
-
-## 3. 创建组织弹窗（图2）
-
-表单字段：
-- **组织名称**（必填）
-- **组织管理员**（可选，手机号输入，支持从现有企业成员中选择，或填写新成员手机号——新成员会收到邀请）
-- **默认月预算**（可选，数字输入，为空表示不限制）
-
-提交逻辑：
-1. 创建 organizations 记录（含 admin_phone、monthly_budget）
-2. 若 admin_phone 是现有成员：更新其 `role` 为 `org_admin`，`organization_id` 指向新组织
-3. 若 admin_phone 是新人：创建 invitations 记录，role 字段标记为 `org_admin`，等待对方接受时自动赋予组织管理员角色
+RLS 策略：三张表均沿用项目现有"Anyone can ..."模式。
 
 ---
 
-## 4. 管理按钮下拉菜单（图3）
-
-点击每行最右侧"管理"按钮，显示操作列表：
-- **编辑组织名称**：弹出简单输入框修改名称
-- **设置组织管理员**：弹出对话框，从现有成员选择或邀请新成员
-- **启用 / 禁用**：切换 status 字段（仅企业管理员，禁用后成员仍存在但标记禁用）
-- **删除组织**：二次确认 AlertDialog，确认后删除（仅企业管理员，若为默认组织则提示不可删除）
-
----
-
-## 5. 预算设置抽屉（图4）
-
-从右侧滑入（Sheet 组件），包含：
-- **默认月预算**：数字输入框（元/月，空=不限）
-- **当前月预算覆盖**：可临时覆盖本月预算（空=使用默认值）
-- **保存**按钮：更新 organizations 表
+## 兑换码充值弹窗
+点击"兑换码充值"按钮：
+- 弹出 Dialog
+- 输入兑换码
+- 提交后查询 `redeem_codes`：验证存在且未使用
+- 成功则：更新 redeem_codes.status='used'，在 balance_records 插入一条记录，更新 enterprise_balances.balance += amount
+- 失败则提示"兑换码无效或已使用"
 
 ---
 
-## 6. 路由集成
-
-在 `src/pages/Workspace.tsx` 中新增路由匹配：
+## 路由集成
+在 `Workspace.tsx` 中新增：
 ```
-/workspace/enterprise/orgs → <OrgManagement enterprise={enterprise} role={role} />
+/workspace/enterprise/balance → <AccountBalance enterprise={enterprise} role={role} />
 ```
 
 ---
 
-## 7. 新建文件
-
+## 新建文件
 | 文件 | 说明 |
 |------|------|
-| `src/pages/OrgManagement.tsx` | 主页面：统计卡片 + 组织列表表格 |
-| `src/components/CreateOrgDialog.tsx` | 创建组织弹窗 |
-| `src/components/OrgBudgetSheet.tsx` | 预算设置抽屉 |
+| `src/pages/AccountBalance.tsx` | 账户余额主页面 |
+| `supabase/migrations/...` | 三张新表的建表 SQL |
 
 ---
 
-## 8. 关键边界处理
-
-- 默认组织（名为"默认组织"或第一个创建的）不允许删除
-- 禁用组织后，列表中该行 status badge 变为灰色"已禁用"
-- 若邀请的组织管理员尚未注册，invitations 记录保存后会在对方首次登录并接受邀请时赋予 org_admin 角色（需修改 `acceptInvitation` 逻辑以读取 invitations 表中携带的 role 字段）
-- 仅企业管理员（role=admin）可见创建/编辑/删除/启用禁用按钮；组织管理员仅可查看自己管辖的组织信息
+## 关键细节
+- 顶部卡片蓝绿渐变样式与图3完全一致（复用 Workspace 首页的渐变风格）
+- 预警阈值输入框旁实时显示"等价金额：¥X.XX"（1额度=¥0.01）
+- 充值记录按时间倒序，分页每页10条
+- 请求次数字段当前显示0（待后续 API 日志功能接入后更新）
+- 余额首次访问时自动初始化 enterprise_balances 记录（upsert on enterprise_id）
