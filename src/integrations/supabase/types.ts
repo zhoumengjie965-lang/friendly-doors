@@ -14,6 +14,75 @@ export type Database = {
   }
   public: {
     Tables: {
+      balance_records: {
+        Row: {
+          amount: number
+          created_at: string
+          enterprise_id: string
+          id: string
+          operator: string | null
+          remark: string | null
+          type: string
+        }
+        Insert: {
+          amount: number
+          created_at?: string
+          enterprise_id: string
+          id?: string
+          operator?: string | null
+          remark?: string | null
+          type?: string
+        }
+        Update: {
+          amount?: number
+          created_at?: string
+          enterprise_id?: string
+          id?: string
+          operator?: string | null
+          remark?: string | null
+          type?: string
+        }
+        Relationships: []
+      }
+      enterprise_balances: {
+        Row: {
+          alert_email: string | null
+          alert_method: string
+          alert_threshold: number | null
+          balance: number
+          created_at: string
+          enterprise_id: string
+          id: string
+          request_count: number
+          total_consumed: number
+          updated_at: string
+        }
+        Insert: {
+          alert_email?: string | null
+          alert_method?: string
+          alert_threshold?: number | null
+          balance?: number
+          created_at?: string
+          enterprise_id: string
+          id?: string
+          request_count?: number
+          total_consumed?: number
+          updated_at?: string
+        }
+        Update: {
+          alert_email?: string | null
+          alert_method?: string
+          alert_threshold?: number | null
+          balance?: number
+          created_at?: string
+          enterprise_id?: string
+          id?: string
+          request_count?: number
+          total_consumed?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
       enterprise_certifications: {
         Row: {
           business_license_url: string | null
@@ -227,6 +296,36 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      redeem_codes: {
+        Row: {
+          amount: number
+          code: string
+          created_at: string
+          id: string
+          status: string
+          used_at: string | null
+          used_by: string | null
+        }
+        Insert: {
+          amount: number
+          code: string
+          created_at?: string
+          id?: string
+          status?: string
+          used_at?: string | null
+          used_by?: string | null
+        }
+        Update: {
+          amount?: number
+          code?: string
+          created_at?: string
+          id?: string
+          status?: string
+          used_at?: string | null
+          used_by?: string | null
+        }
+        Relationships: []
       }
       users: {
         Row: {
