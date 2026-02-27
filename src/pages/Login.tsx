@@ -16,6 +16,7 @@ export default function Login() {
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const navigate = useNavigate();
   const { toast } = useToast();
+  const inviteParam = new URLSearchParams(window.location.search).get("invite");
 
   const startCountdown = () => {
     if (!/^1[3-9]\d{9}$/.test(phone)) {
@@ -50,7 +51,7 @@ export default function Login() {
     setLoading(true);
     try {
       await loginWithPhone(phone);
-      navigate("/onboarding");
+      navigate(inviteParam ? `/invite/${inviteParam}` : "/onboarding");
     } catch {
       toast({ title: "登录失败", variant: "destructive" });
     } finally {
