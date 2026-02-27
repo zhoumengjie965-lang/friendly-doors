@@ -40,7 +40,7 @@ interface Props {
   role: string;
 }
 
-const PAGE_SIZE = 10;
+const PAGE_SIZE = 5;
 
 export default function AccountBalance({ enterprise, role }: Props) {
   const phone = getCurrentPhone();
@@ -261,64 +261,62 @@ export default function AccountBalance({ enterprise, role }: Props) {
 
       {/* Alert Settings - admin only */}
       {isAdmin && (
-        <div className="bg-card border border-border rounded-xl p-6 space-y-5">
-          <h2 className="font-semibold text-foreground">余额预警设置</h2>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+        <div className="bg-card border border-border rounded-xl p-4">
+          <h2 className="font-semibold text-foreground mb-3">余额预警设置</h2>
+          <div className="flex flex-wrap items-end gap-4">
             {/* Notification method */}
-            <div className="space-y-2">
-              <Label className="text-sm text-muted-foreground">通知方式</Label>
-              <RadioGroup value={alertMethod} onValueChange={setAlertMethod} className="flex gap-4">
-                <div className="flex items-center gap-2">
+            <div className="space-y-1">
+              <Label className="text-xs text-muted-foreground">通知方式</Label>
+              <RadioGroup value={alertMethod} onValueChange={setAlertMethod} className="flex gap-3">
+                <div className="flex items-center gap-1.5">
                   <RadioGroupItem value="email" id="method-email" />
-                  <Label htmlFor="method-email" className="flex items-center gap-1.5 cursor-pointer">
-                    <Mail className="w-3.5 h-3.5" /> 邮件通知
+                  <Label htmlFor="method-email" className="flex items-center gap-1 cursor-pointer text-sm">
+                    <Mail className="w-3 h-3" /> 邮件通知
                   </Label>
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-1.5">
                   <RadioGroupItem value="sms" id="method-sms" />
-                  <Label htmlFor="method-sms" className="flex items-center gap-1.5 cursor-pointer">
-                    <MessageSquare className="w-3.5 h-3.5" /> 短信通知
+                  <Label htmlFor="method-sms" className="flex items-center gap-1 cursor-pointer text-sm">
+                    <MessageSquare className="w-3 h-3" /> 短信通知
                   </Label>
                 </div>
               </RadioGroup>
             </div>
 
             {/* Notification email */}
-            <div className="space-y-2">
-              <Label className="text-sm text-muted-foreground">通知邮箱</Label>
+            <div className="space-y-1 flex-1 min-w-36">
+              <Label className="text-xs text-muted-foreground">通知邮箱</Label>
               <Input
                 placeholder="留空则使用账号绑定邮箱"
                 value={alertEmail}
                 onChange={(e) => setAlertEmail(e.target.value)}
+                className="h-8 text-sm"
               />
             </div>
 
             {/* Alert threshold */}
-            <div className="space-y-2">
-              <Label className="text-sm text-muted-foreground">额度预警阈值（额度）</Label>
-              <div className="flex items-center gap-3">
+            <div className="space-y-1 min-w-40">
+              <Label className="text-xs text-muted-foreground">
+                额度预警阈值{thresholdAmount ? <span className="ml-1 text-muted-foreground">≈ ¥{thresholdAmount}</span> : null}
+              </Label>
+              <div className="flex items-center gap-1">
                 <Input
                   type="number"
                   min="0"
                   placeholder="输入额度数量"
                   value={alertThreshold}
                   onChange={(e) => setAlertThreshold(e.target.value)}
-                  className="flex-1"
+                  className="h-8 text-sm"
                 />
-                {thresholdAmount && (
-                  <span className="text-sm text-muted-foreground whitespace-nowrap">
-                    ≈ ¥{thresholdAmount}
-                  </span>
-                )}
               </div>
               <p className="text-xs text-muted-foreground">1 额度 = ¥0.01</p>
             </div>
-          </div>
 
-          <Button onClick={handleSaveAlert} disabled={savingAlert} className="mt-2">
-            {savingAlert ? "保存中..." : "保存设置"}
-          </Button>
+            {/* Save button aligned bottom-right */}
+            <Button onClick={handleSaveAlert} disabled={savingAlert} size="sm" className="self-end">
+              {savingAlert ? "保存中..." : "保存设置"}
+            </Button>
+          </div>
         </div>
       )}
 
@@ -375,7 +373,7 @@ export default function AccountBalance({ enterprise, role }: Props) {
                         {r.type === "redeem_code" ? "兑换码充值" : "后台充值"}
                       </Badge>
                     </TableCell>
-                    <TableCell className="font-semibold text-green-600">
+                    <TableCell className="font-semibold text-primary">
                       +¥{Number(r.amount).toFixed(2)}
                     </TableCell>
                     <TableCell className="text-sm text-muted-foreground">
@@ -392,7 +390,7 @@ export default function AccountBalance({ enterprise, role }: Props) {
         </div>
 
         {/* Pagination */}
-        {totalPages > 1 && (
+        {total > 0 && (
           <div className="flex items-center justify-between pt-2">
             <p className="text-sm text-muted-foreground">共 {total} 条记录</p>
             <div className="flex items-center gap-2">
