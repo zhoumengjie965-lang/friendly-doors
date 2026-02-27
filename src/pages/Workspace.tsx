@@ -6,6 +6,7 @@ import WorkspaceSidebar from "@/components/WorkspaceSidebar";
 import EnterpriseInfo from "@/pages/EnterpriseInfo";
 import OrgManagement from "@/pages/OrgManagement";
 import AccountBalance from "@/pages/AccountBalance";
+import OrgGovernance from "@/pages/OrgGovernance";
 import { Building2, Users, Key, Link, TrendingUp, LogOut, ChevronDown } from "lucide-react";
 
 interface Enterprise {
@@ -128,6 +129,8 @@ export default function Workspace() {
               <OrgManagement enterprise={enterprise} role={role} />
             ) : location.pathname === "/workspace/enterprise/balance" ? (
               <AccountBalance enterprise={enterprise} role={role} />
+            ) : location.pathname === "/workspace/org/governance" ? (
+              <OrgGovernance enterprise={enterprise} role={role} />
             ) : (
               <>
                 {/* Welcome */}
