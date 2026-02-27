@@ -82,7 +82,8 @@ export default function OrgGovernance({ enterprise, role }: Props) {
       supabase.from("invitations").select("*")
         .eq("organization_id", selectedOrgId)
         .eq("status", "pending")
-        .gt("expires_at", new Date().toISOString()),
+        .gt("expires_at", new Date().toISOString())
+        .not("invitee_phone", "is", null),
     ]);
     setMembers((membersData as Member[]) ?? []);
     setPendingInvites((invData as PendingInvite[]) ?? []);
@@ -376,9 +377,7 @@ export default function OrgGovernance({ enterprise, role }: Props) {
                   ))}
                   {pendingInvites.map((inv) => (
                     <TableRow key={inv.id} className="opacity-80">
-                      <TableCell className="font-medium">
-                        {inv.invitee_phone || <span className="text-muted-foreground">链接邀请</span>}
-                      </TableCell>
+                      <TableCell className="font-medium">{inv.invitee_phone}</TableCell>
                       <TableCell>
                         <Badge variant={inv.invited_role === "org_admin" ? "default" : "secondary"}>
                           {roleLabel(inv.invited_role)}
