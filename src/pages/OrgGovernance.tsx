@@ -28,6 +28,10 @@ interface Member {
   id: string; user_phone: string; role: string;
   organization_id: string | null; daily_limit: number | null; status: string;
 }
+interface PendingInvite {
+  id: string; invitee_phone: string | null; invited_role: string;
+  invite_code: string; expires_at: string; created_at: string;
+}
 
 interface Props { enterprise: Enterprise; role: string; }
 
@@ -35,6 +39,7 @@ export default function OrgGovernance({ enterprise, role }: Props) {
   const [orgs, setOrgs] = useState<Organization[]>([]);
   const [selectedOrgId, setSelectedOrgId] = useState<string>("");
   const [members, setMembers] = useState<Member[]>([]);
+  const [pendingInvites, setPendingInvites] = useState<PendingInvite[]>([]);
   const [loading, setLoading] = useState(true);
   const [editMember, setEditMember] = useState<Member | null>(null);
   const [editRole, setEditRole] = useState("member");
@@ -72,11 +77,46 @@ export default function OrgGovernance({ enterprise, role }: Props) {
   }
 
   async function fetchMembers() {
-    const { data } = await supabase
-      .from("members")
-      .select("*")
-      .eq("organization_id", selectedOrgId);
-    setMembers((data as Member[]) ?? []);
+    const [{ data: membersData }, { data: invData }] = await Promise.all([
+      supabase.from("members").select("*").eq("organization_id", selectedOrgId),
+      supabase.from("invitations").select("*")
+        .eq("organization_id", selectedOrgId)
+        .eq("status", "pending")
+        .gt("expires_at", new Date().toISOString()),
+    ]);
+    setMembers((membersData as Member[]) ?? []);
+    setPendingInvites((invData as PendingInvite[]) ?? []);
+  }
+
+  function formatExpiry(inv: PendingInvite): string {
+    if (inv.invitee_phone) {
+      const days = Math.round((Date.now() - new Date(inv.created_at).getTime()) / 86400000);
+      return `邀请 ${days} 天前发送`;
+    }
+    const hours = Math.round((new Date(inv.expires_at).getTime() - Date.now()) / 3600000);
+    if (hours <= 0) return "已过期";
+    if (hours < 24) return `链接 ${hours}h 后过期`;
+    return `链接 ${Math.round(hours / 24)} 天后过期`;
+  }
+
+  async function revokeInvite(inviteId: string) {
+    await supabase.from("invitations").update({ status: "revoked" }).eq("id", inviteId);
+    fetchMembers();
+    toast({ title: "邀请已撤回" });
+  }
+
+  async function resendInvite(inv: PendingInvite) {
+    if (inv.invitee_phone) {
+      await supabase.from("invitations")
+        .update({ expires_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString() })
+        .eq("id", inv.id);
+      fetchMembers();
+      toast({ title: "邀请已重新发送", description: "有效期延长至 7 天后" });
+    } else {
+      const link = `${window.location.origin}/invite/${inv.invite_code}`;
+      await navigator.clipboard.writeText(link);
+      toast({ title: "邀请链接已复制" });
+    }
   }
 
   const budget = selectedOrg?.monthly_budget ?? 0;
@@ -172,6 +212,7 @@ export default function OrgGovernance({ enterprise, role }: Props) {
     s === "active"
       ? <Badge variant="outline" style={{color:"hsl(142,70%,40%)",borderColor:"hsl(142,70%,75%)",background:"hsl(142,70%,97%)"}}>正常</Badge>
       : <Badge variant="outline" className="text-muted-foreground border-border">禁用</Badge>;
+  const pendingBadge = <Badge variant="outline" style={{color:"hsl(32,95%,44%)",borderColor:"hsl(32,95%,72%)",background:"hsl(32,95%,97%)"}}>邀请中</Badge>;
 
   if (loading) return <div className="flex items-center justify-center h-64"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" /></div>;
 
@@ -289,7 +330,7 @@ export default function OrgGovernance({ enterprise, role }: Props) {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {members.length === 0 ? (
+                  {members.length === 0 && pendingInvites.length === 0 ? (
                     <TableRow>
                       <TableCell colSpan={7} className="text-center text-muted-foreground py-10">
                         暂无成员，点击"添加成员"开始
@@ -327,6 +368,48 @@ export default function OrgGovernance({ enterprise, role }: Props) {
                               onClick={() => removeMember(m)}
                             >
                               移除成员
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                  {pendingInvites.map((inv) => (
+                    <TableRow key={inv.id} className="opacity-80">
+                      <TableCell className="font-medium">
+                        {inv.invitee_phone || <span className="text-muted-foreground">链接邀请</span>}
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant={inv.invited_role === "org_admin" ? "default" : "secondary"}>
+                          {roleLabel(inv.invited_role)}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="text-muted-foreground">—</TableCell>
+                      <TableCell className="text-muted-foreground">—</TableCell>
+                      <TableCell className="text-muted-foreground">—</TableCell>
+                      <TableCell>
+                        <div className="flex flex-col gap-0.5">
+                          {pendingBadge}
+                          <span className="text-xs text-muted-foreground">{formatExpiry(inv)}</span>
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" size="icon" className="h-8 w-8">
+                              <MoreHorizontal className="w-4 h-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem onClick={() => resendInvite(inv)}>
+                              {inv.invitee_phone ? "重新发送" : "复制邀请链接"}
+                            </DropdownMenuItem>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem
+                              className="text-destructive focus:text-destructive"
+                              onClick={() => revokeInvite(inv.id)}
+                            >
+                              撤回邀请
                             </DropdownMenuItem>
                           </DropdownMenuContent>
                         </DropdownMenu>
