@@ -263,62 +263,62 @@ export default function AccountBalance({ enterprise, role }: Props) {
       {isAdmin && (
         <div className="bg-card border border-border rounded-xl p-5">
           <h2 className="font-semibold text-foreground mb-4">余额预警设置</h2>
-          <div className="grid grid-cols-2 gap-x-8 gap-y-3 items-end">
-            {/* Row 1 left: notification method */}
-            <div className="space-y-1.5">
-              <Label className="text-xs text-muted-foreground">通知方式</Label>
-              <RadioGroup value={alertMethod} onValueChange={setAlertMethod} className="flex gap-4">
-                <div className="flex items-center gap-1.5">
-                  <RadioGroupItem value="email" id="method-email" />
-                  <Label htmlFor="method-email" className="flex items-center gap-1 cursor-pointer text-sm">
-                    <Mail className="w-3.5 h-3.5" /> 邮件通知
-                  </Label>
-                </div>
-                <div className="flex items-center gap-1.5">
-                  <RadioGroupItem value="sms" id="method-sms" />
-                  <Label htmlFor="method-sms" className="flex items-center gap-1 cursor-pointer text-sm">
-                    <MessageSquare className="w-3.5 h-3.5" /> 短信通知
-                  </Label>
-                </div>
-              </RadioGroup>
+          <div className="grid grid-cols-2 gap-x-8 gap-y-4 items-start">
+            {/* Col left: notification method + email stacked */}
+            <div className="space-y-4">
+              <div className="space-y-1.5">
+                <Label className="text-xs text-muted-foreground">通知方式</Label>
+                <RadioGroup value={alertMethod} onValueChange={setAlertMethod} className="flex gap-4 mt-1">
+                  <div className="flex items-center gap-1.5">
+                    <RadioGroupItem value="email" id="method-email" />
+                    <Label htmlFor="method-email" className="flex items-center gap-1 cursor-pointer text-sm">
+                      <Mail className="w-3.5 h-3.5" /> 邮件通知
+                    </Label>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <RadioGroupItem value="sms" id="method-sms" />
+                    <Label htmlFor="method-sms" className="flex items-center gap-1 cursor-pointer text-sm">
+                      <MessageSquare className="w-3.5 h-3.5" /> 短信通知
+                    </Label>
+                  </div>
+                </RadioGroup>
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs text-muted-foreground">通知邮箱</Label>
+                <Input
+                  placeholder="留空则使用账号绑定邮箱"
+                  value={alertEmail}
+                  onChange={(e) => setAlertEmail(e.target.value)}
+                  className="h-9 text-sm"
+                />
+              </div>
             </div>
 
-            {/* Row 1 right: threshold amount */}
-            <div className="space-y-1.5">
-              <Label className="text-xs text-muted-foreground">预警金额（元）</Label>
-              <Input
-                type="number"
-                min="0"
-                step="0.01"
-                placeholder="输入预警金额"
-                value={alertThreshold ? (parseFloat(alertThreshold) * 0.01).toFixed(2) : ""}
-                onChange={(e) => {
-                  const yuan = parseFloat(e.target.value);
-                  setAlertThreshold(isNaN(yuan) ? "" : String(Math.round(yuan / 0.01)));
-                }}
-                className="h-9 text-sm"
-              />
-              <p className="text-xs text-muted-foreground">
-                {alertThreshold ? `等同于 ${alertThreshold} 额度` : "1 额度 = ¥0.01"}
-              </p>
-            </div>
-
-            {/* Row 2 left: email */}
-            <div className="space-y-1.5">
-              <Label className="text-xs text-muted-foreground">通知邮箱</Label>
-              <Input
-                placeholder="留空则使用账号绑定邮箱"
-                value={alertEmail}
-                onChange={(e) => setAlertEmail(e.target.value)}
-                className="h-9 text-sm"
-              />
-            </div>
-
-            {/* Row 2 right: save button bottom-aligned */}
-            <div className="flex justify-end">
-              <Button onClick={handleSaveAlert} disabled={savingAlert}>
-                {savingAlert ? "保存中..." : "保存设置"}
-              </Button>
+            {/* Col right: threshold + save button */}
+            <div className="space-y-4">
+              <div className="space-y-1.5">
+                <Label className="text-xs text-muted-foreground">预警金额（元）</Label>
+                <Input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  placeholder="输入预警金额"
+                  value={alertThreshold ? (parseFloat(alertThreshold) * 0.01).toFixed(2) : ""}
+                  onChange={(e) => {
+                    const yuan = parseFloat(e.target.value);
+                    setAlertThreshold(isNaN(yuan) ? "" : String(Math.round(yuan / 0.01)));
+                  }}
+                  className="h-9 text-sm"
+                />
+                <p className="text-xs text-muted-foreground">
+                  {alertThreshold ? `等同于 ${alertThreshold} 额度` : "1 额度 = ¥0.01"}
+                </p>
+              </div>
+              <div className="flex justify-end">
+                <Button onClick={handleSaveAlert} disabled={savingAlert}>
+                  {savingAlert ? "保存中..." : "保存设置"}
+                </Button>
+              </div>
             </div>
           </div>
         </div>
