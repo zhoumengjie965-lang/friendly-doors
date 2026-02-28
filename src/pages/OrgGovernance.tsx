@@ -219,7 +219,7 @@ export default function OrgGovernance({ enterprise, role }: Props) {
     fetchMembers();
   }
 
-  const roleLabel = (r: string) => r === "org_admin" ? "管理员" : "成员";
+  const roleLabel = (r: string) => r === "org_admin" ? "组织管理员" : "普通成员";
   const statusBadge = (s: string) =>
     s === "active"
       ? <Badge variant="outline" style={{color:"hsl(142,70%,40%)",borderColor:"hsl(142,70%,75%)",background:"hsl(142,70%,97%)"}}>正常</Badge>
