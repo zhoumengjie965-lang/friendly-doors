@@ -54,6 +54,7 @@ const roleLabel = (r: string) => r === "admin" ? "企业管理员" : r === "org_
 
 export default function CreateOrgDialog({ open, onOpenChange, enterpriseId, existingMembers, onCreated }: Props) {
   const [orgName, setOrgName] = useState("");
+  const [monthlyBudget, setMonthlyBudget] = useState("");
   const [addMode, setAddMode] = useState<AddMode>("single");
 
   // Single mode

@@ -16,9 +16,10 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Building2, Users, Key, Plus, Settings2, SlidersHorizontal, Pencil, UserCog, Power, Trash2, ChevronDown } from "lucide-react";
+import { Building2, Users, Key, Plus, SlidersHorizontal, Pencil, UserCog, Power, Trash2, ChevronDown } from "lucide-react";
 import CreateOrgDialog from "@/components/CreateOrgDialog";
 import OrgBudgetSheet from "@/components/OrgBudgetSheet";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 interface Enterprise { id: string; name: string; enterprise_code: string }
 
