@@ -7,9 +7,10 @@ import EnterpriseInfo from "@/pages/EnterpriseInfo";
 import OrgManagement from "@/pages/OrgManagement";
 import AccountBalance from "@/pages/AccountBalance";
 import OrgGovernance from "@/pages/OrgGovernance";
+import Profile from "@/pages/Profile";
 import {
   Building2, Users, Key, Link, TrendingUp, LogOut, ChevronDown,
-  ChevronRight, Copy, Check, Plus, UserPlus
+  ChevronRight, Copy, Check, Plus, UserPlus, UserCircle
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Input } from "@/components/ui/input";
@@ -311,6 +312,12 @@ export default function Workspace() {
 
           <div className="border-t border-border">
             <button
+              onClick={() => { navigate("/workspace/profile"); setUserMenuOpen(false); }}
+              className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-foreground hover:bg-muted transition-colors"
+            >
+              <UserCircle className="w-4 h-4 text-muted-foreground" />个人信息
+            </button>
+            <button
               onClick={handleLogout}
               className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-foreground hover:bg-muted transition-colors"
             >
@@ -397,6 +404,8 @@ export default function Workspace() {
               <AccountBalance enterprise={enterprise} role={role} />
             ) : location.pathname === "/workspace/org/governance" ? (
               <OrgGovernance enterprise={enterprise} role={role} />
+            ) : location.pathname === "/workspace/profile" ? (
+              <Profile />
             ) : (
               <>
                 <div className="mb-8">
