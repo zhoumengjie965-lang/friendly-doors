@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription
 } from "@/components/ui/dialog";
@@ -66,9 +66,26 @@ export default function CreateOrgDialog({ open, onOpenChange, enterpriseId, exis
   const [bulkText, setBulkText] = useState("");
   const [bulkRole, setBulkRole] = useState<Role>("member");
 
+  // Org admin
+  const [orgAdminPhone, setOrgAdminPhone] = useState("__none__");
+  const [userMap, setUserMap] = useState<Record<string, string>>({});
+
   const [loading, setLoading] = useState(false);
   const { toast } = useToast();
   const phone = getCurrentPhone();
+
+  // Load user names when dialog opens
+  useEffect(() => {
+    if (!open || existingMembers.length === 0) return;
+    const phones = existingMembers.map(m => m.user_phone);
+    supabase.from("users").select("phone,name").in("phone", phones).then(({ data }) => {
+      if (data) {
+        const map: Record<string, string> = {};
+        data.forEach(u => { if (u.name) map[u.phone] = u.name; });
+        setUserMap(map);
+      }
+    });
+  }, [open, existingMembers]);
 
   const bulkParsed = useMemo(() => parseBulkText(bulkText), [bulkText]);
 
@@ -128,7 +145,7 @@ export default function CreateOrgDialog({ open, onOpenChange, enterpriseId, exis
           enterprise_id: enterpriseId,
           name: orgName.trim(),
           monthly_budget: monthlyBudget === "" ? null : Number(monthlyBudget),
-          admin_phone: addMode === "single" ? (adminPhone.trim() || null) : null,
+          admin_phone: orgAdminPhone !== "__none__" ? orgAdminPhone : null,
         } as any)
         .select()
         .single();
@@ -146,6 +163,7 @@ export default function CreateOrgDialog({ open, onOpenChange, enterpriseId, exis
 
       toast({ title: "创建成功", description: `组织「${orgName}」已创建` });
       setOrgName(""); setMonthlyBudget(""); setAdminPhone(""); setAdminName(""); setBulkText("");
+      setOrgAdminPhone("__none__");
       setAddMode("single");
       onCreated();
       onOpenChange(false);
@@ -183,6 +201,25 @@ export default function CreateOrgDialog({ open, onOpenChange, enterpriseId, exis
             />
           </div>
 
+          <div className="space-y-2">
+            <Label>设置组织管理员 <span className="text-muted-foreground text-xs">（可选）</span></Label>
+            <Select value={orgAdminPhone} onValueChange={setOrgAdminPhone}>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="__none__">不指定（默认企业管理员）</SelectItem>
+                {existingMembers.map(m => (
+                  <SelectItem key={m.user_phone} value={m.user_phone}>
+                    {userMap[m.user_phone] || m.user_phone}
+                    {userMap[m.user_phone] ? ` - ${m.user_phone.replace(/(\d{3})\d{4}(\d{4})/, '$1****$2')}` : ""}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-muted-foreground">不指定时该组织默认由企业管理员管理</p>
+          </div>
+
           <div className="space-y-3">
             <div className="flex items-center justify-between">
               <Label>邀请初始成员 <span className="text-muted-foreground text-xs">（可选）</span></Label>
@@ -206,26 +243,28 @@ export default function CreateOrgDialog({ open, onOpenChange, enterpriseId, exis
 
             {addMode === "single" ? (
               <div className="space-y-2">
-                <Input
-                  placeholder="手机号"
-                  value={adminPhone}
-                  onChange={e => setAdminPhone(e.target.value)}
-                />
-                <Input
-                  placeholder="姓名（填写手机号时必填）"
-                  value={adminName}
-                  onChange={e => setAdminName(e.target.value)}
-                />
-                <Select value={inviteRole} onValueChange={v => setInviteRole(v as Role)}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="member">普通成员</SelectItem>
-                    <SelectItem value="org_admin">组织管理员</SelectItem>
-                    <SelectItem value="admin">企业管理员</SelectItem>
-                  </SelectContent>
-                </Select>
+                <div className="grid grid-cols-3 gap-2">
+                  <Input
+                    placeholder="手机号"
+                    value={adminPhone}
+                    onChange={e => setAdminPhone(e.target.value)}
+                  />
+                  <Input
+                    placeholder="姓名（必填）"
+                    value={adminName}
+                    onChange={e => setAdminName(e.target.value)}
+                  />
+                  <Select value={inviteRole} onValueChange={v => setInviteRole(v as Role)}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="member">普通成员</SelectItem>
+                      <SelectItem value="org_admin">组织管理员</SelectItem>
+                      <SelectItem value="admin">企业管理员</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
                 {adminPhone.trim() && (
                   <p className={`text-xs ${isExistingMember ? "text-primary" : "text-muted-foreground"}`}>
                     {isExistingMember
