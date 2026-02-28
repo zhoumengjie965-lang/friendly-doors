@@ -1,52 +1,48 @@
 
-# 修复两个问题
+# CreateOrgDialog 两处优化
 
-## 问题一：创建组织时默认月预算字段丢失
+## 需要做的改动
 
-`CreateOrgDialog.tsx` 在上一次批量添加功能改造中，遗漏了"默认月预算（元）（可选）"输入字段。需要恢复该字段，并在创建组织时将其写入 `monthly_budget` 列。
+### 1. 单个添加模式 — 三个字段改为一行
+目前手机号、姓名、角色选择是三行竖排。改为一行横排：
 
-### 改动位置
-`src/components/CreateOrgDialog.tsx`：
-- 新增 `monthlyBudget` state（`string`，默认 `""`）
-- 在"组织名称"和"邀请初始成员"之间，插入月预算输入框（类型 number，placeholder "留空表示不限制"）
-- `handleCreate` 中写入 `monthly_budget: monthlyBudget === "" ? null : Number(monthlyBudget)`
-- 重置时清空 `monthlyBudget`
+```
+[手机号输入框] [姓名输入框] [角色下拉]
+```
 
----
+- 使用 `grid grid-cols-3 gap-2` 布局
+- 三个字段等宽排列
+- 姓名 placeholder 改为简短的"姓名（必填）"
+- 角色下拉宽度自适应
+- 状态提示文字保留在三列下方
 
-## 问题二：设置组织管理员改为从成员中选择
+### 2. 新增"设置组织管理员"字段（放在月预算下方，邀请成员上方）
 
-`OrgManagement.tsx` 中"设置管理员"弹窗目前是手动输入手机号的 `Input`，需要改为下拉选择，从企业成员中挑选，并支持"不指定（默认企业管理员）"选项。
+在"默认月预算"和"邀请初始成员"之间新增一个区块：
 
-### 改动位置
-`src/pages/OrgManagement.tsx`：
+```
+设置组织管理员（可选）
+[下拉选择：不指定（默认企业管理员）/ 企业成员列表]
+提示文字：不指定时该组织默认由企业管理员管理
+```
 
-1. **数据增强**：`load()` 时同步查询 `users` 表，获取企业成员的姓名，用于在下拉选项中展示"姓名 + 脱敏手机号"
+**数据来源**：`existingMembers` 已通过 Props 传入（包含 `user_phone` 和 `role`），但缺少姓名。需要新增一个 `memberNames` prop，或直接在 `CreateOrgDialog` 内部查询 `users` 表获取姓名映射。
 
-2. **UI 改造**：将"设置管理员"弹窗中的 `Input` 替换为 `Select`：
-   ```
-   [不指定（默认企业管理员）]
-   [张三 - 138****0001]
-   [李四 - 139****0002]
-   ...（仅列出该企业所有 active 成员）
-   ```
+**方案选择**：在 `CreateOrgDialog` 打开时（`open` 变为 true），查询一次 `users` 表获取姓名映射 `userMap`，避免改动 Props 接口。
 
-3. **逻辑调整**：
-   - 选择"不指定"时，`admin_phone` 更新为 `null`
-   - 选择某成员时，将该成员的 `role` 更新为 `org_admin`，`organization_id` 更新为该组织
-   - `setNewAdminPhone` 保持现有逻辑不变，只替换 UI 输入方式
-
-4. **显示优化**：组织列表"组织管理员"列，若 `admin_phone` 有值，尝试匹配 `users` 表中的姓名来显示姓名而非手机号（格式：姓名 / 若无姓名则显示脱敏手机号）
+**逻辑**：
+- 新增 `orgAdminPhone` state（默认 `"__none__"`）
+- 提交时：若 `orgAdminPhone !== "__none__"`，则 `admin_phone: orgAdminPhone`，否则 `admin_phone: null`
+- 重置时清空 `orgAdminPhone` 为 `"__none__"`
 
 ---
 
-## 文件变更清单
+## 文件变更
 
 | 文件 | 改动 |
 |------|------|
-| `src/components/CreateOrgDialog.tsx` | 恢复默认月预算输入字段 |
-| `src/pages/OrgManagement.tsx` | 设置管理员改为成员下拉选择，列表显示姓名 |
+| `src/components/CreateOrgDialog.tsx` | ① 单个添加三字段改一行；② 新增设置组织管理员下拉 |
 
 ## 无数据库变更
 
-不需要新增迁移，所有字段已存在。
+`admin_phone` 列已存在于 `organizations` 表，直接写入即可。
