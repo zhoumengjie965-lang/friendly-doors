@@ -1,110 +1,137 @@
 
-# 重构登录后路由逻辑 + 右上角个人中心菜单
+# 成员管理升级：姓名字段 + 双行显示 + 个人信息设置
 
-## 当前问题
+## 需求概述
 
-根据流程图，新的逻辑如下：
-- 登录后**直接进入控制台**（Workspace），不再需要 `/onboarding` 跳转中转页、也不需要 `/no-enterprise` 页
-- 企业切换、创建企业 全部收进**右上角头像下拉菜单**（如图3）
-- `/no-enterprise` 页面废弃，用户没有企业时也进控制台，在个人中心里操作
-
----
-
-## 流程图解读
-
-```
-登录成功
-  → 企业数量 = 0  → 进入【个人空间】（控制台，无企业内容）
-  → 企业数量 = 1  → 进入【已有企业/组织】
-  → 企业数量 ≥ 2  → 是否有上次使用记录？
-                      Yes → 进入上次使用的企业/组织
-                      No  → 进入账户选择页
-```
+1. **数据库**：`users` 表增加 `name` 字段（可选）
+2. **添加成员弹窗**：增加姓名输入框；移除「生成邀请链接」功能
+3. **成员列表**：双行展示（第一行加粗姓名，第二行脱敏手机号）
+4. **个人中心**：新增个人信息页，允许用户修改自己的姓名
 
 ---
 
-## 改动范围
+## 数据库变更
 
-### 1. 登录页 `Login.tsx`
-登录成功后统一跳转 `/workspace`，不再经过 `/onboarding`。
+### `users` 表新增 `name` 列
 
-### 2. Workspace.tsx — 核心路由逻辑重构
-目前只加载 `members[0]`，需要改为：
-- 加载用户所有企业列表
-- 企业数量 = 0：不跳转，进入"个人空间"状态（无企业内容，展示欢迎+引导）
-- 企业数量 = 1：自动选中该企业
-- 企业数量 ≥ 2：读取 `localStorage` 的上次选择；有则自动进入，没有则展示账户选择页（内嵌于 Workspace 内，不是独立路由）
+```sql
+ALTER TABLE public.users ADD COLUMN IF NOT EXISTS name text;
+```
 
-新增状态：
+无需 RLS 变更，用户已可查看/插入自己记录。需增加 UPDATE 策略允许用户更新自己的记录：
+
+```sql
+CREATE POLICY "Users can update own record"
+ON public.users FOR UPDATE
+USING (phone = current_setting('app.current_phone', true));
+```
+
+---
+
+## 前端改动
+
+### 1. 添加成员弹窗（`OrgGovernance.tsx`）
+
+**改动：**
+- 新增 `addName` 状态变量
+- 在手机号输入框旁边/下方加一个「成员姓名（可选）」输入框
+- 移除 `generateInviteLink()` 函数和「🔗 生成邀请链接」按钮
+- `addMember()` 函数改造：添加时同时向 `users` 表 upsert 姓名（若已有记录则更新 name）
+- 移除 `inviteLink` 相关状态和 UI
+
+弹窗布局（参考图 image-41，移除生成链接按钮）：
+```
+┌─────────────────────────────────────────┐
+│ 添加成员                              × │
+│                                         │
+│ 手机号                                  │
+│ [请输入手机号                         ] │
+│                                         │
+│ 成员姓名（可选）                        │
+│ [请输入姓名                           ] │
+│                                         │
+│ 指定角色                                │
+│ ◉ 成员  ○ 管理员                       │
+│                                         │
+│ 单日上限（元）                          │
+│ [2000                                 ] │
+│                                         │
+│                    [取消]  [添加]       │
+└─────────────────────────────────────────┘
+```
+
+### 2. 成员列表双行展示（`OrgGovernance.tsx`）
+
+成员列的 TableCell 从单行 `{m.user_phone}` 改为双行：
+
+```tsx
+<TableCell>
+  <div className="flex flex-col gap-0.5">
+    <span className="font-semibold text-sm">
+      {/* 从 users 表缓存的 name，无则显示"—" */}
+      {memberNames[m.user_phone] ?? "—"}
+    </span>
+    <span className="text-xs text-muted-foreground">
+      {maskPhone(m.user_phone)}  {/* 182****5009 */}
+    </span>
+  </div>
+</TableCell>
+```
+
+`maskPhone` 工具函数：
 ```ts
-const [enterprises, setEnterprises] = useState<EnterpriseItem[]>([]);
-const [enterprise, setEnterprise] = useState<Enterprise | null>(null);
-const [showSelector, setShowSelector] = useState(false);  // 多企业无记录时展示选择界面
+function maskPhone(phone: string) {
+  return phone.replace(/(\d{3})\d{4}(\d{4})/, "$1****$2");
+}
 ```
 
-上次选择记录存到 `localStorage`：
+`memberNames` 通过批量查 `users` 表获取：
 ```ts
-localStorage.setItem("ai_gateway_last_enterprise", enterpriseId);
+const phones = [...members.map(m => m.user_phone), ...pendingInvites.map(i => i.invitee_phone!)];
+const { data } = await supabase.from("users").select("phone, name").in("phone", phones);
+// 存入 Record<phone, name>
 ```
 
-### 3. 右上角头像菜单扩展（Workspace.tsx）
-在现有「退出登录」按钮上方，根据图3增加：
+待邀请行同理展示脱敏手机号（姓名显示「—」直到对方注册）。
 
-**菜单结构（仿图3）：**
-```
-┌─────────────────────────────┐
-│ [头像] 用户手机号             │
-│       组织ID: XXXXXX  [复制] │
-├─────────────────────────────┤
-│  切换组织                 >  │
-├─────────────────────────────┤
-│  退出登录                    │
-└─────────────────────────────┘
-```
+### 3. 个人信息设置页
 
-- **切换组织** → 展开二级子菜单（列出所有企业），点击即切换，同时更新 `localStorage`
-- 如用户只有 0 个企业，显示「创建企业」和「加入企业」按钮代替切换
-- 复制组织ID按钮（图3右上角的复制图标）
+**新增文件：`src/pages/Profile.tsx`**
 
-### 4. 废弃 `/no-enterprise` 路由（保留文件，不删除）
-`App.tsx` 中该路由仍保留（兼容老链接），但 `Login.tsx` 和 `Workspace.tsx` 不再主动跳转到此页面。
+简洁页面，包含：
+- 当前手机号（只读显示）
+- 姓名输入框（可编辑）
+- 「保存」按钮
 
-### 5. 废弃 `/onboarding` 路由（保留文件）
-同上，只修改跳转逻辑，不删除文件。
-
----
-
-## 技术细节
-
-### 多企业选择界面
-当企业数 ≥ 2 且无上次记录时，在 Workspace 内部展示一个全屏遮罩选择卡片（不是独立路由），样式参考 NoEnterprise 页面的卡片风格：
-
-```
-┌──────────────────────────┐
-│    选择要进入的企业         │
-│  ┌────────┐  ┌────────┐  │
-│  │ 企业A  │  │ 企业B  │  │
-│  └────────┘  └────────┘  │
-└──────────────────────────┘
+保存逻辑：
+```ts
+await supabase.from("users")
+  .update({ name: newName })
+  .eq("phone", currentPhone);
 ```
 
-### 邀请链接落地页联动
-`InvitePage.tsx` 接受成功后跳转 `/workspace`（已符合，无需改动）。
+**`WorkspaceSidebar.tsx`** 中在侧边栏底部（退出登录旁）增加「个人信息」入口，或在 Workspace.tsx 右上角用户菜单中增加「个人信息」选项，点击后路由到 `/workspace/profile`。
+
+**`Workspace.tsx`** 中：
+- 注册 `/workspace/profile` 路由
+- 在右上角用户菜单加「个人信息」菜单项
 
 ---
 
 ## 文件变更清单
 
-| 文件 | 操作 |
-|------|------|
-| `src/pages/Login.tsx` | 登录成功后改为跳转 `/workspace` |
-| `src/pages/Workspace.tsx` | 加载所有企业、多企业选择逻辑、右上角菜单扩展 |
-| `src/pages/Onboarding.tsx` | 保留文件，路由变为废弃（App.tsx 不再主动跳转） |
-| `src/pages/NoEnterprise.tsx` | 保留文件，路由变为废弃 |
-| `src/App.tsx` | 无需改动（路由定义不变） |
+| 文件 | 操作 | 内容 |
+|------|------|------|
+| 数据库迁移 | SQL | `users` 表加 `name` 列；加 UPDATE RLS 策略 |
+| `src/pages/OrgGovernance.tsx` | 修改 | 双行成员展示、姓名输入、移除邀请链接入口 |
+| `src/pages/Profile.tsx` | 新建 | 个人信息设置页 |
+| `src/pages/Workspace.tsx` | 修改 | 添加 Profile 路由、用户菜单「个人信息」入口 |
+| `src/components/WorkspaceSidebar.tsx` | 查看/可能修改 | 无需变动（路由已在 Workspace 里处理） |
 
 ---
 
-## 有一个问题需要确认
+## 无破坏性变更
 
-图3 里「切换组织」指的是切换**企业**（跨企业切换），还是切换**同一企业下的不同组织**？从界面看上方显示的是企业名称"111"和"组织ID"，所以推测是切换企业，是这样吗？
+- `name` 列默认为 `NULL`，现有用户不受影响
+- 成员姓名未填写时显示「—」作为降级展示
+- 姓名为用户自愿填写，不强制
