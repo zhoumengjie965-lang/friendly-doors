@@ -14,6 +14,60 @@ export type Database = {
   }
   public: {
     Tables: {
+      api_keys: {
+        Row: {
+          allowed_models: string[] | null
+          created_at: string
+          creator_phone: string
+          enterprise_id: string
+          expires_at: string | null
+          group_name: string | null
+          id: string
+          ip_whitelist: string[] | null
+          key_value: string
+          name: string
+          organization_id: string | null
+          status: string
+          total_quota: number | null
+          updated_at: string
+          used_quota: number
+        }
+        Insert: {
+          allowed_models?: string[] | null
+          created_at?: string
+          creator_phone: string
+          enterprise_id: string
+          expires_at?: string | null
+          group_name?: string | null
+          id?: string
+          ip_whitelist?: string[] | null
+          key_value?: string
+          name: string
+          organization_id?: string | null
+          status?: string
+          total_quota?: number | null
+          updated_at?: string
+          used_quota?: number
+        }
+        Update: {
+          allowed_models?: string[] | null
+          created_at?: string
+          creator_phone?: string
+          enterprise_id?: string
+          expires_at?: string | null
+          group_name?: string | null
+          id?: string
+          ip_whitelist?: string[] | null
+          key_value?: string
+          name?: string
+          organization_id?: string | null
+          status?: string
+          total_quota?: number | null
+          updated_at?: string
+          used_quota?: number
+        }
+        Relationships: []
+      }
       balance_records: {
         Row: {
           amount: number
