@@ -233,24 +233,24 @@ export default function OrgManagement({ enterprise, role }: Props) {
                      </td>
                      <td className="px-6 py-4">
                        <span className="text-foreground">
-                         {org.current_month_budget != null ? `¥${org.current_month_budget.toFixed(2)}` : "—"}
+                         {org.current_month_budget != null ? `¥${org.current_month_budget.toFixed(2)}` : "¥0.00"}
                        </span>
                      </td>
                      <td className="px-6 py-4">
-                       {org.monthly_budget != null && org.monthly_budget > 0 && org.current_month_budget != null ? (
+                       {org.monthly_budget != null && org.monthly_budget > 0 ? (
                          <div className="flex items-center gap-2 min-w-[80px]">
                            <div className="flex-1 h-1.5 rounded-full bg-muted overflow-hidden">
                              <div
                                className="h-full rounded-full bg-primary transition-all"
-                               style={{ width: `${Math.min(100, (org.current_month_budget / org.monthly_budget) * 100).toFixed(1)}%` }}
+                               style={{ width: `${Math.min(100, ((org.current_month_budget ?? 0) / org.monthly_budget) * 100).toFixed(1)}%` }}
                              />
                            </div>
                            <span className="text-xs text-muted-foreground whitespace-nowrap">
-                             {Math.min(100, Math.round((org.current_month_budget / org.monthly_budget) * 100))}%
+                             {Math.min(100, Math.round(((org.current_month_budget ?? 0) / org.monthly_budget) * 100))}%
                            </span>
                          </div>
                        ) : (
-                         <span className="text-xs text-muted-foreground">—</span>
+                         <span className="text-xs text-muted-foreground">0%</span>
                        )}
                      </td>
                     <td className="px-6 py-4">
