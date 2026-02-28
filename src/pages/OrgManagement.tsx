@@ -199,7 +199,9 @@ export default function OrgManagement({ enterprise, role }: Props) {
                   <th className="text-left px-6 py-3 text-muted-foreground font-medium">组织名称</th>
                   <th className="text-left px-6 py-3 text-muted-foreground font-medium">组织管理员</th>
                   <th className="text-left px-6 py-3 text-muted-foreground font-medium">成员数</th>
-                  <th className="text-left px-6 py-3 text-muted-foreground font-medium">月预算</th>
+                  <th className="text-left px-6 py-3 text-muted-foreground font-medium">本月预算上限</th>
+                  <th className="text-left px-6 py-3 text-muted-foreground font-medium">本月消耗预算</th>
+                  <th className="text-left px-6 py-3 text-muted-foreground font-medium">使用率</th>
                   <th className="text-left px-6 py-3 text-muted-foreground font-medium">状态</th>
                   <th className="text-right px-6 py-3 text-muted-foreground font-medium">操作</th>
                 </tr>
@@ -216,20 +218,41 @@ export default function OrgManagement({ enterprise, role }: Props) {
                         : <span className="text-muted-foreground/50 text-xs">未设置</span>}
                     </td>
                     <td className="px-6 py-4 text-muted-foreground">{org.memberCount ?? 0}</td>
-                    <td className="px-6 py-4">
-                      <div className="flex items-center gap-2">
-                        <span className="text-foreground">
-                          {org.current_month_budget != null ? `¥${org.current_month_budget}` :
-                           org.monthly_budget != null ? `¥${org.monthly_budget}` : "不限"}
-                        </span>
-                        {isAdmin && (
-                          <button onClick={() => setBudgetOrg(org)}
-                            className="w-6 h-6 rounded flex items-center justify-center text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors">
-                            <SlidersHorizontal className="w-3.5 h-3.5" />
-                          </button>
-                        )}
-                      </div>
-                    </td>
+                     <td className="px-6 py-4">
+                       <div className="flex items-center gap-2">
+                         <span className="text-foreground">
+                           {org.monthly_budget != null ? `¥${org.monthly_budget}` : "不限"}
+                         </span>
+                         {isAdmin && (
+                           <button onClick={() => setBudgetOrg(org)}
+                             className="w-6 h-6 rounded flex items-center justify-center text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors">
+                             <SlidersHorizontal className="w-3.5 h-3.5" />
+                           </button>
+                         )}
+                       </div>
+                     </td>
+                     <td className="px-6 py-4">
+                       <span className="text-foreground">
+                         {org.current_month_budget != null ? `¥${org.current_month_budget.toFixed(2)}` : "—"}
+                       </span>
+                     </td>
+                     <td className="px-6 py-4">
+                       {org.monthly_budget != null && org.monthly_budget > 0 && org.current_month_budget != null ? (
+                         <div className="flex items-center gap-2 min-w-[80px]">
+                           <div className="flex-1 h-1.5 rounded-full bg-muted overflow-hidden">
+                             <div
+                               className="h-full rounded-full bg-primary transition-all"
+                               style={{ width: `${Math.min(100, (org.current_month_budget / org.monthly_budget) * 100).toFixed(1)}%` }}
+                             />
+                           </div>
+                           <span className="text-xs text-muted-foreground whitespace-nowrap">
+                             {Math.min(100, Math.round((org.current_month_budget / org.monthly_budget) * 100))}%
+                           </span>
+                         </div>
+                       ) : (
+                         <span className="text-xs text-muted-foreground">—</span>
+                       )}
+                     </td>
                     <td className="px-6 py-4">
                       <Badge variant={org.status === "active" ? "default" : "secondary"}
                         className={org.status === "active"
