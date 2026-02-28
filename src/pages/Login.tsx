@@ -51,7 +51,7 @@ export default function Login() {
     setLoading(true);
     try {
       await loginWithPhone(phone);
-      navigate(inviteParam ? `/invite/${inviteParam}` : "/onboarding");
+      navigate(inviteParam ? `/invite/${inviteParam}` : "/workspace");
     } catch {
       toast({ title: "登录失败", variant: "destructive" });
     } finally {
