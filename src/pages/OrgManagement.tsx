@@ -209,7 +209,11 @@ export default function OrgManagement({ enterprise, role }: Props) {
                   <tr key={org.id} className={`border-b border-border last:border-0 hover:bg-muted/20 transition-colors ${i % 2 === 0 ? "" : "bg-muted/10"}`}>
                     <td className="px-6 py-4 font-medium text-foreground">{org.name}</td>
                     <td className="px-6 py-4 text-muted-foreground">
-                      {org.admin_phone || <span className="text-muted-foreground/50 text-xs">未设置</span>}
+                      {org.admin_phone
+                        ? (userMap[org.admin_phone]
+                            ? userMap[org.admin_phone]
+                            : `${org.admin_phone.slice(0,3)}****${org.admin_phone.slice(-4)}`)
+                        : <span className="text-muted-foreground/50 text-xs">未设置</span>}
                     </td>
                     <td className="px-6 py-4 text-muted-foreground">{org.memberCount ?? 0}</td>
                     <td className="px-6 py-4">
