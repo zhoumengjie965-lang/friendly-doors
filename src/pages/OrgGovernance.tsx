@@ -223,7 +223,7 @@ export default function OrgGovernance({ enterprise, role }: Props) {
     s === "active"
       ? <Badge variant="outline" style={{color:"hsl(142,70%,40%)",borderColor:"hsl(142,70%,75%)",background:"hsl(142,70%,97%)"}}>正常</Badge>
       : <Badge variant="outline" className="text-muted-foreground border-border">禁用</Badge>;
-  const pendingBadge = <Badge variant="outline" style={{color:"hsl(32,95%,44%)",borderColor:"hsl(32,95%,72%)",background:"hsl(32,95%,97%)"}}>邀请中</Badge>;
+  const pendingBadge = <Badge variant="outline" className="w-fit" style={{color:"hsl(32,95%,44%)",borderColor:"hsl(32,95%,72%)",background:"hsl(32,95%,97%)"}}>待激活</Badge>;
 
   if (loading) return <div className="flex items-center justify-center h-64"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" /></div>;
 
@@ -413,10 +413,7 @@ export default function OrgGovernance({ enterprise, role }: Props) {
                       <TableCell className="text-muted-foreground">—</TableCell>
                       <TableCell className="text-muted-foreground">—</TableCell>
                       <TableCell>
-                        <div className="flex flex-col gap-0.5">
-                          {pendingBadge}
-                          <span className="text-xs text-muted-foreground">{formatExpiry(inv)}</span>
-                        </div>
+                        {pendingBadge}
                       </TableCell>
                       <TableCell>
                         <DropdownMenu>
