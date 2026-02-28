@@ -15,7 +15,7 @@ import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { MoreHorizontal, Plus, Users, Key, TrendingUp, CheckCircle, Link } from "lucide-react";
+import { MoreHorizontal, Plus, Users, Key, TrendingUp, CheckCircle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 interface Enterprise { id: string; name: string; }
@@ -35,33 +35,33 @@ interface PendingInvite {
 
 interface Props { enterprise: Enterprise; role: string; }
 
+function maskPhone(phone: string) {
+  return phone.replace(/(\d{3})\d{4}(\d{4})/, "$1****$2");
+}
+
 export default function OrgGovernance({ enterprise, role }: Props) {
   const [orgs, setOrgs] = useState<Organization[]>([]);
   const [selectedOrgId, setSelectedOrgId] = useState<string>("");
   const [members, setMembers] = useState<Member[]>([]);
   const [pendingInvites, setPendingInvites] = useState<PendingInvite[]>([]);
+  const [memberNames, setMemberNames] = useState<Record<string, string | null>>({});
   const [loading, setLoading] = useState(true);
   const [editMember, setEditMember] = useState<Member | null>(null);
   const [editRole, setEditRole] = useState("member");
   const [editLimit, setEditLimit] = useState("2000");
   const [showAdd, setShowAdd] = useState(false);
   const [addPhone, setAddPhone] = useState("");
+  const [addName, setAddName] = useState("");
   const [addRole, setAddRole] = useState("member");
   const [addLimit, setAddLimit] = useState("2000");
   const [saving, setSaving] = useState(false);
-  const [inviteLink, setInviteLink] = useState("");
   const { toast } = useToast();
   const phone = getCurrentPhone();
 
   const selectedOrg = orgs.find((o) => o.id === selectedOrgId);
 
-  useEffect(() => {
-    fetchOrgs();
-  }, [enterprise.id]);
-
-  useEffect(() => {
-    if (selectedOrgId) fetchMembers();
-  }, [selectedOrgId]);
+  useEffect(() => { fetchOrgs(); }, [enterprise.id]);
+  useEffect(() => { if (selectedOrgId) fetchMembers(); }, [selectedOrgId]);
 
   async function fetchOrgs() {
     const { data } = await supabase
@@ -85,8 +85,29 @@ export default function OrgGovernance({ enterprise, role }: Props) {
         .gt("expires_at", new Date().toISOString())
         .not("invitee_phone", "is", null),
     ]);
-    setMembers((membersData as Member[]) ?? []);
-    setPendingInvites((invData as PendingInvite[]) ?? []);
+    const mList = (membersData as Member[]) ?? [];
+    const iList = (invData as PendingInvite[]) ?? [];
+    setMembers(mList);
+    setPendingInvites(iList);
+
+    // Fetch names from users table
+    const phones = [
+      ...mList.map(m => m.user_phone),
+      ...iList.filter(i => i.invitee_phone).map(i => i.invitee_phone!),
+    ];
+    if (phones.length > 0) {
+      const { data: usersData } = await supabase
+        .from("users")
+        .select("phone, name")
+        .in("phone", phones);
+      if (usersData) {
+        const map: Record<string, string | null> = {};
+        usersData.forEach((u: { phone: string; name?: string | null }) => {
+          map[u.phone] = u.name ?? null;
+        });
+        setMemberNames(map);
+      }
+    }
   }
 
   function formatExpiry(inv: PendingInvite): string {
@@ -113,10 +134,6 @@ export default function OrgGovernance({ enterprise, role }: Props) {
         .eq("id", inv.id);
       fetchMembers();
       toast({ title: "邀请已重新发送", description: "有效期延长至 7 天后" });
-    } else {
-      const link = `${window.location.origin}/invite/${inv.invite_code}`;
-      await navigator.clipboard.writeText(link);
-      toast({ title: "邀请链接已复制" });
     }
   }
 
@@ -132,7 +149,6 @@ export default function OrgGovernance({ enterprise, role }: Props) {
 
   async function saveMember() {
     if (!editMember) return;
-    // ensure at least 1 admin
     if (editRole !== "org_admin" && editMember.role === "org_admin") {
       const adminCount = members.filter((m) => m.role === "org_admin").length;
       if (adminCount <= 1) {
@@ -167,7 +183,6 @@ export default function OrgGovernance({ enterprise, role }: Props) {
     if (!addPhone.trim()) { toast({ title: "请输入手机号", variant: "destructive" }); return; }
     setSaving(true);
 
-    // Check if already a member of this enterprise
     const { data: existing } = await supabase
       .from("members")
       .select("id, organization_id")
@@ -181,7 +196,6 @@ export default function OrgGovernance({ enterprise, role }: Props) {
         setSaving(false);
         return;
       }
-      // Existing enterprise member → add directly as active
       await supabase.from("members").insert({
         enterprise_id: enterprise.id,
         organization_id: selectedOrgId,
@@ -192,7 +206,6 @@ export default function OrgGovernance({ enterprise, role }: Props) {
       });
       toast({ title: "成员已添加" });
     } else {
-      // New user → create invitation, show as 邀请中
       await supabase.from("invitations").insert({
         enterprise_id: enterprise.id,
         organization_id: selectedOrgId,
@@ -203,25 +216,16 @@ export default function OrgGovernance({ enterprise, role }: Props) {
       toast({ title: "邀请已发送", description: "对方接受邀请后将出现在成员列表" });
     }
 
+    // Upsert name if provided
+    if (addName.trim()) {
+      await supabase.from("users")
+        .upsert({ phone: addPhone.trim(), name: addName.trim() }, { onConflict: "phone" });
+    }
+
     setSaving(false);
     setShowAdd(false);
-    setAddPhone(""); setAddRole("member"); setAddLimit("2000");
+    setAddPhone(""); setAddName(""); setAddRole("member"); setAddLimit("2000");
     fetchMembers();
-  }
-
-  async function generateInviteLink() {
-    const { data } = await supabase.from("invitations").insert({
-      enterprise_id: enterprise.id,
-      organization_id: selectedOrgId,
-      inviter_phone: phone ?? "",
-      invited_role: addRole,
-    }).select().single();
-    if (data) {
-      const link = `${window.location.origin}/invite/${data.invite_code}`;
-      setInviteLink(link);
-      navigator.clipboard.writeText(link);
-      toast({ title: "邀请链接已复制" });
-    }
   }
 
   const roleLabel = (r: string) => r === "org_admin" ? "管理员" : "成员";
@@ -355,7 +359,14 @@ export default function OrgGovernance({ enterprise, role }: Props) {
                     </TableRow>
                   ) : members.map((m) => (
                     <TableRow key={m.id}>
-                      <TableCell className="font-medium">{m.user_phone}</TableCell>
+                      <TableCell>
+                        <div className="flex flex-col gap-0.5">
+                          <span className="font-semibold text-sm text-foreground">
+                            {memberNames[m.user_phone] ?? "—"}
+                          </span>
+                          <span className="text-xs text-muted-foreground">{maskPhone(m.user_phone)}</span>
+                        </div>
+                      </TableCell>
                       <TableCell>
                         <Badge variant={m.role === "org_admin" ? "default" : "secondary"}>
                           {roleLabel(m.role)}
@@ -393,7 +404,16 @@ export default function OrgGovernance({ enterprise, role }: Props) {
                   ))}
                   {pendingInvites.map((inv) => (
                     <TableRow key={inv.id} className="opacity-80">
-                      <TableCell className="font-medium">{inv.invitee_phone}</TableCell>
+                      <TableCell>
+                        <div className="flex flex-col gap-0.5">
+                          <span className="font-semibold text-sm text-foreground">
+                            {inv.invitee_phone ? (memberNames[inv.invitee_phone] ?? "—") : "—"}
+                          </span>
+                          <span className="text-xs text-muted-foreground">
+                            {inv.invitee_phone ? maskPhone(inv.invitee_phone) : "—"}
+                          </span>
+                        </div>
+                      </TableCell>
                       <TableCell>
                         <Badge variant={inv.invited_role === "org_admin" ? "default" : "secondary"}>
                           {roleLabel(inv.invited_role)}
@@ -416,9 +436,9 @@ export default function OrgGovernance({ enterprise, role }: Props) {
                             </Button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end">
-                            <DropdownMenuItem onClick={() => resendInvite(inv)}>
-                              {inv.invitee_phone ? "重新发送" : "复制邀请链接"}
-                            </DropdownMenuItem>
+                            {inv.invitee_phone && (
+                              <DropdownMenuItem onClick={() => resendInvite(inv)}>重新发送</DropdownMenuItem>
+                            )}
                             <DropdownMenuSeparator />
                             <DropdownMenuItem
                               className="text-destructive focus:text-destructive"
@@ -497,17 +517,15 @@ export default function OrgGovernance({ enterprise, role }: Props) {
                 onChange={(e) => setAddPhone(e.target.value)}
               />
             </div>
-            <div className="relative flex items-center gap-3">
-              <div className="flex-1 h-px bg-border" />
-              <span className="text-xs text-muted-foreground shrink-0">或</span>
-              <div className="flex-1 h-px bg-border" />
+            <div className="space-y-2">
+              <Label htmlFor="add-name">成员姓名（可选）</Label>
+              <Input
+                id="add-name"
+                placeholder="请输入姓名"
+                value={addName}
+                onChange={(e) => setAddName(e.target.value)}
+              />
             </div>
-            <Button variant="outline" className="w-full gap-2" onClick={generateInviteLink}>
-              <Link className="w-4 h-4" />生成邀请链接
-            </Button>
-            {inviteLink && (
-              <div className="p-2 bg-muted rounded text-xs text-muted-foreground break-all">{inviteLink}</div>
-            )}
             <div className="space-y-2">
               <Label>指定角色</Label>
               <RadioGroup value={addRole} onValueChange={setAddRole} className="flex gap-6">
