@@ -249,7 +249,7 @@ export default function OrgManagement({ enterprise, role }: Props) {
                           <DropdownMenuItem onClick={() => { setEditOrg(org); setEditName(org.name); }} className="gap-2">
                             <Pencil className="w-3.5 h-3.5" /> 编辑组织名称
                           </DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => { setSetAdminOrg(org); setNewAdminPhone(org.admin_phone || ""); }} className="gap-2">
+                          <DropdownMenuItem onClick={() => { setSetAdminOrg(org); setNewAdminPhone(org.admin_phone || "__none__"); }} className="gap-2">
                             <UserCog className="w-3.5 h-3.5" /> 设置管理员
                           </DropdownMenuItem>
                           {isAdmin && (
