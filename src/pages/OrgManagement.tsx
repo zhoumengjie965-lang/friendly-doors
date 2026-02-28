@@ -16,9 +16,10 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Building2, Users, Key, Plus, Settings2, SlidersHorizontal, Pencil, UserCog, Power, Trash2, ChevronDown } from "lucide-react";
+import { Building2, Users, Key, Plus, SlidersHorizontal, Pencil, UserCog, Power, Trash2, ChevronDown } from "lucide-react";
 import CreateOrgDialog from "@/components/CreateOrgDialog";
 import OrgBudgetSheet from "@/components/OrgBudgetSheet";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 interface Enterprise { id: string; name: string; enterprise_code: string }
 
@@ -40,6 +41,7 @@ interface Props {
 export default function OrgManagement({ enterprise, role }: Props) {
   const [orgs, setOrgs] = useState<Org[]>([]);
   const [members, setMembers] = useState<{ user_phone: string; role: string }[]>([]);
+  const [userMap, setUserMap] = useState<Record<string, string>>({}); // phone -> name
   const [orgCount, setOrgCount] = useState(0);
   const [memberCount, setMemberCount] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -56,13 +58,18 @@ export default function OrgManagement({ enterprise, role }: Props) {
 
   const load = async () => {
     setLoading(true);
-    const [orgsRes, membersRes] = await Promise.all([
+    const [orgsRes, membersRes, usersRes] = await Promise.all([
       supabase.from("organizations").select("*").eq("enterprise_id", enterprise.id).order("created_at"),
       supabase.from("members").select("user_phone, role, organization_id").eq("enterprise_id", enterprise.id),
+      supabase.from("users").select("phone, name"),
     ]);
     const allMembers = membersRes.data || [];
     setMembers(allMembers);
     setMemberCount(allMembers.length);
+
+    const map: Record<string, string> = {};
+    for (const u of (usersRes.data || [])) { if (u.phone) map[u.phone] = u.name || ""; }
+    setUserMap(map);
 
     const rawOrgs = (orgsRes.data || []) as any[];
     const orgsWithCount = rawOrgs.map(org => ({
@@ -108,14 +115,17 @@ export default function OrgManagement({ enterprise, role }: Props) {
   };
 
   const handleSetAdmin = async () => {
-    if (!setAdminOrg || !newAdminPhone.trim()) return;
+    if (!setAdminOrg) return;
     setSaving(true);
     try {
-      await supabase.from("organizations").update({ admin_phone: newAdminPhone.trim() } as any).eq("id", setAdminOrg.id);
-      const existingMember = members.find(m => m.user_phone === newAdminPhone.trim());
-      if (existingMember) {
-        await supabase.from("members").update({ role: "org_admin", organization_id: setAdminOrg.id } as any)
-          .eq("user_phone", newAdminPhone.trim()).eq("enterprise_id", enterprise.id);
+      const phone = newAdminPhone === "__none__" ? null : newAdminPhone;
+      await supabase.from("organizations").update({ admin_phone: phone } as any).eq("id", setAdminOrg.id);
+      if (phone) {
+        const existingMember = members.find(m => m.user_phone === phone);
+        if (existingMember) {
+          await supabase.from("members").update({ role: "org_admin", organization_id: setAdminOrg.id } as any)
+            .eq("user_phone", phone).eq("enterprise_id", enterprise.id);
+        }
       }
       toast({ title: "组织管理员已更新" });
       setSetAdminOrg(null);
@@ -199,7 +209,11 @@ export default function OrgManagement({ enterprise, role }: Props) {
                   <tr key={org.id} className={`border-b border-border last:border-0 hover:bg-muted/20 transition-colors ${i % 2 === 0 ? "" : "bg-muted/10"}`}>
                     <td className="px-6 py-4 font-medium text-foreground">{org.name}</td>
                     <td className="px-6 py-4 text-muted-foreground">
-                      {org.admin_phone || <span className="text-muted-foreground/50 text-xs">未设置</span>}
+                      {org.admin_phone
+                        ? (userMap[org.admin_phone]
+                            ? userMap[org.admin_phone]
+                            : `${org.admin_phone.slice(0,3)}****${org.admin_phone.slice(-4)}`)
+                        : <span className="text-muted-foreground/50 text-xs">未设置</span>}
                     </td>
                     <td className="px-6 py-4 text-muted-foreground">{org.memberCount ?? 0}</td>
                     <td className="px-6 py-4">
@@ -235,7 +249,7 @@ export default function OrgManagement({ enterprise, role }: Props) {
                           <DropdownMenuItem onClick={() => { setEditOrg(org); setEditName(org.name); }} className="gap-2">
                             <Pencil className="w-3.5 h-3.5" /> 编辑组织名称
                           </DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => { setSetAdminOrg(org); setNewAdminPhone(org.admin_phone || ""); }} className="gap-2">
+                          <DropdownMenuItem onClick={() => { setSetAdminOrg(org); setNewAdminPhone(org.admin_phone || "__none__"); }} className="gap-2">
                             <UserCog className="w-3.5 h-3.5" /> 设置管理员
                           </DropdownMenuItem>
                           {isAdmin && (
@@ -304,18 +318,27 @@ export default function OrgManagement({ enterprise, role }: Props) {
           <DialogHeader><DialogTitle>设置组织管理员</DialogTitle></DialogHeader>
           <div className="space-y-4 py-2">
             <div className="space-y-2">
-              <Label>管理员手机号</Label>
-              <Input placeholder="请输入手机号" value={newAdminPhone} onChange={e => setNewAdminPhone(e.target.value)} />
-              {newAdminPhone.trim() && (
-                <p className="text-xs text-muted-foreground">
-                  {members.find(m => m.user_phone === newAdminPhone.trim())
-                    ? "✓ 企业现有成员" : "→ 将更新记录（需成员已在企业中）"}
-                </p>
-              )}
+              <Label>选择管理员</Label>
+              <Select value={newAdminPhone} onValueChange={setNewAdminPhone}>
+                <SelectTrigger>
+                  <SelectValue placeholder="请选择" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__none__">不指定（默认企业管理员）</SelectItem>
+                  {members.filter(m => m.user_phone).map(m => (
+                    <SelectItem key={m.user_phone} value={m.user_phone}>
+                      {userMap[m.user_phone]
+                        ? `${userMap[m.user_phone]} - ${m.user_phone.slice(0,3)}****${m.user_phone.slice(-4)}`
+                        : `${m.user_phone.slice(0,3)}****${m.user_phone.slice(-4)}`}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">不指定时，该组织默认由企业管理员管理</p>
             </div>
             <div className="flex gap-3">
               <Button variant="outline" className="flex-1" onClick={() => setSetAdminOrg(null)}>取消</Button>
-              <Button className="flex-1" onClick={handleSetAdmin} disabled={saving}>{saving ? "保存中..." : "确认"}</Button>
+              <Button className="flex-1" onClick={handleSetAdmin} disabled={saving || !newAdminPhone}>{saving ? "保存中..." : "确认"}</Button>
             </div>
           </div>
         </DialogContent>
