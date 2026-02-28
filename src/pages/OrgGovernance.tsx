@@ -171,6 +171,7 @@ export default function OrgGovernance({ enterprise, role }: Props) {
 
   async function addMember() {
     if (!addPhone.trim()) { toast({ title: "请输入手机号", variant: "destructive" }); return; }
+    if (!addName.trim()) { toast({ title: "请输入成员姓名", variant: "destructive" }); return; }
     setSaving(true);
 
     const { data: existing } = await supabase
@@ -501,7 +502,7 @@ export default function OrgGovernance({ enterprise, role }: Props) {
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="add-name">成员姓名（可选）</Label>
+              <Label htmlFor="add-name">成员姓名 <span className="text-destructive">*</span></Label>
               <Input
                 id="add-name"
                 placeholder="请输入姓名"
@@ -514,11 +515,11 @@ export default function OrgGovernance({ enterprise, role }: Props) {
               <RadioGroup value={addRole} onValueChange={setAddRole} className="flex gap-6">
                 <div className="flex items-center gap-2">
                   <RadioGroupItem value="member" id="a-member" />
-                  <Label htmlFor="a-member" className="font-normal cursor-pointer">成员</Label>
+                  <Label htmlFor="a-member" className="font-normal cursor-pointer">普通成员</Label>
                 </div>
                 <div className="flex items-center gap-2">
                   <RadioGroupItem value="org_admin" id="a-admin" />
-                  <Label htmlFor="a-admin" className="font-normal cursor-pointer">管理员</Label>
+                  <Label htmlFor="a-admin" className="font-normal cursor-pointer">组织管理员</Label>
                 </div>
               </RadioGroup>
             </div>
