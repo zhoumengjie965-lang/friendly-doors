@@ -41,6 +41,7 @@ interface Props {
 export default function OrgManagement({ enterprise, role }: Props) {
   const [orgs, setOrgs] = useState<Org[]>([]);
   const [members, setMembers] = useState<{ user_phone: string; role: string }[]>([]);
+  const [userMap, setUserMap] = useState<Record<string, string>>({}); // phone -> name
   const [orgCount, setOrgCount] = useState(0);
   const [memberCount, setMemberCount] = useState(0);
   const [loading, setLoading] = useState(true);
