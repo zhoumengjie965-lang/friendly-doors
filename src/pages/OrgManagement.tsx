@@ -58,13 +58,18 @@ export default function OrgManagement({ enterprise, role }: Props) {
 
   const load = async () => {
     setLoading(true);
-    const [orgsRes, membersRes] = await Promise.all([
+    const [orgsRes, membersRes, usersRes] = await Promise.all([
       supabase.from("organizations").select("*").eq("enterprise_id", enterprise.id).order("created_at"),
       supabase.from("members").select("user_phone, role, organization_id").eq("enterprise_id", enterprise.id),
+      supabase.from("users").select("phone, name"),
     ]);
     const allMembers = membersRes.data || [];
     setMembers(allMembers);
     setMemberCount(allMembers.length);
+
+    const map: Record<string, string> = {};
+    for (const u of (usersRes.data || [])) { if (u.phone) map[u.phone] = u.name || ""; }
+    setUserMap(map);
 
     const rawOrgs = (orgsRes.data || []) as any[];
     const orgsWithCount = rawOrgs.map(org => ({
