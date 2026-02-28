@@ -115,14 +115,17 @@ export default function OrgManagement({ enterprise, role }: Props) {
   };
 
   const handleSetAdmin = async () => {
-    if (!setAdminOrg || !newAdminPhone.trim()) return;
+    if (!setAdminOrg) return;
     setSaving(true);
     try {
-      await supabase.from("organizations").update({ admin_phone: newAdminPhone.trim() } as any).eq("id", setAdminOrg.id);
-      const existingMember = members.find(m => m.user_phone === newAdminPhone.trim());
-      if (existingMember) {
-        await supabase.from("members").update({ role: "org_admin", organization_id: setAdminOrg.id } as any)
-          .eq("user_phone", newAdminPhone.trim()).eq("enterprise_id", enterprise.id);
+      const phone = newAdminPhone === "__none__" ? null : newAdminPhone;
+      await supabase.from("organizations").update({ admin_phone: phone } as any).eq("id", setAdminOrg.id);
+      if (phone) {
+        const existingMember = members.find(m => m.user_phone === phone);
+        if (existingMember) {
+          await supabase.from("members").update({ role: "org_admin", organization_id: setAdminOrg.id } as any)
+            .eq("user_phone", phone).eq("enterprise_id", enterprise.id);
+        }
       }
       toast({ title: "组织管理员已更新" });
       setSetAdminOrg(null);
