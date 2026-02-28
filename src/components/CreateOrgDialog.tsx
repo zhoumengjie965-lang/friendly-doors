@@ -168,7 +168,18 @@ export default function CreateOrgDialog({ open, onOpenChange, enterpriseId, exis
         <div className="space-y-5 py-2">
           <div className="space-y-2">
             <Label>组织名称 <span className="text-destructive">*</span></Label>
-            <Input placeholder="请输入组织名称" value={orgName} onChange={e => setOrgName(e.target.value)} />
+          <Input placeholder="请输入组织名称" value={orgName} onChange={e => setOrgName(e.target.value)} />
+          </div>
+
+          <div className="space-y-2">
+            <Label>默认月预算（元）<span className="text-muted-foreground text-xs">（可选）</span></Label>
+            <Input
+              type="number"
+              placeholder="留空表示不限制"
+              value={monthlyBudget}
+              onChange={e => setMonthlyBudget(e.target.value)}
+              min={0}
+            />
           </div>
 
           <div className="space-y-3">
