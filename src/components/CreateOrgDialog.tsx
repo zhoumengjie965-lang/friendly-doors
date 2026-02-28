@@ -127,6 +127,7 @@ export default function CreateOrgDialog({ open, onOpenChange, enterpriseId, exis
         .insert({
           enterprise_id: enterpriseId,
           name: orgName.trim(),
+          monthly_budget: monthlyBudget === "" ? null : Number(monthlyBudget),
           admin_phone: addMode === "single" ? (adminPhone.trim() || null) : null,
         } as any)
         .select()
@@ -144,7 +145,7 @@ export default function CreateOrgDialog({ open, onOpenChange, enterpriseId, exis
       }
 
       toast({ title: "创建成功", description: `组织「${orgName}」已创建` });
-      setOrgName(""); setAdminPhone(""); setAdminName(""); setBulkText("");
+      setOrgName(""); setMonthlyBudget(""); setAdminPhone(""); setAdminName(""); setBulkText("");
       setAddMode("single");
       onCreated();
       onOpenChange(false);
