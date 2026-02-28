@@ -318,18 +318,27 @@ export default function OrgManagement({ enterprise, role }: Props) {
           <DialogHeader><DialogTitle>设置组织管理员</DialogTitle></DialogHeader>
           <div className="space-y-4 py-2">
             <div className="space-y-2">
-              <Label>管理员手机号</Label>
-              <Input placeholder="请输入手机号" value={newAdminPhone} onChange={e => setNewAdminPhone(e.target.value)} />
-              {newAdminPhone.trim() && (
-                <p className="text-xs text-muted-foreground">
-                  {members.find(m => m.user_phone === newAdminPhone.trim())
-                    ? "✓ 企业现有成员" : "→ 将更新记录（需成员已在企业中）"}
-                </p>
-              )}
+              <Label>选择管理员</Label>
+              <Select value={newAdminPhone} onValueChange={setNewAdminPhone}>
+                <SelectTrigger>
+                  <SelectValue placeholder="请选择" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__none__">不指定（默认企业管理员）</SelectItem>
+                  {members.filter(m => m.user_phone).map(m => (
+                    <SelectItem key={m.user_phone} value={m.user_phone}>
+                      {userMap[m.user_phone]
+                        ? `${userMap[m.user_phone]} - ${m.user_phone.slice(0,3)}****${m.user_phone.slice(-4)}`
+                        : `${m.user_phone.slice(0,3)}****${m.user_phone.slice(-4)}`}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">不指定时，该组织默认由企业管理员管理</p>
             </div>
             <div className="flex gap-3">
               <Button variant="outline" className="flex-1" onClick={() => setSetAdminOrg(null)}>取消</Button>
-              <Button className="flex-1" onClick={handleSetAdmin} disabled={saving}>{saving ? "保存中..." : "确认"}</Button>
+              <Button className="flex-1" onClick={handleSetAdmin} disabled={saving || !newAdminPhone}>{saving ? "保存中..." : "确认"}</Button>
             </div>
           </div>
         </DialogContent>
