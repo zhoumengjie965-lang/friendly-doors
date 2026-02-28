@@ -122,19 +122,9 @@ export default function OrgGovernance({ enterprise, role }: Props) {
   }
 
   async function revokeInvite(inviteId: string) {
-    await supabase.from("invitations").update({ status: "revoked" }).eq("id", inviteId);
+    await supabase.from("invitations").delete().eq("id", inviteId);
     fetchMembers();
-    toast({ title: "邀请已撤回" });
-  }
-
-  async function resendInvite(inv: PendingInvite) {
-    if (inv.invitee_phone) {
-      await supabase.from("invitations")
-        .update({ expires_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString() })
-        .eq("id", inv.id);
-      fetchMembers();
-      toast({ title: "邀请已重新发送", description: "有效期延长至 7 天后" });
-    }
+    toast({ title: "已取消添加" });
   }
 
   const budget = selectedOrg?.monthly_budget ?? 0;
@@ -436,15 +426,11 @@ export default function OrgGovernance({ enterprise, role }: Props) {
                             </Button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end">
-                            {inv.invitee_phone && (
-                              <DropdownMenuItem onClick={() => resendInvite(inv)}>重新发送</DropdownMenuItem>
-                            )}
-                            <DropdownMenuSeparator />
                             <DropdownMenuItem
                               className="text-destructive focus:text-destructive"
                               onClick={() => revokeInvite(inv.id)}
                             >
-                              撤回邀请
+                              取消添加
                             </DropdownMenuItem>
                           </DropdownMenuContent>
                         </DropdownMenu>
