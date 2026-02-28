@@ -1,54 +1,89 @@
 
-# 「邀请中」操作菜单简化：改为单一「取消添加」按钮
+# 创建组织：初始成员必填姓名 + 批量添加功能
 
-## 改动内容
+## 改动目标
 
-**文件：`src/pages/OrgGovernance.tsx`**
+1. **姓名必填**：当填写了手机号，姓名字段必须填写（现在填手机号后姓名才出现，且是可选的）
+2. **批量添加**：在"邀请初始成员"区域增加"单个添加 / 批量导入"Tab切换
 
-### 1. 修改 `revokeInvite` 函数（第 124-127 行）
-将 `update({ status: "revoked" })` 改为直接 **DELETE** 该邀请记录，删除后从列表移除：
+---
+
+## 文件变更：`src/components/CreateOrgDialog.tsx`
+
+### 1. 单个添加模式（默认）
+
+调整现有布局：手机号 + 姓名始终同时显示（不等手机号填写后才出现姓名输入框），验证逻辑改为：只要手机号或姓名任一有值，两者都必填。
+
+```
+手机号输入框（必填，若填写）
+姓名输入框（必填，若填写）
+角色选择
+```
+
+### 2. 批量导入模式（新增 Tab）
+
+切换到"批量导入"后，显示：
+- 一个 `Textarea`，每行输入一条记录，格式：`姓名 手机号` 或 `姓名,手机号`
+- 格式提示说明（灰色小字）
+- 实时解析预览：显示解析出的人员列表（姓名、手机号、识别状态）
+- 角色选择（批量统一角色）
+
+解析逻辑：按行分割，支持空格或逗号分隔，跳过空行，标记格式错误行。
+
+### 3. 状态结构调整
 
 ```ts
-async function revokeInvite(inviteId: string) {
-  await supabase.from("invitations").delete().eq("id", inviteId);
-  fetchMembers();
-  toast({ title: "已取消添加" });
-}
+type AddMode = "single" | "bulk";
+const [addMode, setAddMode] = useState<AddMode>("single");
+
+// 批量模式
+const [bulkText, setBulkText] = useState("");
+const [bulkRole, setBulkRole] = useState<"admin" | "org_admin" | "member">("member");
 ```
 
-### 2. 删除 `resendInvite` 函数（第 130-138 行）
-整个函数不再需要，直接删除。
+### 4. 提交逻辑
 
-### 3. 简化下拉菜单（第 438-449 行）
-将原来的两个菜单项（「重新发送」+ 分割线 + 「撤回邀请」）替换为单一的「取消添加」按钮：
+批量模式时，`handleCreate` 遍历解析出的成员列表，对每一项执行与单个添加相同的逻辑：
+- upsert `users` 表（保存姓名）
+- 若已是企业成员 → update member 的 organization_id
+- 否则 → insert invitation
 
-```tsx
-<DropdownMenuContent align="end">
-  <DropdownMenuItem
-    className="text-destructive focus:text-destructive"
-    onClick={() => revokeInvite(inv.id)}
-  >
-    取消添加
-  </DropdownMenuItem>
-</DropdownMenuContent>
+### 5. UI 结构
+
+```
+邀请初始成员（可选）
+[单个添加] [批量导入]   ← Tab 切换（简单的两个按钮组）
+
+---- 单个模式 ----
+手机号 ____________
+姓名   ____________
+角色   [组织管理员 ▼]
+状态提示
+
+---- 批量模式 ----
+每行一人，格式：姓名 手机号
+____________________________
+____________________________  ← Textarea
+____________________________
+角色统一设为 [普通成员 ▼]
+解析预览（若有内容）：
+  张三  138****0001  ✓ 格式正确
+  李四  139****0002  ✓ 格式正确
+  王五  abc         ✗ 手机号格式错误
 ```
 
-## 无数据库结构变更
-直接对 `invitations` 表执行 DELETE，表的 RLS 策略目前不允许删除（只允许 UPDATE）。需要确认：当前 `invitations` 表是否有 DELETE 策略。
+---
 
-查看 RLS 策略：`invitations` 表目前只有 INSERT/UPDATE/SELECT，**没有 DELETE 策略**。
+## 技术细节
 
-因此需要同步添加一条数据库迁移，允许删除邀请记录：
+- Tab 切换使用简单的两个 `Button` 而非 Radix Tabs（避免引入额外组件，保持轻量）
+- 解析函数：`parseBulkText(text: string)` → `{ name, phone, valid, reason }[]`
+- 批量提交时若有格式错误行，先提示并阻止提交
+- `DialogContent` 宽度扩展为 `sm:max-w-lg` 以容纳批量区域
+- 切换模式时清空对应状态
 
-```sql
-CREATE POLICY "Anyone can delete invitation"
-ON public.invitations FOR DELETE
-USING (true);
-```
+---
 
-## 文件变更清单
+## 无数据库变更
 
-| 文件 | 操作 |
-|------|------|
-| 数据库迁移 | 为 `invitations` 表添加 DELETE RLS 策略 |
-| `src/pages/OrgGovernance.tsx` | 修改 `revokeInvite`、删除 `resendInvite`、简化下拉菜单 |
+批量添加复用现有 `invitations` 和 `members` 表逻辑，无需数据库结构变更。
