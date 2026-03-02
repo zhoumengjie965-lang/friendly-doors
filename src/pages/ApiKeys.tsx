@@ -117,9 +117,11 @@ export default function ApiKeys({ enterprise, role }: Props) {
   const [loading, setLoading] = useState(false);
 
   // Search state
-  const [keywordSearch, setKeywordSearch] = useState("");
+  const [nameSearch, setNameSearch] = useState("");
+  const [apiKeySearch, setApiKeySearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [runningStatusFilter, setRunningStatusFilter] = useState<string>("all");
+  const [groupFilter, setGroupFilter] = useState<string>("all");
 
   // Pagination
   const [myPage, setMyPage] = useState(1);
@@ -311,11 +313,12 @@ export default function ApiKeys({ enterprise, role }: Props) {
 
   const filterKeys = (keys: ApiKey[]) => {
     return keys.filter(k => {
-      const kw = keywordSearch.toLowerCase();
-      const matchKeyword = !kw || k.name.toLowerCase().includes(kw) || k.key_value.toLowerCase().includes(kw);
+      const matchName = !nameSearch || k.name.toLowerCase().includes(nameSearch.toLowerCase());
+      const matchApiKey = !apiKeySearch || k.key_value.toLowerCase().includes(apiKeySearch.toLowerCase());
       const matchStatus = statusFilter === "all" || k.status === statusFilter;
       const matchRunning = runningStatusFilter === "all" || getRunningStatus(k).label === runningStatusFilter;
-      return matchKeyword && matchStatus && matchRunning;
+      const matchGroup = groupFilter === "all" || (groupFilter === "__none__" ? !k.group_name : k.group_name === groupFilter);
+      return matchName && matchApiKey && matchStatus && matchRunning && matchGroup;
     });
   };
 
@@ -375,7 +378,23 @@ export default function ApiKeys({ enterprise, role }: Props) {
                 </TableHead>
                 <TableHead className="font-medium">已消耗/预算上限</TableHead>
                 {showCreator && <TableHead className="font-medium">创建者</TableHead>}
-                <TableHead className="font-medium">分组</TableHead>
+                <TableHead className="font-medium">
+                  <div className="flex items-center gap-1">
+                    分组
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <button className="hover:bg-muted rounded p-0.5"><ChevronDown className="w-3 h-3" /></button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="start">
+                        <DropdownMenuCheckboxItem checked={groupFilter === "all"} onCheckedChange={() => setGroupFilter("all")}>全部</DropdownMenuCheckboxItem>
+                        {[...new Set(keys.map(k => k.group_name).filter(Boolean))].map(g => (
+                          <DropdownMenuCheckboxItem key={g} checked={groupFilter === g} onCheckedChange={() => setGroupFilter(g!)}>{g}</DropdownMenuCheckboxItem>
+                        ))}
+                        <DropdownMenuCheckboxItem checked={groupFilter === "__none__"} onCheckedChange={() => setGroupFilter("__none__")}>未分组</DropdownMenuCheckboxItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </div>
+                </TableHead>
                 <TableHead className="font-medium">API Key</TableHead>
                 <TableHead className="font-medium">可用模型</TableHead>
                 <TableHead className="font-medium">过期时间</TableHead>
@@ -508,22 +527,12 @@ export default function ApiKeys({ enterprise, role }: Props) {
     );
   };
 
-  const filterKeysUpdated = (keys: ApiKey[]) => {
-    return keys.filter(k => {
-      const kw = keywordSearch.toLowerCase();
-      const matchKeyword = !kw ||
-        k.name.toLowerCase().includes(kw) ||
-        k.key_value.toLowerCase().includes(kw);
-      const matchStatus = statusFilter === "all" || k.status === statusFilter;
-      const matchRunning = runningStatusFilter === "all" || getRunningStatus(k).label === runningStatusFilter;
-      return matchKeyword && matchStatus && matchRunning;
-    });
-  };
-
   const handleReset = () => {
-    setKeywordSearch("");
+    setNameSearch("");
+    setApiKeySearch("");
     setStatusFilter("all");
     setRunningStatusFilter("all");
+    setGroupFilter("all");
   };
 
   const [activeTab, setActiveTab] = useState("my");
@@ -572,47 +581,47 @@ export default function ApiKeys({ enterprise, role }: Props) {
         </button>
       </div>
 
-      {/* 第二行：创建按钮 + 聚合筛选栏 */}
+      {/* 第二行：创建按钮 + 搜索筛选栏（图2样式） */}
       <div className="flex items-center justify-between mb-5">
         <Button onClick={openCreate} className="gap-2 h-9">
           <Plus className="w-4 h-4" />创建 API Key
         </Button>
-        <div className="flex items-center gap-2">
-          {/* 合并搜索输入框 */}
-          <div className="relative">
-            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+        <div className="flex items-center gap-0 border border-border rounded-md overflow-hidden h-9">
+          {/* 名称搜索 */}
+          <div className="flex items-center px-3 gap-1.5 border-r border-border h-full bg-background">
+            <span className="text-xs text-muted-foreground whitespace-nowrap">名称</span>
             <Input
-              placeholder="搜索关键词（名称 / API Key...）"
-              className="pl-8 h-9 w-64"
-              value={keywordSearch}
-              onChange={e => setKeywordSearch(e.target.value)}
+              placeholder="请输入名称"
+              className="border-0 shadow-none h-full p-0 text-sm w-36 focus-visible:ring-0 focus-visible:ring-offset-0 bg-transparent"
+              value={nameSearch}
+              onChange={e => setNameSearch(e.target.value)}
             />
           </div>
-          {/* 运行状态下拉 */}
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="outline" size="sm" className="h-9 gap-1 min-w-[100px] justify-between">
-                {runningStatusFilter === "all" ? "运行状态" : runningStatusFilter}
-                <ChevronDown className="w-3.5 h-3.5 shrink-0" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuCheckboxItem checked={runningStatusFilter === "all"} onCheckedChange={() => setRunningStatusFilter("all")}>全部</DropdownMenuCheckboxItem>
-              <DropdownMenuCheckboxItem checked={runningStatusFilter === "正常"} onCheckedChange={() => setRunningStatusFilter("正常")}>正常</DropdownMenuCheckboxItem>
-              <DropdownMenuCheckboxItem checked={runningStatusFilter === "预算不足"} onCheckedChange={() => setRunningStatusFilter("预算不足")}>预算不足</DropdownMenuCheckboxItem>
-              <DropdownMenuCheckboxItem checked={runningStatusFilter === "已过期"} onCheckedChange={() => setRunningStatusFilter("已过期")}>已过期</DropdownMenuCheckboxItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-          {/* 重置按钮 */}
-          <Button
-            variant="outline"
-            size="sm"
-            className="h-9 px-3"
-            onClick={handleReset}
-            title="重置筛选"
+          {/* API Key 搜索 */}
+          <div className="flex items-center px-3 gap-1.5 border-r border-border h-full bg-background">
+            <span className="text-xs text-muted-foreground whitespace-nowrap">API Key</span>
+            <Input
+              placeholder="请输入 API Key"
+              className="border-0 shadow-none h-full p-0 text-sm w-36 focus-visible:ring-0 focus-visible:ring-offset-0 bg-transparent"
+              value={apiKeySearch}
+              onChange={e => setApiKeySearch(e.target.value)}
+            />
+          </div>
+          {/* 搜索按钮 */}
+          <button
+            className="px-4 h-full bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 transition-colors whitespace-nowrap"
+            onClick={() => {/* 搜索已是实时响应 */}}
           >
-            <X className="w-4 h-4" />
-          </Button>
+            搜索
+          </button>
+          {/* 重置按钮 */}
+          <button
+            className="px-3 h-full bg-background text-muted-foreground hover:text-foreground border-l border-border text-sm transition-colors whitespace-nowrap"
+            onClick={handleReset}
+            title="重置"
+          >
+            重置
+          </button>
         </div>
       </div>
 
@@ -621,7 +630,7 @@ export default function ApiKeys({ enterprise, role }: Props) {
         {activeTab === "my" && (
           <KeyTable
             keys={myKeys}
-            filterFn={filterKeysUpdated}
+            filterFn={filterKeys}
             page={myPage}
             setPage={setMyPage}
           />
@@ -629,7 +638,7 @@ export default function ApiKeys({ enterprise, role }: Props) {
         {canSeeOrgTab && activeTab === "org" && (
           <KeyTable
             keys={orgKeys}
-            filterFn={filterKeysUpdated}
+            filterFn={filterKeys}
             showCreator
             page={orgPage}
             setPage={setOrgPage}
