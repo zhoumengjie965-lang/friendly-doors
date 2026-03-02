@@ -1,72 +1,122 @@
 
-# API Key 表格完善方案
+# 修复 API Key 创建失败问题
 
-## 需求分析（对照图片）
+## 根本原因
 
-### 字段顺序调整（按图片表格排序）
-| 排序 | 字段 | 我的 Key | 组织 Key | 说明 |
-|------|------|---------|---------|------|
-| 1 | 名称 | ✓ | ✓ | 固定在最左侧 |
-| 2 | 管理状态 | ✓ | ✓ | 手动控制禁/启用，可下拉筛选 |
-| 3 | 运行状态 | ✓ | ✓ | 系统自动计算（正常/预算不足/已过期/异常），可下拉筛选 |
-| 4 | 已消耗/预算上限 | ✓ | ✓ | 核心字段，带进度条（替换原"剩余/总额度"） |
-| 5 | 创建者 | — | ✓（新增） | 仅组织 Tab 显示 |
-| 6 | 分组 | ✓ | ✓ | |
-| 7 | API Key | ✓ | ✓ | 脱敏展示，提供复制按钮 |
-| 8 | 可用模型 | ✓ | ✓ | |
-| 9 | 过期时间 | ✓ | ✓ | |
-| 10 | 创建时间 | ✓ | ✓ | |
-| 11 | 操作 | ✓ | ✓ | 编辑、删除、禁/启用 |
+`set_current_phone` RPC 和 `INSERT api_keys` 是两次独立的 HTTP 请求，对应两个独立的数据库会话。`set_config('app.current_phone', ...)` 的作用域仅限于当前数据库会话，因此第二次请求（INSERT）时该配置已不存在，RLS 策略校验失败，返回 401。
 
-### 新增"运行状态"字段（核心变化）
-系统根据以下规则自动计算，**只做前端展示计算，无需数据库改动**：
+## 解决方案
 
-- **正常**（绿色）：管理状态为启用，未过期，未超预算
-- **预算不足**（橙色）：`used_quota >= total_quota`（total_quota 不为 null）
-  - 悬浮 Tooltip 提示具体原因：Key 预算不足
-- **已过期**（灰色）：`expires_at` 不为空且已过当前时间
-- **异常**（红色）：其他异常情况（预留）
+创建一个数据库函数 `create_api_key`，在**同一个数据库会话**中：
+1. 先调用 `set_config` 设置 `app.current_phone`
+2. 再执行 `INSERT INTO api_keys`
 
-> 注：图片提到"个人日预算不足"、"组织月预算不足"、"企业余额不足"等，这些需要关联其他表的数据，前期先做 Key 自身的预算判断，其余状态用"正常"兜底，保持架构简洁。
+这样 RLS 策略在检查 `WITH CHECK` 时，`current_setting('app.current_phone')` 是有值的，验证通过。
 
-### "已消耗/预算上限"列
-- 原"剩余/总额度" → **"已消耗/预算上限"**
-- 显示格式：`¥已消耗 / ¥上限`，下方带使用率进度条
-- 无限制时显示 `¥已消耗 / 无限制`
-
-### 管理状态列
-- 保留原有下拉筛选（启用/禁用/全部）
-
-### 运行状态列
-- 新增下拉筛选（全部/正常/预算不足/已过期）
-
-### 组织 Tab 新增"创建者"列（已有代码，需调整位置到第5列）
+对应的，编辑（UPDATE）和删除（DELETE）也需要类似的 RPC 函数来解决同样的问题。
 
 ## 技术实现
 
-**只修改 `src/pages/ApiKeys.tsx`**，无需数据库改动。
+### 第一步：数据库迁移
 
-### 关键改动点：
+创建三个 RPC 函数：
 
-1. **新增 `getRunningStatus` 函数**：根据 `used_quota`、`total_quota`、`expires_at` 自动计算运行状态
-2. **新增运行状态筛选 state**：`runningStatusFilter`
-3. **`KeyTable` 组件**：
-   - 调整列顺序（名称→管理状态→运行状态→已消耗/预算上限→[创建者]→分组→API Key→可用模型→过期时间→创建时间→操作）
-   - 替换"剩余/总额度"为"已消耗/预算上限"，带进度条
-   - 新增"运行状态"列，带 Badge 颜色区分 + Tooltip 悬浮说明
-   - 运行状态表头加下拉筛选
-4. **`filterKeys` 函数**：增加运行状态过滤逻辑
-5. **`SearchBar` 组件**：新增运行状态下拉筛选器
+```sql
+-- 创建 API Key
+CREATE OR REPLACE FUNCTION public.create_api_key(
+  p_phone text,
+  p_name text,
+  p_enterprise_id uuid,
+  p_group_name text DEFAULT NULL,
+  p_expires_at timestamptz DEFAULT NULL,
+  p_total_quota numeric DEFAULT NULL,
+  p_allowed_models text[] DEFAULT NULL,
+  p_ip_whitelist text[] DEFAULT NULL,
+  p_organization_id uuid DEFAULT NULL
+) RETURNS api_keys LANGUAGE plpgsql SECURITY DEFINER AS $$
+DECLARE
+  result api_keys;
+BEGIN
+  PERFORM set_config('app.current_phone', p_phone, true);
+  INSERT INTO api_keys (
+    name, enterprise_id, creator_phone,
+    group_name, expires_at, total_quota,
+    allowed_models, ip_whitelist, organization_id
+  ) VALUES (
+    p_name, p_enterprise_id, p_phone,
+    p_group_name, p_expires_at, p_total_quota,
+    p_allowed_models, p_ip_whitelist, p_organization_id
+  ) RETURNING * INTO result;
+  RETURN result;
+END;
+$$;
 
-### 运行状态颜色方案
-| 状态 | Badge 颜色 |
-|------|-----------|
-| 正常 | 绿色 |
-| 预算不足 | 橙色 |
-| 已过期 | 灰色 |
-| 异常 | 红色 |
+-- 更新 API Key
+CREATE OR REPLACE FUNCTION public.update_api_key(
+  p_phone text,
+  p_id uuid,
+  p_name text,
+  p_group_name text DEFAULT NULL,
+  p_expires_at timestamptz DEFAULT NULL,
+  p_total_quota numeric DEFAULT NULL,
+  p_allowed_models text[] DEFAULT NULL,
+  p_ip_whitelist text[] DEFAULT NULL
+) RETURNS api_keys LANGUAGE plpgsql SECURITY DEFINER AS $$
+DECLARE
+  result api_keys;
+BEGIN
+  PERFORM set_config('app.current_phone', p_phone, true);
+  UPDATE api_keys SET
+    name = p_name,
+    group_name = p_group_name,
+    expires_at = p_expires_at,
+    total_quota = p_total_quota,
+    allowed_models = p_allowed_models,
+    ip_whitelist = p_ip_whitelist
+  WHERE id = p_id
+  RETURNING * INTO result;
+  RETURN result;
+END;
+$$;
+
+-- 删除 API Key
+CREATE OR REPLACE FUNCTION public.delete_api_key(
+  p_phone text,
+  p_id uuid
+) RETURNS void LANGUAGE plpgsql SECURITY DEFINER AS $$
+BEGIN
+  PERFORM set_config('app.current_phone', p_phone, true);
+  DELETE FROM api_keys WHERE id = p_id;
+END;
+$$;
+
+-- 切换 API Key 状态
+CREATE OR REPLACE FUNCTION public.toggle_api_key_status(
+  p_phone text,
+  p_id uuid,
+  p_status text
+) RETURNS void LANGUAGE plpgsql SECURITY DEFINER AS $$
+BEGIN
+  PERFORM set_config('app.current_phone', p_phone, true);
+  UPDATE api_keys SET status = p_status WHERE id = p_id;
+END;
+$$;
+```
+
+### 第二步：修改前端 `src/pages/ApiKeys.tsx`
+
+将 `handleSave`、`handleDelete`、`handleToggleStatus` 中的直接 Supabase 表操作，替换为调用对应的 RPC 函数：
+
+- `handleSave` (新建) → `supabase.rpc('create_api_key', {...})`
+- `handleSave` (编辑) → `supabase.rpc('update_api_key', {...})`
+- `handleDelete` → `supabase.rpc('delete_api_key', {...})`
+- `handleToggleStatus` → `supabase.rpc('toggle_api_key_status', {...})`
+
+同时移除已无用的 `setPhone` helper 函数。
 
 ## 涉及文件
+
 | 文件 | 改动 |
 |------|------|
-| `src/pages/ApiKeys.tsx` | 表格列顺序、新增运行状态列、"已消耗/预算上限"带进度条、运行状态筛选 |
+| `supabase/migrations/新迁移文件.sql` | 新增 4 个 RPC 函数 |
+| `src/pages/ApiKeys.tsx` | 将写操作改为调用 RPC |
