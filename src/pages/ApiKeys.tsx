@@ -477,7 +477,7 @@ export default function ApiKeys({ enterprise, role }: Props) {
     <div>
       <div className="mb-6">
         <h1 className="text-2xl font-bold text-foreground">API Key 管理</h1>
-        <p className="text-muted-foreground mt-1 text-sm">管理你的 API 密钥，控制访问权限与额度</p>
+        <p className="text-muted-foreground mt-1 text-sm">管理你的 API 密钥，控制访问权限与预算</p>
       </div>
 
       <Tabs defaultValue="my">
@@ -503,55 +503,65 @@ export default function ApiKeys({ enterprise, role }: Props) {
 
       {/* Create / Edit Sheet */}
       <Sheet open={sheetOpen} onOpenChange={setSheetOpen}>
-        <SheetContent className="w-[480px] overflow-y-auto">
-          <SheetHeader>
-            <SheetTitle>{editingKey ? "编辑 API Key" : "新增 API Key"}</SheetTitle>
+        <SheetContent className="w-[520px] flex flex-col p-0">
+          <SheetHeader className="px-6 pt-6 pb-4 border-b border-border shrink-0">
+            <SheetTitle>{editingKey ? "编辑 API Key" : "新增 API Keys"}</SheetTitle>
           </SheetHeader>
 
-          <div className="mt-6 space-y-6">
+          <div className="flex-1 overflow-y-auto px-6 py-5 space-y-6">
             {/* 基本信息 */}
             <div>
               <h3 className="text-sm font-semibold text-foreground mb-4 pb-2 border-b border-border">基本信息</h3>
-              <div className="space-y-4">
-                <div>
-                  <Label className="mb-1.5 block"><span className="text-destructive mr-1">*</span>名称</Label>
+              <div className="space-y-3">
+                {/* 名称 */}
+                <div className="grid grid-cols-[100px_1fr] items-center gap-3">
+                  <Label className="text-right text-muted-foreground text-sm">
+                    <span className="text-destructive mr-0.5">*</span>名称
+                  </Label>
                   <Input placeholder="请输入名称" value={formName} onChange={e => setFormName(e.target.value)} />
                 </div>
-                <div>
-                  <Label className="mb-1.5 block">分组</Label>
+                {/* 分组 */}
+                <div className="grid grid-cols-[100px_1fr] items-center gap-3">
+                  <Label className="text-right text-muted-foreground text-sm">分组</Label>
                   <Input placeholder="不填则使用默认分组" value={formGroup} onChange={e => setFormGroup(e.target.value)} />
                 </div>
-                <div>
-                  <Label className="mb-1.5 block">过期时间</Label>
-                  <Input type="datetime-local" value={formExpires} onChange={e => setFormExpires(e.target.value)} />
-                  <div className="flex gap-2 mt-2 flex-wrap">
-                    {[
-                      { label: "永不过期", offset: null },
-                      { label: "一个月", offset: 30 * 24 * 60 * 60 * 1000 },
-                      { label: "一天", offset: 24 * 60 * 60 * 1000 },
-                      { label: "一小时", offset: 60 * 60 * 1000 },
-                    ].map(({ label, offset }) => (
-                      <button
-                        key={label}
-                        onClick={() => setQuickExpiry(offset)}
-                        className="px-3 py-1 text-xs rounded-full border border-border hover:border-primary hover:text-primary hover:bg-primary/5 transition-colors"
-                      >
-                        {label}
-                      </button>
-                    ))}
+                {/* 过期时间 */}
+                <div className="grid grid-cols-[100px_1fr] items-start gap-3">
+                  <Label className="text-right text-muted-foreground text-sm pt-2.5">
+                    <span className="text-destructive mr-0.5">*</span>过期时间
+                  </Label>
+                  <div>
+                    <Input type="datetime-local" value={formExpires} onChange={e => setFormExpires(e.target.value)} />
+                    <div className="flex gap-2 mt-2 flex-wrap">
+                      {[
+                        { label: "永不过期", offset: null },
+                        { label: "一个月", offset: 30 * 24 * 60 * 60 * 1000 },
+                        { label: "一天", offset: 24 * 60 * 60 * 1000 },
+                        { label: "一小时", offset: 60 * 60 * 1000 },
+                      ].map(({ label, offset }) => (
+                        <button
+                          key={label}
+                          onClick={() => setQuickExpiry(offset)}
+                          className="px-3 py-1 text-xs rounded-full border border-border hover:border-primary hover:text-primary hover:bg-primary/5 transition-colors"
+                        >
+                          {label}
+                        </button>
+                      ))}
+                    </div>
                   </div>
                 </div>
               </div>
             </div>
 
-            {/* 额度设置 */}
+            {/* 预算设置 */}
             <div>
-              <h3 className="text-sm font-semibold text-foreground mb-4 pb-2 border-b border-border">额度设置</h3>
-              <div className="space-y-4">
-                <div>
-                  <Label className="mb-1.5 block">金额</Label>
+              <h3 className="text-sm font-semibold text-foreground mb-4 pb-2 border-b border-border">预算设置</h3>
+              <div className="space-y-3">
+                {/* 预算上限 */}
+                <div className="grid grid-cols-[100px_1fr] items-center gap-3">
+                  <Label className="text-right text-muted-foreground text-sm">预算上限</Label>
                   <div className="flex items-center gap-2">
-                    <span className="text-muted-foreground text-sm font-medium">¥</span>
+                    <span className="text-muted-foreground text-sm font-medium shrink-0">¥</span>
                     <Input
                       type="number"
                       min="0"
@@ -564,8 +574,9 @@ export default function ApiKeys({ enterprise, role }: Props) {
                     />
                   </div>
                 </div>
-                <div className="flex items-center justify-between">
-                  <Label>无限额度</Label>
+                {/* 无限额度 */}
+                <div className="grid grid-cols-[100px_1fr] items-center gap-3">
+                  <Label className="text-right text-muted-foreground text-sm">无限预算</Label>
                   <Switch checked={formUnlimited} onCheckedChange={setFormUnlimited} />
                 </div>
               </div>
@@ -574,29 +585,52 @@ export default function ApiKeys({ enterprise, role }: Props) {
             {/* 访问限制 */}
             <div>
               <h3 className="text-sm font-semibold text-foreground mb-4 pb-2 border-b border-border">访问限制</h3>
-              <div className="space-y-4">
-                <div>
-                  <Label className="mb-1.5 block">模型限制</Label>
-                  <div className="border border-border rounded-md p-3 space-y-2 max-h-48 overflow-y-auto">
-                    <p className="text-xs text-muted-foreground mb-2">留空则支持所有模型</p>
-                    {MODELS.map(m => (
-                      <label key={m} className="flex items-center gap-2 cursor-pointer hover:bg-muted/50 rounded px-1">
-                        <input
-                          type="checkbox"
-                          checked={formModels.includes(m)}
-                          onChange={e => {
-                            if (e.target.checked) setFormModels(prev => [...prev, m]);
-                            else setFormModels(prev => prev.filter(x => x !== m));
-                          }}
-                          className="rounded"
-                        />
-                        <span className="text-sm">{m}</span>
-                      </label>
-                    ))}
+              <div className="space-y-3">
+                {/* 模型限制 */}
+                <div className="grid grid-cols-[100px_1fr] items-start gap-3">
+                  <Label className="text-right text-muted-foreground text-sm pt-2.5">模型限制列表</Label>
+                  <div>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <button className="flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm hover:bg-muted/40 transition-colors">
+                          <span className="text-muted-foreground truncate">
+                            {formModels.length === 0 ? "留空则支持所有模型" : `已选 ${formModels.length} 个模型`}
+                          </span>
+                          <ChevronDown className="w-4 h-4 opacity-50 shrink-0 ml-2" />
+                        </button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent className="w-64" align="start">
+                        {MODELS.map(m => (
+                          <DropdownMenuCheckboxItem
+                            key={m}
+                            checked={formModels.includes(m)}
+                            onCheckedChange={checked => {
+                              if (checked) setFormModels(prev => [...prev, m]);
+                              else setFormModels(prev => prev.filter(x => x !== m));
+                            }}
+                          >
+                            {m}
+                          </DropdownMenuCheckboxItem>
+                        ))}
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                    {formModels.length > 0 && (
+                      <div className="flex flex-wrap gap-1.5 mt-2">
+                        {formModels.map(m => (
+                          <span key={m} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-primary/10 text-primary text-xs">
+                            {m}
+                            <button onClick={() => setFormModels(prev => prev.filter(x => x !== m))} className="hover:text-destructive">
+                              <X className="w-3 h-3" />
+                            </button>
+                          </span>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 </div>
-                <div>
-                  <Label className="mb-1.5 block">IP 白名单</Label>
+                {/* IP 白名单 */}
+                <div className="grid grid-cols-[100px_1fr] items-start gap-3">
+                  <Label className="text-right text-muted-foreground text-sm pt-2.5">IP 白名单</Label>
                   <textarea
                     placeholder={"一行一个 IP，留空不限制\n例如：\n192.168.1.1\n10.0.0.0/8"}
                     value={formIpWhitelist}
@@ -607,13 +641,14 @@ export default function ApiKeys({ enterprise, role }: Props) {
                 </div>
               </div>
             </div>
+          </div>
 
-            <div className="flex gap-3 pt-2">
-              <Button variant="outline" className="flex-1" onClick={() => setSheetOpen(false)} disabled={saving}>取消</Button>
-              <Button className="flex-1" onClick={handleSave} disabled={saving || !formName.trim()}>
-                {saving ? "保存中..." : "保存"}
-              </Button>
-            </div>
+          {/* 底部固定按钮 */}
+          <div className="shrink-0 px-6 py-4 border-t border-border flex justify-end gap-3 bg-background">
+            <Button variant="outline" className="w-24" onClick={() => setSheetOpen(false)} disabled={saving}>取消</Button>
+            <Button className="w-24" onClick={handleSave} disabled={saving || !formName.trim()}>
+              {saving ? "保存中..." : "确定"}
+            </Button>
           </div>
         </SheetContent>
       </Sheet>
