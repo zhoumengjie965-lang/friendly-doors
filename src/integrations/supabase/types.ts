@@ -413,7 +413,86 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      create_api_key: {
+        Args: {
+          p_allowed_models?: string[]
+          p_enterprise_id: string
+          p_expires_at?: string
+          p_group_name?: string
+          p_ip_whitelist?: string[]
+          p_name: string
+          p_organization_id?: string
+          p_phone: string
+          p_total_quota?: number
+        }
+        Returns: {
+          allowed_models: string[] | null
+          created_at: string
+          creator_phone: string
+          enterprise_id: string
+          expires_at: string | null
+          group_name: string | null
+          id: string
+          ip_whitelist: string[] | null
+          key_value: string
+          name: string
+          organization_id: string | null
+          status: string
+          total_quota: number | null
+          updated_at: string
+          used_quota: number
+        }
+        SetofOptions: {
+          from: "*"
+          to: "api_keys"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      delete_api_key: {
+        Args: { p_id: string; p_phone: string }
+        Returns: undefined
+      }
       set_current_phone: { Args: { phone: string }; Returns: undefined }
+      toggle_api_key_status: {
+        Args: { p_id: string; p_phone: string; p_status: string }
+        Returns: undefined
+      }
+      update_api_key: {
+        Args: {
+          p_allowed_models?: string[]
+          p_expires_at?: string
+          p_group_name?: string
+          p_id: string
+          p_ip_whitelist?: string[]
+          p_name: string
+          p_phone: string
+          p_total_quota?: number
+        }
+        Returns: {
+          allowed_models: string[] | null
+          created_at: string
+          creator_phone: string
+          enterprise_id: string
+          expires_at: string | null
+          group_name: string | null
+          id: string
+          ip_whitelist: string[] | null
+          key_value: string
+          name: string
+          organization_id: string | null
+          status: string
+          total_quota: number | null
+          updated_at: string
+          used_quota: number
+        }
+        SetofOptions: {
+          from: "*"
+          to: "api_keys"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
     }
     Enums: {
       [_ in never]: never

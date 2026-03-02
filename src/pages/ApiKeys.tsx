@@ -215,30 +215,26 @@ export default function ApiKeys({ enterprise, role }: Props) {
     setSheetOpen(true);
   };
 
-  const setPhone = async () => {
-    if (phone) await supabase.rpc("set_current_phone" as any, { phone });
-  };
-
   const handleSave = async () => {
     if (!formName.trim() || !phone) return;
     setSaving(true);
-    await setPhone();
-    const payload: any = {
-      name: formName.trim(),
-      group_name: formGroup.trim() || null,
-      expires_at: formExpires ? new Date(formExpires).toISOString() : null,
-      total_quota: formUnlimited ? null : (parseFloat(formQuota) || 0),
-      allowed_models: formModels.length > 0 ? formModels : null,
-      ip_whitelist: formIpWhitelist.trim()
+    const commonPayload = {
+      p_phone: phone,
+      p_name: formName.trim(),
+      p_group_name: formGroup.trim() || null,
+      p_expires_at: formExpires ? new Date(formExpires).toISOString() : null,
+      p_total_quota: formUnlimited ? null : (parseFloat(formQuota) || 0),
+      p_allowed_models: formModels.length > 0 ? formModels : null,
+      p_ip_whitelist: formIpWhitelist.trim()
         ? formIpWhitelist.split("\n").map(s => s.trim()).filter(Boolean)
         : null,
     };
 
     if (editingKey) {
-      const { error } = await supabase
-        .from("api_keys" as any)
-        .update(payload)
-        .eq("id", editingKey.id);
+      const { error } = await supabase.rpc("update_api_key" as any, {
+        ...commonPayload,
+        p_id: editingKey.id,
+      });
       if (error) {
         toast({ title: "更新失败", description: error.message, variant: "destructive" });
       } else {
@@ -247,9 +243,11 @@ export default function ApiKeys({ enterprise, role }: Props) {
         fetchMyKeys(); fetchOrgKeys();
       }
     } else {
-      const { error } = await supabase
-        .from("api_keys" as any)
-        .insert({ ...payload, enterprise_id: enterprise.id, creator_phone: phone });
+      const { error } = await supabase.rpc("create_api_key" as any, {
+        ...commonPayload,
+        p_enterprise_id: enterprise.id,
+        p_organization_id: null,
+      });
       if (error) {
         toast({ title: "创建失败", description: error.message, variant: "destructive" });
       } else {
@@ -262,12 +260,12 @@ export default function ApiKeys({ enterprise, role }: Props) {
   };
 
   const handleToggleStatus = async (k: ApiKey) => {
-    await setPhone();
     const newStatus = k.status === "active" ? "disabled" : "active";
-    const { error } = await supabase
-      .from("api_keys" as any)
-      .update({ status: newStatus })
-      .eq("id", k.id);
+    const { error } = await supabase.rpc("toggle_api_key_status" as any, {
+      p_phone: phone,
+      p_id: k.id,
+      p_status: newStatus,
+    });
     if (error) {
       toast({ title: "操作失败", description: error.message, variant: "destructive" });
     } else {
@@ -278,11 +276,10 @@ export default function ApiKeys({ enterprise, role }: Props) {
 
   const handleDelete = async () => {
     if (!deleteTarget) return;
-    await setPhone();
-    const { error } = await supabase
-      .from("api_keys" as any)
-      .delete()
-      .eq("id", deleteTarget.id);
+    const { error } = await supabase.rpc("delete_api_key" as any, {
+      p_phone: phone,
+      p_id: deleteTarget.id,
+    });
     if (error) {
       toast({ title: "删除失败", description: error.message, variant: "destructive" });
     } else {
