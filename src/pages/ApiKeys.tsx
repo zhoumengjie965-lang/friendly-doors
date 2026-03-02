@@ -117,8 +117,7 @@ export default function ApiKeys({ enterprise, role }: Props) {
   const [loading, setLoading] = useState(false);
 
   // Search state
-  const [nameSearch, setNameSearch] = useState("");
-  const [keySearch, setKeySearch] = useState("");
+  const [keywordSearch, setKeywordSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [runningStatusFilter, setRunningStatusFilter] = useState<string>("all");
 
@@ -312,11 +311,11 @@ export default function ApiKeys({ enterprise, role }: Props) {
 
   const filterKeys = (keys: ApiKey[]) => {
     return keys.filter(k => {
-      const matchName = !nameSearch || k.name.toLowerCase().includes(nameSearch.toLowerCase());
-      const matchKey = !keySearch || k.key_value.toLowerCase().includes(keySearch.toLowerCase());
+      const kw = keywordSearch.toLowerCase();
+      const matchKeyword = !kw || k.name.toLowerCase().includes(kw) || k.key_value.toLowerCase().includes(kw);
       const matchStatus = statusFilter === "all" || k.status === statusFilter;
       const matchRunning = runningStatusFilter === "all" || getRunningStatus(k).label === runningStatusFilter;
-      return matchName && matchKey && matchStatus && matchRunning;
+      return matchKeyword && matchStatus && matchRunning;
     });
   };
 
@@ -325,10 +324,11 @@ export default function ApiKeys({ enterprise, role }: Props) {
     return keys.slice(start, start + PAGE_SIZE);
   };
 
-  const KeyTable = ({ keys, showCreator, page, setPage }: {
+  const KeyTable = ({ keys, showCreator, page, setPage, filterFn }: {
     keys: ApiKey[]; showCreator?: boolean; page: number; setPage: (p: number) => void;
+    filterFn?: (keys: ApiKey[]) => ApiKey[];
   }) => {
-    const filtered = filterKeys(keys);
+    const filtered = filterFn ? filterFn(keys) : filterKeys(keys);
     const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
     const paged = paginate(filtered, page);
     const colSpan = showCreator ? 11 : 10;
@@ -508,88 +508,134 @@ export default function ApiKeys({ enterprise, role }: Props) {
     );
   };
 
-  const SearchBar = () => (
-    <div className="flex flex-wrap gap-2 mb-4">
-      <div className="relative">
-        <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-        <Input
-          placeholder="关键词搜索（名称）"
-          className="pl-8 w-52"
-          value={nameSearch}
-          onChange={e => setNameSearch(e.target.value)}
-        />
-      </div>
-      <div className="relative">
-        <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-        <Input
-          placeholder="API Key 搜索"
-          className="pl-8 w-52"
-          value={keySearch}
-          onChange={e => setKeySearch(e.target.value)}
-        />
-      </div>
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <Button variant="outline" size="default" className="gap-1">
-            {runningStatusFilter === "all" ? "运行状态" : runningStatusFilter}
-            <ChevronDown className="w-3.5 h-3.5" />
-          </Button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="start">
-          <DropdownMenuCheckboxItem checked={runningStatusFilter === "all"} onCheckedChange={() => setRunningStatusFilter("all")}>全部</DropdownMenuCheckboxItem>
-          <DropdownMenuCheckboxItem checked={runningStatusFilter === "正常"} onCheckedChange={() => setRunningStatusFilter("正常")}>正常</DropdownMenuCheckboxItem>
-          <DropdownMenuCheckboxItem checked={runningStatusFilter === "预算不足"} onCheckedChange={() => setRunningStatusFilter("预算不足")}>预算不足</DropdownMenuCheckboxItem>
-          <DropdownMenuCheckboxItem checked={runningStatusFilter === "已过期"} onCheckedChange={() => setRunningStatusFilter("已过期")}>已过期</DropdownMenuCheckboxItem>
-        </DropdownMenuContent>
-      </DropdownMenu>
-      <Button variant="outline" size="default" onClick={() => { setNameSearch(""); setKeySearch(""); setStatusFilter("all"); setRunningStatusFilter("all"); }}>
-        <X className="w-4 h-4 mr-1" />重置
-      </Button>
-    </div>
-  );
+  const filterKeysUpdated = (keys: ApiKey[]) => {
+    return keys.filter(k => {
+      const kw = keywordSearch.toLowerCase();
+      const matchKeyword = !kw ||
+        k.name.toLowerCase().includes(kw) ||
+        k.key_value.toLowerCase().includes(kw);
+      const matchStatus = statusFilter === "all" || k.status === statusFilter;
+      const matchRunning = runningStatusFilter === "all" || getRunningStatus(k).label === runningStatusFilter;
+      return matchKeyword && matchStatus && matchRunning;
+    });
+  };
 
-  const ActionBar = () => (
-    <div className="flex items-center justify-between mb-4">
-      <Button onClick={openCreate} className="gap-2">
-        <Plus className="w-4 h-4" />创建 API Key
-      </Button>
-      <button
-        onClick={() => { fetchMyKeys(); fetchOrgKeys(); }}
-        className="p-2 rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
-        title="刷新"
-      >
-        <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin" : ""}`} />
-      </button>
-    </div>
-  );
+  const handleReset = () => {
+    setKeywordSearch("");
+    setStatusFilter("all");
+    setRunningStatusFilter("all");
+  };
+
+  const [activeTab, setActiveTab] = useState("my");
 
   return (
     <div>
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold text-foreground">API Key 管理</h1>
-        <p className="text-muted-foreground mt-1 text-sm">管理你的 API 密钥，控制访问权限与预算</p>
+      {/* 第一行：标题 + Tab 切换 + 刷新 */}
+      <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center gap-6">
+          <div>
+            <h1 className="text-xl font-bold text-foreground">API Key 管理</h1>
+          </div>
+          {/* 下划线页签 */}
+          <div className="flex items-center gap-0 border-b border-border">
+            <button
+              onClick={() => setActiveTab("my")}
+              className={`px-4 py-2 text-sm font-medium transition-colors border-b-2 -mb-px ${
+                activeTab === "my"
+                  ? "border-primary text-primary"
+                  : "border-transparent text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              我的 API Key
+            </button>
+            {canSeeOrgTab && (
+              <button
+                onClick={() => setActiveTab("org")}
+                className={`px-4 py-2 text-sm font-medium transition-colors border-b-2 -mb-px ${
+                  activeTab === "org"
+                    ? "border-primary text-primary"
+                    : "border-transparent text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                组织 API Key
+              </button>
+            )}
+          </div>
+        </div>
+        {/* 刷新图标 */}
+        <button
+          onClick={() => { fetchMyKeys(); fetchOrgKeys(); }}
+          className="p-2 rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
+          title="刷新"
+        >
+          <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin" : ""}`} />
+        </button>
       </div>
 
-      <Tabs defaultValue="my">
-        <TabsList className="mb-6">
-          <TabsTrigger value="my">我的 API Key</TabsTrigger>
-          {canSeeOrgTab && <TabsTrigger value="org">组织 API Key</TabsTrigger>}
-        </TabsList>
+      {/* 第二行：创建按钮 + 聚合筛选栏 */}
+      <div className="flex items-center justify-between mb-5">
+        <Button onClick={openCreate} className="gap-2 h-9">
+          <Plus className="w-4 h-4" />创建 API Key
+        </Button>
+        <div className="flex items-center gap-2">
+          {/* 合并搜索输入框 */}
+          <div className="relative">
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+            <Input
+              placeholder="搜索关键词（名称 / API Key...）"
+              className="pl-8 h-9 w-64"
+              value={keywordSearch}
+              onChange={e => setKeywordSearch(e.target.value)}
+            />
+          </div>
+          {/* 运行状态下拉 */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" size="sm" className="h-9 gap-1 min-w-[100px] justify-between">
+                {runningStatusFilter === "all" ? "运行状态" : runningStatusFilter}
+                <ChevronDown className="w-3.5 h-3.5 shrink-0" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuCheckboxItem checked={runningStatusFilter === "all"} onCheckedChange={() => setRunningStatusFilter("all")}>全部</DropdownMenuCheckboxItem>
+              <DropdownMenuCheckboxItem checked={runningStatusFilter === "正常"} onCheckedChange={() => setRunningStatusFilter("正常")}>正常</DropdownMenuCheckboxItem>
+              <DropdownMenuCheckboxItem checked={runningStatusFilter === "预算不足"} onCheckedChange={() => setRunningStatusFilter("预算不足")}>预算不足</DropdownMenuCheckboxItem>
+              <DropdownMenuCheckboxItem checked={runningStatusFilter === "已过期"} onCheckedChange={() => setRunningStatusFilter("已过期")}>已过期</DropdownMenuCheckboxItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+          {/* 重置按钮 */}
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-9 px-3"
+            onClick={handleReset}
+            title="重置筛选"
+          >
+            <X className="w-4 h-4" />
+          </Button>
+        </div>
+      </div>
 
-        <TabsContent value="my">
-          <SearchBar />
-          <ActionBar />
-          <KeyTable keys={myKeys} page={myPage} setPage={setMyPage} />
-        </TabsContent>
-
-        {canSeeOrgTab && (
-          <TabsContent value="org">
-            <SearchBar />
-            <ActionBar />
-            <KeyTable keys={orgKeys} showCreator page={orgPage} setPage={setOrgPage} />
-          </TabsContent>
+      {/* 表格内容区 */}
+      <div>
+        {activeTab === "my" && (
+          <KeyTable
+            keys={myKeys}
+            filterFn={filterKeysUpdated}
+            page={myPage}
+            setPage={setMyPage}
+          />
         )}
-      </Tabs>
+        {canSeeOrgTab && activeTab === "org" && (
+          <KeyTable
+            keys={orgKeys}
+            filterFn={filterKeysUpdated}
+            showCreator
+            page={orgPage}
+            setPage={setOrgPage}
+          />
+        )}
+      </div>
 
       {/* Create / Edit Sheet */}
       <Sheet open={sheetOpen} onOpenChange={setSheetOpen}>
