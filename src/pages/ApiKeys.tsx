@@ -215,9 +215,14 @@ export default function ApiKeys({ enterprise, role }: Props) {
     setSheetOpen(true);
   };
 
+  const setPhone = async () => {
+    if (phone) await supabase.rpc("set_current_phone" as any, { phone });
+  };
+
   const handleSave = async () => {
     if (!formName.trim() || !phone) return;
     setSaving(true);
+    await setPhone();
     const payload: any = {
       name: formName.trim(),
       group_name: formGroup.trim() || null,
@@ -257,6 +262,7 @@ export default function ApiKeys({ enterprise, role }: Props) {
   };
 
   const handleToggleStatus = async (k: ApiKey) => {
+    await setPhone();
     const newStatus = k.status === "active" ? "disabled" : "active";
     const { error } = await supabase
       .from("api_keys" as any)
@@ -272,6 +278,7 @@ export default function ApiKeys({ enterprise, role }: Props) {
 
   const handleDelete = async () => {
     if (!deleteTarget) return;
+    await setPhone();
     const { error } = await supabase
       .from("api_keys" as any)
       .delete()
