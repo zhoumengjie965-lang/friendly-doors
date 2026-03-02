@@ -25,6 +25,8 @@ import {
   Plus, RefreshCw, Eye, EyeOff, Copy, Check, Pencil, Trash2,
   ToggleLeft, ToggleRight, ChevronDown, Search, X,
 } from "lucide-react";
+import { Progress } from "@/components/ui/progress";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { format } from "date-fns";
 
 interface Enterprise {
@@ -69,13 +71,40 @@ function maskKey(key: string, show: boolean) {
 }
 
 function formatQuota(used: number, total: number | null) {
-  if (total === null) return <Badge variant="secondary" className="text-xs">无限制</Badge>;
+  const usedStr = `¥${used.toFixed(2)}`;
+  const totalStr = total === null ? "无限制" : `¥${total.toFixed(2)}`;
+  const pct = total === null || total === 0 ? 0 : Math.min(100, (used / total) * 100);
   return (
-    <span className="text-sm text-foreground font-mono">
-      ¥{used.toFixed(2)}<span className="text-muted-foreground">/{total.toFixed(2)}</span>
-    </span>
+    <div className="min-w-[120px]">
+      <span className="text-sm font-mono text-foreground">
+        {usedStr} <span className="text-muted-foreground">/ {totalStr}</span>
+      </span>
+      {total !== null && (
+        <Progress value={pct} className="h-1.5 mt-1 bg-muted" />
+      )}
+    </div>
   );
 }
+
+type RunningStatus = "正常" | "预算不足" | "已过期" | "异常";
+
+function getRunningStatus(k: ApiKey): { label: RunningStatus; tooltip?: string } {
+  if (k.expires_at && new Date(k.expires_at) < new Date()) {
+    return { label: "已过期", tooltip: "Key 已过期" };
+  }
+  if (k.total_quota !== null && k.used_quota >= k.total_quota) {
+    return { label: "预算不足", tooltip: "Key 预算不足" };
+  }
+  return { label: "正常" };
+}
+
+const runningStatusColors: Record<RunningStatus, string> = {
+  "正常": "bg-green-100 text-green-700 border-green-200",
+  "预算不足": "bg-orange-100 text-orange-700 border-orange-200",
+  "已过期": "bg-gray-100 text-gray-500 border-gray-200",
+  "异常": "bg-red-100 text-red-700 border-red-200",
+};
+
 
 export default function ApiKeys({ enterprise, role }: Props) {
   const { toast } = useToast();
@@ -90,6 +119,7 @@ export default function ApiKeys({ enterprise, role }: Props) {
   const [nameSearch, setNameSearch] = useState("");
   const [keySearch, setKeySearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [runningStatusFilter, setRunningStatusFilter] = useState<string>("all");
 
   // Pagination
   const [myPage, setMyPage] = useState(1);
@@ -280,7 +310,8 @@ export default function ApiKeys({ enterprise, role }: Props) {
       const matchName = !nameSearch || k.name.toLowerCase().includes(nameSearch.toLowerCase());
       const matchKey = !keySearch || k.key_value.toLowerCase().includes(keySearch.toLowerCase());
       const matchStatus = statusFilter === "all" || k.status === statusFilter;
-      return matchName && matchKey && matchStatus;
+      const matchRunning = runningStatusFilter === "all" || getRunningStatus(k).label === runningStatusFilter;
+      return matchName && matchKey && matchStatus && matchRunning;
     });
   };
 
@@ -295,6 +326,7 @@ export default function ApiKeys({ enterprise, role }: Props) {
     const filtered = filterKeys(keys);
     const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
     const paged = paginate(filtered, page);
+    const colSpan = showCreator ? 11 : 10;
 
     return (
       <div>
@@ -303,9 +335,10 @@ export default function ApiKeys({ enterprise, role }: Props) {
             <TableHeader>
               <TableRow className="bg-muted/40">
                 <TableHead className="font-medium">名称</TableHead>
+                {/* 管理状态 */}
                 <TableHead className="font-medium">
                   <div className="flex items-center gap-1">
-                    状态
+                    管理状态
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
                         <button className="hover:bg-muted rounded p-0.5"><ChevronDown className="w-3 h-3" /></button>
@@ -318,12 +351,29 @@ export default function ApiKeys({ enterprise, role }: Props) {
                     </DropdownMenu>
                   </div>
                 </TableHead>
-                <TableHead className="font-medium">剩余/总额度</TableHead>
+                {/* 运行状态 */}
+                <TableHead className="font-medium">
+                  <div className="flex items-center gap-1">
+                    运行状态
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <button className="hover:bg-muted rounded p-0.5"><ChevronDown className="w-3 h-3" /></button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="start">
+                        <DropdownMenuCheckboxItem checked={runningStatusFilter === "all"} onCheckedChange={() => setRunningStatusFilter("all")}>全部</DropdownMenuCheckboxItem>
+                        <DropdownMenuCheckboxItem checked={runningStatusFilter === "正常"} onCheckedChange={() => setRunningStatusFilter("正常")}>正常</DropdownMenuCheckboxItem>
+                        <DropdownMenuCheckboxItem checked={runningStatusFilter === "预算不足"} onCheckedChange={() => setRunningStatusFilter("预算不足")}>预算不足</DropdownMenuCheckboxItem>
+                        <DropdownMenuCheckboxItem checked={runningStatusFilter === "已过期"} onCheckedChange={() => setRunningStatusFilter("已过期")}>已过期</DropdownMenuCheckboxItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </div>
+                </TableHead>
+                <TableHead className="font-medium">已消耗/预算上限</TableHead>
+                {showCreator && <TableHead className="font-medium">创建者</TableHead>}
                 <TableHead className="font-medium">分组</TableHead>
-                <TableHead className="font-medium">过期时间</TableHead>
                 <TableHead className="font-medium">API Key</TableHead>
                 <TableHead className="font-medium">可用模型</TableHead>
-                {showCreator && <TableHead className="font-medium">创建者</TableHead>}
+                <TableHead className="font-medium">过期时间</TableHead>
                 <TableHead className="font-medium">创建时间</TableHead>
                 <TableHead className="font-medium text-center">操作</TableHead>
               </TableRow>
@@ -331,80 +381,101 @@ export default function ApiKeys({ enterprise, role }: Props) {
             <TableBody>
               {paged.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={showCreator ? 10 : 9} className="text-center text-muted-foreground py-12">
+                  <TableCell colSpan={colSpan} className="text-center text-muted-foreground py-12">
                     暂无数据
                   </TableCell>
                 </TableRow>
-              ) : paged.map(k => (
-                <TableRow key={k.id} className="hover:bg-muted/30">
-                  <TableCell className="font-medium text-foreground">{k.name}</TableCell>
-                  <TableCell>
-                    <div className="flex items-center gap-1.5">
-                      <div className={`w-2 h-2 rounded-full ${k.status === "active" ? "bg-green-500" : "bg-red-500"}`} />
-                      <span className="text-sm">{k.status === "active" ? "启用" : "禁用"}</span>
-                    </div>
-                  </TableCell>
-                  <TableCell>{formatQuota(k.used_quota, k.total_quota)}</TableCell>
-                  <TableCell>
-                    <span className="text-sm text-muted-foreground">{k.group_name || "—"}</span>
-                  </TableCell>
-                  <TableCell>
-                    <span className="text-sm text-muted-foreground">
-                      {k.expires_at ? format(new Date(k.expires_at), "yyyy-MM-dd HH:mm") : "永不过期"}
-                    </span>
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex items-center gap-1.5 font-mono text-xs">
-                      <span className="text-foreground">{maskKey(k.key_value, visibleKeys.has(k.id))}</span>
-                      <button onClick={() => toggleVisible(k.id)} className="text-muted-foreground hover:text-foreground transition-colors shrink-0">
-                        {visibleKeys.has(k.id) ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
-                      </button>
-                      <button onClick={() => copyKey(k)} className="text-muted-foreground hover:text-foreground transition-colors shrink-0">
-                        {copiedKey === k.id ? <Check className="w-3.5 h-3.5 text-primary" /> : <Copy className="w-3.5 h-3.5" />}
-                      </button>
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    {!k.allowed_models || k.allowed_models.length === 0
-                      ? <Badge variant="secondary" className="text-xs">无限制</Badge>
-                      : <div className="flex flex-wrap gap-1">{k.allowed_models.map(m => <Badge key={m} variant="outline" className="text-xs">{m}</Badge>)}</div>
-                    }
-                  </TableCell>
-                  {showCreator && (
+              ) : paged.map(k => {
+                const rs = getRunningStatus(k);
+                return (
+                  <TableRow key={k.id} className="hover:bg-muted/30">
+                    <TableCell className="font-medium text-foreground">{k.name}</TableCell>
+                    {/* 管理状态 */}
                     <TableCell>
-                      <span className="text-sm text-muted-foreground">{userNames[k.creator_phone] || k.creator_phone}</span>
+                      <div className="flex items-center gap-1.5">
+                        <div className={`w-2 h-2 rounded-full ${k.status === "active" ? "bg-green-500" : "bg-gray-400"}`} />
+                        <span className="text-sm">{k.status === "active" ? "启用" : "禁用"}</span>
+                      </div>
                     </TableCell>
-                  )}
-                  <TableCell>
-                    <span className="text-xs text-muted-foreground">{format(new Date(k.created_at), "yyyy-MM-dd HH:mm")}</span>
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex items-center justify-center gap-1">
-                      <button
-                        onClick={() => openEdit(k)}
-                        className="p-1.5 rounded hover:bg-primary/10 text-primary transition-colors"
-                        title="编辑"
-                      >
-                        <Pencil className="w-3.5 h-3.5" />
-                      </button>
-                      <button
-                        onClick={() => setDeleteTarget(k)}
-                        className="p-1.5 rounded hover:bg-destructive/10 text-destructive transition-colors"
-                        title="删除"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
-                      <button
-                        onClick={() => handleToggleStatus(k)}
-                        className={`p-1.5 rounded transition-colors ${k.status === "active" ? "hover:bg-muted text-muted-foreground" : "hover:bg-primary/10 text-primary"}`}
-                        title={k.status === "active" ? "禁用" : "启用"}
-                      >
-                        {k.status === "active" ? <ToggleRight className="w-3.5 h-3.5" /> : <ToggleLeft className="w-3.5 h-3.5" />}
-                      </button>
-                    </div>
-                  </TableCell>
-                </TableRow>
-              ))}
+                    {/* 运行状态 */}
+                    <TableCell>
+                      <TooltipProvider>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <span className={`inline-flex items-center px-2 py-0.5 rounded-full border text-xs font-medium cursor-default ${runningStatusColors[rs.label]}`}>
+                              {rs.label}
+                            </span>
+                          </TooltipTrigger>
+                          {rs.tooltip && (
+                            <TooltipContent><p>{rs.tooltip}</p></TooltipContent>
+                          )}
+                        </Tooltip>
+                      </TooltipProvider>
+                    </TableCell>
+                    {/* 已消耗/预算上限 */}
+                    <TableCell>{formatQuota(k.used_quota, k.total_quota)}</TableCell>
+                    {/* 创建者（仅组织Tab） */}
+                    {showCreator && (
+                      <TableCell>
+                        <span className="text-sm text-muted-foreground">{userNames[k.creator_phone] || k.creator_phone}</span>
+                      </TableCell>
+                    )}
+                    <TableCell>
+                      <span className="text-sm text-muted-foreground">{k.group_name || "—"}</span>
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex items-center gap-1.5 font-mono text-xs">
+                        <span className="text-foreground">{maskKey(k.key_value, visibleKeys.has(k.id))}</span>
+                        <button onClick={() => toggleVisible(k.id)} className="text-muted-foreground hover:text-foreground transition-colors shrink-0">
+                          {visibleKeys.has(k.id) ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                        </button>
+                        <button onClick={() => copyKey(k)} className="text-muted-foreground hover:text-foreground transition-colors shrink-0">
+                          {copiedKey === k.id ? <Check className="w-3.5 h-3.5 text-primary" /> : <Copy className="w-3.5 h-3.5" />}
+                        </button>
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      {!k.allowed_models || k.allowed_models.length === 0
+                        ? <Badge variant="secondary" className="text-xs">无限制</Badge>
+                        : <div className="flex flex-wrap gap-1">{k.allowed_models.map(m => <Badge key={m} variant="outline" className="text-xs">{m}</Badge>)}</div>
+                      }
+                    </TableCell>
+                    <TableCell>
+                      <span className="text-sm text-muted-foreground">
+                        {k.expires_at ? format(new Date(k.expires_at), "yyyy-MM-dd HH:mm") : "永不过期"}
+                      </span>
+                    </TableCell>
+                    <TableCell>
+                      <span className="text-xs text-muted-foreground">{format(new Date(k.created_at), "yyyy-MM-dd HH:mm")}</span>
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex items-center justify-center gap-1">
+                        <button
+                          onClick={() => openEdit(k)}
+                          className="p-1.5 rounded hover:bg-primary/10 text-primary transition-colors"
+                          title="编辑"
+                        >
+                          <Pencil className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          onClick={() => setDeleteTarget(k)}
+                          className="p-1.5 rounded hover:bg-destructive/10 text-destructive transition-colors"
+                          title="删除"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          onClick={() => handleToggleStatus(k)}
+                          className={`p-1.5 rounded transition-colors ${k.status === "active" ? "hover:bg-muted text-muted-foreground" : "hover:bg-primary/10 text-primary"}`}
+                          title={k.status === "active" ? "禁用" : "启用"}
+                        >
+                          {k.status === "active" ? <ToggleRight className="w-3.5 h-3.5" /> : <ToggleLeft className="w-3.5 h-3.5" />}
+                        </button>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
             </TableBody>
           </Table>
         </div>
@@ -452,7 +523,21 @@ export default function ApiKeys({ enterprise, role }: Props) {
           onChange={e => setKeySearch(e.target.value)}
         />
       </div>
-      <Button variant="outline" size="default" onClick={() => { setNameSearch(""); setKeySearch(""); setStatusFilter("all"); }}>
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button variant="outline" size="default" className="gap-1">
+            {runningStatusFilter === "all" ? "运行状态" : runningStatusFilter}
+            <ChevronDown className="w-3.5 h-3.5" />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="start">
+          <DropdownMenuCheckboxItem checked={runningStatusFilter === "all"} onCheckedChange={() => setRunningStatusFilter("all")}>全部</DropdownMenuCheckboxItem>
+          <DropdownMenuCheckboxItem checked={runningStatusFilter === "正常"} onCheckedChange={() => setRunningStatusFilter("正常")}>正常</DropdownMenuCheckboxItem>
+          <DropdownMenuCheckboxItem checked={runningStatusFilter === "预算不足"} onCheckedChange={() => setRunningStatusFilter("预算不足")}>预算不足</DropdownMenuCheckboxItem>
+          <DropdownMenuCheckboxItem checked={runningStatusFilter === "已过期"} onCheckedChange={() => setRunningStatusFilter("已过期")}>已过期</DropdownMenuCheckboxItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+      <Button variant="outline" size="default" onClick={() => { setNameSearch(""); setKeySearch(""); setStatusFilter("all"); setRunningStatusFilter("all"); }}>
         <X className="w-4 h-4 mr-1" />重置
       </Button>
     </div>
