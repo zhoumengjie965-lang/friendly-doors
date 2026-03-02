@@ -503,7 +503,7 @@ export default function ApiKeys({ enterprise, role }: Props) {
 
       {/* Create / Edit Sheet */}
       <Sheet open={sheetOpen} onOpenChange={setSheetOpen}>
-        <SheetContent className="w-[520px] flex flex-col p-0 overflow-x-hidden">
+        <SheetContent className="!w-[520px] !max-w-[520px] flex flex-col p-0 overflow-hidden">
           <SheetHeader className="px-6 pt-6 pb-4 border-b border-border shrink-0">
             <SheetTitle>{editingKey ? "编辑 API Key" : "新增 API Keys"}</SheetTitle>
           </SheetHeader>
