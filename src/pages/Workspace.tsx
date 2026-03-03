@@ -252,68 +252,11 @@ export default function Workspace() {
   // ── Avatar initials ──
   const avatarText = userName ? userName.slice(0, 1) : phone?.slice(-2) ?? "?";
 
-  // ── Space Switcher ──
-  const SpaceSwitcher = () => (
-    <div className="relative" ref={spaceMenuRef}>
-      <button
-        onClick={() => setSpaceMenuOpen(v => !v)}
-        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border hover:bg-muted transition-colors text-sm text-foreground"
-      >
-        <Building2 className="w-4 h-4 text-muted-foreground" />
-        <span className="max-w-[120px] truncate">{enterprise ? enterprise.name : "个人空间"}</span>
-        <ChevronDown className={`w-3.5 h-3.5 text-muted-foreground transition-transform ${spaceMenuOpen ? "rotate-180" : ""}`} />
-      </button>
-      {spaceMenuOpen && (
-        <div className="absolute left-0 top-full mt-1 w-56 bg-popover border border-border rounded-xl shadow-xl z-50 overflow-hidden">
-          <button
-            onClick={() => { setEnterprise(null); setCurrentOrg(null); setRole("member"); localStorage.removeItem(LAST_ENTERPRISE_KEY); setSpaceMenuOpen(false); navigate("/workspace"); }}
-            className={`w-full flex items-center gap-2 px-3 py-2.5 text-sm transition-colors ${
-              !enterprise ? "bg-primary/10 text-primary" : "text-foreground hover:bg-muted"
-            }`}
-          >
-            <UserCircle className="w-4 h-4 shrink-0" />
-            <span className="flex-1 text-left">个人空间</span>
-            {!enterprise && <Check className="w-3.5 h-3.5 shrink-0" />}
-          </button>
-          {enterprises.length > 0 && (
-            <>
-              <div className="px-3 py-1.5 border-t border-border">
-                <p className="text-[10px] text-muted-foreground uppercase tracking-wide">我的企业</p>
-              </div>
-              {enterprises.map(({ enterprise: ent, role: r, org }) => (
-                <button
-                  key={ent.id}
-                  onClick={() => { selectEnterprise(ent, r, org); setSpaceMenuOpen(false); navigate("/workspace"); }}
-                  className={`w-full flex items-start gap-2 px-3 py-2.5 text-sm transition-colors ${
-                    enterprise?.id === ent.id ? "bg-primary/10 text-primary" : "text-foreground hover:bg-muted"
-                  }`}
-                >
-                  <Building2 className="w-4 h-4 shrink-0 mt-0.5" />
-                  <div className="flex-1 text-left min-w-0">
-                    <div className="truncate font-medium">{ent.name}</div>
-                    <div className="text-[11px] text-muted-foreground">{roleLabel(r)}</div>
-                  </div>
-                  {enterprise?.id === ent.id && <Check className="w-3.5 h-3.5 shrink-0 mt-0.5" />}
-                </button>
-              ))}
-            </>
-          )}
-          <div className="border-t border-border">
-            <button
-              onClick={() => { setShowCreateEnterprise(true); setSpaceMenuOpen(false); }}
-              className="w-full flex items-center gap-2 px-3 py-2.5 text-sm text-foreground hover:bg-muted transition-colors"
-            >
-              <Plus className="w-4 h-4 text-muted-foreground" />创建企业
-            </button>
-          </div>
-        </div>
-      )}
-    </div>
-  );
 
 
 
-  // ── User menu dropdown ──
+
+
   const UserMenu = () => (
     <div className="relative" ref={userMenuRef}>
       <button
@@ -345,62 +288,70 @@ export default function Workspace() {
             </div>
           </div>
 
-          {/* Switch enterprise or create/join */}
-          {enterprises.length > 0 ? (
-            <div className="relative">
-              <button
-                onMouseEnter={() => setSwitchMenuOpen(true)}
-                onMouseLeave={() => setSwitchMenuOpen(false)}
-                onClick={() => setSwitchMenuOpen(v => !v)}
-                className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-foreground hover:bg-muted transition-colors"
-              >
-                <Building2 className="w-4 h-4 text-muted-foreground" />
-                <span className="flex-1 text-left">切换企业</span>
-                <ChevronRight className="w-4 h-4 text-muted-foreground" />
-              </button>
-              {switchMenuOpen && (
-                <div
-                  className="absolute right-full top-0 mr-1 w-56 bg-popover border border-border rounded-xl shadow-xl z-50 py-1 overflow-hidden"
-                  onMouseEnter={() => setSwitchMenuOpen(true)}
-                  onMouseLeave={() => setSwitchMenuOpen(false)}
-                >
-                  {enterprises.map(({ enterprise: ent, role: r, org }) => (
-                    <button
-                      key={ent.id}
-                      onClick={() => selectEnterprise(ent, r, org)}
-                      className={`w-full flex items-start gap-2 px-3 py-2.5 text-sm transition-colors ${
-                        enterprise?.id === ent.id
-                          ? "bg-primary/10 text-primary"
-                          : "text-foreground hover:bg-muted"
-                      }`}
-                    >
-                      <Building2 className="w-3.5 h-3.5 shrink-0 mt-0.5" />
-                      <div className="flex-1 text-left min-w-0">
-                        <div className="truncate font-medium">{ent.name}</div>
-                        <div className="text-[11px] text-muted-foreground">{roleLabel(r)}</div>
-                      </div>
-                      {enterprise?.id === ent.id && <Check className="w-3 h-3 shrink-0 mt-0.5" />}
-                    </button>
-                  ))}
-                  <div className="border-t border-border mt-1 pt-1">
-                    <button
-                      onClick={() => { setShowCreateEnterprise(true); setUserMenuOpen(false); setSwitchMenuOpen(false); }}
-                      className="w-full flex items-center gap-2 px-3 py-2 text-sm text-foreground hover:bg-muted transition-colors"
-                    >
-                      <Plus className="w-3.5 h-3.5" />创建企业
-                    </button>
-                  </div>
-                </div>
-              )}
-            </div>
-          ) : (
+          {/* Switch space */}
+          <div className="relative">
             <button
-              onClick={() => { setShowCreateEnterprise(true); setUserMenuOpen(false); }}
+              onMouseEnter={() => setSwitchMenuOpen(true)}
+              onMouseLeave={() => setSwitchMenuOpen(false)}
+              onClick={() => setSwitchMenuOpen(v => !v)}
               className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-foreground hover:bg-muted transition-colors"
             >
-              <Plus className="w-4 h-4 text-muted-foreground" />创建企业
+              <Building2 className="w-4 h-4 text-muted-foreground" />
+              <span className="flex-1 text-left">切换空间</span>
+              <ChevronRight className="w-4 h-4 text-muted-foreground" />
             </button>
-          )}
+            {switchMenuOpen && (
+              <div
+                className="absolute right-full top-0 mr-1 w-56 bg-popover border border-border rounded-xl shadow-xl z-50 py-1 overflow-hidden"
+                onMouseEnter={() => setSwitchMenuOpen(true)}
+                onMouseLeave={() => setSwitchMenuOpen(false)}
+              >
+                {/* Personal space */}
+                <button
+                  onClick={() => { setEnterprise(null); setCurrentOrg(null); setRole("member"); localStorage.removeItem(LAST_ENTERPRISE_KEY); setUserMenuOpen(false); setSwitchMenuOpen(false); navigate("/workspace"); }}
+                  className={`w-full flex items-center gap-2 px-3 py-2.5 text-sm transition-colors ${
+                    !enterprise ? "bg-primary/10 text-primary" : "text-foreground hover:bg-muted"
+                  }`}
+                >
+                  <UserCircle className="w-3.5 h-3.5 shrink-0" />
+                  <span className="flex-1 text-left">个人空间</span>
+                  {!enterprise && <Check className="w-3 h-3 shrink-0" />}
+                </button>
+                {/* Enterprise list */}
+                {enterprises.length > 0 && (
+                  <>
+                    <div className="px-3 py-1 border-t border-border">
+                      <p className="text-[10px] text-muted-foreground uppercase tracking-wide">我的企业</p>
+                    </div>
+                    {enterprises.map(({ enterprise: ent, role: r, org }) => (
+                      <button
+                        key={ent.id}
+                        onClick={() => { selectEnterprise(ent, r, org); setSwitchMenuOpen(false); navigate("/workspace"); }}
+                        className={`w-full flex items-start gap-2 px-3 py-2.5 text-sm transition-colors ${
+                          enterprise?.id === ent.id ? "bg-primary/10 text-primary" : "text-foreground hover:bg-muted"
+                        }`}
+                      >
+                        <Building2 className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+                        <div className="flex-1 text-left min-w-0">
+                          <div className="truncate font-medium">{ent.name}</div>
+                          <div className="text-[11px] text-muted-foreground">{roleLabel(r)}</div>
+                        </div>
+                        {enterprise?.id === ent.id && <Check className="w-3 h-3 shrink-0 mt-0.5" />}
+                      </button>
+                    ))}
+                  </>
+                )}
+                <div className="border-t border-border mt-1 pt-1">
+                  <button
+                    onClick={() => { setShowCreateEnterprise(true); setUserMenuOpen(false); setSwitchMenuOpen(false); }}
+                    className="w-full flex items-center gap-2 px-3 py-2 text-sm text-foreground hover:bg-muted transition-colors"
+                  >
+                    <Plus className="w-3.5 h-3.5" />创建企业
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
 
           <div className="border-t border-border">
             <button
@@ -432,7 +383,6 @@ export default function Workspace() {
           </div>
           <span className="text-sm font-medium text-foreground">AI 网关平台</span>
           <div className="flex-1" />
-          <SpaceSwitcher />
           <UserMenu />
         </header>
         <div className="flex-1 flex items-center justify-center min-h-[calc(100vh-56px)] p-6">
@@ -484,7 +434,6 @@ export default function Workspace() {
             <span className="text-sm text-muted-foreground">/</span>
             <span className="text-sm font-medium text-foreground">{enterprise.name}</span>
             <div className="flex-1" />
-            <SpaceSwitcher />
             <UserMenu />
           </header>
 
