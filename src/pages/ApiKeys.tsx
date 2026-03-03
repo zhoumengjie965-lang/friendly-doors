@@ -17,6 +17,7 @@ import {
 } from "@/components/ui/table";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuCheckboxItem, DropdownMenuTrigger,
+  DropdownMenuItem,
 } from "@/components/ui/dropdown-menu";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
@@ -116,6 +117,11 @@ export default function ApiKeys({ enterprise, role }: Props) {
   const [orgKeys, setOrgKeys] = useState<ApiKey[]>([]);
   const [loading, setLoading] = useState(false);
 
+  // Multi-org switching
+  const [organizations, setOrganizations] = useState<{ id: string; name: string }[]>([]);
+  const [selectedOrgId, setSelectedOrgId] = useState<string | null>(null);
+  const [orgDropdownOpen, setOrgDropdownOpen] = useState(false);
+
   // Search state
   const [nameSearch, setNameSearch] = useState("");
   const [apiKeySearch, setApiKeySearch] = useState("");
@@ -164,17 +170,20 @@ export default function ApiKeys({ enterprise, role }: Props) {
     setLoading(false);
   }, [phone, enterprise.id]);
 
-  const fetchOrgKeys = useCallback(async () => {
+  const fetchOrgKeys = useCallback(async (orgId?: string | null) => {
     if (!canSeeOrgTab) return;
-    const { data, error } = await supabase
+    const targetOrgId = orgId !== undefined ? orgId : selectedOrgId;
+    let query = supabase
       .from("api_keys" as any)
       .select("*")
-      .eq("enterprise_id", enterprise.id)
-      .order("created_at", { ascending: false });
+      .eq("enterprise_id", enterprise.id);
+    if (targetOrgId) {
+      query = query.eq("organization_id", targetOrgId);
+    }
+    const { data, error } = await query.order("created_at", { ascending: false });
     if (!error && data) {
       const keys = data as unknown as ApiKey[];
       setOrgKeys(keys);
-      // Fetch user names
       const phones = [...new Set(keys.map(k => k.creator_phone))];
       if (phones.length > 0) {
         const { data: users } = await supabase
@@ -190,12 +199,27 @@ export default function ApiKeys({ enterprise, role }: Props) {
         }
       }
     }
+  }, [canSeeOrgTab, enterprise.id, selectedOrgId]);
+
+  const fetchOrganizations = useCallback(async () => {
+    if (!canSeeOrgTab) return;
+    const { data } = await supabase
+      .from("organizations")
+      .select("id, name")
+      .eq("enterprise_id", enterprise.id)
+      .eq("status", "active")
+      .order("created_at", { ascending: true });
+    if (data && data.length > 0) {
+      setOrganizations(data);
+      setSelectedOrgId(data[0].id);
+      fetchOrgKeys(data[0].id);
+    }
   }, [canSeeOrgTab, enterprise.id]);
 
   useEffect(() => {
     fetchMyKeys();
-    fetchOrgKeys();
-  }, [fetchMyKeys, fetchOrgKeys]);
+    fetchOrganizations();
+  }, [fetchMyKeys, fetchOrganizations]);
 
   const openCreate = () => {
     setEditingKey(null);
@@ -554,16 +578,44 @@ export default function ApiKeys({ enterprise, role }: Props) {
             我的 API Key
           </button>
           {canSeeOrgTab && (
-            <button
-              onClick={() => setActiveTab("org")}
-              className={`px-3 h-full rounded-md text-sm font-medium transition-all ${
-                activeTab === "org"
-                  ? "bg-background shadow-sm text-foreground"
-                  : "text-muted-foreground hover:text-foreground"
-              }`}
-            >
-              组织 API Key
-            </button>
+            <DropdownMenu open={orgDropdownOpen} onOpenChange={setOrgDropdownOpen}>
+              <DropdownMenuTrigger asChild>
+                <button
+                  onClick={() => {
+                    setActiveTab("org");
+                    if (selectedOrgId) fetchOrgKeys();
+                  }}
+                  className={`px-3 h-full rounded-md text-sm font-medium transition-all flex items-center gap-1 ${
+                    activeTab === "org"
+                      ? "bg-background shadow-sm text-foreground"
+                      : "text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  {activeTab === "org" && selectedOrgId
+                    ? `组织：${organizations.find(o => o.id === selectedOrgId)?.name ?? "API Key"}`
+                    : "组织 API Key"}
+                  <ChevronDown className="w-3.5 h-3.5 opacity-60" />
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start" className="w-52">
+                {organizations.length === 0 ? (
+                  <div className="px-3 py-2 text-sm text-muted-foreground">暂无组织</div>
+                ) : organizations.map(org => (
+                  <DropdownMenuItem
+                    key={org.id}
+                    onClick={() => {
+                      setSelectedOrgId(org.id);
+                      setActiveTab("org");
+                      fetchOrgKeys(org.id);
+                      setOrgDropdownOpen(false);
+                    }}
+                  >
+                    <Check className={`w-4 h-4 mr-2 ${selectedOrgId === org.id ? "opacity-100" : "opacity-0"}`} />
+                    {org.name}
+                  </DropdownMenuItem>
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
           )}
         </div>
       </div>
@@ -600,7 +652,7 @@ export default function ApiKeys({ enterprise, role }: Props) {
           <Button variant="outline" className="h-9 px-3" onClick={handleReset}>重置</Button>
           {/* 刷新图标 */}
           <button
-            onClick={() => { fetchMyKeys(); fetchOrgKeys(); }}
+            onClick={() => { if (activeTab === "my") fetchMyKeys(); else fetchOrgKeys(); }}
             className="h-9 w-9 flex items-center justify-center rounded-md border border-border hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
             title="刷新"
           >
