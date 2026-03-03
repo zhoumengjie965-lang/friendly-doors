@@ -1,183 +1,184 @@
 
-# 组织管理员视图看板开发方案
+# 组织管理员视图：成员搜索交互升级
 
-## 改动范围
+## 问题分析
 
-仅修改 `src/pages/ResourceStats.tsx`，无需数据库变更（使用 mock 数据）。
+当前实现中，`memberFilter` 输入框实时过滤排行榜数据，但缺乏明确的"查询/重置"操作边界，且没有"穿透到成员视图"的逻辑。
 
----
-
-## 一、新增顶部控制条（仅 org_admin 视图）
-
-在角色 Tab 切换栏与日期选择器之间，当视图为 `org_admin` 时，插入一行额外的控制条，包含两个元素：
-
-### 1. 组织选择器（下拉）
-- 使用现有的 `Select` / `Popover` 实现组织下拉选择
-- 默认显示第一个组织，支持多组织切换
-- 状态：`const [selectedOrg, setSelectedOrg] = useState("org-1")`
-
-### 2. 成员穿透筛选（搜索框）
-- 一个简单的文本 Input，支持按成员姓名模糊筛选
-- 默认为空（全组织聚合），输入后全页图表切换为该成员的个人数据
-- 状态：`const [memberFilter, setMemberFilter] = useState("")`
+用户期望的完整交互流程：
 
 ```text
-[🏢 研发一组 ▼]   [🔍 搜索成员姓名...]
+[org_admin 全组织聚合视图]
+  ↓ 在搜索框输入成员姓名
+  ↓ 出现 [查询] [重置] 按钮
+  ↓ 点击 [查询]
+[切换为：org_admin 成员穿透视图]
+  - 页面展示该成员的个人数据（类似 member 视图）
+  - 隐藏"成员消耗排行榜"卡片
+  - APIkey 分析显示该成员数据
+  ↓ 点击 [重置]
+[回到 org_admin 全组织聚合视图]
 ```
-样式：`bg-card border rounded-xl px-4 py-3 mb-4 flex items-center gap-3`
 
 ---
 
-## 二、配额横幅升级（org_admin）
+## 状态设计
 
-将 `member` 视图的"今日个人预算"替换为"组织本月配额监控"，同样保持蓝色横幅样式，但内容不同：
+新增两个状态，与现有状态分离：
+
+```ts
+// 输入框中的实时文字（打字时变化）
+const [memberFilter, setMemberFilter] = useState("");
+
+// 已提交的查询（点击"查询"后才赋值）
+const [committedMember, setCommittedMember] = useState("");
+```
+
+- `committedMember === ""` → 全组织聚合状态
+- `committedMember !== ""` → 成员穿透状态（不显示排行榜，显示成员个人数据）
+
+---
+
+## 一、搜索框交互升级
+
+### 变更前
+输入框实时触发 `filteredMemberRank` 过滤，有"清除"按钮。
+
+### 变更后
+输入框仅更新 `memberFilter`（不触发任何联动）。当 `memberFilter.trim() !== ""` 时，在搜索框右侧动态显示两个按钮：
 
 ```tsx
-{viewRole === "org_admin" && (
-  <div className="mb-4 rounded-lg bg-blue-50 border border-blue-200 px-4 py-3 ...">
+{memberFilter.trim() && (
+  <>
+    <Button size="sm" className="h-8 text-xs px-3" onClick={handleSearch}>
+      查询
+    </Button>
+    <Button variant="outline" size="sm" className="h-8 text-xs px-3" onClick={handleReset}>
+      重置
+    </Button>
+  </>
+)}
+{/* 若已提交但输入框为空，仍显示重置 */}
+{!memberFilter.trim() && committedMember && (
+  <Button variant="outline" size="sm" className="h-8 text-xs px-3" onClick={handleReset}>
+    重置
+  </Button>
+)}
+```
+
+按钮逻辑：
+```ts
+const handleSearch = () => {
+  setCommittedMember(memberFilter.trim());
+};
+
+const handleReset = () => {
+  setMemberFilter("");
+  setCommittedMember("");
+};
+```
+
+支持按 Enter 键直接触发查询（`onKeyDown` 监听 `Enter`）。
+
+### 视觉效果（对应截图红框区域）
+
+```text
+[🏢 当前组织  研发一组 ▼]  |  [🔍 搜索成员姓名（留空显示全组织）...]  [查询]  [重置]
+```
+
+---
+
+## 二、成员穿透状态下的视图变化
+
+当 `committedMember !== ""` 时（已提交查询），页面进入**成员穿透视图**：
+
+### 2.1 顶部搜索栏状态指示
+
+在搜索框上方或旁边添加一个蓝色标记，提示当前正在查看某成员数据：
+
+```tsx
+{committedMember && (
+  <div className="flex items-center gap-1.5 text-xs text-blue-600 bg-blue-50 border border-blue-200 rounded-md px-2.5 py-1 shrink-0">
+    <Users className="w-3.5 h-3.5" />
+    <span>当前查看：{committedMember}</span>
+  </div>
+)}
+```
+
+### 2.2 配额横幅切换
+
+- 全组织聚合时：显示"组织本月配额监控"横幅（蓝色，¥3,200 / ¥5,000）
+- 穿透到成员后：改为显示"成员个人日预算监控"横幅（同 member 视图的横幅样式，但加注"成员：{committedMember}"前缀）
+
+```tsx
+{viewRole === "org_admin" && committedMember === "" && (
+  // 组织配额横幅（现有）
+)}
+{viewRole === "org_admin" && committedMember !== "" && (
+  // 个人配额横幅（带成员名）
+  <div className="mb-4 rounded-lg bg-blue-50 border border-blue-200 px-4 py-3 flex items-center gap-4 flex-wrap">
     <Wallet 图标 />
-    <span>组织本月配额监控</span>
-    <span>本月组织剩余预算：¥ 3,200.00 / ¥ 5,000.00</span>
-    <进度条 width="36%" />
-    <span>64% 剩余</span>
+    <span>成员 <strong>{committedMember}</strong> 今日预算剩余：¥ 37.50 / ¥ 50.00</span>
+    <进度条 />
   </div>
 )}
 ```
 
-Mock 数据：`orgMonthlyBudget = 5000`, `orgConsumed = 1800`，消耗 36%。
+### 2.3 隐藏成员消耗排行榜
 
----
-
-## 三、指标卡片标签（org_admin）
-
-扩展 `cardLabels` 逻辑，对 `org_admin` 独立定义标签，与 `member` 保持一致的三个指标名称（已消耗预算 / 统计调用次数 / 消耗Tokens），表示全组织聚合数据：
-
-```ts
-const cardLabels =
-  viewRole === "member" || viewRole === "org_admin"
-    ? { big: "已消耗预算", mid1: "统计调用次数", mid2: "消耗Tokens" }
-    : { big: "统计额度", mid1: "统计次数", mid2: "统计Tokens" };
-```
-
-org_admin 的数值（mock）比 member 更大，体现"全组织聚合"：¥ 188.50、1,847 次、1.24M Tokens、0.041 RPM、1.28K TPM。
-
----
-
-## 四、新增卡片：成员消耗排行榜（org_admin 专属）
-
-在模型数据分析图表卡片下方、APIkey 分析卡片上方，插入一个"成员消耗排行榜"卡片。
-
-### 技术实现
-- 使用 `recharts` 的 `BarChart` 横向模式：`layout="vertical"`
-- X 轴为数值（消耗金额），Y 轴为成员姓名
-- 仅展示 Top 10 成员
-- 进度条颜色：`#60a5fa`（蓝色，与全局配色一致）
-
-### Mock 数据
-```ts
-const mockMemberRankData = [
-  { name: "张三", value: 42.50 },
-  { name: "李四", value: 38.20 },
-  { name: "王五", value: 31.80 },
-  { name: "赵六", value: 28.40 },
-  { name: "钱七", value: 22.10 },
-  { name: "孙八", value: 18.60 },
-  { name: "周九", value: 15.30 },
-  { name: "吴十", value: 12.00 },
-  { name: "郑十一", value: 8.90 },
-  { name: "陈十二", value: 5.20 },
-];
-```
-
-### 卡片结构
-```text
-┌─────────────────────────────────────────────────────┐
-│  [👥] 成员消耗排行榜 (Top 10)                        │
-│                                                     │
-│  张三   [=============================] ¥42.50      │
-│  李四   [=========================] ¥38.20          │
-│  ...                                                │
-└─────────────────────────────────────────────────────┘
-```
-
-使用 `recharts` 横向柱状图（高度约 320px），Y 轴显示成员姓名，X 轴显示金额，添加自定义 Tooltip。
-
----
-
-## 五、APIkey 调用分析卡片复用（org_admin）
-
-将现有的 `APIkey 调用分析` 卡片从 `viewRole === "member"` 扩展至同时支持 `org_admin`：
+排行榜仅在"全组织聚合"状态下显示：
 
 ```tsx
-{(viewRole === "member" || viewRole === "org_admin") && (
-  <div className="mt-4 bg-card border border-border rounded-xl p-6">
-    ...
+{viewRole === "org_admin" && committedMember === "" && (
+  <div className="mt-4 ...">
+    {/* 成员消耗排行榜 */}
   </div>
 )}
 ```
 
-内容逻辑相同，但 `org_admin` 的数据代表全组织所有 API Key 及全组织拦截原因，mock 数值更大，体现组织维度。
+### 2.4 APIkey 分析数据切换
 
-新增 org_admin 专用 mock 数据：
-```ts
-const mockOrgKeyConsumptionData = [
-  { name: "prod-gpt4-key", value: 88.50, color: "#60a5fa" },
-  { name: "prod-claude-key", value: 62.30, color: "#4ade80" },
-  { name: "test-gemini-key", value: 24.70, color: "#a78bfa" },
-  { name: "backup-key-01", value: 13.00, color: "#fb923c" },
-];
-
-const mockOrgInterceptData = [
-  { name: "Key 预算不足", value: 45, color: "#f87171" },
-  { name: "个人日限额触达", value: 32, color: "#fb923c" },
-  { name: "组织总限额不足", value: 18, color: "#facc15" },
-  { name: "企业余额欠费", value: 8, color: "#a78bfa" },
-  { name: "其他系统错误", value: 5, color: "#94a3b8" },
-];
-```
+- 全组织时：使用 `mockOrgKeyConsumptionData` / `mockOrgInterceptData`
+- 穿透成员时：使用 `mockKeyConsumptionData` / `mockInterceptData`（成员维度的 mock）
 
 ---
 
-## 六、空状态处理
-
-当 `memberFilter` 有值但无匹配时，在各卡片内部用一个居中的提示替代图表：
-
-```tsx
-const isEmpty = memberFilter.trim() !== "" && !mockMemberRankData.some(m => m.name.includes(memberFilter));
-
-{isEmpty ? (
-  <div className="flex flex-col items-center justify-center h-[200px] text-muted-foreground">
-    <Users className="w-10 h-10 mb-2 opacity-30" />
-    <p className="text-sm">暂无相关数据</p>
-  </div>
-) : (
-  <ResponsiveContainer ...>...</ResponsiveContainer>
-)}
-```
-
----
-
-## 整体渲染逻辑（org_admin 视图）
+## 三、整体逻辑流程图
 
 ```text
-1. [顶部控制栏：组织选择器 + 成员搜索框]   ← org_admin 专属
-2. [组织本月配额监控横幅（蓝色）]           ← org_admin 专属
-3. [指标卡片区：全组织聚合数值]             ← org_admin 使用"已消耗预算"命名
-4. [模型数据分析柱状图]                     ← 共用（统计范围升级说明注释）
-5. [成员消耗排行榜 Top 10（横向条形图）]    ← org_admin 专属
-6. [APIkey 调用分析（两个环形图）]          ← org_admin 使用 orgMock 数据
+org_admin 视图进入
+        │
+        ▼
+[committedMember === ""]  ────── 全组织聚合状态 ──────
+        │                                              │
+        │  用户输入成员名 → 输入框显示 [查询][重置]      │ 展示：
+        │                                              │  - 组织配额横幅
+        │  点击 [查询]                                  │  - 全组织指标卡
+        │                                              │  - 模型柱状图
+        ▼                                              │  - 成员排行榜 ✅
+[committedMember = "张三"] ─── 成员穿透状态 ──────     │  - APIkey 分析（org数据）
+        │                                              │
+        │  展示：                                       │
+        │   - 个人配额横幅（含成员名）                  │
+        │   - 成员指标卡（member mock数据）             │
+        │   - 模型柱状图                               │
+        │   - 成员排行榜 ❌（隐藏）                    │
+        │   - APIkey 分析（member数据）                 │
+        │                                              │
+        ▼                                              │
+  点击 [重置] ──────────────────────────────────────── ┘
+  (清空 memberFilter + committedMember)
 ```
 
 ---
 
-## 涉及文件
+## 四、涉及文件
 
 | 文件 | 改动 |
 |------|------|
-| `src/pages/ResourceStats.tsx` | 新增 `selectedOrg`、`memberFilter` 状态；新增 org_admin 配额横幅；新增成员排行榜卡片；扩展 APIkey 分析卡片至 org_admin；新增所有 org_admin mock 数据；空状态处理；引入 `Users`、`Search` 图标 |
+| `src/pages/ResourceStats.tsx` | 新增 `committedMember` 状态；将 `isMemberEmpty` 逻辑改为基于 `committedMember`；搜索框新增查询/重置按钮；配额横幅区分聚合/穿透状态；排行榜仅在 `committedMember === ""` 时渲染；APIkey 数据源根据 `committedMember` 切换 |
 
 ## 不涉及内容
 - 数据库：无需变动
 - 其他页面：无影响
-- 真实数据接入：后续可替换 mock 数据为实际查询
-
+- 路由跳转：不跳转到真实路由，在 org_admin 视图内切换展示模式
