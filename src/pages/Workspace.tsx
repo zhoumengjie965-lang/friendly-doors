@@ -454,7 +454,7 @@ export default function Workspace() {
             ) : location.pathname === "/workspace/logs" ? (
               <CallLogs enterprise={enterprise} role={role} />
             ) : location.pathname === "/workspace/profile" ? (
-              <Profile />
+              <Profile enterprise={enterprise} currentOrg={currentOrg} role={role} />
             ) : (
               <>
                 <div className="mb-8">
