@@ -471,21 +471,15 @@ export default function ResourceStats({ enterprise }: Props) {
 
   return (
     <div>
-      {/* Header row */}
-      <div className="flex items-center justify-between mb-6">
-        <div className="flex items-center gap-2">
-          <LayoutGrid className="w-5 h-5 text-muted-foreground" />
-          <h1 className="text-xl font-bold text-foreground">资源统计</h1>
-        </div>
-
-        {/* Role tabs */}
+      {/* Role switcher — top */}
+      <div className="flex items-center justify-between mb-5">
         <div className="flex items-center bg-muted rounded-lg p-1 h-9">
           {roleTabs.map((tab) => (
             <button
               key={tab.key}
               onClick={() => setViewRole(tab.key)}
               className={cn(
-                "px-3 py-1.5 rounded-md text-xs font-medium transition-all",
+                "px-4 py-1.5 rounded-md text-xs font-medium transition-all",
                 viewRole === tab.key
                   ? "bg-background text-foreground shadow-sm"
                   : "text-muted-foreground hover:text-foreground"
@@ -495,7 +489,15 @@ export default function ResourceStats({ enterprise }: Props) {
             </button>
           ))}
         </div>
+        <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
+          <LayoutGrid className="w-4 h-4 text-muted-foreground" />
+          <span>资源统计</span>
+        </div>
+      </div>
 
+      {/* Header row */}
+      <div className="flex items-center justify-between mb-6">
+        <div />
         <div className="flex items-center gap-2">
           <Popover open={calendarOpen} onOpenChange={setCalendarOpen}>
             <PopoverTrigger asChild>
