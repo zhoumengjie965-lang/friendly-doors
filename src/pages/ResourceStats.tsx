@@ -5,11 +5,14 @@ import {
   PieChart, Pie, Cell,
 } from "recharts";
 import {
-  Wallet, Activity, Database, Zap, BarChart2, CalendarIcon, RefreshCw, LayoutGrid, PieChart as PieChartIcon,
+  Wallet, Activity, Database, Zap, BarChart2, CalendarIcon, RefreshCw, LayoutGrid,
+  PieChart as PieChartIcon, Users, Search, Building2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import type { DateRange } from "react-day-picker";
 
@@ -55,7 +58,7 @@ const mockCallData = [
   { date: "02-29", claude: 3, gpt4: 3, gemini: 2 },
 ];
 
-// Mock donut chart data
+// Mock donut data — member
 const mockKeyConsumptionData = [
   { name: "gpt-4-turbo-key", value: 8.50, color: "#60a5fa" },
   { name: "claude-opus-key", value: 5.20, color: "#4ade80" },
@@ -70,6 +73,46 @@ const mockInterceptData = [
   { name: "企业余额欠费",   value: 3,  color: "#a78bfa" },
   { name: "其他系统错误",   value: 2,  color: "#94a3b8" },
 ];
+
+// Mock donut data — org_admin
+const mockOrgKeyConsumptionData = [
+  { name: "prod-gpt4-key",   value: 88.50, color: "#60a5fa" },
+  { name: "prod-claude-key", value: 62.30, color: "#4ade80" },
+  { name: "test-gemini-key", value: 24.70, color: "#a78bfa" },
+  { name: "backup-key-01",   value: 13.00, color: "#fb923c" },
+];
+
+const mockOrgInterceptData = [
+  { name: "Key 预算不足",   value: 45, color: "#f87171" },
+  { name: "个人日限额触达", value: 32, color: "#fb923c" },
+  { name: "组织总限额不足", value: 18, color: "#facc15" },
+  { name: "企业余额欠费",   value: 8,  color: "#a78bfa" },
+  { name: "其他系统错误",   value: 5,  color: "#94a3b8" },
+];
+
+// Mock member rank
+const mockMemberRankData = [
+  { name: "张三",   value: 42.50 },
+  { name: "李四",   value: 38.20 },
+  { name: "王五",   value: 31.80 },
+  { name: "赵六",   value: 28.40 },
+  { name: "钱七",   value: 22.10 },
+  { name: "孙八",   value: 18.60 },
+  { name: "周九",   value: 15.30 },
+  { name: "吴十",   value: 12.00 },
+  { name: "郑十一", value: 8.90 },
+  { name: "陈十二", value: 5.20 },
+];
+
+// Mock orgs
+const mockOrgs = [
+  { id: "org-1", name: "研发一组" },
+  { id: "org-2", name: "产品设计组" },
+  { id: "org-3", name: "运营支持组" },
+];
+
+const orgMonthlyBudget = 5000;
+const orgConsumed = 1800;
 
 type ViewRole = "member" | "org_admin" | "enterprise_admin";
 
@@ -88,7 +131,6 @@ function DonutChart({ title, data, centerLabel, centerValue, valueFormatter }: D
     <div>
       <p className="text-sm font-medium text-foreground mb-4">{title}</p>
       <div className="flex items-center gap-6">
-        {/* Donut chart */}
         <div className="relative shrink-0">
           <ResponsiveContainer width={160} height={160}>
             <PieChart>
@@ -117,14 +159,11 @@ function DonutChart({ title, data, centerLabel, centerValue, valueFormatter }: D
               />
             </PieChart>
           </ResponsiveContainer>
-          {/* Center label overlay */}
           <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
             <span className="text-xs text-muted-foreground">{centerLabel}</span>
             <span className="text-base font-bold text-foreground">{centerValue}</span>
           </div>
         </div>
-
-        {/* Legend */}
         <div className="flex-1 space-y-2">
           {data.map((item, i) => {
             const pct = ((item.value / total) * 100).toFixed(1);
@@ -147,6 +186,15 @@ function DonutChart({ title, data, centerLabel, centerValue, valueFormatter }: D
   );
 }
 
+function EmptyState() {
+  return (
+    <div className="flex flex-col items-center justify-center h-[200px] text-muted-foreground">
+      <Users className="w-10 h-10 mb-2 opacity-30" />
+      <p className="text-sm">暂无相关数据</p>
+    </div>
+  );
+}
+
 export default function ResourceStats({ enterprise }: Props) {
   const [dateRange, setDateRange] = useState<DateRange | undefined>({
     from: startOfMonth(new Date("2024-02-01")),
@@ -156,17 +204,31 @@ export default function ResourceStats({ enterprise }: Props) {
   const [activeSubTab, setActiveSubTab] = useState<"consumption" | "calls">("consumption");
   const [granularity, setGranularity] = useState<"hour" | "day" | "week">("day");
   const [viewRole, setViewRole] = useState<ViewRole>("member");
+  const [selectedOrg, setSelectedOrg] = useState("org-1");
+  const [memberFilter, setMemberFilter] = useState("");
+
+  // suppress unused warning
+  void enterprise;
 
   const chartData = activeSubTab === "consumption" ? mockDayData : mockCallData;
   const yLabel = activeSubTab === "consumption" ? "Tokens" : "次数";
 
-  const cardLabels = viewRole === "member"
-    ? { big: "已消耗预算", mid1: "统计调用次数", mid2: "消耗Tokens" }
-    : { big: "统计额度", mid1: "统计次数", mid2: "统计Tokens" };
+  const cardLabels =
+    viewRole === "member" || viewRole === "org_admin"
+      ? { big: "已消耗预算", mid1: "统计调用次数", mid2: "消耗Tokens" }
+      : { big: "统计额度", mid1: "统计次数", mid2: "统计Tokens" };
 
   const consumed = 12.50;
   const total = 50.00;
   const consumedPct = Math.round((consumed / total) * 100);
+  const orgConsumedPct = Math.round((orgConsumed / orgMonthlyBudget) * 100);
+
+  const orgCardValues = { big: "¥ 188.50", mid1: "1,847", mid2: "1.24M", rpm: "0.041", tpm: "1.28K" };
+
+  const filteredMemberRank = memberFilter.trim()
+    ? mockMemberRankData.filter((m) => m.name.includes(memberFilter.trim()))
+    : mockMemberRankData;
+  const isMemberEmpty = memberFilter.trim() !== "" && filteredMemberRank.length === 0;
 
   const formatDateRange = () => {
     if (!dateRange?.from) return "选择日期范围";
@@ -190,7 +252,7 @@ export default function ResourceStats({ enterprise }: Props) {
           <h1 className="text-xl font-bold text-foreground">资源统计</h1>
         </div>
 
-        {/* Role view tabs */}
+        {/* Role tabs */}
         <div className="flex items-center bg-muted rounded-lg p-1 h-9">
           {roleTabs.map((tab) => (
             <button
@@ -209,7 +271,6 @@ export default function ResourceStats({ enterprise }: Props) {
         </div>
 
         <div className="flex items-center gap-2">
-          {/* Date range picker */}
           <Popover open={calendarOpen} onOpenChange={setCalendarOpen}>
             <PopoverTrigger asChild>
               <Button variant="outline" className="h-9 gap-2 text-sm font-normal border-border">
@@ -233,23 +294,59 @@ export default function ResourceStats({ enterprise }: Props) {
         </div>
       </div>
 
-      {/* Quota banner — member only, updated style */}
+      {/* org_admin: top control bar */}
+      {viewRole === "org_admin" && (
+        <div className="bg-card border border-border rounded-xl px-4 py-3 mb-4 flex items-center gap-3 flex-wrap">
+          <div className="flex items-center gap-2 shrink-0">
+            <Building2 className="w-4 h-4 text-muted-foreground" />
+            <span className="text-xs text-muted-foreground font-medium">当前组织</span>
+          </div>
+          <Select value={selectedOrg} onValueChange={setSelectedOrg}>
+            <SelectTrigger className="h-8 w-36 text-xs border-border">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {mockOrgs.map((org) => (
+                <SelectItem key={org.id} value={org.id} className="text-xs">
+                  {org.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <div className="w-px h-5 bg-border shrink-0" />
+          <div className="relative flex-1 min-w-[200px] max-w-xs">
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
+            <Input
+              placeholder="搜索成员姓名（留空显示全组织）..."
+              value={memberFilter}
+              onChange={(e) => setMemberFilter(e.target.value)}
+              className="h-8 pl-8 text-xs border-border"
+            />
+          </div>
+          {memberFilter && (
+            <button
+              onClick={() => setMemberFilter("")}
+              className="text-xs text-muted-foreground hover:text-foreground transition-colors shrink-0"
+            >
+              清除
+            </button>
+          )}
+        </div>
+      )}
+
+      {/* Quota banner — member */}
       {viewRole === "member" && (
         <div className="mb-4 rounded-lg bg-blue-50 border border-blue-200 px-4 py-3 flex items-center gap-4 flex-wrap">
-          {/* Icon + title */}
           <div className="flex items-center gap-2 shrink-0">
             <div className="w-7 h-7 rounded-full bg-blue-100 flex items-center justify-center">
               <Wallet className="w-4 h-4 text-blue-600" />
             </div>
             <span className="text-sm font-semibold text-blue-700">实时配额监控</span>
           </div>
-          {/* Divider */}
           <div className="w-px h-5 bg-blue-200 shrink-0" />
-          {/* Text */}
           <span className="text-sm text-blue-600 shrink-0">
             今日个人预算剩余：<span className="font-bold text-blue-800">¥ {(total - consumed).toFixed(2)}</span> / ¥ {total.toFixed(2)}
           </span>
-          {/* Progress bar */}
           <div className="flex items-center gap-2 flex-1 min-w-[160px]">
             <div className="flex-1 h-2 rounded-full bg-blue-100 overflow-hidden">
               <div className="h-full bg-blue-500 rounded-full transition-all" style={{ width: `${consumedPct}%` }} />
@@ -259,19 +356,45 @@ export default function ResourceStats({ enterprise }: Props) {
         </div>
       )}
 
-      {/* Metric cards: 3-col grid, left big card spans 2 rows */}
+      {/* Quota banner — org_admin */}
+      {viewRole === "org_admin" && (
+        <div className="mb-4 rounded-lg bg-blue-50 border border-blue-200 px-4 py-3 flex items-center gap-4 flex-wrap">
+          <div className="flex items-center gap-2 shrink-0">
+            <div className="w-7 h-7 rounded-full bg-blue-100 flex items-center justify-center">
+              <Wallet className="w-4 h-4 text-blue-600" />
+            </div>
+            <span className="text-sm font-semibold text-blue-700">组织本月配额监控</span>
+          </div>
+          <div className="w-px h-5 bg-blue-200 shrink-0" />
+          <span className="text-sm text-blue-600 shrink-0">
+            本月组织剩余预算：
+            <span className="font-bold text-blue-800">
+              ¥ {(orgMonthlyBudget - orgConsumed).toLocaleString("zh-CN", { minimumFractionDigits: 2 })}
+            </span>
+            {" "}/ ¥ {orgMonthlyBudget.toLocaleString("zh-CN", { minimumFractionDigits: 2 })}
+          </span>
+          <div className="flex items-center gap-2 flex-1 min-w-[160px]">
+            <div className="flex-1 h-2 rounded-full bg-blue-100 overflow-hidden">
+              <div className="h-full bg-blue-500 rounded-full transition-all" style={{ width: `${orgConsumedPct}%` }} />
+            </div>
+            <span className="text-xs text-blue-500 shrink-0">{orgConsumedPct}% 已消耗</span>
+          </div>
+        </div>
+      )}
+
+      {/* Metric cards */}
       <div className="grid grid-cols-3 grid-rows-2 gap-4 mb-6" style={{ gridTemplateRows: "auto auto" }}>
-        {/* Left big card */}
         <div className="row-span-2 bg-card border border-border rounded-xl p-6 flex flex-col justify-center">
           <div className="w-12 h-12 rounded-full flex items-center justify-center mb-4"
             style={{ background: "hsl(32,90%,55%)" }}>
             <Wallet className="w-6 h-6 text-white" />
           </div>
           <p className="text-sm text-muted-foreground mb-1">{cardLabels.big}</p>
-          <p className="text-4xl font-bold text-foreground">¥2.27</p>
+          <p className="text-4xl font-bold text-foreground">
+            {viewRole === "org_admin" ? orgCardValues.big : "¥2.27"}
+          </p>
         </div>
 
-        {/* Top middle */}
         <div className="bg-card border border-border rounded-xl p-5">
           <div className="flex items-center justify-between mb-2">
             <p className="text-sm text-muted-foreground">{cardLabels.mid1}</p>
@@ -280,10 +403,11 @@ export default function ResourceStats({ enterprise }: Props) {
               <Activity className="w-4 h-4" style={{ color: "hsl(340,75%,55%)" }} />
             </div>
           </div>
-          <p className="text-2xl font-bold text-foreground">29</p>
+          <p className="text-2xl font-bold text-foreground">
+            {viewRole === "org_admin" ? orgCardValues.mid1 : "29"}
+          </p>
         </div>
 
-        {/* Top right: 平均RPM */}
         <div className="bg-card border border-border rounded-xl p-5">
           <div className="flex items-center justify-between mb-2">
             <p className="text-sm text-muted-foreground">平均RPM</p>
@@ -292,10 +416,11 @@ export default function ResourceStats({ enterprise }: Props) {
               <Zap className="w-4 h-4" style={{ color: "hsl(142,70%,40%)" }} />
             </div>
           </div>
-          <p className="text-2xl font-bold text-foreground">0.001</p>
+          <p className="text-2xl font-bold text-foreground">
+            {viewRole === "org_admin" ? orgCardValues.rpm : "0.001"}
+          </p>
         </div>
 
-        {/* Bottom middle */}
         <div className="bg-card border border-border rounded-xl p-5">
           <div className="flex items-center justify-between mb-2">
             <p className="text-sm text-muted-foreground">{cardLabels.mid2}</p>
@@ -304,10 +429,11 @@ export default function ResourceStats({ enterprise }: Props) {
               <Database className="w-4 h-4" style={{ color: "hsl(214,80%,50%)" }} />
             </div>
           </div>
-          <p className="text-2xl font-bold text-foreground">14.4K</p>
+          <p className="text-2xl font-bold text-foreground">
+            {viewRole === "org_admin" ? orgCardValues.mid2 : "14.4K"}
+          </p>
         </div>
 
-        {/* Bottom right: 平均TPM */}
         <div className="bg-card border border-border rounded-xl p-5">
           <div className="flex items-center justify-between mb-2">
             <p className="text-sm text-muted-foreground">平均TPM</p>
@@ -316,7 +442,9 @@ export default function ResourceStats({ enterprise }: Props) {
               <BarChart2 className="w-4 h-4" style={{ color: "hsl(262,60%,55%)" }} />
             </div>
           </div>
-          <p className="text-2xl font-bold text-foreground">0.357</p>
+          <p className="text-2xl font-bold text-foreground">
+            {viewRole === "org_admin" ? orgCardValues.tpm : "0.357"}
+          </p>
         </div>
       </div>
 
@@ -371,68 +499,130 @@ export default function ResourceStats({ enterprise }: Props) {
           </div>
         </div>
 
-        <ResponsiveContainer width="100%" height={280}>
-          <BarChart data={chartData} margin={{ top: 4, right: 16, left: 0, bottom: 4 }} barSize={20}>
-            <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
-            <XAxis
-              dataKey="date"
-              tick={{ fontSize: 12, fill: "hsl(var(--muted-foreground))" }}
-              axisLine={false}
-              tickLine={false}
-            />
-            <YAxis
-              tick={{ fontSize: 12, fill: "hsl(var(--muted-foreground))" }}
-              axisLine={false}
-              tickLine={false}
-              width={50}
-              tickFormatter={(v) => activeSubTab === "consumption" && v >= 1000 ? `${v / 1000}K` : String(v)}
-              label={{ value: yLabel, angle: -90, position: "insideLeft", offset: 10, style: { fontSize: 11, fill: "hsl(var(--muted-foreground))" } }}
-            />
-            <Tooltip
-              contentStyle={{
-                backgroundColor: "hsl(var(--background))",
-                border: "1px solid hsl(var(--border))",
-                borderRadius: 8,
-                fontSize: 12,
-              }}
-              cursor={{ fill: "hsl(var(--muted))" }}
-            />
-            <Legend
-              iconType="square"
-              iconSize={8}
-              wrapperStyle={{ fontSize: 12, paddingTop: 12 }}
-            />
-            <Bar dataKey="claude" name="Claude 3" stackId="a" fill="#4ade80" radius={[0, 0, 0, 0]} />
-            <Bar dataKey="gpt4" name="GPT-4" stackId="a" fill="#60a5fa" radius={[0, 0, 0, 0]} />
-            <Bar dataKey="gemini" name="Gemini Pro" stackId="a" fill="#a78bfa" radius={[4, 4, 0, 0]} />
-          </BarChart>
-        </ResponsiveContainer>
+        {isMemberEmpty ? (
+          <EmptyState />
+        ) : (
+          <ResponsiveContainer width="100%" height={280}>
+            <BarChart data={chartData} margin={{ top: 4, right: 16, left: 0, bottom: 4 }} barSize={20}>
+              <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
+              <XAxis
+                dataKey="date"
+                tick={{ fontSize: 12, fill: "hsl(var(--muted-foreground))" }}
+                axisLine={false}
+                tickLine={false}
+              />
+              <YAxis
+                tick={{ fontSize: 12, fill: "hsl(var(--muted-foreground))" }}
+                axisLine={false}
+                tickLine={false}
+                width={50}
+                tickFormatter={(v) => activeSubTab === "consumption" && v >= 1000 ? `${v / 1000}K` : String(v)}
+                label={{ value: yLabel, angle: -90, position: "insideLeft", offset: 10, style: { fontSize: 11, fill: "hsl(var(--muted-foreground))" } }}
+              />
+              <Tooltip
+                contentStyle={{
+                  backgroundColor: "hsl(var(--background))",
+                  border: "1px solid hsl(var(--border))",
+                  borderRadius: 8,
+                  fontSize: 12,
+                }}
+                cursor={{ fill: "hsl(var(--muted))" }}
+              />
+              <Legend iconType="square" iconSize={8} wrapperStyle={{ fontSize: 12, paddingTop: 12 }} />
+              <Bar dataKey="claude" name="Claude 3" stackId="a" fill="#4ade80" radius={[0, 0, 0, 0]} />
+              <Bar dataKey="gpt4" name="GPT-4" stackId="a" fill="#60a5fa" radius={[0, 0, 0, 0]} />
+              <Bar dataKey="gemini" name="Gemini Pro" stackId="a" fill="#a78bfa" radius={[4, 4, 0, 0]} />
+            </BarChart>
+          </ResponsiveContainer>
+        )}
       </div>
 
-      {/* APIkey 调用分析卡片 — member only */}
-      {viewRole === "member" && (
+      {/* org_admin: Member rank card */}
+      {viewRole === "org_admin" && (
+        <div className="mt-4 bg-card border border-border rounded-xl p-6">
+          <div className="flex items-center gap-2 mb-6">
+            <Users className="w-4 h-4 text-muted-foreground" />
+            <span className="font-semibold text-foreground">成员消耗排行榜</span>
+            <span className="text-xs text-muted-foreground ml-1">Top 10</span>
+          </div>
+
+          {isMemberEmpty ? (
+            <EmptyState />
+          ) : (
+            <ResponsiveContainer width="100%" height={320}>
+              <BarChart
+                layout="vertical"
+                data={filteredMemberRank.slice(0, 10)}
+                margin={{ top: 4, right: 64, left: 8, bottom: 4 }}
+                barSize={16}
+              >
+                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" horizontal={false} />
+                <XAxis
+                  type="number"
+                  tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }}
+                  axisLine={false}
+                  tickLine={false}
+                  tickFormatter={(v) => `¥${v}`}
+                />
+                <YAxis
+                  dataKey="name"
+                  type="category"
+                  width={56}
+                  tick={{ fontSize: 12, fill: "hsl(var(--muted-foreground))" }}
+                  axisLine={false}
+                  tickLine={false}
+                />
+                <Tooltip
+                  contentStyle={{
+                    backgroundColor: "hsl(var(--background))",
+                    border: "1px solid hsl(var(--border))",
+                    borderRadius: 8,
+                    fontSize: 12,
+                  }}
+                  formatter={(v: number) => [`¥${v.toFixed(2)}`, "消耗金额"]}
+                  cursor={{ fill: "hsl(var(--muted))" }}
+                />
+                <Bar
+                  dataKey="value"
+                  name="消耗金额"
+                  fill="#60a5fa"
+                  radius={[0, 4, 4, 0]}
+                  label={{ position: "right", fontSize: 11, fill: "hsl(var(--muted-foreground))", formatter: (v: number) => `¥${v.toFixed(2)}` }}
+                />
+              </BarChart>
+            </ResponsiveContainer>
+          )}
+        </div>
+      )}
+
+      {/* APIkey analysis — member & org_admin */}
+      {(viewRole === "member" || viewRole === "org_admin") && (
         <div className="mt-4 bg-card border border-border rounded-xl p-6">
           <div className="flex items-center gap-2 mb-6">
             <PieChartIcon className="w-4 h-4 text-muted-foreground" />
             <span className="font-semibold text-foreground">APIkey 调用分析</span>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-            <DonutChart
-              title="API Key 消耗占比"
-              data={mockKeyConsumptionData}
-              centerLabel="总消耗"
-              centerValue="¥17.70"
-              valueFormatter={(v) => `¥${v.toFixed(2)}`}
-            />
-            <DonutChart
-              title="请求拦截原因分布"
-              data={mockInterceptData}
-              centerLabel="总失败"
-              centerValue="30 次"
-              valueFormatter={(v) => `${v} 次`}
-            />
-          </div>
+          {isMemberEmpty ? (
+            <EmptyState />
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+              <DonutChart
+                title="API Key 消耗占比"
+                data={viewRole === "org_admin" ? mockOrgKeyConsumptionData : mockKeyConsumptionData}
+                centerLabel="总消耗"
+                centerValue={viewRole === "org_admin" ? "¥188.50" : "¥17.70"}
+                valueFormatter={(v) => `¥${v.toFixed(2)}`}
+              />
+              <DonutChart
+                title="请求拦截原因分布"
+                data={viewRole === "org_admin" ? mockOrgInterceptData : mockInterceptData}
+                centerLabel="总失败"
+                centerValue={viewRole === "org_admin" ? "108 次" : "30 次"}
+                valueFormatter={(v) => `${v} 次`}
+              />
+            </div>
+          )}
         </div>
       )}
     </div>
