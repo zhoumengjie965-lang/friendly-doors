@@ -134,8 +134,14 @@ const mockMemberRankData = [
   { name: "陈十二", value: 5.20 },
 ];
 
-// Mock orgs
+// Mock orgs for org_admin (limited view)
 const mockOrgs = [
+  { id: "org-1", name: "研发一组" },
+  { id: "org-2", name: "产品设计组" },
+];
+
+// Mock orgs for enterprise_admin (full view)
+const mockAllOrgs = [
   { id: "org-1", name: "研发一组" },
   { id: "org-2", name: "产品设计组" },
   { id: "org-3", name: "运营支持组" },
@@ -417,7 +423,7 @@ export default function ResourceStats({ enterprise }: Props) {
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all" className="text-xs">全部组织（默认）</SelectItem>
-              {mockOrgs.map((org) => (
+              {mockAllOrgs.map((org) => (
                 <SelectItem key={org.id} value={org.id} className="text-xs">
                   {org.name}
                 </SelectItem>
