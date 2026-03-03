@@ -1,94 +1,196 @@
 
-# 资源统计：三角色视图 Tab 设计方案
+# 资源统计页面：新增 APIKey 调用分析卡片 + 优化配额横幅
 
-## 需求分析
+## 改动范围
 
-用户要求在"资源统计"页面通过顶部 Tab 区分三种角色视图，每种视图内容略有不同：
-
-| 角色 | 特殊内容 |
-|------|----------|
-| 普通成员 | 指标卡上方增加"实时配额监控"横幅（每日预算剩余进度条）；3个指标重命名 |
-| 组织管理员 | 暂无特殊内容，使用与企业管理员类似的布局（无预算横幅） |
-| 企业管理员 | 无预算横幅，指标名称保持原始命名 |
-
-**指标名称变更（普通成员视图）：**
-- 统计额度 → 已消耗预算
-- 统计次数 → 统计调用次数
-- 统计Tokens → 消耗Tokens
+仅修改 `src/pages/ResourceStats.tsx`，无需数据库变更。
 
 ---
 
-## 视觉结构
+## 一、配额横幅样式优化
 
-### 第一行：角色视图切换 Tab
-```text
-[页面标题 + 图标]      [普通成员] [组织管理员] [企业管理员]        [日期选择器] [↺]
-```
-Tab 使用胶囊样式，置于标题与日期选择器之间（居中或标题右侧），高度与日期选择器一致（h-9）。
+当前深色终端风格（黑底绿字）视觉较突兀，替换为与页面整体风格一致的柔和配色：
 
-### 普通成员视图独有：实时配额监控横幅
-参考图1样式，在指标卡片网格上方添加一个**终端风格的深色横幅条**：
+**新方案**：浅蓝色信息横幅，带左侧彩色强调边条，背景用 `bg-blue-50`（dark: `bg-blue-950/20`），文字用 `text-blue-700`，进度条用带颜色的真实 `div` 进度条替代符号字符串。
 
-```text
-┌──────────────────────────────────────────────────────┐
-│  [实时配额监控]  您当前的个人日预算剩余：¥12.50 / ¥50.00（今日）  [=========----]  │
-└──────────────────────────────────────────────────────┘
-```
-
-- 背景色：深色（`bg-zinc-900` 或 `bg-slate-900`）
-- 字体：等宽字体（`font-mono`），文字颜色：亮绿色（`text-green-400`）
-- 进度条：用 `=` 填充已消耗部分，`-` 填充剩余部分，外加方括号 `[...]`
-- 圆角：`rounded-lg`，内边距：`px-4 py-2`
-
----
-
-## 三种视图差异对照表
-
-| 元素 | 普通成员 | 组织管理员 | 企业管理员 |
-|------|----------|------------|------------|
-| 实时配额横幅 | ✅ 显示 | ❌ 不显示 | ❌ 不显示 |
-| 左大卡标题 | 已消耗预算 | 统计额度 | 统计额度 |
-| 中上卡标题 | 统计调用次数 | 统计次数 | 统计次数 |
-| 右上卡标题 | 平均RPM | 平均RPM | 平均RPM |
-| 中下卡标题 | 消耗Tokens | 统计Tokens | 统计Tokens |
-| 右下卡标题 | 平均TPM | 平均TPM | 平均TPM |
-| 图表区域 | 相同 | 相同 | 相同 |
-
----
-
-## 技术实现（仅修改 `src/pages/ResourceStats.tsx`）
-
-### 1. 新增角色视图 Tab 状态
-```ts
-const [viewRole, setViewRole] = useState<"member" | "org_admin" | "enterprise_admin">("member");
-```
-
-### 2. 顶部 Tab 胶囊（置于标题行右侧，日期选择器左边）
 ```tsx
-<div className="flex items-center bg-muted rounded-lg p-1 h-9">
-  <button onClick={() => setViewRole("member")} className={cn(...)}>普通成员</button>
-  <button onClick={() => setViewRole("org_admin")} className={cn(...)}>组织管理员</button>
-  <button onClick={() => setViewRole("enterprise_admin")} className={cn(...)}>企业管理员</button>
+// 新配额横幅样式
+<div className="mb-4 rounded-lg bg-blue-50 border border-blue-200 px-4 py-3 flex items-center gap-4 flex-wrap">
+  {/* 左侧图标 */}
+  <div className="flex items-center gap-2 shrink-0">
+    <div className="w-7 h-7 rounded-full bg-blue-100 flex items-center justify-center">
+      <Wallet className="w-4 h-4 text-blue-600" />
+    </div>
+    <span className="text-sm font-semibold text-blue-700">实时配额监控</span>
+  </div>
+  {/* 分隔线 */}
+  <div className="w-px h-5 bg-blue-200 shrink-0" />
+  {/* 文字说明 */}
+  <span className="text-sm text-blue-600 shrink-0">
+    今日个人预算剩余：<span className="font-bold text-blue-800">¥ 37.50</span> / ¥ 50.00
+  </span>
+  {/* 进度条 */}
+  <div className="flex items-center gap-2 flex-1 min-w-[160px]">
+    <div className="flex-1 h-2 rounded-full bg-blue-100 overflow-hidden">
+      <div className="h-full bg-blue-500 rounded-full" style={{ width: "25%" }} />
+    </div>
+    <span className="text-xs text-blue-500 shrink-0">25% 已消耗</span>
+  </div>
 </div>
 ```
 
-### 3. 实时配额横幅（仅 member 视图）
+---
+
+## 二、新增"APIkey 调用分析"环形图卡片
+
+在堆叠柱状图卡片下方新增独立白色圆角卡片，左右两栏各放一个 Donut Chart。
+
+### 技术实现
+
+使用 `recharts` 的 `PieChart` + `Pie` 组件，通过 `innerRadius` 实现环形图效果，并在中心用 `customLabel` 或绝对定位 `div` 显示汇总数字。
+
+**新增 imports：**
 ```tsx
-{viewRole === "member" && (
-  <div className="mb-4 rounded-lg bg-zinc-900 border border-zinc-700 px-4 py-2.5 font-mono text-sm text-green-400 flex items-center gap-3">
-    <span className="text-green-300 font-semibold">[实时配额监控]</span>
-    <span>您当前的个人日预算剩余：¥ 12.50 / ¥ 50.00（今日）</span>
-    <span className="text-green-500 tracking-tight">[=========-----]</span>
-  </div>
-)}
+import { PieChart, Pie, Cell, Sector } from "recharts";
 ```
 
-### 4. 动态指标标题
-通过变量控制左大卡和两个小卡的标题：
+### Mock 数据
+
 ```ts
-const cardLabels = viewRole === "member"
-  ? { big: "已消耗预算", mid1: "统计调用次数", mid2: "消耗Tokens" }
-  : { big: "统计额度", mid1: "统计次数", mid2: "统计Tokens" };
+// 左图：API Key 消耗占比
+const mockKeyConsumptionData = [
+  { name: "gpt-4-turbo-key", value: 8.50, color: "#60a5fa" },
+  { name: "claude-opus-key", value: 5.20, color: "#4ade80" },
+  { name: "gemini-pro-key",  value: 2.80, color: "#a78bfa" },
+  { name: "备用Key-01",      value: 1.20, color: "#fb923c" },
+];
+
+// 右图：请求拦截原因分布
+const mockInterceptData = [
+  { name: "Key 预算不足",     value: 12, color: "#f87171" },
+  { name: "个人日限额触达",   value: 8,  color: "#fb923c" },
+  { name: "组织总限额不足",   value: 5,  color: "#facc15" },
+  { name: "企业余额欠费",     value: 3,  color: "#a78bfa" },
+  { name: "其他系统错误",     value: 2,  color: "#94a3b8" },
+];
+```
+
+### 布局结构
+
+```tsx
+{/* APIkey 调用分析卡片 */}
+<div className="mt-4 bg-card border border-border rounded-xl p-6">
+  {/* 卡片标题 */}
+  <div className="flex items-center gap-2 mb-6">
+    <PieChartIcon className="w-4 h-4 text-muted-foreground" />
+    <span className="font-semibold text-foreground">APIkey 调用分析</span>
+  </div>
+
+  {/* 两栏响应式网格 */}
+  <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+    {/* 左：API Key 消耗占比 */}
+    <DonutChart
+      title="API Key 消耗占比"
+      data={mockKeyConsumptionData}
+      centerLabel="总消耗"
+      centerValue="¥17.70"
+      valueFormatter={(v) => `¥${v.toFixed(2)}`}
+    />
+
+    {/* 右：请求拦截原因分布 */}
+    <DonutChart
+      title="请求拦截原因分布"
+      data={mockInterceptData}
+      centerLabel="总失败"
+      centerValue="30 次"
+      valueFormatter={(v) => `${v} 次`}
+    />
+  </div>
+</div>
+```
+
+### DonutChart 子组件实现要点
+
+将环形图抽为内部组件（同文件内定义，不单独新建文件）：
+
+```tsx
+// 内部组件：通用环形图
+function DonutChart({ title, data, centerLabel, centerValue, valueFormatter }) {
+  const total = data.reduce((s, d) => s + d.value, 0);
+  return (
+    <div>
+      <p className="text-sm font-medium text-foreground mb-4">{title}</p>
+      <div className="flex items-center gap-6">
+        {/* 环形图 */}
+        <div className="relative shrink-0">
+          <ResponsiveContainer width={160} height={160}>
+            <PieChart>
+              <Pie
+                data={data}
+                cx="50%"
+                cy="50%"
+                innerRadius={52}
+                outerRadius={76}
+                paddingAngle={2}
+                dataKey="value"
+                strokeWidth={0}
+              >
+                {data.map((entry, i) => (
+                  <Cell key={i} fill={entry.color} />
+                ))}
+              </Pie>
+              <Tooltip formatter={(v, name) => [valueFormatter(v), name]} ... />
+            </PieChart>
+          </ResponsiveContainer>
+          {/* 中心文字（绝对定位叠加） */}
+          <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+            <span className="text-xs text-muted-foreground">{centerLabel}</span>
+            <span className="text-base font-bold text-foreground">{centerValue}</span>
+          </div>
+        </div>
+
+        {/* 图例列表 */}
+        <div className="flex-1 space-y-2">
+          {data.map((item, i) => {
+            const pct = ((item.value / total) * 100).toFixed(1);
+            return (
+              <div key={i} className="flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2 min-w-0">
+                  <div className="w-2.5 h-2.5 rounded-sm shrink-0" style={{ background: item.color }} />
+                  <span className="text-xs text-muted-foreground truncate">{item.name}</span>
+                </div>
+                <div className="flex items-center gap-2 shrink-0">
+                  <span className="text-xs font-medium text-foreground">{valueFormatter(item.value)}</span>
+                  <span className="text-xs text-muted-foreground w-10 text-right">{pct}%</span>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
+}
+```
+
+---
+
+## 三、响应式逻辑
+
+两栏网格使用 `grid-cols-1 md:grid-cols-2`，移动端自动垂直堆叠，桌面端并排显示，无需额外处理。
+
+---
+
+## 四、仅 `viewRole === "member"` 时显示该卡片
+
+根据需求"用于普通成员视角下的数据分析"，将该卡片包裹在条件渲染中：
+
+```tsx
+{viewRole === "member" && (
+  <div className="mt-4 bg-card border border-border rounded-xl p-6">
+    ...
+  </div>
+)}
 ```
 
 ---
@@ -97,9 +199,9 @@ const cardLabels = viewRole === "member"
 
 | 文件 | 改动 |
 |------|------|
-| `src/pages/ResourceStats.tsx` | 新增 `viewRole` 状态、顶部角色 Tab、实时配额横幅（仅 member）、动态指标标题 |
+| `src/pages/ResourceStats.tsx` | 优化配额横幅样式；新增内部 `DonutChart` 子组件；新增"APIkey 调用分析"卡片（仅 member 视图显示）；新增 `PieChart, Pie, Cell` imports |
 
 ## 不涉及内容
-- 数据库：无需变动
+- 数据库迁移：无需
 - 其他页面：无影响
-- 实际权限控制：Tab 仅作 UI 预览，真实权限由 `role` prop 控制（后续可联动）
+- 真实数据接入：后续可替换 mock 数据为实际查询
