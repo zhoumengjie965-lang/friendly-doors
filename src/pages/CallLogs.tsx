@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { cn } from "@/lib/utils";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -490,13 +491,39 @@ function TaskLogsTab() {
   );
 }
 
+const roleTabs = [
+  { key: "member", label: "普通成员" },
+  { key: "org_admin", label: "组织管理员" },
+  { key: "enterprise_admin", label: "企业管理员" },
+];
+
 // ── Main ──
 export default function CallLogs({ enterprise, role }: Props) {
+  const [viewRole, setViewRole] = useState(role);
+
   return (
     <div className="space-y-4">
       <div>
         <h1 className="text-2xl font-bold text-foreground">调用日志</h1>
         <p className="text-muted-foreground mt-1 text-sm">查看 API 调用详情与任务执行记录</p>
+      </div>
+
+      {/* Role switcher */}
+      <div className="flex items-center bg-muted rounded-lg p-1 h-9 w-fit">
+        {roleTabs.map((tab) => (
+          <button
+            key={tab.key}
+            onClick={() => setViewRole(tab.key)}
+            className={cn(
+              "px-4 py-1.5 rounded-md text-xs font-medium transition-all",
+              viewRole === tab.key
+                ? "bg-background text-foreground shadow-sm"
+                : "text-muted-foreground hover:text-foreground"
+            )}
+          >
+            {tab.label}
+          </button>
+        ))}
       </div>
 
       <Tabs defaultValue="usage">
@@ -513,7 +540,7 @@ export default function CallLogs({ enterprise, role }: Props) {
         </TabsList>
 
         <TabsContent value="usage" className="mt-4">
-          <UsageLogsTab role={role} />
+          <UsageLogsTab role={viewRole} />
         </TabsContent>
         <TabsContent value="drawing" className="mt-4">
           <DrawingLogsTab />
