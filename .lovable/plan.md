@@ -1,196 +1,171 @@
 
-# 资源统计页面：新增 APIKey 调用分析卡片 + 优化配额横幅
+# 组织管理员视图看板开发方案
 
 ## 改动范围
 
-仅修改 `src/pages/ResourceStats.tsx`，无需数据库变更。
+仅修改 `src/pages/ResourceStats.tsx`，无需数据库变更（使用 mock 数据）。
 
 ---
 
-## 一、配额横幅样式优化
+## 一、新增顶部控制条（仅 org_admin 视图）
 
-当前深色终端风格（黑底绿字）视觉较突兀，替换为与页面整体风格一致的柔和配色：
+在角色 Tab 切换栏与日期选择器之间，当视图为 `org_admin` 时，插入一行额外的控制条，包含两个元素：
 
-**新方案**：浅蓝色信息横幅，带左侧彩色强调边条，背景用 `bg-blue-50`（dark: `bg-blue-950/20`），文字用 `text-blue-700`，进度条用带颜色的真实 `div` 进度条替代符号字符串。
+### 1. 组织选择器（下拉）
+- 使用现有的 `Select` / `Popover` 实现组织下拉选择
+- 默认显示第一个组织，支持多组织切换
+- 状态：`const [selectedOrg, setSelectedOrg] = useState("org-1")`
 
-```tsx
-// 新配额横幅样式
-<div className="mb-4 rounded-lg bg-blue-50 border border-blue-200 px-4 py-3 flex items-center gap-4 flex-wrap">
-  {/* 左侧图标 */}
-  <div className="flex items-center gap-2 shrink-0">
-    <div className="w-7 h-7 rounded-full bg-blue-100 flex items-center justify-center">
-      <Wallet className="w-4 h-4 text-blue-600" />
-    </div>
-    <span className="text-sm font-semibold text-blue-700">实时配额监控</span>
-  </div>
-  {/* 分隔线 */}
-  <div className="w-px h-5 bg-blue-200 shrink-0" />
-  {/* 文字说明 */}
-  <span className="text-sm text-blue-600 shrink-0">
-    今日个人预算剩余：<span className="font-bold text-blue-800">¥ 37.50</span> / ¥ 50.00
-  </span>
-  {/* 进度条 */}
-  <div className="flex items-center gap-2 flex-1 min-w-[160px]">
-    <div className="flex-1 h-2 rounded-full bg-blue-100 overflow-hidden">
-      <div className="h-full bg-blue-500 rounded-full" style={{ width: "25%" }} />
-    </div>
-    <span className="text-xs text-blue-500 shrink-0">25% 已消耗</span>
-  </div>
-</div>
+### 2. 成员穿透筛选（搜索框）
+- 一个简单的文本 Input，支持按成员姓名模糊筛选
+- 默认为空（全组织聚合），输入后全页图表切换为该成员的个人数据
+- 状态：`const [memberFilter, setMemberFilter] = useState("")`
+
+```text
+[🏢 研发一组 ▼]   [🔍 搜索成员姓名...]
 ```
+样式：`bg-card border rounded-xl px-4 py-3 mb-4 flex items-center gap-3`
 
 ---
 
-## 二、新增"APIkey 调用分析"环形图卡片
+## 二、配额横幅升级（org_admin）
 
-在堆叠柱状图卡片下方新增独立白色圆角卡片，左右两栏各放一个 Donut Chart。
+将 `member` 视图的"今日个人预算"替换为"组织本月配额监控"，同样保持蓝色横幅样式，但内容不同：
 
-### 技术实现
-
-使用 `recharts` 的 `PieChart` + `Pie` 组件，通过 `innerRadius` 实现环形图效果，并在中心用 `customLabel` 或绝对定位 `div` 显示汇总数字。
-
-**新增 imports：**
 ```tsx
-import { PieChart, Pie, Cell, Sector } from "recharts";
+{viewRole === "org_admin" && (
+  <div className="mb-4 rounded-lg bg-blue-50 border border-blue-200 px-4 py-3 ...">
+    <Wallet 图标 />
+    <span>组织本月配额监控</span>
+    <span>本月组织剩余预算：¥ 3,200.00 / ¥ 5,000.00</span>
+    <进度条 width="36%" />
+    <span>64% 剩余</span>
+  </div>
+)}
 ```
 
-### Mock 数据
+Mock 数据：`orgMonthlyBudget = 5000`, `orgConsumed = 1800`，消耗 36%。
+
+---
+
+## 三、指标卡片标签（org_admin）
+
+扩展 `cardLabels` 逻辑，对 `org_admin` 独立定义标签，与 `member` 保持一致的三个指标名称（已消耗预算 / 统计调用次数 / 消耗Tokens），表示全组织聚合数据：
 
 ```ts
-// 左图：API Key 消耗占比
-const mockKeyConsumptionData = [
-  { name: "gpt-4-turbo-key", value: 8.50, color: "#60a5fa" },
-  { name: "claude-opus-key", value: 5.20, color: "#4ade80" },
-  { name: "gemini-pro-key",  value: 2.80, color: "#a78bfa" },
-  { name: "备用Key-01",      value: 1.20, color: "#fb923c" },
-];
-
-// 右图：请求拦截原因分布
-const mockInterceptData = [
-  { name: "Key 预算不足",     value: 12, color: "#f87171" },
-  { name: "个人日限额触达",   value: 8,  color: "#fb923c" },
-  { name: "组织总限额不足",   value: 5,  color: "#facc15" },
-  { name: "企业余额欠费",     value: 3,  color: "#a78bfa" },
-  { name: "其他系统错误",     value: 2,  color: "#94a3b8" },
-];
+const cardLabels =
+  viewRole === "member" || viewRole === "org_admin"
+    ? { big: "已消耗预算", mid1: "统计调用次数", mid2: "消耗Tokens" }
+    : { big: "统计额度", mid1: "统计次数", mid2: "统计Tokens" };
 ```
 
-### 布局结构
-
-```tsx
-{/* APIkey 调用分析卡片 */}
-<div className="mt-4 bg-card border border-border rounded-xl p-6">
-  {/* 卡片标题 */}
-  <div className="flex items-center gap-2 mb-6">
-    <PieChartIcon className="w-4 h-4 text-muted-foreground" />
-    <span className="font-semibold text-foreground">APIkey 调用分析</span>
-  </div>
-
-  {/* 两栏响应式网格 */}
-  <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-    {/* 左：API Key 消耗占比 */}
-    <DonutChart
-      title="API Key 消耗占比"
-      data={mockKeyConsumptionData}
-      centerLabel="总消耗"
-      centerValue="¥17.70"
-      valueFormatter={(v) => `¥${v.toFixed(2)}`}
-    />
-
-    {/* 右：请求拦截原因分布 */}
-    <DonutChart
-      title="请求拦截原因分布"
-      data={mockInterceptData}
-      centerLabel="总失败"
-      centerValue="30 次"
-      valueFormatter={(v) => `${v} 次`}
-    />
-  </div>
-</div>
-```
-
-### DonutChart 子组件实现要点
-
-将环形图抽为内部组件（同文件内定义，不单独新建文件）：
-
-```tsx
-// 内部组件：通用环形图
-function DonutChart({ title, data, centerLabel, centerValue, valueFormatter }) {
-  const total = data.reduce((s, d) => s + d.value, 0);
-  return (
-    <div>
-      <p className="text-sm font-medium text-foreground mb-4">{title}</p>
-      <div className="flex items-center gap-6">
-        {/* 环形图 */}
-        <div className="relative shrink-0">
-          <ResponsiveContainer width={160} height={160}>
-            <PieChart>
-              <Pie
-                data={data}
-                cx="50%"
-                cy="50%"
-                innerRadius={52}
-                outerRadius={76}
-                paddingAngle={2}
-                dataKey="value"
-                strokeWidth={0}
-              >
-                {data.map((entry, i) => (
-                  <Cell key={i} fill={entry.color} />
-                ))}
-              </Pie>
-              <Tooltip formatter={(v, name) => [valueFormatter(v), name]} ... />
-            </PieChart>
-          </ResponsiveContainer>
-          {/* 中心文字（绝对定位叠加） */}
-          <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-            <span className="text-xs text-muted-foreground">{centerLabel}</span>
-            <span className="text-base font-bold text-foreground">{centerValue}</span>
-          </div>
-        </div>
-
-        {/* 图例列表 */}
-        <div className="flex-1 space-y-2">
-          {data.map((item, i) => {
-            const pct = ((item.value / total) * 100).toFixed(1);
-            return (
-              <div key={i} className="flex items-center justify-between gap-2">
-                <div className="flex items-center gap-2 min-w-0">
-                  <div className="w-2.5 h-2.5 rounded-sm shrink-0" style={{ background: item.color }} />
-                  <span className="text-xs text-muted-foreground truncate">{item.name}</span>
-                </div>
-                <div className="flex items-center gap-2 shrink-0">
-                  <span className="text-xs font-medium text-foreground">{valueFormatter(item.value)}</span>
-                  <span className="text-xs text-muted-foreground w-10 text-right">{pct}%</span>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      </div>
-    </div>
-  );
-}
-```
+org_admin 的数值（mock）比 member 更大，体现"全组织聚合"：¥ 188.50、1,847 次、1.24M Tokens、0.041 RPM、1.28K TPM。
 
 ---
 
-## 三、响应式逻辑
+## 四、新增卡片：成员消耗排行榜（org_admin 专属）
 
-两栏网格使用 `grid-cols-1 md:grid-cols-2`，移动端自动垂直堆叠，桌面端并排显示，无需额外处理。
+在模型数据分析图表卡片下方、APIkey 分析卡片上方，插入一个"成员消耗排行榜"卡片。
+
+### 技术实现
+- 使用 `recharts` 的 `BarChart` 横向模式：`layout="vertical"`
+- X 轴为数值（消耗金额），Y 轴为成员姓名
+- 仅展示 Top 10 成员
+- 进度条颜色：`#60a5fa`（蓝色，与全局配色一致）
+
+### Mock 数据
+```ts
+const mockMemberRankData = [
+  { name: "张三", value: 42.50 },
+  { name: "李四", value: 38.20 },
+  { name: "王五", value: 31.80 },
+  { name: "赵六", value: 28.40 },
+  { name: "钱七", value: 22.10 },
+  { name: "孙八", value: 18.60 },
+  { name: "周九", value: 15.30 },
+  { name: "吴十", value: 12.00 },
+  { name: "郑十一", value: 8.90 },
+  { name: "陈十二", value: 5.20 },
+];
+```
+
+### 卡片结构
+```text
+┌─────────────────────────────────────────────────────┐
+│  [👥] 成员消耗排行榜 (Top 10)                        │
+│                                                     │
+│  张三   [=============================] ¥42.50      │
+│  李四   [=========================] ¥38.20          │
+│  ...                                                │
+└─────────────────────────────────────────────────────┘
+```
+
+使用 `recharts` 横向柱状图（高度约 320px），Y 轴显示成员姓名，X 轴显示金额，添加自定义 Tooltip。
 
 ---
 
-## 四、仅 `viewRole === "member"` 时显示该卡片
+## 五、APIkey 调用分析卡片复用（org_admin）
 
-根据需求"用于普通成员视角下的数据分析"，将该卡片包裹在条件渲染中：
+将现有的 `APIkey 调用分析` 卡片从 `viewRole === "member"` 扩展至同时支持 `org_admin`：
 
 ```tsx
-{viewRole === "member" && (
+{(viewRole === "member" || viewRole === "org_admin") && (
   <div className="mt-4 bg-card border border-border rounded-xl p-6">
     ...
   </div>
 )}
+```
+
+内容逻辑相同，但 `org_admin` 的数据代表全组织所有 API Key 及全组织拦截原因，mock 数值更大，体现组织维度。
+
+新增 org_admin 专用 mock 数据：
+```ts
+const mockOrgKeyConsumptionData = [
+  { name: "prod-gpt4-key", value: 88.50, color: "#60a5fa" },
+  { name: "prod-claude-key", value: 62.30, color: "#4ade80" },
+  { name: "test-gemini-key", value: 24.70, color: "#a78bfa" },
+  { name: "backup-key-01", value: 13.00, color: "#fb923c" },
+];
+
+const mockOrgInterceptData = [
+  { name: "Key 预算不足", value: 45, color: "#f87171" },
+  { name: "个人日限额触达", value: 32, color: "#fb923c" },
+  { name: "组织总限额不足", value: 18, color: "#facc15" },
+  { name: "企业余额欠费", value: 8, color: "#a78bfa" },
+  { name: "其他系统错误", value: 5, color: "#94a3b8" },
+];
+```
+
+---
+
+## 六、空状态处理
+
+当 `memberFilter` 有值但无匹配时，在各卡片内部用一个居中的提示替代图表：
+
+```tsx
+const isEmpty = memberFilter.trim() !== "" && !mockMemberRankData.some(m => m.name.includes(memberFilter));
+
+{isEmpty ? (
+  <div className="flex flex-col items-center justify-center h-[200px] text-muted-foreground">
+    <Users className="w-10 h-10 mb-2 opacity-30" />
+    <p className="text-sm">暂无相关数据</p>
+  </div>
+) : (
+  <ResponsiveContainer ...>...</ResponsiveContainer>
+)}
+```
+
+---
+
+## 整体渲染逻辑（org_admin 视图）
+
+```text
+1. [顶部控制栏：组织选择器 + 成员搜索框]   ← org_admin 专属
+2. [组织本月配额监控横幅（蓝色）]           ← org_admin 专属
+3. [指标卡片区：全组织聚合数值]             ← org_admin 使用"已消耗预算"命名
+4. [模型数据分析柱状图]                     ← 共用（统计范围升级说明注释）
+5. [成员消耗排行榜 Top 10（横向条形图）]    ← org_admin 专属
+6. [APIkey 调用分析（两个环形图）]          ← org_admin 使用 orgMock 数据
 ```
 
 ---
@@ -199,9 +174,10 @@ function DonutChart({ title, data, centerLabel, centerValue, valueFormatter }) {
 
 | 文件 | 改动 |
 |------|------|
-| `src/pages/ResourceStats.tsx` | 优化配额横幅样式；新增内部 `DonutChart` 子组件；新增"APIkey 调用分析"卡片（仅 member 视图显示）；新增 `PieChart, Pie, Cell` imports |
+| `src/pages/ResourceStats.tsx` | 新增 `selectedOrg`、`memberFilter` 状态；新增 org_admin 配额横幅；新增成员排行榜卡片；扩展 APIkey 分析卡片至 org_admin；新增所有 org_admin mock 数据；空状态处理；引入 `Users`、`Search` 图标 |
 
 ## 不涉及内容
-- 数据库迁移：无需
+- 数据库：无需变动
 - 其他页面：无影响
 - 真实数据接入：后续可替换 mock 数据为实际查询
+
