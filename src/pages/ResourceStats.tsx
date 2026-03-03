@@ -54,6 +54,8 @@ const mockCallData = [
   { date: "02-29", claude: 3, gpt4: 3, gemini: 2 },
 ];
 
+type ViewRole = "member" | "org_admin" | "enterprise_admin";
+
 export default function ResourceStats({ enterprise }: Props) {
   const [dateRange, setDateRange] = useState<DateRange | undefined>({
     from: startOfMonth(new Date("2024-02-01")),
@@ -62,9 +64,20 @@ export default function ResourceStats({ enterprise }: Props) {
   const [calendarOpen, setCalendarOpen] = useState(false);
   const [activeSubTab, setActiveSubTab] = useState<"consumption" | "calls">("consumption");
   const [granularity] = useState<"day" | "hour">("day");
+  const [viewRole, setViewRole] = useState<ViewRole>("member");
 
   const chartData = activeSubTab === "consumption" ? mockDayData : mockCallData;
   const yLabel = activeSubTab === "consumption" ? "Tokens" : "次数";
+
+  const cardLabels = viewRole === "member"
+    ? { big: "已消耗预算", mid1: "统计调用次数", mid2: "消耗Tokens" }
+    : { big: "统计额度", mid1: "统计次数", mid2: "统计Tokens" };
+
+  // Build quota progress bar string (25% consumed = 12.50/50.00)
+  const consumed = 12.50;
+  const total = 50.00;
+  const pct = Math.round((consumed / total) * 20);
+  const progressBar = `[${"=".repeat(pct)}${"-".repeat(20 - pct)}]`;
 
   const formatDateRange = () => {
     if (!dateRange?.from) return "选择日期范围";
@@ -72,6 +85,12 @@ export default function ResourceStats({ enterprise }: Props) {
     const to = dateRange.to ? format(dateRange.to, "yyyy-MM-dd") : from;
     return `${from} ~ ${to}`;
   };
+
+  const roleTabs: { key: ViewRole; label: string }[] = [
+    { key: "member", label: "普通成员" },
+    { key: "org_admin", label: "组织管理员" },
+    { key: "enterprise_admin", label: "企业管理员" },
+  ];
 
   return (
     <div>
@@ -81,6 +100,25 @@ export default function ResourceStats({ enterprise }: Props) {
           <LayoutGrid className="w-5 h-5 text-muted-foreground" />
           <h1 className="text-xl font-bold text-foreground">资源统计</h1>
         </div>
+
+        {/* Role view tabs - centered */}
+        <div className="flex items-center bg-muted rounded-lg p-1 h-9">
+          {roleTabs.map((tab) => (
+            <button
+              key={tab.key}
+              onClick={() => setViewRole(tab.key)}
+              className={cn(
+                "px-3 py-1.5 rounded-md text-xs font-medium transition-all",
+                viewRole === tab.key
+                  ? "bg-background text-foreground shadow-sm"
+                  : "text-muted-foreground hover:text-foreground"
+              )}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </div>
+
         <div className="flex items-center gap-2">
           {/* Date range picker */}
           <Popover open={calendarOpen} onOpenChange={setCalendarOpen}>
@@ -110,22 +148,31 @@ export default function ResourceStats({ enterprise }: Props) {
         </div>
       </div>
 
+      {/* Quota banner — member only */}
+      {viewRole === "member" && (
+        <div className="mb-4 rounded-lg bg-zinc-900 border border-zinc-700 px-4 py-2.5 font-mono text-sm text-green-400 flex items-center gap-3 flex-wrap">
+          <span className="text-green-300 font-semibold shrink-0">[实时配额监控]</span>
+          <span className="shrink-0">您当前的个人日预算剩余：¥ {(total - consumed).toFixed(2)} / ¥ {total.toFixed(2)}（今日）</span>
+          <span className="text-green-500 tracking-tighter">{progressBar}</span>
+        </div>
+      )}
+
       {/* Metric cards: 3-col grid, left big card spans 2 rows */}
       <div className="grid grid-cols-3 grid-rows-2 gap-4 mb-6" style={{ gridTemplateRows: "auto auto" }}>
-        {/* Left big card: 统计额度 */}
+        {/* Left big card */}
         <div className="row-span-2 bg-card border border-border rounded-xl p-6 flex flex-col justify-center">
           <div className="w-12 h-12 rounded-full flex items-center justify-center mb-4"
             style={{ background: "hsl(32,90%,55%)" }}>
             <Wallet className="w-6 h-6 text-white" />
           </div>
-          <p className="text-sm text-muted-foreground mb-1">统计额度</p>
+          <p className="text-sm text-muted-foreground mb-1">{cardLabels.big}</p>
           <p className="text-4xl font-bold text-foreground">¥2.27</p>
         </div>
 
-        {/* Top middle: 统计次数 */}
+        {/* Top middle */}
         <div className="bg-card border border-border rounded-xl p-5">
           <div className="flex items-center justify-between mb-2">
-            <p className="text-sm text-muted-foreground">统计次数</p>
+            <p className="text-sm text-muted-foreground">{cardLabels.mid1}</p>
             <div className="w-8 h-8 rounded-lg flex items-center justify-center"
               style={{ background: "hsl(340,85%,95%)" }}>
               <Activity className="w-4 h-4" style={{ color: "hsl(340,75%,55%)" }} />
@@ -146,10 +193,10 @@ export default function ResourceStats({ enterprise }: Props) {
           <p className="text-2xl font-bold text-foreground">0.001</p>
         </div>
 
-        {/* Bottom middle: 统计Tokens */}
+        {/* Bottom middle */}
         <div className="bg-card border border-border rounded-xl p-5">
           <div className="flex items-center justify-between mb-2">
-            <p className="text-sm text-muted-foreground">统计Tokens</p>
+            <p className="text-sm text-muted-foreground">{cardLabels.mid2}</p>
             <div className="w-8 h-8 rounded-lg flex items-center justify-center"
               style={{ background: "hsl(214,85%,93%)" }}>
               <Database className="w-4 h-4" style={{ color: "hsl(214,80%,50%)" }} />
@@ -173,14 +220,12 @@ export default function ResourceStats({ enterprise }: Props) {
 
       {/* Chart card */}
       <div className="bg-card border border-border rounded-xl p-6">
-        {/* Card header */}
         <div className="flex items-center justify-between mb-5">
           <div className="flex items-center gap-4">
             <div className="flex items-center gap-2">
               <LayoutGrid className="w-4 h-4 text-muted-foreground" />
               <span className="font-semibold text-foreground">模型数据分析</span>
             </div>
-            {/* Sub-tab capsule */}
             <div className="flex items-center bg-muted rounded-lg p-1 h-8">
               <button
                 onClick={() => setActiveSubTab("consumption")}
@@ -206,14 +251,12 @@ export default function ResourceStats({ enterprise }: Props) {
               </button>
             </div>
           </div>
-          {/* Granularity toggle */}
           <button className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border text-xs text-foreground hover:bg-muted transition-colors">
             <BarChart2 className="w-3.5 h-3.5 text-muted-foreground" />
             {granularity === "day" ? "按天显示" : "按小时显示"}
           </button>
         </div>
 
-        {/* Stacked Bar Chart */}
         <ResponsiveContainer width="100%" height={280}>
           <BarChart data={chartData} margin={{ top: 4, right: 16, left: 0, bottom: 4 }} barSize={20}>
             <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
