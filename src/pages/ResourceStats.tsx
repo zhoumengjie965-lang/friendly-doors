@@ -154,7 +154,7 @@ export default function ResourceStats({ enterprise }: Props) {
   });
   const [calendarOpen, setCalendarOpen] = useState(false);
   const [activeSubTab, setActiveSubTab] = useState<"consumption" | "calls">("consumption");
-  const [granularity] = useState<"day" | "hour">("day");
+  const [granularity, setGranularity] = useState<"hour" | "day" | "week">("day");
   const [viewRole, setViewRole] = useState<ViewRole>("member");
 
   const chartData = activeSubTab === "consumption" ? mockDayData : mockCallData;
@@ -353,10 +353,22 @@ export default function ResourceStats({ enterprise }: Props) {
               </button>
             </div>
           </div>
-          <button className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border text-xs text-foreground hover:bg-muted transition-colors">
-            <BarChart2 className="w-3.5 h-3.5 text-muted-foreground" />
-            {granularity === "day" ? "按天显示" : "按小时显示"}
-          </button>
+          <div className="flex items-center bg-muted rounded-lg p-1 h-8">
+            {(["hour", "day", "week"] as const).map((g) => (
+              <button
+                key={g}
+                onClick={() => setGranularity(g)}
+                className={cn(
+                  "px-2.5 py-1 rounded-md text-xs font-medium transition-all",
+                  granularity === g
+                    ? "bg-background text-foreground shadow-sm"
+                    : "text-muted-foreground hover:text-foreground"
+                )}
+              >
+                {g === "hour" ? "按小时" : g === "day" ? "按天" : "按周"}
+              </button>
+            ))}
+          </div>
         </div>
 
         <ResponsiveContainer width="100%" height={280}>
