@@ -565,34 +565,11 @@ export default function ApiKeys({ enterprise, role }: Props) {
 
   return (
     <div>
-      {/* 行1：标题 + 全局组织选择器 */}
-      <div className="flex items-center gap-3 mb-3">
-        <h1 className="text-xl font-bold text-foreground">API Key 管理</h1>
-        {canSeeOrgTab && organizations.length > 0 && (
-          <div className="flex items-center gap-2 ml-2">
-            <Building2 className="w-4 h-4 text-muted-foreground" />
-            <Select
-              value={selectedOrgId ?? ""}
-              onValueChange={(val) => {
-                setSelectedOrgId(val);
-                fetchOrgKeys(val);
-              }}
-            >
-              <SelectTrigger className="h-9 w-48 border-border shadow-sm font-medium">
-                <SelectValue placeholder="选择组织..." />
-              </SelectTrigger>
-              <SelectContent>
-                {organizations.map(org => (
-                  <SelectItem key={org.id} value={org.id}>{org.name}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-        )}
-      </div>
+      {/* 行1：标题 */}
+      <h1 className="text-xl font-bold text-foreground mb-3">API Key 管理</h1>
 
-      {/* 行2：纯胶囊切换器 */}
-      <div className="flex items-center gap-4 mb-4">
+      {/* 行2：胶囊切换器 + 全局组织选择器（同一行） */}
+      <div className="flex items-center gap-3 mb-4">
         <div className="flex items-center bg-muted rounded-lg p-1 h-9">
           <button
             onClick={() => setActiveTab("my")}
@@ -617,6 +594,27 @@ export default function ApiKeys({ enterprise, role }: Props) {
             </button>
           )}
         </div>
+        {canSeeOrgTab && organizations.length > 0 && (
+          <div className="flex items-center gap-1.5">
+            <Building2 className="w-4 h-4 text-muted-foreground" />
+            <Select
+              value={selectedOrgId ?? ""}
+              onValueChange={(val) => {
+                setSelectedOrgId(val);
+                fetchOrgKeys(val);
+              }}
+            >
+              <SelectTrigger className="h-9 w-44 border-border shadow-sm font-medium">
+                <SelectValue placeholder="选择组织..." />
+              </SelectTrigger>
+              <SelectContent>
+                {organizations.map(org => (
+                  <SelectItem key={org.id} value={org.id}>{org.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        )}
       </div>
 
       {/* 行3：创建按钮 + 归属提示（左） + 搜索栏+刷新（右） */}
