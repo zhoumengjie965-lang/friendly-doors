@@ -2,9 +2,10 @@ import { useState } from "react";
 import { format, startOfMonth, endOfMonth } from "date-fns";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
+  PieChart, Pie, Cell,
 } from "recharts";
 import {
-  Wallet, Activity, Database, Zap, BarChart2, CalendarIcon, RefreshCw, LayoutGrid,
+  Wallet, Activity, Database, Zap, BarChart2, CalendarIcon, RefreshCw, LayoutGrid, PieChart as PieChartIcon,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -54,7 +55,97 @@ const mockCallData = [
   { date: "02-29", claude: 3, gpt4: 3, gemini: 2 },
 ];
 
+// Mock donut chart data
+const mockKeyConsumptionData = [
+  { name: "gpt-4-turbo-key", value: 8.50, color: "#60a5fa" },
+  { name: "claude-opus-key", value: 5.20, color: "#4ade80" },
+  { name: "gemini-pro-key",  value: 2.80, color: "#a78bfa" },
+  { name: "备用Key-01",      value: 1.20, color: "#fb923c" },
+];
+
+const mockInterceptData = [
+  { name: "Key 预算不足",   value: 12, color: "#f87171" },
+  { name: "个人日限额触达", value: 8,  color: "#fb923c" },
+  { name: "组织总限额不足", value: 5,  color: "#facc15" },
+  { name: "企业余额欠费",   value: 3,  color: "#a78bfa" },
+  { name: "其他系统错误",   value: 2,  color: "#94a3b8" },
+];
+
 type ViewRole = "member" | "org_admin" | "enterprise_admin";
+
+// Internal DonutChart component
+interface DonutChartProps {
+  title: string;
+  data: { name: string; value: number; color: string }[];
+  centerLabel: string;
+  centerValue: string;
+  valueFormatter: (v: number) => string;
+}
+
+function DonutChart({ title, data, centerLabel, centerValue, valueFormatter }: DonutChartProps) {
+  const total = data.reduce((s, d) => s + d.value, 0);
+  return (
+    <div>
+      <p className="text-sm font-medium text-foreground mb-4">{title}</p>
+      <div className="flex items-center gap-6">
+        {/* Donut chart */}
+        <div className="relative shrink-0">
+          <ResponsiveContainer width={160} height={160}>
+            <PieChart>
+              <Pie
+                data={data}
+                cx="50%"
+                cy="50%"
+                innerRadius={52}
+                outerRadius={76}
+                paddingAngle={2}
+                dataKey="value"
+                strokeWidth={0}
+              >
+                {data.map((entry, i) => (
+                  <Cell key={i} fill={entry.color} />
+                ))}
+              </Pie>
+              <Tooltip
+                contentStyle={{
+                  backgroundColor: "hsl(var(--background))",
+                  border: "1px solid hsl(var(--border))",
+                  borderRadius: 8,
+                  fontSize: 12,
+                }}
+                formatter={(v: number, name: string) => [valueFormatter(v), name]}
+              />
+            </PieChart>
+          </ResponsiveContainer>
+          {/* Center label overlay */}
+          <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+            <span className="text-xs text-muted-foreground">{centerLabel}</span>
+            <span className="text-base font-bold text-foreground">{centerValue}</span>
+          </div>
+        </div>
+
+        {/* Legend */}
+        <div className="flex-1 space-y-2">
+          {data.map((item, i) => {
+            const pct = ((item.value / total) * 100).toFixed(1);
+            return (
+              <div key={i} className="flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2 min-w-0">
+                  <div className="w-2.5 h-2.5 rounded-sm shrink-0" style={{ background: item.color }} />
+                  <span className="text-xs text-muted-foreground truncate">{item.name}</span>
+                </div>
+                <div className="flex items-center gap-2 shrink-0">
+                  <span className="text-xs font-medium text-foreground">{valueFormatter(item.value)}</span>
+                  <span className="text-xs text-muted-foreground w-10 text-right">{pct}%</span>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
+}
 
 export default function ResourceStats({ enterprise }: Props) {
   const [dateRange, setDateRange] = useState<DateRange | undefined>({
@@ -73,11 +164,9 @@ export default function ResourceStats({ enterprise }: Props) {
     ? { big: "已消耗预算", mid1: "统计调用次数", mid2: "消耗Tokens" }
     : { big: "统计额度", mid1: "统计次数", mid2: "统计Tokens" };
 
-  // Build quota progress bar string (25% consumed = 12.50/50.00)
   const consumed = 12.50;
   const total = 50.00;
-  const pct = Math.round((consumed / total) * 20);
-  const progressBar = `[${"=".repeat(pct)}${"-".repeat(20 - pct)}]`;
+  const consumedPct = Math.round((consumed / total) * 100);
 
   const formatDateRange = () => {
     if (!dateRange?.from) return "选择日期范围";
@@ -101,7 +190,7 @@ export default function ResourceStats({ enterprise }: Props) {
           <h1 className="text-xl font-bold text-foreground">资源统计</h1>
         </div>
 
-        {/* Role view tabs - centered */}
+        {/* Role view tabs */}
         <div className="flex items-center bg-muted rounded-lg p-1 h-9">
           {roleTabs.map((tab) => (
             <button
@@ -123,10 +212,7 @@ export default function ResourceStats({ enterprise }: Props) {
           {/* Date range picker */}
           <Popover open={calendarOpen} onOpenChange={setCalendarOpen}>
             <PopoverTrigger asChild>
-              <Button
-                variant="outline"
-                className="h-9 gap-2 text-sm font-normal border-border"
-              >
+              <Button variant="outline" className="h-9 gap-2 text-sm font-normal border-border">
                 <CalendarIcon className="w-4 h-4 text-muted-foreground" />
                 <span className="text-foreground">{formatDateRange()}</span>
               </Button>
@@ -141,19 +227,35 @@ export default function ResourceStats({ enterprise }: Props) {
               />
             </PopoverContent>
           </Popover>
-          {/* Refresh */}
           <Button variant="outline" size="icon" className="h-9 w-9 border-border">
             <RefreshCw className="w-4 h-4 text-muted-foreground" />
           </Button>
         </div>
       </div>
 
-      {/* Quota banner — member only */}
+      {/* Quota banner — member only, updated style */}
       {viewRole === "member" && (
-        <div className="mb-4 rounded-lg bg-zinc-900 border border-zinc-700 px-4 py-2.5 font-mono text-sm text-green-400 flex items-center gap-3 flex-wrap">
-          <span className="text-green-300 font-semibold shrink-0">[实时配额监控]</span>
-          <span className="shrink-0">您当前的个人日预算剩余：¥ {(total - consumed).toFixed(2)} / ¥ {total.toFixed(2)}（今日）</span>
-          <span className="text-green-500 tracking-tighter">{progressBar}</span>
+        <div className="mb-4 rounded-lg bg-blue-50 border border-blue-200 px-4 py-3 flex items-center gap-4 flex-wrap">
+          {/* Icon + title */}
+          <div className="flex items-center gap-2 shrink-0">
+            <div className="w-7 h-7 rounded-full bg-blue-100 flex items-center justify-center">
+              <Wallet className="w-4 h-4 text-blue-600" />
+            </div>
+            <span className="text-sm font-semibold text-blue-700">实时配额监控</span>
+          </div>
+          {/* Divider */}
+          <div className="w-px h-5 bg-blue-200 shrink-0" />
+          {/* Text */}
+          <span className="text-sm text-blue-600 shrink-0">
+            今日个人预算剩余：<span className="font-bold text-blue-800">¥ {(total - consumed).toFixed(2)}</span> / ¥ {total.toFixed(2)}
+          </span>
+          {/* Progress bar */}
+          <div className="flex items-center gap-2 flex-1 min-w-[160px]">
+            <div className="flex-1 h-2 rounded-full bg-blue-100 overflow-hidden">
+              <div className="h-full bg-blue-500 rounded-full transition-all" style={{ width: `${consumedPct}%` }} />
+            </div>
+            <span className="text-xs text-blue-500 shrink-0">{consumedPct}% 已消耗</span>
+          </div>
         </div>
       )}
 
@@ -294,6 +396,33 @@ export default function ResourceStats({ enterprise }: Props) {
           </BarChart>
         </ResponsiveContainer>
       </div>
+
+      {/* APIkey 调用分析卡片 — member only */}
+      {viewRole === "member" && (
+        <div className="mt-4 bg-card border border-border rounded-xl p-6">
+          <div className="flex items-center gap-2 mb-6">
+            <PieChartIcon className="w-4 h-4 text-muted-foreground" />
+            <span className="font-semibold text-foreground">APIkey 调用分析</span>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+            <DonutChart
+              title="API Key 消耗占比"
+              data={mockKeyConsumptionData}
+              centerLabel="总消耗"
+              centerValue="¥17.70"
+              valueFormatter={(v) => `¥${v.toFixed(2)}`}
+            />
+            <DonutChart
+              title="请求拦截原因分布"
+              data={mockInterceptData}
+              centerLabel="总失败"
+              centerValue="30 次"
+              valueFormatter={(v) => `${v} 次`}
+            />
+          </div>
+        </div>
+      )}
     </div>
   );
 }
