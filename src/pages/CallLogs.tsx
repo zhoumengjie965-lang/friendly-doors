@@ -266,31 +266,48 @@ function UsageLogsTab({ role }: { role: string }) {
                 {headers.map(h => {
                   if (h === "分组") return (
                     <th key={h} className="px-3 py-2.5 text-left text-xs font-medium text-muted-foreground whitespace-nowrap">
-                      <Select value={filterGroup} onValueChange={v => { setFilterGroup(v); setPage(1); }}>
-                        <SelectTrigger className="h-7 w-24 text-xs border-0 bg-transparent px-0 gap-1 focus:ring-0 shadow-none">
-                          <span className="font-medium text-muted-foreground">分组</span>
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="all">全部</SelectItem>
-                          {allGroups.map(g => <SelectItem key={g} value={g}>{g}</SelectItem>)}
-                        </SelectContent>
-                      </Select>
+                      <div className="relative inline-block">
+                        <button
+                          className="flex items-center gap-0.5 hover:text-foreground transition-colors group"
+                          onClick={e => { const el = e.currentTarget.nextElementSibling as HTMLElement; el.style.display = el.style.display === 'block' ? 'none' : 'block'; }}
+                        >
+                          <span className={filterGroup !== "all" ? "text-primary font-semibold" : ""}>分组</span>
+                          {filterGroup !== "all" && <span className="text-primary">·</span>}
+                          <ChevronDown className="w-3 h-3 opacity-50 group-hover:opacity-100" />
+                        </button>
+                        <div style={{display:'none'}} className="absolute top-full left-0 mt-1 z-50 bg-popover border border-border rounded-md shadow-md py-1 min-w-[100px]"
+                          onMouseLeave={e => { (e.currentTarget as HTMLElement).style.display = 'none'; }}>
+                          {["all", ...allGroups].map(g => (
+                            <button key={g} className={`w-full text-left px-3 py-1.5 text-xs hover:bg-muted transition-colors ${filterGroup === g ? "text-primary font-medium" : "text-foreground"}`}
+                              onClick={e => { setFilterGroup(g); setPage(1); (e.currentTarget.parentElement as HTMLElement).style.display = 'none'; }}>
+                              {g === "all" ? "— 全部 —" : g}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
                     </th>
                   );
                   if (h === "类型") return (
                     <th key={h} className="px-3 py-2.5 text-left text-xs font-medium text-muted-foreground whitespace-nowrap">
-                      <Select value={filterType} onValueChange={v => { setFilterType(v); setPage(1); }}>
-                        <SelectTrigger className="h-7 w-20 text-xs border-0 bg-transparent px-0 gap-1 focus:ring-0 shadow-none">
-                          <span className="font-medium text-muted-foreground">类型</span>
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="all">全部</SelectItem>
-                          <SelectItem value="成功">成功</SelectItem>
-                          <SelectItem value="错误">错误</SelectItem>
-                        </SelectContent>
-                      </Select>
+                      <div className="relative inline-block">
+                        <button
+                          className="flex items-center gap-0.5 hover:text-foreground transition-colors group"
+                          onClick={e => { const el = e.currentTarget.nextElementSibling as HTMLElement; el.style.display = el.style.display === 'block' ? 'none' : 'block'; }}
+                        >
+                          <span className={filterType !== "all" ? "text-primary font-semibold" : ""}>类型</span>
+                          {filterType !== "all" && <span className="text-primary">·</span>}
+                          <ChevronDown className="w-3 h-3 opacity-50 group-hover:opacity-100" />
+                        </button>
+                        <div style={{display:'none'}} className="absolute top-full left-0 mt-1 z-50 bg-popover border border-border rounded-md shadow-md py-1 min-w-[80px]"
+                          onMouseLeave={e => { (e.currentTarget as HTMLElement).style.display = 'none'; }}>
+                          {[["all","— 全部 —"],["成功","成功"],["错误","错误"]].map(([val, label]) => (
+                            <button key={val} className={`w-full text-left px-3 py-1.5 text-xs hover:bg-muted transition-colors ${filterType === val ? "text-primary font-medium" : "text-foreground"}`}
+                              onClick={e => { setFilterType(val); setPage(1); (e.currentTarget.parentElement as HTMLElement).style.display = 'none'; }}>
+                              {label}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
                     </th>
                   );
                   return <th key={h} className="px-3 py-2.5 text-left text-xs font-medium text-muted-foreground whitespace-nowrap">{h}</th>;
