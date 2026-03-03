@@ -335,16 +335,12 @@ export default function ResourceStats({ enterprise }: Props) {
               className="h-8 pl-8 text-xs border-border"
             />
           </div>
-          {(memberFilter.trim() || committedMember) && (
-            <>
-              <Button size="sm" className="h-8 text-xs px-3 shrink-0" onClick={handleSearch}>
-                查询
-              </Button>
-              <Button variant="outline" size="sm" className="h-8 text-xs px-3 shrink-0" onClick={handleReset}>
-                重置
-              </Button>
-            </>
-          )}
+          <Button size="sm" className="h-8 text-xs px-3 shrink-0" onClick={handleSearch}>
+            查询
+          </Button>
+          <Button variant="outline" size="sm" className="h-8 text-xs px-3 shrink-0" onClick={handleReset}>
+            重置
+          </Button>
           {committedMember && (
             <div className="flex items-center gap-1.5 text-xs text-blue-600 bg-blue-50 border border-blue-200 rounded-md px-2.5 py-1 shrink-0">
               <Users className="w-3.5 h-3.5" />
