@@ -6,7 +6,7 @@ import {
 } from "recharts";
 import {
   Wallet, Activity, Database, Zap, BarChart2, CalendarIcon, RefreshCw, LayoutGrid,
-  PieChart as PieChartIcon, Users, Search, Building2,
+  PieChart as PieChartIcon, Users, Search, Building2, TrendingUp, X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -90,6 +90,36 @@ const mockOrgInterceptData = [
   { name: "其他系统错误",   value: 5,  color: "#94a3b8" },
 ];
 
+// Mock donut data — enterprise_admin
+const mockEnterpriseKeyData = [
+  { name: "研发一组",   value: 188.50, color: "#60a5fa" },
+  { name: "产品设计组", value: 142.30, color: "#4ade80" },
+  { name: "运营支持组", value: 98.60,  color: "#a78bfa" },
+  { name: "市场推广组", value: 76.40,  color: "#fb923c" },
+  { name: "其他组织",   value: 92.30,  color: "#94a3b8" },
+];
+
+const mockEnterpriseInterceptData = [
+  { name: "Key 预算不足",   value: 124, color: "#f87171" },
+  { name: "个人日限额触达", value: 89,  color: "#fb923c" },
+  { name: "组织总限额不足", value: 56,  color: "#facc15" },
+  { name: "企业余额欠费",   value: 38,  color: "#a78bfa" },
+  { name: "其他系统错误",   value: 15,  color: "#94a3b8" },
+];
+
+// Mock org rank data
+const mockOrgRankData = [
+  { name: "研发一组",   value: 188.50 },
+  { name: "产品设计组", value: 142.30 },
+  { name: "运营支持组", value: 98.60 },
+  { name: "市场推广组", value: 76.40 },
+  { name: "客户成功组", value: 54.20 },
+  { name: "数据平台组", value: 38.10 },
+];
+
+const enterpriseBalance = 12580.00;
+const enterpriseTotalConsumed = 5598.10;
+
 // Mock member rank
 const mockMemberRankData = [
   { name: "张三",   value: 42.50 },
@@ -109,6 +139,9 @@ const mockOrgs = [
   { id: "org-1", name: "研发一组" },
   { id: "org-2", name: "产品设计组" },
   { id: "org-3", name: "运营支持组" },
+  { id: "org-4", name: "市场推广组" },
+  { id: "org-5", name: "客户成功组" },
+  { id: "org-6", name: "数据平台组" },
 ];
 
 const orgMonthlyBudget = 5000;
@@ -116,7 +149,6 @@ const orgConsumed = 1800;
 
 type ViewRole = "member" | "org_admin" | "enterprise_admin";
 
-// Internal DonutChart component
 interface DonutChartProps {
   title: string;
   data: { name: string; value: number; color: string }[];
@@ -190,7 +222,7 @@ function EmptyState() {
   return (
     <div className="flex flex-col items-center justify-center h-[200px] text-muted-foreground">
       <Users className="w-10 h-10 mb-2 opacity-30" />
-      <p className="text-sm">暂无相关数据</p>
+      <p className="text-sm">暂无相关统计数据</p>
     </div>
   );
 }
@@ -208,7 +240,11 @@ export default function ResourceStats({ enterprise }: Props) {
   const [memberFilter, setMemberFilter] = useState("");
   const [committedMember, setCommittedMember] = useState("");
 
-  // suppress unused warning
+  // enterprise_admin states
+  const [selectedEnterpriseOrg, setSelectedEnterpriseOrg] = useState("all");
+  const [enterpriseMemberFilter, setEnterpriseMemberFilter] = useState("");
+  const [committedEnterpriseMember, setCommittedEnterpriseMember] = useState("");
+
   void enterprise;
 
   const handleSearch = () => {
@@ -218,6 +254,15 @@ export default function ResourceStats({ enterprise }: Props) {
   const handleReset = () => {
     setMemberFilter("");
     setCommittedMember("");
+  };
+
+  const handleEnterpriseSearch = () => {
+    if (enterpriseMemberFilter.trim()) setCommittedEnterpriseMember(enterpriseMemberFilter.trim());
+  };
+
+  const handleEnterpriseReset = () => {
+    setEnterpriseMemberFilter("");
+    setCommittedEnterpriseMember("");
   };
 
   const chartData = activeSubTab === "consumption" ? mockDayData : mockCallData;
@@ -233,12 +278,14 @@ export default function ResourceStats({ enterprise }: Props) {
   const consumedPct = Math.round((consumed / total) * 100);
   const orgConsumedPct = Math.round((orgConsumed / orgMonthlyBudget) * 100);
 
-  // In member-drill-through mode, show member-level card values; otherwise org aggregates
   const orgCardValues = committedMember
     ? { big: "¥ 37.50", mid1: "312", mid2: "248K", rpm: "0.008", tpm: "0.62K" }
     : { big: "¥ 188.50", mid1: "1,847", mid2: "1.24M", rpm: "0.041", tpm: "1.28K" };
 
-  // Member rank not needed in drill-through mode
+  const enterpriseCardValues = committedEnterpriseMember
+    ? { big: "¥ 37.50",  mid1: "312",   mid2: "248K",  rpm: "0.008", tpm: "0.62K" }
+    : { big: "¥ 598.10", mid1: "5,234", mid2: "3.82M", rpm: "0.128", tpm: "3.15K" };
+
   const filteredMemberRank = mockMemberRankData;
 
   const formatDateRange = () => {
@@ -350,6 +397,62 @@ export default function ResourceStats({ enterprise }: Props) {
         </div>
       )}
 
+      {/* enterprise_admin: top control bar */}
+      {viewRole === "enterprise_admin" && (
+        <div className="bg-card border border-border rounded-xl px-4 py-3 mb-4 flex items-center gap-3 flex-wrap">
+          <div className="flex items-center gap-2 shrink-0">
+            <Building2 className="w-4 h-4 text-muted-foreground" />
+            <span className="text-xs text-muted-foreground font-medium">组织筛选</span>
+          </div>
+          <Select
+            value={selectedEnterpriseOrg}
+            onValueChange={(v) => {
+              setSelectedEnterpriseOrg(v);
+              setEnterpriseMemberFilter("");
+              setCommittedEnterpriseMember("");
+            }}
+          >
+            <SelectTrigger className="h-8 w-40 text-xs border-border">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all" className="text-xs">全部组织（默认）</SelectItem>
+              {mockOrgs.map((org) => (
+                <SelectItem key={org.id} value={org.id} className="text-xs">
+                  {org.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <div className="w-px h-5 bg-border shrink-0" />
+          <div className="relative flex-1 min-w-[200px] max-w-xs">
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
+            <Input
+              placeholder="搜索成员姓名（留空显示全企业）..."
+              value={enterpriseMemberFilter}
+              onChange={(e) => setEnterpriseMemberFilter(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && handleEnterpriseSearch()}
+              className="h-8 pl-8 text-xs border-border"
+            />
+          </div>
+          <Button size="sm" className="h-8 text-xs px-3 shrink-0" onClick={handleEnterpriseSearch}>
+            查询
+          </Button>
+          <Button variant="outline" size="sm" className="h-8 text-xs px-3 shrink-0" onClick={handleEnterpriseReset}>
+            重置
+          </Button>
+          {committedEnterpriseMember && (
+            <div className="flex items-center gap-1.5 text-xs text-blue-600 bg-blue-50 border border-blue-200 rounded-md px-2.5 py-1 shrink-0">
+              <Users className="w-3.5 h-3.5" />
+              <span>当前查看：{committedEnterpriseMember}</span>
+              <button onClick={handleEnterpriseReset} className="ml-0.5 hover:text-blue-800">
+                <X className="w-3 h-3" />
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Quota banner — member */}
       {viewRole === "member" && (
         <div className="mb-4 rounded-lg bg-blue-50 border border-blue-200 px-4 py-3 flex items-center gap-4 flex-wrap">
@@ -421,6 +524,52 @@ export default function ResourceStats({ enterprise }: Props) {
         </div>
       )}
 
+      {/* Enterprise financial banner — aggregated */}
+      {viewRole === "enterprise_admin" && committedEnterpriseMember === "" && (
+        <div className="mb-4 rounded-lg bg-emerald-50 border border-emerald-200 px-4 py-3 flex items-center gap-4 flex-wrap">
+          <div className="flex items-center gap-2 shrink-0">
+            <div className="w-7 h-7 rounded-full bg-emerald-100 flex items-center justify-center">
+              <Wallet className="w-4 h-4 text-emerald-600" />
+            </div>
+            <span className="text-sm font-semibold text-emerald-700">企业财务看板</span>
+          </div>
+          <div className="w-px h-5 bg-emerald-200 shrink-0" />
+          <span className="text-sm text-emerald-700 shrink-0">
+            当前余额：<span className="font-bold text-emerald-800">¥ {enterpriseBalance.toLocaleString("zh-CN", { minimumFractionDigits: 2 })}</span>
+          </span>
+          <Button variant="outline" size="sm" className="h-7 text-xs px-3 shrink-0 border-emerald-300 text-emerald-700 hover:bg-emerald-100">
+            充值
+          </Button>
+          <div className="w-px h-5 bg-emerald-200 shrink-0" />
+          <span className="text-sm text-emerald-600 shrink-0">
+            本期已消耗：<span className="font-bold text-emerald-800">¥ {enterpriseTotalConsumed.toLocaleString("zh-CN", { minimumFractionDigits: 2 })}</span>
+          </span>
+        </div>
+      )}
+
+      {/* Enterprise member drill-through banner */}
+      {viewRole === "enterprise_admin" && committedEnterpriseMember !== "" && (
+        <div className="mb-4 rounded-lg bg-blue-50 border border-blue-200 px-4 py-3 flex items-center gap-4 flex-wrap">
+          <div className="flex items-center gap-2 shrink-0">
+            <div className="w-7 h-7 rounded-full bg-blue-100 flex items-center justify-center">
+              <Wallet className="w-4 h-4 text-blue-600" />
+            </div>
+            <span className="text-sm font-semibold text-blue-700">实时配额监控</span>
+          </div>
+          <div className="w-px h-5 bg-blue-200 shrink-0" />
+          <span className="text-sm text-blue-600 shrink-0">
+            成员 <strong className="text-blue-800">{committedEnterpriseMember}</strong> 今日预算剩余：
+            <span className="font-bold text-blue-800">¥ 37.50</span> / ¥ 50.00
+          </span>
+          <div className="flex items-center gap-2 flex-1 min-w-[160px]">
+            <div className="flex-1 h-2 rounded-full bg-blue-100 overflow-hidden">
+              <div className="h-full bg-blue-500 rounded-full transition-all" style={{ width: "25%" }} />
+            </div>
+            <span className="text-xs text-blue-500 shrink-0">25% 已消耗</span>
+          </div>
+        </div>
+      )}
+
       {/* Metric cards */}
       <div className="grid grid-cols-3 grid-rows-2 gap-4 mb-6" style={{ gridTemplateRows: "auto auto" }}>
         <div className="row-span-2 bg-card border border-border rounded-xl p-6 flex flex-col justify-center">
@@ -430,7 +579,11 @@ export default function ResourceStats({ enterprise }: Props) {
           </div>
           <p className="text-sm text-muted-foreground mb-1">{cardLabels.big}</p>
           <p className="text-4xl font-bold text-foreground">
-            {viewRole === "org_admin" ? orgCardValues.big : "¥2.27"}
+            {viewRole === "org_admin"
+              ? orgCardValues.big
+              : viewRole === "enterprise_admin"
+              ? enterpriseCardValues.big
+              : "¥2.27"}
           </p>
         </div>
 
@@ -443,7 +596,11 @@ export default function ResourceStats({ enterprise }: Props) {
             </div>
           </div>
           <p className="text-2xl font-bold text-foreground">
-            {viewRole === "org_admin" ? orgCardValues.mid1 : "29"}
+            {viewRole === "org_admin"
+              ? orgCardValues.mid1
+              : viewRole === "enterprise_admin"
+              ? enterpriseCardValues.mid1
+              : "29"}
           </p>
         </div>
 
@@ -456,7 +613,11 @@ export default function ResourceStats({ enterprise }: Props) {
             </div>
           </div>
           <p className="text-2xl font-bold text-foreground">
-            {viewRole === "org_admin" ? orgCardValues.rpm : "0.001"}
+            {viewRole === "org_admin"
+              ? orgCardValues.rpm
+              : viewRole === "enterprise_admin"
+              ? enterpriseCardValues.rpm
+              : "0.001"}
           </p>
         </div>
 
@@ -469,7 +630,11 @@ export default function ResourceStats({ enterprise }: Props) {
             </div>
           </div>
           <p className="text-2xl font-bold text-foreground">
-            {viewRole === "org_admin" ? orgCardValues.mid2 : "14.4K"}
+            {viewRole === "org_admin"
+              ? orgCardValues.mid2
+              : viewRole === "enterprise_admin"
+              ? enterpriseCardValues.mid2
+              : "14.4K"}
           </p>
         </div>
 
@@ -482,7 +647,11 @@ export default function ResourceStats({ enterprise }: Props) {
             </div>
           </div>
           <p className="text-2xl font-bold text-foreground">
-            {viewRole === "org_admin" ? orgCardValues.tpm : "0.357"}
+            {viewRole === "org_admin"
+              ? orgCardValues.tpm
+              : viewRole === "enterprise_admin"
+              ? enterpriseCardValues.tpm
+              : "0.357"}
           </p>
         </div>
       </div>
@@ -539,40 +708,40 @@ export default function ResourceStats({ enterprise }: Props) {
         </div>
 
         <ResponsiveContainer width="100%" height={280}>
-            <BarChart data={chartData} margin={{ top: 4, right: 16, left: 0, bottom: 4 }} barSize={20}>
-              <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
-              <XAxis
-                dataKey="date"
-                tick={{ fontSize: 12, fill: "hsl(var(--muted-foreground))" }}
-                axisLine={false}
-                tickLine={false}
-              />
-              <YAxis
-                tick={{ fontSize: 12, fill: "hsl(var(--muted-foreground))" }}
-                axisLine={false}
-                tickLine={false}
-                width={50}
-                tickFormatter={(v) => activeSubTab === "consumption" && v >= 1000 ? `${v / 1000}K` : String(v)}
-                label={{ value: yLabel, angle: -90, position: "insideLeft", offset: 10, style: { fontSize: 11, fill: "hsl(var(--muted-foreground))" } }}
-              />
-              <Tooltip
-                contentStyle={{
-                  backgroundColor: "hsl(var(--background))",
-                  border: "1px solid hsl(var(--border))",
-                  borderRadius: 8,
-                  fontSize: 12,
-                }}
-                cursor={{ fill: "hsl(var(--muted))" }}
-              />
-              <Legend iconType="square" iconSize={8} wrapperStyle={{ fontSize: 12, paddingTop: 12 }} />
-              <Bar dataKey="claude" name="Claude 3" stackId="a" fill="#4ade80" radius={[0, 0, 0, 0]} />
-              <Bar dataKey="gpt4" name="GPT-4" stackId="a" fill="#60a5fa" radius={[0, 0, 0, 0]} />
-              <Bar dataKey="gemini" name="Gemini Pro" stackId="a" fill="#a78bfa" radius={[4, 4, 0, 0]} />
-            </BarChart>
-          </ResponsiveContainer>
+          <BarChart data={chartData} margin={{ top: 4, right: 16, left: 0, bottom: 4 }} barSize={20}>
+            <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
+            <XAxis
+              dataKey="date"
+              tick={{ fontSize: 12, fill: "hsl(var(--muted-foreground))" }}
+              axisLine={false}
+              tickLine={false}
+            />
+            <YAxis
+              tick={{ fontSize: 12, fill: "hsl(var(--muted-foreground))" }}
+              axisLine={false}
+              tickLine={false}
+              width={50}
+              tickFormatter={(v) => activeSubTab === "consumption" && v >= 1000 ? `${v / 1000}K` : String(v)}
+              label={{ value: yLabel, angle: -90, position: "insideLeft", offset: 10, style: { fontSize: 11, fill: "hsl(var(--muted-foreground))" } }}
+            />
+            <Tooltip
+              contentStyle={{
+                backgroundColor: "hsl(var(--background))",
+                border: "1px solid hsl(var(--border))",
+                borderRadius: 8,
+                fontSize: 12,
+              }}
+              cursor={{ fill: "hsl(var(--muted))" }}
+            />
+            <Legend iconType="square" iconSize={8} wrapperStyle={{ fontSize: 12, paddingTop: 12 }} />
+            <Bar dataKey="claude" name="Claude 3" stackId="a" fill="#4ade80" radius={[0, 0, 0, 0]} />
+            <Bar dataKey="gpt4" name="GPT-4" stackId="a" fill="#60a5fa" radius={[0, 0, 0, 0]} />
+            <Bar dataKey="gemini" name="Gemini Pro" stackId="a" fill="#a78bfa" radius={[4, 4, 0, 0]} />
+          </BarChart>
+        </ResponsiveContainer>
       </div>
 
-      {/* org_admin: Member rank card — only in aggregated mode (no committed member) */}
+      {/* org_admin: Member rank card */}
       {viewRole === "org_admin" && committedMember === "" && (
         <div className="mt-4 bg-card border border-border rounded-xl p-6">
           <div className="flex items-center gap-2 mb-6">
@@ -625,8 +794,61 @@ export default function ResourceStats({ enterprise }: Props) {
         </div>
       )}
 
-      {/* APIkey analysis — member & org_admin */}
-      {(viewRole === "member" || viewRole === "org_admin") && (
+      {/* enterprise_admin: Org rank card */}
+      {viewRole === "enterprise_admin" && committedEnterpriseMember === "" && (
+        <div className="mt-4 bg-card border border-border rounded-xl p-6">
+          <div className="flex items-center gap-2 mb-6">
+            <TrendingUp className="w-4 h-4 text-muted-foreground" />
+            <span className="font-semibold text-foreground">组织消耗排行榜</span>
+            <span className="text-xs text-muted-foreground ml-1">Top {mockOrgRankData.length}</span>
+          </div>
+          <ResponsiveContainer width="100%" height={240}>
+            <BarChart
+              layout="vertical"
+              data={mockOrgRankData}
+              margin={{ top: 4, right: 80, left: 8, bottom: 4 }}
+              barSize={18}
+            >
+              <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" horizontal={false} />
+              <XAxis
+                type="number"
+                tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }}
+                axisLine={false}
+                tickLine={false}
+                tickFormatter={(v) => `¥${v}`}
+              />
+              <YAxis
+                dataKey="name"
+                type="category"
+                width={64}
+                tick={{ fontSize: 12, fill: "hsl(var(--muted-foreground))" }}
+                axisLine={false}
+                tickLine={false}
+              />
+              <Tooltip
+                contentStyle={{
+                  backgroundColor: "hsl(var(--background))",
+                  border: "1px solid hsl(var(--border))",
+                  borderRadius: 8,
+                  fontSize: 12,
+                }}
+                formatter={(v: number) => [`¥${v.toFixed(2)}`, "消耗金额"]}
+                cursor={{ fill: "hsl(var(--muted))" }}
+              />
+              <Bar
+                dataKey="value"
+                name="消耗金额"
+                fill="#60a5fa"
+                radius={[0, 4, 4, 0]}
+                label={{ position: "right", fontSize: 11, fill: "hsl(var(--muted-foreground))", formatter: (v: number) => `¥${v.toFixed(2)}` }}
+              />
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+      )}
+
+      {/* APIkey analysis — member, org_admin & enterprise_admin */}
+      {(viewRole === "member" || viewRole === "org_admin" || viewRole === "enterprise_admin") && (
         <div className="mt-4 bg-card border border-border rounded-xl p-6">
           <div className="flex items-center gap-2 mb-6">
             <PieChartIcon className="w-4 h-4 text-muted-foreground" />
@@ -634,21 +856,50 @@ export default function ResourceStats({ enterprise }: Props) {
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
             <DonutChart
-              title="API Key 消耗占比"
-              data={viewRole === "org_admin" && committedMember === "" ? mockOrgKeyConsumptionData : mockKeyConsumptionData}
+              title={viewRole === "enterprise_admin" && committedEnterpriseMember === "" ? "组织 Key 消耗占比" : "API Key 消耗占比"}
+              data={
+                viewRole === "enterprise_admin" && committedEnterpriseMember === ""
+                  ? mockEnterpriseKeyData
+                  : viewRole === "org_admin" && committedMember === ""
+                  ? mockOrgKeyConsumptionData
+                  : mockKeyConsumptionData
+              }
               centerLabel="总消耗"
-              centerValue={viewRole === "org_admin" && committedMember === "" ? "¥188.50" : "¥17.70"}
+              centerValue={
+                viewRole === "enterprise_admin" && committedEnterpriseMember === ""
+                  ? "¥598.10"
+                  : viewRole === "org_admin" && committedMember === ""
+                  ? "¥188.50"
+                  : "¥17.70"
+              }
               valueFormatter={(v) => `¥${v.toFixed(2)}`}
             />
             <DonutChart
               title="请求拦截原因分布"
-              data={viewRole === "org_admin" && committedMember === "" ? mockOrgInterceptData : mockInterceptData}
+              data={
+                viewRole === "enterprise_admin" && committedEnterpriseMember === ""
+                  ? mockEnterpriseInterceptData
+                  : viewRole === "org_admin" && committedMember === ""
+                  ? mockOrgInterceptData
+                  : mockInterceptData
+              }
               centerLabel="总失败"
-              centerValue={viewRole === "org_admin" && committedMember === "" ? "108 次" : "30 次"}
+              centerValue={
+                viewRole === "enterprise_admin" && committedEnterpriseMember === ""
+                  ? "322 次"
+                  : viewRole === "org_admin" && committedMember === ""
+                  ? "108 次"
+                  : "30 次"
+              }
               valueFormatter={(v) => `${v} 次`}
             />
           </div>
         </div>
+      )}
+
+      {/* Empty state for enterprise member drill-through with no data */}
+      {viewRole === "enterprise_admin" && committedEnterpriseMember !== "" && false && (
+        <EmptyState />
       )}
     </div>
   );
