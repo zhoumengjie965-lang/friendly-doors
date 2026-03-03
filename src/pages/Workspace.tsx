@@ -10,6 +10,7 @@ import OrgGovernance from "@/pages/OrgGovernance";
 import Profile from "@/pages/Profile";
 import ApiKeys from "@/pages/ApiKeys";
 import ResourceStats from "@/pages/ResourceStats";
+import CallLogs from "@/pages/CallLogs";
 import {
   Building2, Users, Key, Link, TrendingUp, LogOut, ChevronDown,
   ChevronRight, Copy, Check, Plus, UserPlus, UserCircle
@@ -410,6 +411,8 @@ export default function Workspace() {
               <ApiKeys enterprise={enterprise} role={role} />
             ) : location.pathname === "/workspace/stats" ? (
               <ResourceStats enterprise={enterprise} role={role} />
+            ) : location.pathname === "/workspace/logs" ? (
+              <CallLogs enterprise={enterprise} role={role} />
             ) : location.pathname === "/workspace/profile" ? (
               <Profile />
             ) : (
