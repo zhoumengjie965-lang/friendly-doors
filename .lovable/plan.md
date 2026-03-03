@@ -1,184 +1,169 @@
 
-# 组织管理员视图：成员搜索交互升级
+# 企业管理员视图看板开发方案
 
-## 问题分析
+## 改动范围
 
-当前实现中，`memberFilter` 输入框实时过滤排行榜数据，但缺乏明确的"查询/重置"操作边界，且没有"穿透到成员视图"的逻辑。
+仅修改 `src/pages/ResourceStats.tsx`，添加 `enterprise_admin` 视图的专属逻辑，无数据库变更。
 
-用户期望的完整交互流程：
+---
 
-```text
-[org_admin 全组织聚合视图]
-  ↓ 在搜索框输入成员姓名
-  ↓ 出现 [查询] [重置] 按钮
-  ↓ 点击 [查询]
-[切换为：org_admin 成员穿透视图]
-  - 页面展示该成员的个人数据（类似 member 视图）
-  - 隐藏"成员消耗排行榜"卡片
-  - APIkey 分析显示该成员数据
-  ↓ 点击 [重置]
-[回到 org_admin 全组织聚合视图]
+## 一、新增状态与 Mock 数据
+
+### 新增状态
+```ts
+const [selectedEnterpriseOrg, setSelectedEnterpriseOrg] = useState("all");  // "all" = 全企业
+const [enterpriseMemberFilter, setEnterpriseMemberFilter] = useState("");
+const [committedEnterpriseMember, setCommittedEnterpriseMember] = useState("");
+```
+
+### 新增 Mock 数据
+
+**组织排行榜 Top N：**
+```ts
+const mockOrgRankData = [
+  { name: "研发一组",   value: 188.50 },
+  { name: "产品设计组", value: 142.30 },
+  { name: "运营支持组", value: 98.60 },
+  { name: "市场推广组", value: 76.40 },
+  { name: "客户成功组", value: 54.20 },
+  { name: "数据平台组", value: 38.10 },
+];
+```
+
+**企业维度 API Key 消耗占比（按组织分）：**
+```ts
+const mockEnterpriseKeyData = [
+  { name: "研发一组",   value: 188.50, color: "#60a5fa" },
+  { name: "产品设计组", value: 142.30, color: "#4ade80" },
+  { name: "运营支持组", value: 98.60,  color: "#a78bfa" },
+  { name: "市场推广组", value: 76.40,  color: "#fb923c" },
+  { name: "其他组织",   value: 92.30,  color: "#94a3b8" },
+];
+```
+
+**企业维度请求拦截原因：**
+```ts
+const mockEnterpriseInterceptData = [
+  { name: "Key 预算不足",   value: 124, color: "#f87171" },
+  { name: "个人日限额触达", value: 89,  color: "#fb923c" },
+  { name: "组织总限额不足", value: 56,  color: "#facc15" },
+  { name: "企业余额欠费",   value: 38,  color: "#a78bfa" },   // 特别强调
+  { name: "其他系统错误",   value: 15,  color: "#94a3b8" },
+];
+```
+
+**企业财务信息：**
+```ts
+const enterpriseBalance = 12580.00;  // 当前余额
+const enterpriseTotalConsumed = 5598.10;
 ```
 
 ---
 
-## 状态设计
+## 二、顶部控制条（enterprise_admin）
 
-新增两个状态，与现有状态分离：
+在角色 Tab 切换栏下方，`viewRole === "enterprise_admin"` 时，插入一行双重筛选控制条：
+
+```text
+[🏢 全部组织 ▼]  |  [🔍 搜索成员姓名（留空显示全企业）...]  [查询]  [重置]  [当前查看：张三 ✕]
+```
+
+- **组织选择器**：第一个选项为"全部组织（默认）"，其余为具体组织名称
+- 切换组织时，同步清空成员筛选（`committedEnterpriseMember`）
+- **成员搜索框 + 查询/重置按钮**：逻辑与 `org_admin` 完全一致
+
+---
+
+## 三、企业财务看板横幅
+
+替换成员视图的"个人日预算横幅"，显示企业级财务信息：
+
+```text
+┌──────────────────────────────────────────────────────────────────────────┐
+│  💰 企业财务看板   |   当前余额：¥ 12,580.00   [充值]   |  本期已消耗：¥ 5,598.10  │
+└──────────────────────────────────────────────────────────────────────────┘
+```
+
+- 背景色：`bg-emerald-50 border-emerald-200`（绿色系，区分于蓝色的组织横幅）
+- 图标：`Wallet`，绿色
+- **充值按钮**：`variant="outline"` 小按钮，点击暂无操作（预留接口）
+- 当 `committedEnterpriseMember !== ""`（查看具体成员）时，横幅切换为成员个人日预算样式（与 org_admin 穿透逻辑一致）
+
+---
+
+## 四、指标卡片数据
+
+企业管理员的指标卡片标签复用现有的 `enterprise_admin` 分支（`统计额度 / 统计次数 / 统计Tokens`），并新增 `enterprise_admin` 专属 mock 数值：
 
 ```ts
-// 输入框中的实时文字（打字时变化）
-const [memberFilter, setMemberFilter] = useState("");
-
-// 已提交的查询（点击"查询"后才赋值）
-const [committedMember, setCommittedMember] = useState("");
+const enterpriseCardValues = committedEnterpriseMember
+  ? { big: "¥ 37.50",   mid1: "312",   mid2: "248K",  rpm: "0.008", tpm: "0.62K" }  // 成员穿透
+  : { big: "¥ 598.10",  mid1: "5,234", mid2: "3.82M", rpm: "0.128", tpm: "3.15K" }; // 全企业聚合
 ```
-
-- `committedMember === ""` → 全组织聚合状态
-- `committedMember !== ""` → 成员穿透状态（不显示排行榜，显示成员个人数据）
 
 ---
 
-## 一、搜索框交互升级
+## 五、新增卡片：组织消耗排行榜（enterprise_admin 专属）
 
-### 变更前
-输入框实时触发 `filteredMemberRank` 过滤，有"清除"按钮。
+在"模型数据分析"图表卡片下方、"APIkey 调用分析"卡片上方，插入组织排行榜：
 
-### 变更后
-输入框仅更新 `memberFilter`（不触发任何联动）。当 `memberFilter.trim() !== ""` 时，在搜索框右侧动态显示两个按钮：
-
-```tsx
-{memberFilter.trim() && (
-  <>
-    <Button size="sm" className="h-8 text-xs px-3" onClick={handleSearch}>
-      查询
-    </Button>
-    <Button variant="outline" size="sm" className="h-8 text-xs px-3" onClick={handleReset}>
-      重置
-    </Button>
-  </>
-)}
-{/* 若已提交但输入框为空，仍显示重置 */}
-{!memberFilter.trim() && committedMember && (
-  <Button variant="outline" size="sm" className="h-8 text-xs px-3" onClick={handleReset}>
-    重置
-  </Button>
-)}
-```
-
-按钮逻辑：
-```ts
-const handleSearch = () => {
-  setCommittedMember(memberFilter.trim());
-};
-
-const handleReset = () => {
-  setMemberFilter("");
-  setCommittedMember("");
-};
-```
-
-支持按 Enter 键直接触发查询（`onKeyDown` 监听 `Enter`）。
-
-### 视觉效果（对应截图红框区域）
+- **触发条件**：`viewRole === "enterprise_admin" && committedEnterpriseMember === ""`
+- **形式**：横向 `BarChart`（`layout="vertical"`），与成员排行榜同款样式
+- Y 轴为组织名，X 轴为消耗金额，颜色为 `#60a5fa`
 
 ```text
-[🏢 当前组织  研发一组 ▼]  |  [🔍 搜索成员姓名（留空显示全组织）...]  [查询]  [重置]
+┌─────────────────────────────────────────────────────┐
+│  [🏢] 组织消耗排行榜                                  │
+│                                                     │
+│  研发一组   [================================] ¥188.50 │
+│  产品设计组 [=========================] ¥142.30     │
+│  ...                                                │
+└─────────────────────────────────────────────────────┘
 ```
 
 ---
 
-## 二、成员穿透状态下的视图变化
+## 六、APIkey 调用分析（enterprise_admin）
 
-当 `committedMember !== ""` 时（已提交查询），页面进入**成员穿透视图**：
-
-### 2.1 顶部搜索栏状态指示
-
-在搜索框上方或旁边添加一个蓝色标记，提示当前正在查看某成员数据：
+将现有的 `{(viewRole === "member" || viewRole === "org_admin")}` 条件扩展为同时包含 `enterprise_admin`：
 
 ```tsx
-{committedMember && (
-  <div className="flex items-center gap-1.5 text-xs text-blue-600 bg-blue-50 border border-blue-200 rounded-md px-2.5 py-1 shrink-0">
-    <Users className="w-3.5 h-3.5" />
-    <span>当前查看：{committedMember}</span>
-  </div>
-)}
+{(viewRole === "member" || viewRole === "org_admin" || viewRole === "enterprise_admin") && (
 ```
 
-### 2.2 配额横幅切换
+数据源切换逻辑：
+- `enterprise_admin` 全企业聚合：使用 `mockEnterpriseKeyData` / `mockEnterpriseInterceptData`
+- `enterprise_admin` 成员穿透：使用 `mockKeyConsumptionData` / `mockInterceptData`
 
-- 全组织聚合时：显示"组织本月配额监控"横幅（蓝色，¥3,200 / ¥5,000）
-- 穿透到成员后：改为显示"成员个人日预算监控"横幅（同 member 视图的横幅样式，但加注"成员：{committedMember}"前缀）
-
-```tsx
-{viewRole === "org_admin" && committedMember === "" && (
-  // 组织配额横幅（现有）
-)}
-{viewRole === "org_admin" && committedMember !== "" && (
-  // 个人配额横幅（带成员名）
-  <div className="mb-4 rounded-lg bg-blue-50 border border-blue-200 px-4 py-3 flex items-center gap-4 flex-wrap">
-    <Wallet 图标 />
-    <span>成员 <strong>{committedMember}</strong> 今日预算剩余：¥ 37.50 / ¥ 50.00</span>
-    <进度条 />
-  </div>
-)}
-```
-
-### 2.3 隐藏成员消耗排行榜
-
-排行榜仅在"全组织聚合"状态下显示：
-
-```tsx
-{viewRole === "org_admin" && committedMember === "" && (
-  <div className="mt-4 ...">
-    {/* 成员消耗排行榜 */}
-  </div>
-)}
-```
-
-### 2.4 APIkey 分析数据切换
-
-- 全组织时：使用 `mockOrgKeyConsumptionData` / `mockOrgInterceptData`
-- 穿透成员时：使用 `mockKeyConsumptionData` / `mockInterceptData`（成员维度的 mock）
+左侧图标题改为"**组织 Key 消耗占比**"，右侧图标题改为"**请求拦截原因分布**"（与其他视图一致，数据更大）。
 
 ---
 
-## 三、整体逻辑流程图
+## 七、空状态处理
+
+当 `committedEnterpriseMember` 有值但无匹配时，沿用现有 `<EmptyState />` 组件。
+
+---
+
+## 整体渲染逻辑（enterprise_admin 视图）
 
 ```text
-org_admin 视图进入
-        │
-        ▼
-[committedMember === ""]  ────── 全组织聚合状态 ──────
-        │                                              │
-        │  用户输入成员名 → 输入框显示 [查询][重置]      │ 展示：
-        │                                              │  - 组织配额横幅
-        │  点击 [查询]                                  │  - 全组织指标卡
-        │                                              │  - 模型柱状图
-        ▼                                              │  - 成员排行榜 ✅
-[committedMember = "张三"] ─── 成员穿透状态 ──────     │  - APIkey 分析（org数据）
-        │                                              │
-        │  展示：                                       │
-        │   - 个人配额横幅（含成员名）                  │
-        │   - 成员指标卡（member mock数据）             │
-        │   - 模型柱状图                               │
-        │   - 成员排行榜 ❌（隐藏）                    │
-        │   - APIkey 分析（member数据）                 │
-        │                                              │
-        ▼                                              │
-  点击 [重置] ──────────────────────────────────────── ┘
-  (清空 memberFilter + committedMember)
+1. [顶部控制栏：组织选择器 + 成员搜索框 + 查询/重置按钮]   ← enterprise_admin 专属
+2. [企业财务看板横幅（绿色）]                              ← enterprise_admin 专属
+3. [指标卡片区：全企业聚合数值]                            ← 沿用标准命名
+4. [模型数据分析柱状图]                                    ← 共用
+5. [组织消耗排行榜（横向条形图）]                           ← enterprise_admin 专属（仅全企业状态显示）
+6. [APIkey 调用分析（两个环形图）]                          ← 扩展至 enterprise_admin
 ```
 
 ---
 
-## 四、涉及文件
+## 涉及文件
 
 | 文件 | 改动 |
 |------|------|
-| `src/pages/ResourceStats.tsx` | 新增 `committedMember` 状态；将 `isMemberEmpty` 逻辑改为基于 `committedMember`；搜索框新增查询/重置按钮；配额横幅区分聚合/穿透状态；排行榜仅在 `committedMember === ""` 时渲染；APIkey 数据源根据 `committedMember` 切换 |
+| `src/pages/ResourceStats.tsx` | 新增 `selectedEnterpriseOrg`、`enterpriseMemberFilter`、`committedEnterpriseMember` 状态；新增企业维度 mock 数据（排行榜、Key 占比、拦截原因、财务数据）；新增 enterprise_admin 顶部控制条；新增企业财务看板横幅；新增组织消耗排行榜卡片；扩展 APIkey 分析卡片至 enterprise_admin；引入 `TrendingUp` 图标 |
 
 ## 不涉及内容
 - 数据库：无需变动
 - 其他页面：无影响
-- 路由跳转：不跳转到真实路由，在 org_admin 视图内切换展示模式
