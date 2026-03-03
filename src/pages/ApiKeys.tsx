@@ -25,8 +25,11 @@ import {
 } from "@/components/ui/alert-dialog";
 import {
   Plus, RefreshCw, Eye, EyeOff, Copy, Check, Pencil, Trash2,
-  ToggleLeft, ToggleRight, ChevronDown, Search, X,
+  ToggleLeft, ToggleRight, ChevronDown, Search, X, Building2,
 } from "lucide-react";
+import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from "@/components/ui/select";
 import { Progress } from "@/components/ui/progress";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { format } from "date-fns";
@@ -120,7 +123,6 @@ export default function ApiKeys({ enterprise, role }: Props) {
   // Multi-org switching
   const [organizations, setOrganizations] = useState<{ id: string; name: string }[]>([]);
   const [selectedOrgId, setSelectedOrgId] = useState<string | null>(null);
-  const [orgDropdownOpen, setOrgDropdownOpen] = useState(false);
 
   // Search state
   const [nameSearch, setNameSearch] = useState("");
@@ -272,7 +274,7 @@ export default function ApiKeys({ enterprise, role }: Props) {
       const { error } = await supabase.rpc("create_api_key" as any, {
         ...commonPayload,
         p_enterprise_id: enterprise.id,
-        p_organization_id: null,
+        p_organization_id: selectedOrgId,
       });
       if (error) {
         toast({ title: "创建失败", description: error.message, variant: "destructive" });
@@ -563,9 +565,34 @@ export default function ApiKeys({ enterprise, role }: Props) {
 
   return (
     <div>
-      {/* 第一行：标题 + 胶囊切换器 */}
-      <div className="flex items-center gap-4 mb-4">
+      {/* 行1：标题 + 全局组织选择器 */}
+      <div className="flex items-center gap-3 mb-3">
         <h1 className="text-xl font-bold text-foreground">API Key 管理</h1>
+        {canSeeOrgTab && organizations.length > 0 && (
+          <div className="flex items-center gap-2 ml-2">
+            <Building2 className="w-4 h-4 text-muted-foreground" />
+            <Select
+              value={selectedOrgId ?? ""}
+              onValueChange={(val) => {
+                setSelectedOrgId(val);
+                fetchOrgKeys(val);
+              }}
+            >
+              <SelectTrigger className="h-9 w-48 border-border shadow-sm font-medium">
+                <SelectValue placeholder="选择组织..." />
+              </SelectTrigger>
+              <SelectContent>
+                {organizations.map(org => (
+                  <SelectItem key={org.id} value={org.id}>{org.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        )}
+      </div>
+
+      {/* 行2：纯胶囊切换器 */}
+      <div className="flex items-center gap-4 mb-4">
         <div className="flex items-center bg-muted rounded-lg p-1 h-9">
           <button
             onClick={() => setActiveTab("my")}
@@ -578,53 +605,35 @@ export default function ApiKeys({ enterprise, role }: Props) {
             我的 API Key
           </button>
           {canSeeOrgTab && (
-            <DropdownMenu open={orgDropdownOpen} onOpenChange={setOrgDropdownOpen}>
-              <DropdownMenuTrigger asChild>
-                <button
-                  onClick={() => {
-                    setActiveTab("org");
-                    if (selectedOrgId) fetchOrgKeys();
-                  }}
-                  className={`px-3 h-full rounded-md text-sm font-medium transition-all flex items-center gap-1 ${
-                    activeTab === "org"
-                      ? "bg-background shadow-sm text-foreground"
-                      : "text-muted-foreground hover:text-foreground"
-                  }`}
-                >
-                  {activeTab === "org" && selectedOrgId
-                    ? `组织：${organizations.find(o => o.id === selectedOrgId)?.name ?? "API Key"}`
-                    : "组织 API Key"}
-                  <ChevronDown className="w-3.5 h-3.5 opacity-60" />
-                </button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="start" className="w-52">
-                {organizations.length === 0 ? (
-                  <div className="px-3 py-2 text-sm text-muted-foreground">暂无组织</div>
-                ) : organizations.map(org => (
-                  <DropdownMenuItem
-                    key={org.id}
-                    onClick={() => {
-                      setSelectedOrgId(org.id);
-                      setActiveTab("org");
-                      fetchOrgKeys(org.id);
-                      setOrgDropdownOpen(false);
-                    }}
-                  >
-                    <Check className={`w-4 h-4 mr-2 ${selectedOrgId === org.id ? "opacity-100" : "opacity-0"}`} />
-                    {org.name}
-                  </DropdownMenuItem>
-                ))}
-              </DropdownMenuContent>
-            </DropdownMenu>
+            <button
+              onClick={() => { setActiveTab("org"); if (selectedOrgId) fetchOrgKeys(); }}
+              className={`px-3 h-full rounded-md text-sm font-medium transition-all ${
+                activeTab === "org"
+                  ? "bg-background shadow-sm text-foreground"
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              组织 API Key
+            </button>
           )}
         </div>
       </div>
 
-      {/* 第二行：创建按钮（左） + 搜索栏+刷新（右） */}
+      {/* 行3：创建按钮 + 归属提示（左） + 搜索栏+刷新（右） */}
       <div className="flex items-center justify-between mb-5">
-        <Button onClick={openCreate} className="gap-2 h-9">
-          <Plus className="w-4 h-4" />创建 API Key
-        </Button>
+        <div className="flex items-center gap-3">
+          <Button onClick={openCreate} className="gap-2 h-9">
+            <Plus className="w-4 h-4" />创建 API Key
+          </Button>
+          <span className="text-xs text-muted-foreground">
+            提示：Key 将归属于{" "}
+            <span className="font-medium text-foreground">
+              {selectedOrgId
+                ? organizations.find(o => o.id === selectedOrgId)?.name ?? "当前组织"
+                : "个人空间"}
+            </span>
+          </span>
+        </div>
         <div className="flex items-center gap-2">
           {/* 名称 label + 输入框 */}
           <div className="flex items-center gap-1.5">
