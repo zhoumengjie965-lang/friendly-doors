@@ -90,7 +90,7 @@ const mockOrgInterceptData = [
   { name: "其他系统错误",   value: 5,  color: "#94a3b8" },
 ];
 
-// Mock donut data — enterprise_admin
+// Mock donut data — enterprise_admin (全企业聚合)
 const mockEnterpriseKeyData = [
   { name: "研发一组",   value: 188.50, color: "#60a5fa" },
   { name: "产品设计组", value: 142.30, color: "#4ade80" },
@@ -116,6 +116,145 @@ const mockOrgRankData = [
   { name: "客户成功组", value: 54.20 },
   { name: "数据平台组", value: 38.10 },
 ];
+
+// Per-org mock data for enterprise_admin filtered view
+type OrgMockData = {
+  cards: { big: string; mid1: string; mid2: string; rpm: string; tpm: string };
+  keyData: { name: string; value: number; color: string }[];
+  interceptData: { name: string; value: number; color: string }[];
+  memberRank: { name: string; value: number }[];
+  balance: number;
+  consumed: number;
+};
+
+const mockOrgDataMap: Record<string, OrgMockData> = {
+  "org-1": {
+    cards: { big: "¥ 188.50", mid1: "1,624", mid2: "1.18M", rpm: "0.052", tpm: "1.42K" },
+    keyData: [
+      { name: "prod-gpt4-key",   value: 98.20, color: "#60a5fa" },
+      { name: "claude-opus-key", value: 55.30, color: "#4ade80" },
+      { name: "gemini-pro-key",  value: 35.00, color: "#a78bfa" },
+    ],
+    interceptData: [
+      { name: "Key 预算不足",   value: 42, color: "#f87171" },
+      { name: "个人日限额触达", value: 28, color: "#fb923c" },
+      { name: "组织总限额不足", value: 10, color: "#facc15" },
+      { name: "其他系统错误",   value: 4,  color: "#94a3b8" },
+    ],
+    memberRank: [
+      { name: "张三", value: 42.50 }, { name: "李四", value: 38.20 },
+      { name: "王五", value: 31.80 }, { name: "赵六", value: 28.40 },
+      { name: "钱七", value: 22.10 }, { name: "孙八", value: 18.60 },
+    ],
+    balance: 3200.00,
+    consumed: 188.50,
+  },
+  "org-2": {
+    cards: { big: "¥ 142.30", mid1: "1,102", mid2: "890K", rpm: "0.038", tpm: "0.98K" },
+    keyData: [
+      { name: "design-gpt4",    value: 80.10, color: "#60a5fa" },
+      { name: "figma-claude",   value: 40.20, color: "#4ade80" },
+      { name: "sketch-gemini",  value: 22.00, color: "#a78bfa" },
+    ],
+    interceptData: [
+      { name: "Key 预算不足",   value: 31, color: "#f87171" },
+      { name: "个人日限额触达", value: 20, color: "#fb923c" },
+      { name: "企业余额欠费",   value: 8,  color: "#a78bfa" },
+      { name: "其他系统错误",   value: 3,  color: "#94a3b8" },
+    ],
+    memberRank: [
+      { name: "陈设", value: 35.60 }, { name: "林美", value: 28.90 },
+      { name: "吴绘", value: 22.40 }, { name: "郑图", value: 16.80 },
+      { name: "周色", value: 12.30 }, { name: "徐版", value: 8.50 },
+    ],
+    balance: 2800.00,
+    consumed: 142.30,
+  },
+  "org-3": {
+    cards: { big: "¥ 98.60", mid1: "820", mid2: "640K", rpm: "0.029", tpm: "0.75K" },
+    keyData: [
+      { name: "ops-key-01",  value: 52.30, color: "#60a5fa" },
+      { name: "ops-key-02",  value: 30.10, color: "#4ade80" },
+      { name: "ops-backup",  value: 16.20, color: "#a78bfa" },
+    ],
+    interceptData: [
+      { name: "Key 预算不足",   value: 22, color: "#f87171" },
+      { name: "个人日限额触达", value: 15, color: "#fb923c" },
+      { name: "组织总限额不足", value: 9,  color: "#facc15" },
+      { name: "其他系统错误",   value: 2,  color: "#94a3b8" },
+    ],
+    memberRank: [
+      { name: "高运", value: 28.10 }, { name: "刘营", value: 22.60 },
+      { name: "杨支", value: 18.30 }, { name: "朱持", value: 14.20 },
+      { name: "秦保", value: 9.80 },  { name: "许障", value: 5.60 },
+    ],
+    balance: 1900.00,
+    consumed: 98.60,
+  },
+  "org-4": {
+    cards: { big: "¥ 76.40", mid1: "612", mid2: "480K", rpm: "0.022", tpm: "0.58K" },
+    keyData: [
+      { name: "mkt-gpt4-key",   value: 42.00, color: "#60a5fa" },
+      { name: "mkt-claude-key", value: 21.80, color: "#4ade80" },
+      { name: "mkt-gemini",     value: 12.60, color: "#a78bfa" },
+    ],
+    interceptData: [
+      { name: "Key 预算不足",   value: 18, color: "#f87171" },
+      { name: "个人日限额触达", value: 12, color: "#fb923c" },
+      { name: "企业余额欠费",   value: 6,  color: "#a78bfa" },
+      { name: "其他系统错误",   value: 2,  color: "#94a3b8" },
+    ],
+    memberRank: [
+      { name: "赵市", value: 22.30 }, { name: "钱场", value: 18.40 },
+      { name: "孙推", value: 14.20 }, { name: "李广", value: 10.60 },
+      { name: "周告", value: 7.50 },  { name: "吴文", value: 3.40 },
+    ],
+    balance: 1500.00,
+    consumed: 76.40,
+  },
+  "org-5": {
+    cards: { big: "¥ 54.20", mid1: "445", mid2: "328K", rpm: "0.016", tpm: "0.41K" },
+    keyData: [
+      { name: "cs-primary-key",  value: 30.10, color: "#60a5fa" },
+      { name: "cs-support-key",  value: 16.40, color: "#4ade80" },
+      { name: "cs-backup",       value: 7.70,  color: "#a78bfa" },
+    ],
+    interceptData: [
+      { name: "Key 预算不足",   value: 14, color: "#f87171" },
+      { name: "个人日限额触达", value: 8,  color: "#fb923c" },
+      { name: "组织总限额不足", value: 4,  color: "#facc15" },
+      { name: "其他系统错误",   value: 1,  color: "#94a3b8" },
+    ],
+    memberRank: [
+      { name: "白客", value: 16.80 }, { name: "苗服", value: 12.50 },
+      { name: "方成", value: 9.30 },  { name: "俞功", value: 7.20 },
+      { name: "任经", value: 5.10 },  { name: "袁理", value: 3.30 },
+    ],
+    balance: 1100.00,
+    consumed: 54.20,
+  },
+  "org-6": {
+    cards: { big: "¥ 38.10", mid1: "318", mid2: "232K", rpm: "0.011", tpm: "0.29K" },
+    keyData: [
+      { name: "data-etl-key",    value: 20.40, color: "#60a5fa" },
+      { name: "data-report-key", value: 11.30, color: "#4ade80" },
+      { name: "data-ml-key",     value: 6.40,  color: "#a78bfa" },
+    ],
+    interceptData: [
+      { name: "Key 预算不足",   value: 10, color: "#f87171" },
+      { name: "个人日限额触达", value: 6,  color: "#fb923c" },
+      { name: "组织总限额不足", value: 3,  color: "#facc15" },
+      { name: "其他系统错误",   value: 1,  color: "#94a3b8" },
+    ],
+    memberRank: [
+      { name: "谢数", value: 12.60 }, { name: "邹据", value: 9.80 },
+      { name: "水平", value: 7.20 },  { name: "云台", value: 4.90 },
+      { name: "章组", value: 2.80 },  { name: "魏织", value: 0.80 },
+    ],
+    balance: 800.00,
+    consumed: 38.10,
+  },
+};
 
 const enterpriseBalance = 12580.00;
 const enterpriseTotalConsumed = 5598.10;
@@ -288,9 +427,35 @@ export default function ResourceStats({ enterprise }: Props) {
     ? { big: "¥ 37.50", mid1: "312", mid2: "248K", rpm: "0.008", tpm: "0.62K" }
     : { big: "¥ 188.50", mid1: "1,847", mid2: "1.24M", rpm: "0.041", tpm: "1.28K" };
 
+  // Enterprise derived data — switches based on selectedEnterpriseOrg
+  const isEnterpriseFiltered = selectedEnterpriseOrg !== "all";
+  const activeOrgData = isEnterpriseFiltered ? mockOrgDataMap[selectedEnterpriseOrg] : null;
+
   const enterpriseCardValues = committedEnterpriseMember
     ? { big: "¥ 37.50",  mid1: "312",   mid2: "248K",  rpm: "0.008", tpm: "0.62K" }
+    : isEnterpriseFiltered && activeOrgData
+    ? activeOrgData.cards
     : { big: "¥ 598.10", mid1: "5,234", mid2: "3.82M", rpm: "0.128", tpm: "3.15K" };
+
+  const activeEnterpriseKeyData = isEnterpriseFiltered && activeOrgData
+    ? activeOrgData.keyData
+    : mockEnterpriseKeyData;
+
+  const activeEnterpriseInterceptData = isEnterpriseFiltered && activeOrgData
+    ? activeOrgData.interceptData
+    : mockEnterpriseInterceptData;
+
+  const activeEnterpriseKeyCenter = isEnterpriseFiltered && activeOrgData
+    ? `¥${activeOrgData.consumed.toFixed(2)}`
+    : "¥598.10";
+
+  const activeEnterpriseInterceptCenter = isEnterpriseFiltered && activeOrgData
+    ? `${activeOrgData.interceptData.reduce((s, d) => s + d.value, 0)} 次`
+    : "322 次";
+
+  const activeEnterpriseOrgRank = isEnterpriseFiltered && activeOrgData
+    ? activeOrgData.memberRank   // show member rank for selected org
+    : mockOrgRankData;
 
   const filteredMemberRank = mockMemberRankData;
 
@@ -805,13 +970,15 @@ export default function ResourceStats({ enterprise }: Props) {
         <div className="mt-4 bg-card border border-border rounded-xl p-6">
           <div className="flex items-center gap-2 mb-6">
             <TrendingUp className="w-4 h-4 text-muted-foreground" />
-            <span className="font-semibold text-foreground">组织消耗排行榜</span>
-            <span className="text-xs text-muted-foreground ml-1">Top {mockOrgRankData.length}</span>
+            <span className="font-semibold text-foreground">
+              {isEnterpriseFiltered ? `${mockAllOrgs.find(o => o.id === selectedEnterpriseOrg)?.name} · 成员消耗排行榜` : "组织消耗排行榜"}
+            </span>
+            <span className="text-xs text-muted-foreground ml-1">Top {activeEnterpriseOrgRank.length}</span>
           </div>
           <ResponsiveContainer width="100%" height={240}>
             <BarChart
               layout="vertical"
-              data={mockOrgRankData}
+              data={activeEnterpriseOrgRank}
               margin={{ top: 4, right: 80, left: 8, bottom: 4 }}
               barSize={18}
             >
@@ -862,10 +1029,10 @@ export default function ResourceStats({ enterprise }: Props) {
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
             <DonutChart
-              title={viewRole === "enterprise_admin" && committedEnterpriseMember === "" ? "组织 Key 消耗占比" : "API Key 消耗占比"}
+              title={viewRole === "enterprise_admin" && committedEnterpriseMember === "" ? (isEnterpriseFiltered ? "Key 消耗占比" : "组织 Key 消耗占比") : "API Key 消耗占比"}
               data={
                 viewRole === "enterprise_admin" && committedEnterpriseMember === ""
-                  ? mockEnterpriseKeyData
+                  ? activeEnterpriseKeyData
                   : viewRole === "org_admin" && committedMember === ""
                   ? mockOrgKeyConsumptionData
                   : mockKeyConsumptionData
@@ -873,7 +1040,7 @@ export default function ResourceStats({ enterprise }: Props) {
               centerLabel="总消耗"
               centerValue={
                 viewRole === "enterprise_admin" && committedEnterpriseMember === ""
-                  ? "¥598.10"
+                  ? activeEnterpriseKeyCenter
                   : viewRole === "org_admin" && committedMember === ""
                   ? "¥188.50"
                   : "¥17.70"
@@ -884,7 +1051,7 @@ export default function ResourceStats({ enterprise }: Props) {
               title="请求拦截原因分布"
               data={
                 viewRole === "enterprise_admin" && committedEnterpriseMember === ""
-                  ? mockEnterpriseInterceptData
+                  ? activeEnterpriseInterceptData
                   : viewRole === "org_admin" && committedMember === ""
                   ? mockOrgInterceptData
                   : mockInterceptData
@@ -892,7 +1059,7 @@ export default function ResourceStats({ enterprise }: Props) {
               centerLabel="总失败"
               centerValue={
                 viewRole === "enterprise_admin" && committedEnterpriseMember === ""
-                  ? "322 次"
+                  ? activeEnterpriseInterceptCenter
                   : viewRole === "org_admin" && committedMember === ""
                   ? "108 次"
                   : "30 次"
