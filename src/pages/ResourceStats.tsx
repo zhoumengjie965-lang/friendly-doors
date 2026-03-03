@@ -413,10 +413,7 @@ export default function ResourceStats({ enterprise }: Props) {
   const chartData = activeSubTab === "consumption" ? mockDayData : mockCallData;
   const yLabel = activeSubTab === "consumption" ? "Tokens" : "次数";
 
-  const cardLabels =
-    viewRole === "member" || viewRole === "org_admin"
-      ? { big: "已消耗预算", mid1: "统计调用次数", mid2: "消耗Tokens" }
-      : { big: "统计额度", mid1: "统计次数", mid2: "统计Tokens" };
+  const cardLabels = { big: "已消耗预算", mid1: "统计调用次数", mid2: "消耗Tokens" };
 
   const consumed = 12.50;
   const total = 50.00;
