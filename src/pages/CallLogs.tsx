@@ -216,29 +216,6 @@ function UsageLogsTab({ role }: { role: string }) {
               </Select>
             </div>
           )}
-          {/* 分组下拉 */}
-          <div className="flex items-center gap-2">
-            <span className="text-sm text-muted-foreground whitespace-nowrap">分组</span>
-            <Select value={filterGroup} onValueChange={v => { setFilterGroup(v); setPage(1); }}>
-              <SelectTrigger className="h-9 w-32 text-sm"><SelectValue placeholder="全部" /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">全部</SelectItem>
-                {allGroups.map(g => <SelectItem key={g} value={g}>{g}</SelectItem>)}
-              </SelectContent>
-            </Select>
-          </div>
-          {/* 类型下拉 */}
-          <div className="flex items-center gap-2">
-            <span className="text-sm text-muted-foreground whitespace-nowrap">类型</span>
-            <Select value={filterType} onValueChange={v => { setFilterType(v); setPage(1); }}>
-              <SelectTrigger className="h-9 w-28 text-sm"><SelectValue placeholder="全部" /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">全部</SelectItem>
-                <SelectItem value="成功">成功</SelectItem>
-                <SelectItem value="错误">错误</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
           <Button size="sm" className="h-9">搜索</Button>
           <Button size="sm" variant="outline" className="h-9" onClick={() => { setFilterGroup("all"); setFilterType("all"); setFilterOrg("all"); setFilterMember("all"); }}>重置</Button>
           <Button
@@ -286,9 +263,38 @@ function UsageLogsTab({ role }: { role: string }) {
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-border bg-muted/40">
-                {headers.map(h => (
-                  <th key={h} className="px-3 py-2.5 text-left text-xs font-medium text-muted-foreground whitespace-nowrap">{h}</th>
-                ))}
+                {headers.map(h => {
+                  if (h === "分组") return (
+                    <th key={h} className="px-3 py-2.5 text-left text-xs font-medium text-muted-foreground whitespace-nowrap">
+                      <Select value={filterGroup} onValueChange={v => { setFilterGroup(v); setPage(1); }}>
+                        <SelectTrigger className="h-7 w-24 text-xs border-0 bg-transparent px-0 gap-1 focus:ring-0 shadow-none">
+                          <span className="font-medium text-muted-foreground">分组</span>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">全部</SelectItem>
+                          {allGroups.map(g => <SelectItem key={g} value={g}>{g}</SelectItem>)}
+                        </SelectContent>
+                      </Select>
+                    </th>
+                  );
+                  if (h === "类型") return (
+                    <th key={h} className="px-3 py-2.5 text-left text-xs font-medium text-muted-foreground whitespace-nowrap">
+                      <Select value={filterType} onValueChange={v => { setFilterType(v); setPage(1); }}>
+                        <SelectTrigger className="h-7 w-20 text-xs border-0 bg-transparent px-0 gap-1 focus:ring-0 shadow-none">
+                          <span className="font-medium text-muted-foreground">类型</span>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">全部</SelectItem>
+                          <SelectItem value="成功">成功</SelectItem>
+                          <SelectItem value="错误">错误</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </th>
+                  );
+                  return <th key={h} className="px-3 py-2.5 text-left text-xs font-medium text-muted-foreground whitespace-nowrap">{h}</th>;
+                })}
               </tr>
             </thead>
             <tbody>
