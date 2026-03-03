@@ -289,28 +289,22 @@ export default function Workspace() {
           </div>
 
           {/* Switch space */}
-          <div className="relative">
+          <div>
             <button
-              onMouseEnter={() => setSwitchMenuOpen(true)}
-              onMouseLeave={() => setSwitchMenuOpen(false)}
               onClick={() => setSwitchMenuOpen(v => !v)}
               className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-foreground hover:bg-muted transition-colors"
             >
               <Building2 className="w-4 h-4 text-muted-foreground" />
               <span className="flex-1 text-left">切换空间</span>
-              <ChevronRight className="w-4 h-4 text-muted-foreground" />
+              <ChevronDown className={`w-4 h-4 text-muted-foreground transition-transform ${switchMenuOpen ? "rotate-180" : ""}`} />
             </button>
             {switchMenuOpen && (
-              <div
-                className="absolute right-full top-0 mr-1 w-56 bg-popover border border-border rounded-xl shadow-xl z-50 py-1 overflow-hidden"
-                onMouseEnter={() => setSwitchMenuOpen(true)}
-                onMouseLeave={() => setSwitchMenuOpen(false)}
-              >
+              <div className="bg-muted/50 border-t border-border py-1">
                 {/* Personal space */}
                 <button
                   onClick={() => { setEnterprise(null); setCurrentOrg(null); setRole("member"); localStorage.removeItem(LAST_ENTERPRISE_KEY); setUserMenuOpen(false); setSwitchMenuOpen(false); navigate("/workspace"); }}
-                  className={`w-full flex items-center gap-2 px-3 py-2.5 text-sm transition-colors ${
-                    !enterprise ? "bg-primary/10 text-primary" : "text-foreground hover:bg-muted"
+                  className={`w-full flex items-center gap-2 px-5 py-2 text-sm transition-colors ${
+                    !enterprise ? "text-primary font-medium" : "text-foreground hover:bg-muted"
                   }`}
                 >
                   <UserCircle className="w-3.5 h-3.5 shrink-0" />
@@ -318,33 +312,26 @@ export default function Workspace() {
                   {!enterprise && <Check className="w-3 h-3 shrink-0" />}
                 </button>
                 {/* Enterprise list */}
-                {enterprises.length > 0 && (
-                  <>
-                    <div className="px-3 py-1 border-t border-border">
-                      <p className="text-[10px] text-muted-foreground uppercase tracking-wide">我的企业</p>
+                {enterprises.length > 0 && enterprises.map(({ enterprise: ent, role: r, org }) => (
+                  <button
+                    key={ent.id}
+                    onClick={() => { selectEnterprise(ent, r, org); setSwitchMenuOpen(false); navigate("/workspace"); }}
+                    className={`w-full flex items-start gap-2 px-5 py-2 text-sm transition-colors ${
+                      enterprise?.id === ent.id ? "text-primary font-medium" : "text-foreground hover:bg-muted"
+                    }`}
+                  >
+                    <Building2 className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+                    <div className="flex-1 text-left min-w-0">
+                      <div className="truncate">{ent.name}</div>
+                      <div className="text-[11px] text-muted-foreground">{roleLabel(r)}</div>
                     </div>
-                    {enterprises.map(({ enterprise: ent, role: r, org }) => (
-                      <button
-                        key={ent.id}
-                        onClick={() => { selectEnterprise(ent, r, org); setSwitchMenuOpen(false); navigate("/workspace"); }}
-                        className={`w-full flex items-start gap-2 px-3 py-2.5 text-sm transition-colors ${
-                          enterprise?.id === ent.id ? "bg-primary/10 text-primary" : "text-foreground hover:bg-muted"
-                        }`}
-                      >
-                        <Building2 className="w-3.5 h-3.5 shrink-0 mt-0.5" />
-                        <div className="flex-1 text-left min-w-0">
-                          <div className="truncate font-medium">{ent.name}</div>
-                          <div className="text-[11px] text-muted-foreground">{roleLabel(r)}</div>
-                        </div>
-                        {enterprise?.id === ent.id && <Check className="w-3 h-3 shrink-0 mt-0.5" />}
-                      </button>
-                    ))}
-                  </>
-                )}
+                    {enterprise?.id === ent.id && <Check className="w-3 h-3 shrink-0 mt-0.5" />}
+                  </button>
+                ))}
                 <div className="border-t border-border mt-1 pt-1">
                   <button
                     onClick={() => { setShowCreateEnterprise(true); setUserMenuOpen(false); setSwitchMenuOpen(false); }}
-                    className="w-full flex items-center gap-2 px-3 py-2 text-sm text-foreground hover:bg-muted transition-colors"
+                    className="w-full flex items-center gap-2 px-5 py-2 text-sm text-foreground hover:bg-muted transition-colors"
                   >
                     <Plus className="w-3.5 h-3.5" />创建企业
                   </button>
