@@ -1,159 +1,167 @@
 
-# 企业管理员视图看板开发方案
+# 调用日志页面复现方案
 
 ## 改动范围
 
-仅修改 `src/pages/ResourceStats.tsx`，添加 `enterprise_admin` 视图的专属逻辑，无数据库变更。
+- 新建 `src/pages/CallLogs.tsx`（调用日志主页面）
+- 修改 `src/pages/Workspace.tsx`（注册 `/workspace/logs` 路由）
+
+无数据库变更，全部使用 Mock 数据。
 
 ---
 
-## 一、新增状态与 Mock 数据
+## 一、页面整体结构
 
-### 新增状态
-```ts
-const [selectedEnterpriseOrg, setSelectedEnterpriseOrg] = useState("all");  // "all" = 全企业
-const [enterpriseMemberFilter, setEnterpriseMemberFilter] = useState("");
-const [committedEnterpriseMember, setCommittedEnterpriseMember] = useState("");
-```
-
-### 新增 Mock 数据
-
-**组织排行榜 Top N：**
-```ts
-const mockOrgRankData = [
-  { name: "研发一组",   value: 188.50 },
-  { name: "产品设计组", value: 142.30 },
-  { name: "运营支持组", value: 98.60 },
-  { name: "市场推广组", value: 76.40 },
-  { name: "客户成功组", value: 54.20 },
-  { name: "数据平台组", value: 38.10 },
-];
-```
-
-**企业维度 API Key 消耗占比（按组织分）：**
-```ts
-const mockEnterpriseKeyData = [
-  { name: "研发一组",   value: 188.50, color: "#60a5fa" },
-  { name: "产品设计组", value: 142.30, color: "#4ade80" },
-  { name: "运营支持组", value: 98.60,  color: "#a78bfa" },
-  { name: "市场推广组", value: 76.40,  color: "#fb923c" },
-  { name: "其他组织",   value: 92.30,  color: "#94a3b8" },
-];
-```
-
-**企业维度请求拦截原因：**
-```ts
-const mockEnterpriseInterceptData = [
-  { name: "Key 预算不足",   value: 124, color: "#f87171" },
-  { name: "个人日限额触达", value: 89,  color: "#fb923c" },
-  { name: "组织总限额不足", value: 56,  color: "#facc15" },
-  { name: "企业余额欠费",   value: 38,  color: "#a78bfa" },   // 特别强调
-  { name: "其他系统错误",   value: 15,  color: "#94a3b8" },
-];
-```
-
-**企业财务信息：**
-```ts
-const enterpriseBalance = 12580.00;  // 当前余额
-const enterpriseTotalConsumed = 5598.10;
-```
-
----
-
-## 二、顶部控制条（enterprise_admin）
-
-在角色 Tab 切换栏下方，`viewRole === "enterprise_admin"` 时，插入一行双重筛选控制条：
+页面顶部有三个 Tab 切换：**使用日志 | 绘图日志 | 任务日志**，每个 Tab 有独立的筛选条和数据表格。
 
 ```text
-[🏢 全部组织 ▼]  |  [🔍 搜索成员姓名（留空显示全企业）...]  [查询]  [重置]  [当前查看：张三 ✕]
+┌─────────────────────────────────────────────────────────────────┐
+│  [📊 使用日志]  [🎨 绘图日志]  [📋 任务日志]                      │
+├─────────────────────────────────────────────────────────────────┤
+│  [筛选条 — 每个 Tab 独立]                                        │
+├─────────────────────────────────────────────────────────────────┤
+│  [统计摘要 chips — 仅使用日志有]                                  │
+├─────────────────────────────────────────────────────────────────┤
+│  [数据表格]                              [刷新图标] [设置图标]    │
+├─────────────────────────────────────────────────────────────────┤
+│  共 N 条记录 第 X-Y 条  [分页控件]          [N条/页 ▼] [跳至]页  │
+└─────────────────────────────────────────────────────────────────┘
 ```
-
-- **组织选择器**：第一个选项为"全部组织（默认）"，其余为具体组织名称
-- 切换组织时，同步清空成员筛选（`committedEnterpriseMember`）
-- **成员搜索框 + 查询/重置按钮**：逻辑与 `org_admin` 完全一致
 
 ---
 
-## 三、企业财务看板横幅
+## 二、Tab 1：使用日志
 
-替换成员视图的"个人日预算横幅"，显示企业级财务信息：
-
+### 筛选条
 ```text
-┌──────────────────────────────────────────────────────────────────────────┐
-│  💰 企业财务看板   |   当前余额：¥ 12,580.00   [充值]   |  本期已消耗：¥ 5,598.10  │
-└──────────────────────────────────────────────────────────────────────────┘
+时间 [2026-03-03 00:00:00 → 2026-03-03 23:59:59 📅]
+APIKey [请输入APIKey名称                          ]
+分组   [请输入分组名称                              ]
+[搜索] [重置] [展开 ∧]
 ```
+- 展开/收起按钮控制第二行更多筛选字段（折叠状态下显示 `展开 ∨`，展开后显示 `展开 ∧`）
 
-- 背景色：`bg-emerald-50 border-emerald-200`（绿色系，区分于蓝色的组织横幅）
-- 图标：`Wallet`，绿色
-- **充值按钮**：`variant="outline"` 小按钮，点击暂无操作（预留接口）
-- 当 `committedEnterpriseMember !== ""`（查看具体成员）时，横幅切换为成员个人日预算样式（与 org_admin 穿透逻辑一致）
+### 统计摘要 chips（表格上方左侧）
+```text
+[消耗额度：¥0.05]  [RPM：0]  [TPM：0]
+```
+- 右侧对齐：刷新图标 + 设置图标
 
----
+### 表格列
+| 列名 | 说明 |
+|------|------|
+| 时间 | 调用时间 |
+| APIKey | 彩色小标签 chip（深色背景，如 `test`） |
+| 分组 | 纯文本（如 `default`） |
+| 类型 | 红色 `错误` 标签 / 绿色 `成功` 标签 |
+| 模型 | 浅色 chip（如 `mock-error`，紫色边框） |
+| 用时/首字 | 两个 chip：`0s`（绿色）+ `非流`（灰色） |
+| 输入 | 数字 |
+| 输出 | 数字 |
+| 花费 | 数字 |
+| IP | 橙色小标签（如 `10.244.109.64`） |
+| 详情 | 纯文本，较长内容截断 |
 
-## 四、指标卡片数据
-
-企业管理员的指标卡片标签复用现有的 `enterprise_admin` 分支（`统计额度 / 统计次数 / 统计Tokens`），并新增 `enterprise_admin` 专属 mock 数值：
-
+### Mock 数据
 ```ts
-const enterpriseCardValues = committedEnterpriseMember
-  ? { big: "¥ 37.50",   mid1: "312",   mid2: "248K",  rpm: "0.008", tpm: "0.62K" }  // 成员穿透
-  : { big: "¥ 598.10",  mid1: "5,234", mid2: "3.82M", rpm: "0.128", tpm: "3.15K" }; // 全企业聚合
+const mockUsageLogs = [
+  { time: "2026-03-03 11:15:44", apiKey: "test", group: "default", type: "错误", model: "mock-error", duration: "0s", streaming: "非流", input: 0, output: 0, cost: 0, ip: "10.244.109.64", detail: "Incorrect API key provided. You can find your API key at https://***.com/***/**" },
+  // ... 10 条
+]
 ```
 
 ---
 
-## 五、新增卡片：组织消耗排行榜（enterprise_admin 专属）
+## 三、Tab 2：绘图日志
 
-在"模型数据分析"图表卡片下方、"APIkey 调用分析"卡片上方，插入组织排行榜：
-
-- **触发条件**：`viewRole === "enterprise_admin" && committedEnterpriseMember === ""`
-- **形式**：横向 `BarChart`（`layout="vertical"`），与成员排行榜同款样式
-- Y 轴为组织名，X 轴为消耗金额，颜色为 `#60a5fa`
-
+### 筛选条
 ```text
-┌─────────────────────────────────────────────────────┐
-│  [🏢] 组织消耗排行榜                                  │
-│                                                     │
-│  研发一组   [================================] ¥188.50 │
-│  产品设计组 [=========================] ¥142.30     │
-│  ...                                                │
-└─────────────────────────────────────────────────────┘
+提交时间 [2026-03-03 00:00:00 → 2026-03-03 23:59:59 📅]
+任务ID  [请输入任务ID                                   ]
+[搜索] [重置]
+```
+
+### 表格列
+| 列名 | 说明 |
+|------|------|
+| 提交时间 | |
+| 花费时间 | |
+| 类型 | |
+| 任务ID | |
+| 提交结果 | |
+| 任务状态 | |
+| 进度 | |
+| 结果图片 | |
+| Prompt | |
+| PromptEn | |
+| 失败原因 | |
+
+### 空状态
+使用自定义占位：问号图标 + "暂无数据"文字（与截图一致）
+
+---
+
+## 四、Tab 3：任务日志
+
+### 筛选条
+与绘图日志相同（提交时间 + 任务ID + 搜索/重置）
+
+### 表格列
+| 列名 | 说明 |
+|------|------|
+| 提交时间 | |
+| 结束时间 | |
+| 花费时间 | 红色 chip，如 `1401 秒` |
+| 平台 | 绿色 chip，如 `Suno` |
+| 类型 | 粉色 chip，如 `生成歌词` |
+| 任务ID | 长字符串，截断 |
+| 任务状态 | `失败`（红色）/ `成功`（绿色） |
+| 进度 | 短横线 + 红/绿圆点 |
+| 详情 | 截断文字 |
+
+### Mock 数据（5条，对应截图）
+```ts
+const mockTaskLogs = [
+  { submitTime: "2026-03-03 10:19:16", endTime: "2026-03-03 10:42:37", cost: "1401 秒", platform: "Suno", type: "生成歌词", taskId: "13b57429c9714eb7ab078f5622490531", status: "失败", detail: "读取响应超时..." },
+  // ...
+]
 ```
 
 ---
 
-## 六、APIkey 调用分析（enterprise_admin）
+## 五、分页组件
 
-将现有的 `{(viewRole === "member" || viewRole === "org_admin")}` 条件扩展为同时包含 `enterprise_admin`：
+通用分页区，复用现有 `src/components/ui/pagination.tsx`，额外补充：
+- "共 N 条记录 第 X-Y 条" 文字
+- 每页条数下拉（10/20/50条/页）
+- 跳至第 N 页输入框
 
+---
+
+## 六、样式规范
+
+与图片完全一致的 chip/标签颜色：
+- `错误` 类型：`bg-red-100 text-red-600 border border-red-200`
+- `成功` 类型：`bg-green-100 text-green-600 border border-green-200`
+- `失败` 状态：`text-red-500` + 红色圆点
+- `成功` 状态：`text-green-500` + 绿色圆点
+- APIKey chip：`bg-gray-700 text-white text-xs px-2 py-0.5 rounded`
+- 模型 chip：`border border-purple-200 text-purple-700 bg-purple-50`
+- IP chip：`bg-orange-100 text-orange-700`
+- 平台 chip（Suno）：`bg-green-100 text-green-700 border border-green-200`
+- 花费时间 chip：`bg-red-50 text-red-500 border border-red-200`
+
+---
+
+## 七、路由注册
+
+在 `src/pages/Workspace.tsx` 中添加：
 ```tsx
-{(viewRole === "member" || viewRole === "org_admin" || viewRole === "enterprise_admin") && (
-```
-
-数据源切换逻辑：
-- `enterprise_admin` 全企业聚合：使用 `mockEnterpriseKeyData` / `mockEnterpriseInterceptData`
-- `enterprise_admin` 成员穿透：使用 `mockKeyConsumptionData` / `mockInterceptData`
-
-左侧图标题改为"**组织 Key 消耗占比**"，右侧图标题改为"**请求拦截原因分布**"（与其他视图一致，数据更大）。
-
----
-
-## 七、空状态处理
-
-当 `committedEnterpriseMember` 有值但无匹配时，沿用现有 `<EmptyState />` 组件。
-
----
-
-## 整体渲染逻辑（enterprise_admin 视图）
-
-```text
-1. [顶部控制栏：组织选择器 + 成员搜索框 + 查询/重置按钮]   ← enterprise_admin 专属
-2. [企业财务看板横幅（绿色）]                              ← enterprise_admin 专属
-3. [指标卡片区：全企业聚合数值]                            ← 沿用标准命名
-4. [模型数据分析柱状图]                                    ← 共用
-5. [组织消耗排行榜（横向条形图）]                           ← enterprise_admin 专属（仅全企业状态显示）
-6. [APIkey 调用分析（两个环形图）]                          ← 扩展至 enterprise_admin
+import CallLogs from "@/pages/CallLogs";
+// ...
+} : location.pathname === "/workspace/logs" ? (
+  <CallLogs enterprise={enterprise} role={role} />
+) : (
 ```
 
 ---
@@ -162,7 +170,8 @@ const enterpriseCardValues = committedEnterpriseMember
 
 | 文件 | 改动 |
 |------|------|
-| `src/pages/ResourceStats.tsx` | 新增 `selectedEnterpriseOrg`、`enterpriseMemberFilter`、`committedEnterpriseMember` 状态；新增企业维度 mock 数据（排行榜、Key 占比、拦截原因、财务数据）；新增 enterprise_admin 顶部控制条；新增企业财务看板横幅；新增组织消耗排行榜卡片；扩展 APIkey 分析卡片至 enterprise_admin；引入 `TrendingUp` 图标 |
+| `src/pages/CallLogs.tsx` | 新建，包含三个 Tab（使用日志/绘图日志/任务日志）、筛选条、统计摘要、数据表格、分页 |
+| `src/pages/Workspace.tsx` | 注册 `/workspace/logs` 路由，引入 CallLogs 组件 |
 
 ## 不涉及内容
 - 数据库：无需变动
