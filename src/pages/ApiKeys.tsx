@@ -539,88 +539,72 @@ export default function ApiKeys({ enterprise, role }: Props) {
 
   return (
     <div>
-      {/* 第一行：标题 + Tab 切换 + 刷新 */}
-      <div className="flex items-center justify-between mb-4">
-        <div className="flex items-center gap-6">
-          <div>
-            <h1 className="text-xl font-bold text-foreground">API Key 管理</h1>
-          </div>
-          {/* 下划线页签 */}
-          <div className="flex items-center gap-0 border-b border-border">
+      {/* 第一行：标题 + 胶囊切换器 */}
+      <div className="flex items-center gap-4 mb-4">
+        <h1 className="text-xl font-bold text-foreground">API Key 管理</h1>
+        <div className="flex items-center bg-muted rounded-lg p-1 h-9">
+          <button
+            onClick={() => setActiveTab("my")}
+            className={`px-3 h-full rounded-md text-sm font-medium transition-all ${
+              activeTab === "my"
+                ? "bg-background shadow-sm text-foreground"
+                : "text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            我的 API Key
+          </button>
+          {canSeeOrgTab && (
             <button
-              onClick={() => setActiveTab("my")}
-              className={`px-4 py-2 text-sm font-medium transition-colors border-b-2 -mb-px ${
-                activeTab === "my"
-                  ? "border-primary text-primary"
-                  : "border-transparent text-muted-foreground hover:text-foreground"
+              onClick={() => setActiveTab("org")}
+              className={`px-3 h-full rounded-md text-sm font-medium transition-all ${
+                activeTab === "org"
+                  ? "bg-background shadow-sm text-foreground"
+                  : "text-muted-foreground hover:text-foreground"
               }`}
             >
-              我的 API Key
+              组织 API Key
             </button>
-            {canSeeOrgTab && (
-              <button
-                onClick={() => setActiveTab("org")}
-                className={`px-4 py-2 text-sm font-medium transition-colors border-b-2 -mb-px ${
-                  activeTab === "org"
-                    ? "border-primary text-primary"
-                    : "border-transparent text-muted-foreground hover:text-foreground"
-                }`}
-              >
-                组织 API Key
-              </button>
-            )}
-          </div>
+          )}
         </div>
-        {/* 刷新图标 */}
-        <button
-          onClick={() => { fetchMyKeys(); fetchOrgKeys(); }}
-          className="p-2 rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
-          title="刷新"
-        >
-          <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin" : ""}`} />
-        </button>
       </div>
 
-      {/* 第二行：创建按钮 + 搜索筛选栏（图2样式） */}
+      {/* 第二行：创建按钮（左） + 搜索栏+刷新（右） */}
       <div className="flex items-center justify-between mb-5">
         <Button onClick={openCreate} className="gap-2 h-9">
           <Plus className="w-4 h-4" />创建 API Key
         </Button>
-        <div className="flex items-center gap-0 border border-border rounded-md overflow-hidden h-9">
-          {/* 名称搜索 */}
-          <div className="flex items-center px-3 gap-1.5 border-r border-border h-full bg-background">
-            <span className="text-xs text-muted-foreground whitespace-nowrap">名称</span>
+        <div className="flex items-center gap-2">
+          {/* 名称 label + 输入框 */}
+          <div className="flex items-center gap-1.5">
+            <span className="text-sm text-muted-foreground whitespace-nowrap">名称</span>
             <Input
               placeholder="请输入名称"
-              className="border-0 shadow-none h-full p-0 text-sm w-36 focus-visible:ring-0 focus-visible:ring-offset-0 bg-transparent"
+              className="h-9 w-36"
               value={nameSearch}
               onChange={e => setNameSearch(e.target.value)}
             />
           </div>
-          {/* API Key 搜索 */}
-          <div className="flex items-center px-3 gap-1.5 border-r border-border h-full bg-background">
-            <span className="text-xs text-muted-foreground whitespace-nowrap">API Key</span>
+          {/* API Key label + 输入框 */}
+          <div className="flex items-center gap-1.5">
+            <span className="text-sm text-muted-foreground whitespace-nowrap">API Key</span>
             <Input
               placeholder="请输入 API Key"
-              className="border-0 shadow-none h-full p-0 text-sm w-36 focus-visible:ring-0 focus-visible:ring-offset-0 bg-transparent"
+              className="h-9 w-40"
               value={apiKeySearch}
               onChange={e => setApiKeySearch(e.target.value)}
             />
           </div>
           {/* 搜索按钮 */}
-          <button
-            className="px-4 h-full bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 transition-colors whitespace-nowrap"
-            onClick={() => {/* 搜索已是实时响应 */}}
-          >
-            搜索
-          </button>
+          <Button className="h-9 px-4">搜索</Button>
           {/* 重置按钮 */}
+          <Button variant="outline" className="h-9 px-3" onClick={handleReset}>重置</Button>
+          {/* 刷新图标 */}
           <button
-            className="px-3 h-full bg-background text-muted-foreground hover:text-foreground border-l border-border text-sm transition-colors whitespace-nowrap"
-            onClick={handleReset}
-            title="重置"
+            onClick={() => { fetchMyKeys(); fetchOrgKeys(); }}
+            className="h-9 w-9 flex items-center justify-center rounded-md border border-border hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
+            title="刷新"
           >
-            重置
+            <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin" : ""}`} />
           </button>
         </div>
       </div>
