@@ -27,17 +27,31 @@ interface Enterprise {
   enterprise_code: string;
 }
 
+interface OrgInfo {
+  id: string;
+  name: string;
+}
+
 interface EnterpriseItem {
   enterprises: Enterprise | null;
+  organizations: OrgInfo | null;
   role: string;
 }
 
+interface EnterpriseEntry {
+  enterprise: Enterprise;
+  role: string;
+  org: OrgInfo | null;
+}
+
 export default function Workspace() {
-  const [enterprises, setEnterprises] = useState<{ enterprise: Enterprise; role: string }[]>([]);
+  const [enterprises, setEnterprises] = useState<EnterpriseEntry[]>([]);
   const [enterprise, setEnterprise] = useState<Enterprise | null>(null);
+  const [currentOrg, setCurrentOrg] = useState<OrgInfo | null>(null);
   const [role, setRole] = useState("member");
   const [loading, setLoading] = useState(true);
   const [showSelector, setShowSelector] = useState(false);
+  const [userName, setUserName] = useState<string | null>(null);
 
   // user menu state
   const [userMenuOpen, setUserMenuOpen] = useState(false);
@@ -63,9 +77,10 @@ export default function Workspace() {
     navigate("/login");
   };
 
-  const selectEnterprise = (ent: Enterprise, r: string) => {
+  const selectEnterprise = (ent: Enterprise, r: string, org: OrgInfo | null = null) => {
     setEnterprise(ent);
     setRole(r);
+    setCurrentOrg(org);
     setShowSelector(false);
     localStorage.setItem(LAST_ENTERPRISE_KEY, ent.id);
     setUserMenuOpen(false);
@@ -95,8 +110,13 @@ export default function Workspace() {
     const members = await getUserEnterprises(phone);
     const list = (members as EnterpriseItem[])
       .filter(m => m.enterprises)
-      .map(m => ({ enterprise: m.enterprises!, role: m.role }));
+      .map(m => ({ enterprise: m.enterprises!, role: m.role, org: m.organizations || null }));
     setEnterprises(list);
+
+    // Also load user name
+    const { data: userData } = await (await import("@/integrations/supabase/client")).supabase
+      .from("users").select("name").eq("phone", phone).maybeSingle();
+    if (userData?.name) setUserName(userData.name);
 
     if (list.length === 0) {
       setEnterprise(null);
@@ -106,6 +126,7 @@ export default function Workspace() {
     if (list.length === 1) {
       setEnterprise(list[0].enterprise);
       setRole(list[0].role);
+      setCurrentOrg(list[0].org);
       localStorage.setItem(LAST_ENTERPRISE_KEY, list[0].enterprise.id);
       setLoading(false);
       return;
@@ -116,6 +137,7 @@ export default function Workspace() {
     if (found) {
       setEnterprise(found.enterprise);
       setRole(found.role);
+      setCurrentOrg(found.org);
       setLoading(false);
     } else {
       setShowSelector(true);
@@ -180,10 +202,10 @@ export default function Workspace() {
             <p className="text-muted-foreground text-sm mt-1">你拥有多个企业，请选择一个进入</p>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            {enterprises.map(({ enterprise: ent, role: r }) => (
+            {enterprises.map(({ enterprise: ent, role: r, org }) => (
               <button
                 key={ent.id}
-                onClick={() => selectEnterprise(ent, r)}
+                onClick={() => selectEnterprise(ent, r, org)}
                 className="bg-card border border-border rounded-xl p-6 text-left hover:border-primary hover:shadow-md transition-all group"
               >
                 <div className="flex items-center gap-3 mb-3">
@@ -214,6 +236,17 @@ export default function Workspace() {
     { label: "本月调用", value: "—", icon: TrendingUp, color: "hsl(32,90%,55%)" },
   ];
 
+  // ── Role label helper ──
+  const roleLabel = (r: string) => r === "admin" ? "管理员" : r === "org_admin" ? "组织管理员" : "普通成员";
+
+  // ── Identity description ──
+  const identityDesc = enterprise
+    ? [enterprise.name, currentOrg?.name, roleLabel(role)].filter(Boolean).join(" · ")
+    : null;
+
+  // ── Avatar initials ──
+  const avatarText = userName ? userName.slice(0, 1) : phone?.slice(-2) ?? "?";
+
   // ── User menu dropdown ──
   const UserMenu = () => (
     <div className="relative" ref={userMenuRef}>
@@ -223,26 +256,27 @@ export default function Workspace() {
       >
         <div className="w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-semibold"
           style={{ background: "linear-gradient(135deg, hsl(224,76%,48%), hsl(262,60%,58%))" }}>
-          {phone?.slice(-4)}
+          {avatarText}
         </div>
-        <span className="text-sm text-foreground hidden sm:block">{phone}</span>
+        <span className="text-sm text-foreground hidden sm:block">{userName || phone}</span>
         <ChevronDown className={`w-4 h-4 text-muted-foreground transition-transform ${userMenuOpen ? "rotate-180" : ""}`} />
       </button>
 
       {userMenuOpen && (
-        <div className="absolute right-0 top-full mt-1 w-56 bg-popover border border-border rounded-xl shadow-xl z-50 overflow-hidden">
+        <div className="absolute right-0 top-full mt-1 w-64 bg-popover border border-border rounded-xl shadow-xl z-50 overflow-hidden">
           {/* Header */}
-          <div className="px-4 py-3 border-b border-border">
-            <p className="text-xs text-muted-foreground">当前账号</p>
-            <p className="text-sm font-semibold text-foreground truncate">{phone}</p>
-            {enterprise && (
-              <div className="flex items-center gap-1.5 mt-1">
-                <span className="text-xs text-muted-foreground font-mono">{enterprise.enterprise_code}</span>
-                <button onClick={handleCopyCode} className="text-muted-foreground hover:text-foreground transition-colors">
-                  {copiedCode ? <Check className="w-3 h-3 text-primary" /> : <Copy className="w-3 h-3" />}
-                </button>
-              </div>
-            )}
+          <div className="px-4 py-3 border-b border-border flex gap-3 items-start">
+            <div className="w-9 h-9 rounded-full flex items-center justify-center text-white text-sm font-semibold shrink-0"
+              style={{ background: "linear-gradient(135deg, hsl(224,76%,48%), hsl(262,60%,58%))" }}>
+              {avatarText}
+            </div>
+            <div className="min-w-0">
+              <p className="text-sm font-semibold text-foreground truncate">{userName || `用户${phone?.slice(-4)}`}</p>
+              <p className="text-xs text-muted-foreground truncate">{phone}</p>
+              {identityDesc && (
+                <p className="text-[11px] text-primary bg-primary/8 rounded px-1.5 py-0.5 mt-1 truncate">{identityDesc}</p>
+              )}
+            </div>
           </div>
 
           {/* Switch enterprise or create/join */}
@@ -260,23 +294,26 @@ export default function Workspace() {
               </button>
               {switchMenuOpen && (
                 <div
-                  className="absolute right-full top-0 mr-1 w-48 bg-popover border border-border rounded-xl shadow-xl z-50 py-1 overflow-hidden"
+                  className="absolute right-full top-0 mr-1 w-56 bg-popover border border-border rounded-xl shadow-xl z-50 py-1 overflow-hidden"
                   onMouseEnter={() => setSwitchMenuOpen(true)}
                   onMouseLeave={() => setSwitchMenuOpen(false)}
                 >
-                  {enterprises.map(({ enterprise: ent, role: r }) => (
+                  {enterprises.map(({ enterprise: ent, role: r, org }) => (
                     <button
                       key={ent.id}
-                      onClick={() => selectEnterprise(ent, r)}
-                      className={`w-full flex items-center gap-2 px-3 py-2 text-sm transition-colors ${
+                      onClick={() => selectEnterprise(ent, r, org)}
+                      className={`w-full flex items-start gap-2 px-3 py-2.5 text-sm transition-colors ${
                         enterprise?.id === ent.id
                           ? "bg-primary/10 text-primary"
                           : "text-foreground hover:bg-muted"
                       }`}
                     >
-                      <Building2 className="w-3.5 h-3.5 shrink-0" />
-                      <span className="flex-1 text-left truncate">{ent.name}</span>
-                      {enterprise?.id === ent.id && <Check className="w-3 h-3 shrink-0" />}
+                      <Building2 className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+                      <div className="flex-1 text-left min-w-0">
+                        <div className="truncate font-medium">{ent.name}</div>
+                        <div className="text-[11px] text-muted-foreground">{roleLabel(r)}</div>
+                      </div>
+                      {enterprise?.id === ent.id && <Check className="w-3 h-3 shrink-0 mt-0.5" />}
                     </button>
                   ))}
                   <div className="border-t border-border mt-1 pt-1">
@@ -286,31 +323,17 @@ export default function Workspace() {
                     >
                       <Plus className="w-3.5 h-3.5" />创建企业
                     </button>
-                    <button
-                      onClick={() => { setShowJoinEnterprise(true); setUserMenuOpen(false); setSwitchMenuOpen(false); }}
-                      className="w-full flex items-center gap-2 px-3 py-2 text-sm text-foreground hover:bg-muted transition-colors"
-                    >
-                      <UserPlus className="w-3.5 h-3.5" />加入企业
-                    </button>
                   </div>
                 </div>
               )}
             </div>
           ) : (
-            <>
-              <button
-                onClick={() => { setShowCreateEnterprise(true); setUserMenuOpen(false); }}
-                className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-foreground hover:bg-muted transition-colors"
-              >
-                <Plus className="w-4 h-4 text-muted-foreground" />创建企业
-              </button>
-              <button
-                onClick={() => { setShowJoinEnterprise(true); setUserMenuOpen(false); }}
-                className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-foreground hover:bg-muted transition-colors"
-              >
-                <UserPlus className="w-4 h-4 text-muted-foreground" />加入企业
-              </button>
-            </>
+            <button
+              onClick={() => { setShowCreateEnterprise(true); setUserMenuOpen(false); }}
+              className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-foreground hover:bg-muted transition-colors"
+            >
+              <Plus className="w-4 h-4 text-muted-foreground" />创建企业
+            </button>
           )}
 
           <div className="border-t border-border">

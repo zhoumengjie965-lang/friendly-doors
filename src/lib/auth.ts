@@ -45,7 +45,7 @@ export async function getPendingInvitations(phone: string) {
 export async function getUserEnterprises(phone: string) {
   const { data } = await supabase
     .from("members")
-    .select("*, enterprises(id, name, enterprise_code)")
+    .select("*, enterprises(id, name, enterprise_code), organizations(id, name)")
     .eq("user_phone", phone);
   return data || [];
 }
