@@ -21,16 +21,16 @@ interface Props {
 
 // ── Mock data ──
 const mockUsageLogs = [
-  { time: "2026-03-03 11:15:44", apiKey: "test", group: "default", type: "错误", model: "mock-error", duration: "0s", streaming: "非流", input: 0, output: 0, cost: 0, ip: "10.244.109.64", detail: "Incorrect API key provided. You can find your API key at https://***.com/***/**" },
-  { time: "2026-03-03 11:14:22", apiKey: "prod", group: "default", type: "成功", model: "gpt-4o", duration: "1.2s", streaming: "流式", input: 156, output: 312, cost: 0.003, ip: "10.244.109.65", detail: "Request completed successfully." },
-  { time: "2026-03-03 11:13:01", apiKey: "test", group: "dev", type: "错误", model: "mock-error", duration: "0s", streaming: "非流", input: 0, output: 0, cost: 0, ip: "10.244.109.66", detail: "Rate limit exceeded. Please try again later." },
-  { time: "2026-03-03 11:12:55", apiKey: "prod", group: "default", type: "成功", model: "claude-3-5-sonnet", duration: "2.3s", streaming: "流式", input: 240, output: 480, cost: 0.008, ip: "10.244.109.67", detail: "Request completed successfully." },
-  { time: "2026-03-03 11:11:33", apiKey: "dev-key", group: "dev", type: "成功", model: "gpt-4o-mini", duration: "0.8s", streaming: "非流", input: 88, output: 120, cost: 0.001, ip: "10.244.109.68", detail: "Request completed successfully." },
-  { time: "2026-03-03 11:10:14", apiKey: "test", group: "default", type: "错误", model: "mock-error", duration: "0s", streaming: "非流", input: 0, output: 0, cost: 0, ip: "10.244.109.64", detail: "Incorrect API key provided. You can find your API key at https://***.com/***/**" },
-  { time: "2026-03-03 11:09:02", apiKey: "prod", group: "finance", type: "成功", model: "gpt-4o", duration: "1.8s", streaming: "流式", input: 320, output: 640, cost: 0.012, ip: "10.244.109.69", detail: "Request completed successfully." },
-  { time: "2026-03-03 11:08:47", apiKey: "dev-key", group: "dev", type: "成功", model: "claude-3-haiku", duration: "0.5s", streaming: "非流", input: 64, output: 96, cost: 0.001, ip: "10.244.109.70", detail: "Request completed successfully." },
-  { time: "2026-03-03 11:07:30", apiKey: "test", group: "default", type: "错误", model: "mock-error", duration: "0s", streaming: "非流", input: 0, output: 0, cost: 0, ip: "10.244.109.64", detail: "Incorrect API key provided. You can find your API key at https://***.com/***/**" },
-  { time: "2026-03-03 11:06:15", apiKey: "prod", group: "default", type: "成功", model: "gpt-4o", duration: "1.5s", streaming: "流式", input: 200, output: 400, cost: 0.007, ip: "10.244.109.71", detail: "Request completed successfully." },
+  { time: "2026-03-03 11:15:44", apiKey: "test", group: "default", org: "技术部", member: "张三", type: "错误", model: "mock-error", duration: "0s", streaming: "非流", input: 0, output: 0, cost: 0, ip: "10.244.109.64", detail: "Incorrect API key provided. You can find your API key at https://***.com/***/**" },
+  { time: "2026-03-03 11:14:22", apiKey: "prod", group: "default", org: "产品部", member: "李四", type: "成功", model: "gpt-4o", duration: "1.2s", streaming: "流式", input: 156, output: 312, cost: 0.003, ip: "10.244.109.65", detail: "Request completed successfully." },
+  { time: "2026-03-03 11:13:01", apiKey: "test", group: "dev", org: "技术部", member: "王五", type: "错误", model: "mock-error", duration: "0s", streaming: "非流", input: 0, output: 0, cost: 0, ip: "10.244.109.66", detail: "Rate limit exceeded. Please try again later." },
+  { time: "2026-03-03 11:12:55", apiKey: "prod", group: "default", org: "产品部", member: "赵六", type: "成功", model: "claude-3-5-sonnet", duration: "2.3s", streaming: "流式", input: 240, output: 480, cost: 0.008, ip: "10.244.109.67", detail: "Request completed successfully." },
+  { time: "2026-03-03 11:11:33", apiKey: "dev-key", group: "dev", org: "研发部", member: "陈七", type: "成功", model: "gpt-4o-mini", duration: "0.8s", streaming: "非流", input: 88, output: 120, cost: 0.001, ip: "10.244.109.68", detail: "Request completed successfully." },
+  { time: "2026-03-03 11:10:14", apiKey: "test", group: "default", org: "技术部", member: "张三", type: "错误", model: "mock-error", duration: "0s", streaming: "非流", input: 0, output: 0, cost: 0, ip: "10.244.109.64", detail: "Incorrect API key provided. You can find your API key at https://***.com/***/**" },
+  { time: "2026-03-03 11:09:02", apiKey: "prod", group: "finance", org: "财务部", member: "周八", type: "成功", model: "gpt-4o", duration: "1.8s", streaming: "流式", input: 320, output: 640, cost: 0.012, ip: "10.244.109.69", detail: "Request completed successfully." },
+  { time: "2026-03-03 11:08:47", apiKey: "dev-key", group: "dev", org: "研发部", member: "吴九", type: "成功", model: "claude-3-haiku", duration: "0.5s", streaming: "非流", input: 64, output: 96, cost: 0.001, ip: "10.244.109.70", detail: "Request completed successfully." },
+  { time: "2026-03-03 11:07:30", apiKey: "test", group: "default", org: "技术部", member: "郑十", type: "错误", model: "mock-error", duration: "0s", streaming: "非流", input: 0, output: 0, cost: 0, ip: "10.244.109.64", detail: "Incorrect API key provided. You can find your API key at https://***.com/***/**" },
+  { time: "2026-03-03 11:06:15", apiKey: "prod", group: "default", org: "产品部", member: "李四", type: "成功", model: "gpt-4o", duration: "1.5s", streaming: "流式", input: 200, output: 400, cost: 0.007, ip: "10.244.109.71", detail: "Request completed successfully." },
 ];
 
 const mockTaskLogs = [
@@ -138,12 +138,39 @@ function PaginationFooter({
 }
 
 // ── Tab 1: 使用日志 ──
-function UsageLogsTab() {
+function UsageLogsTab({ role }: { role: string }) {
   const [expanded, setExpanded] = useState(false);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
+  const [filterGroup, setFilterGroup] = useState("all");
+  const [filterType, setFilterType] = useState("all");
+  const [filterOrg, setFilterOrg] = useState("all");
+  const [filterMember, setFilterMember] = useState("all");
 
-  const paginated = mockUsageLogs.slice((page - 1) * pageSize, page * pageSize);
+  const isEnterpriseAdmin = role === "enterprise_admin";
+  const isOrgAdmin = role === "org_admin";
+
+  const allGroups = Array.from(new Set(mockUsageLogs.map(r => r.group)));
+  const allOrgs = Array.from(new Set(mockUsageLogs.map(r => r.org)));
+  const allMembers = Array.from(new Set(mockUsageLogs.map(r => r.member)));
+
+  const filtered = mockUsageLogs.filter(r => {
+    if (filterGroup !== "all" && r.group !== filterGroup) return false;
+    if (filterType !== "all" && r.type !== filterType) return false;
+    if (isEnterpriseAdmin && filterOrg !== "all" && r.org !== filterOrg) return false;
+    if (isOrgAdmin && filterMember !== "all" && r.member !== filterMember) return false;
+    return true;
+  });
+
+  const paginated = filtered.slice((page - 1) * pageSize, page * pageSize);
+
+  // Build table columns dynamically
+  const baseHeaders = ["时间", "APIKey", "分组", "类型", "模型", "用时/首字", "输入", "输出", "花费", "IP", "详情"];
+  const headers = isEnterpriseAdmin
+    ? ["时间", "APIKey", "组织", "分组", "类型", "模型", "用时/首字", "输入", "输出", "花费", "IP", "详情"]
+    : isOrgAdmin
+    ? ["时间", "APIKey", "成员", "分组", "类型", "模型", "用时/首字", "输入", "输出", "花费", "IP", "详情"]
+    : baseHeaders;
 
   return (
     <div className="space-y-4">
@@ -163,12 +190,57 @@ function UsageLogsTab() {
             <span className="text-sm text-muted-foreground whitespace-nowrap">APIKey</span>
             <Input className="h-9 w-44 text-sm" placeholder="请输入APIKey名称" />
           </div>
+          {/* 企业管理员：组织下拉 */}
+          {isEnterpriseAdmin && (
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-muted-foreground whitespace-nowrap">组织</span>
+              <Select value={filterOrg} onValueChange={v => { setFilterOrg(v); setPage(1); }}>
+                <SelectTrigger className="h-9 w-32 text-sm"><SelectValue placeholder="全部" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">全部</SelectItem>
+                  {allOrgs.map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+          {/* 组织管理员：成员下拉 */}
+          {isOrgAdmin && (
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-muted-foreground whitespace-nowrap">成员</span>
+              <Select value={filterMember} onValueChange={v => { setFilterMember(v); setPage(1); }}>
+                <SelectTrigger className="h-9 w-32 text-sm"><SelectValue placeholder="全部" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">全部</SelectItem>
+                  {allMembers.map(m => <SelectItem key={m} value={m}>{m}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+          {/* 分组下拉 */}
           <div className="flex items-center gap-2">
             <span className="text-sm text-muted-foreground whitespace-nowrap">分组</span>
-            <Input className="h-9 w-40 text-sm" placeholder="请输入分组名称" />
+            <Select value={filterGroup} onValueChange={v => { setFilterGroup(v); setPage(1); }}>
+              <SelectTrigger className="h-9 w-32 text-sm"><SelectValue placeholder="全部" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">全部</SelectItem>
+                {allGroups.map(g => <SelectItem key={g} value={g}>{g}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </div>
+          {/* 类型下拉 */}
+          <div className="flex items-center gap-2">
+            <span className="text-sm text-muted-foreground whitespace-nowrap">类型</span>
+            <Select value={filterType} onValueChange={v => { setFilterType(v); setPage(1); }}>
+              <SelectTrigger className="h-9 w-28 text-sm"><SelectValue placeholder="全部" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">全部</SelectItem>
+                <SelectItem value="成功">成功</SelectItem>
+                <SelectItem value="错误">错误</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
           <Button size="sm" className="h-9">搜索</Button>
-          <Button size="sm" variant="outline" className="h-9">重置</Button>
+          <Button size="sm" variant="outline" className="h-9" onClick={() => { setFilterGroup("all"); setFilterType("all"); setFilterOrg("all"); setFilterMember("all"); }}>重置</Button>
           <Button
             size="sm" variant="ghost" className="h-9 gap-1 text-muted-foreground"
             onClick={() => setExpanded(v => !v)}
@@ -186,17 +258,6 @@ function UsageLogsTab() {
             <div className="flex items-center gap-2">
               <span className="text-sm text-muted-foreground whitespace-nowrap">IP</span>
               <Input className="h-9 w-40 text-sm" placeholder="请输入IP地址" />
-            </div>
-            <div className="flex items-center gap-2">
-              <span className="text-sm text-muted-foreground whitespace-nowrap">类型</span>
-              <Select>
-                <SelectTrigger className="h-9 w-28 text-sm"><SelectValue placeholder="全部" /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">全部</SelectItem>
-                  <SelectItem value="success">成功</SelectItem>
-                  <SelectItem value="error">错误</SelectItem>
-                </SelectContent>
-              </Select>
             </div>
           </div>
         )}
@@ -225,7 +286,7 @@ function UsageLogsTab() {
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-border bg-muted/40">
-                {["时间", "APIKey", "分组", "类型", "模型", "用时/首字", "输入", "输出", "花费", "IP", "详情"].map(h => (
+                {headers.map(h => (
                   <th key={h} className="px-3 py-2.5 text-left text-xs font-medium text-muted-foreground whitespace-nowrap">{h}</th>
                 ))}
               </tr>
@@ -237,6 +298,12 @@ function UsageLogsTab() {
                   <td className="px-3 py-2.5">
                     <span className={`text-xs px-2 py-0.5 rounded ${getApiKeyColor(row.apiKey)}`}>{row.apiKey}</span>
                   </td>
+                  {isEnterpriseAdmin && (
+                    <td className="px-3 py-2.5 text-xs text-foreground whitespace-nowrap">{row.org}</td>
+                  )}
+                  {isOrgAdmin && (
+                    <td className="px-3 py-2.5 text-xs text-foreground whitespace-nowrap">{row.member}</td>
+                  )}
                   <td className="px-3 py-2.5 text-xs text-foreground">{row.group}</td>
                   <td className="px-3 py-2.5">
                     {row.type === "错误"
@@ -266,7 +333,7 @@ function UsageLogsTab() {
           </table>
         </div>
         <PaginationFooter
-          total={mockUsageLogs.length}
+          total={filtered.length}
           page={page}
           pageSize={pageSize}
           onPageChange={setPage}
@@ -440,7 +507,7 @@ export default function CallLogs({ enterprise, role }: Props) {
         </TabsList>
 
         <TabsContent value="usage" className="mt-4">
-          <UsageLogsTab />
+          <UsageLogsTab role={role} />
         </TabsContent>
         <TabsContent value="drawing" className="mt-4">
           <DrawingLogsTab />
