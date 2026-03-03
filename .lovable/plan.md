@@ -1,139 +1,101 @@
 
-# UI & 逻辑重构：全局组织上下文与创建归属明确化
+# 资源统计页面复现方案
 
-## 问题诊断
+## 参考图分析
 
-1. **RLS 报错根因**：`handleSave` 中创建时硬编码 `p_organization_id: null`，即使用户选中了某个组织也不传入正确的 `organization_id`。
-2. **组织选择器耦合在 Tab 内**：组织下拉嵌在胶囊切换器里，交互逻辑混乱，"组织 API Key" 看的是该组织所有 Key，但创建时归属不明。
-3. **视图语义不清**：`activeTab === "my"` 时创建的 Key 到底归属哪个组织？目前没有提示。
+参考图包含三大区域：
+
+**区域一：顶部指标卡片（2行布局）**
+- 左侧大卡：钱包图标（橙色圆形背景）+ "统计额度" + "¥2.27"
+- 右上：统计次数 29（粉红色 Activity 图标）
+- 右下：统计Tokens 14.4K（蓝色数据库图标）
+- 右上角：平均RPM 0.001（绿色闪电图标）
+- 右下角：平均TPM 0.357（紫色柱状图图标）
+
+**区域二：右上角日期范围选择器 + 刷新按钮**
+- 日历图标 + "2024-02-01 ~ 2024-02-29" + 下拉箭头
+- 刷新图标按钮
+
+**区域三：模型数据分析卡片（堆叠柱状图）**
+- 标题：网格图标 + "模型数据分析"
+- 子页签：[模型消耗分布] [模型调用分布]（胶囊样式）
+- 右侧：[按天显示] 切换
+- 堆叠柱状图：X轴日期，Y轴Tokens，图例：Claude 3（绿）/ GPT-4（蓝）/ Gemini Pro（紫）
 
 ---
 
-## 重构方案
+## 技术方案
 
-### 视觉结构（三行式）
+### 1. 新建页面文件 `src/pages/ResourceStats.tsx`
 
-```text
-行1: [API Key 管理]  [组织选择器: 下拉 Select ▼]         (全局上下文，带 Building2 图标)
-行2: [我的 API Key] [组织 API Key]                       (纯粹的角色视图切换，胶囊样式)
-行3: [+ 创建 API Key]  提示文字    名称[___] API Key[___] [搜索][重置][↺]
-```
+**组件结构：**
+- 使用 `recharts` 的 `BarChart` + `Bar` + `XAxis` + `YAxis` + `Tooltip` + `Legend` 实现堆叠柱状图
+- 日期选择器用自定义 `Popover` + `Calendar`（`react-day-picker`）实现日期范围选择
+- 数据从 Supabase 数据库查询（`api_key_logs` 或类似表），当前为 mock 数据展示
 
----
-
-## 具体改动（仅 `src/pages/ApiKeys.tsx`）
-
-### 1. 新增全局组织选择器（第一行）
-
-将组织选择抽离为独立的 `Select` 组件，放在标题右侧，带 `Building2` 图标增强视觉存在感：
-
-```tsx
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Building2 } from "lucide-react";
-
-// 第一行：标题 + 全局组织选择器
-<div className="flex items-center gap-3 mb-3">
-  <h1 className="text-xl font-bold text-foreground">API Key 管理</h1>
-  {canSeeOrgTab && organizations.length > 0 && (
-    <div className="flex items-center gap-2 ml-2">
-      <Building2 className="w-4 h-4 text-muted-foreground" />
-      <Select value={selectedOrgId ?? ""} onValueChange={(val) => {
-        setSelectedOrgId(val);
-        fetchOrgKeys(val);     // 联动刷新组织 Key
-        fetchMyKeys();         // 同步刷新我的 Key（按需）
-      }}>
-        <SelectTrigger className="h-9 w-48 border-border shadow-sm font-medium">
-          <SelectValue placeholder="选择组织..." />
-        </SelectTrigger>
-        <SelectContent>
-          {organizations.map(org => (
-            <SelectItem key={org.id} value={org.id}>{org.name}</SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
-    </div>
-  )}
-</div>
-```
-
-### 2. 简化第二行胶囊 Tab（纯视图切换，无下拉）
-
-去掉 `DropdownMenu` 包裹，"组织 API Key" 变回简单按钮，不再有 `ChevronDown`：
-
-```tsx
-// 第二行：纯胶囊切换
-<div className="flex items-center gap-4 mb-4">
-  <div className="flex items-center bg-muted rounded-lg p-1 h-9">
-    <button onClick={() => setActiveTab("my")} className={...}>我的 API Key</button>
-    {canSeeOrgTab && (
-      <button onClick={() => setActiveTab("org")} className={...}>组织 API Key</button>
-    )}
-  </div>
-</div>
-```
-
-### 3. 第三行：创建按钮 + 归属提示 + 搜索栏
-
-在"创建 API Key"按钮右侧添加灰色小提示文字，动态显示归属上下文：
-
-```tsx
-<div className="flex items-center justify-between mb-5">
-  <div className="flex items-center gap-3">
-    <Button onClick={openCreate} className="gap-2 h-9">
-      <Plus className="w-4 h-4" />创建 API Key
-    </Button>
-    {/* 归属提示文字 */}
-    <span className="text-xs text-muted-foreground">
-      提示：Key 将归属于{" "}
-      <span className="font-medium text-foreground">
-        {selectedOrgId
-          ? organizations.find(o => o.id === selectedOrgId)?.name ?? "当前组织"
-          : "个人空间"}
-      </span>
-    </span>
-  </div>
-  {/* 右侧搜索栏不变 */}
-  ...
-</div>
-```
-
-### 4. 修复创建时传入正确的 `organization_id`（核心 RLS 修复）
-
-修改 `handleSave` 中的 `p_organization_id`，从全局状态读取：
-
+**状态管理：**
 ```ts
-// 修改前（硬编码 null，导致创建失败）
-p_organization_id: null,
-
-// 修改后（从全局上下文读取）
-p_organization_id: selectedOrgId,
+const [dateRange, setDateRange] = useState({ from: startOfMonth, to: endOfMonth });
+const [activeSubTab, setActiveSubTab] = useState<"consumption" | "calls">("consumption");
+const [granularity, setGranularity] = useState<"day" | "hour">("day");
+const [chartData, setChartData] = useState([]);
 ```
 
-### 5. 删除 `orgDropdownOpen` 状态（不再需要）
+**指标卡数据（上方五个指标）：**
+- 统计额度 (¥)
+- 统计次数
+- 统计 Tokens
+- 平均 RPM
+- 平均 TPM
 
-`orgDropdownOpen` 状态及相关逻辑全部移除，代码更简洁。
+### 2. 修改 `src/pages/Workspace.tsx`
+
+在路由判断链中添加 `/workspace/stats` 的处理：
+
+```tsx
+import ResourceStats from "@/pages/ResourceStats";
+
+// 在 location.pathname 判断链中添加：
+} : location.pathname === "/workspace/stats" ? (
+  <ResourceStats enterprise={enterprise} role={role} />
+) : (
+```
 
 ---
 
-## 联动逻辑总结
+## 页面布局细节
 
-| 用户操作 | 联动效果 |
-|---|---|
-| 切换全局组织选择器 | `selectedOrgId` 更新 → `fetchOrgKeys(newOrgId)` 触发 → 组织 Tab 数据刷新 |
-| 点击"我的 API Key" Tab | `activeTab = "my"` → 显示个人 Key 列表 |
-| 点击"组织 API Key" Tab | `activeTab = "org"` → 显示当前 `selectedOrgId` 对应的 Key |
-| 点击"创建 API Key" | 打开 Sheet，提交时传入 `p_organization_id: selectedOrgId` |
-| 点击刷新 | 根据 `activeTab` 刷新对应列表 |
+### 顶部操作栏（标题 + 日期选择器）
+```text
+[网格图标] 资源统计                    [📅 日期范围 ▼] [↺]
+```
+
+### 指标卡片区（两列网格，左侧大卡跨行）
+```text
+┌─────────────────┬──────────────┬──────────────┐
+│  💰 统计额度     │ 📊 统计次数  │ ⚡ 平均RPM   │
+│     ¥2.27        │     29        │    0.001      │
+│                 ├──────────────┼──────────────┤
+│                 │ 🗄 统计Token │ 📈 平均TPM   │
+│                 │    14.4K      │    0.357      │
+└─────────────────┴──────────────┴──────────────┘
+```
+实现：`grid grid-cols-3`，左侧卡片 `row-span-2`
+
+### 图表区
+- 堆叠柱状图：`recharts` BarChart，`stackId="a"`
+- 子 Tab 胶囊（模型消耗分布 / 模型调用分布）
+- "按天显示" 切换按钮右对齐
 
 ---
 
 ## 涉及文件
 
-| 文件 | 改动范围 |
-|---|---|
-| `src/pages/ApiKeys.tsx` | 重构头部三行布局，修复 `handleSave` 中 `p_organization_id` 传参，移除 `orgDropdownOpen` 状态 |
+| 文件 | 改动 |
+|------|------|
+| `src/pages/ResourceStats.tsx` | 新建，完整实现资源统计页面 |
+| `src/pages/Workspace.tsx` | 添加 `/workspace/stats` 路由分支 + import |
 
-## 不涉及内容
-- 数据库迁移：无需
-- 表格、抽屉 Sheet：内容不变
-- 其他页面：无影响
+## 数据处理
+- 指标卡与图表暂用 mock 数据呈现 UI 结构
+- 图表颜色：Claude 3（#4ade80绿）、GPT-4（#60a5fa蓝）、Gemini Pro（#a78bfa紫），与参考图一致
