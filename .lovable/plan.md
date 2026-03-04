@@ -1,64 +1,50 @@
 
-用户想做一个**完全独立**的管理端（平台运营管理、计费、模型配置、数据监控），管理员账户与客户端用户完全隔离。
+## 计划：管理端新增「使用日志」页（含三个子标签）
 
-## 建议方案：在当前项目中新增 `/admin` 路由
+### 现状
+- 管理端 `AdminLayout.tsx` 目前有 6 个导航项，没有日志相关页面
+- 客户端 `CallLogs.tsx` 已实现完整的三标签日志页：使用日志、绘图日志、任务日志，含分页、筛选、mock 数据
 
-**理由：**
-- 共用同一套数据库，无需重复配置后端
-- 演示时切换方便（同一域名，不同路径）
-- 代码复用（组件、Supabase client、工具函数）
-- 无需维护两个项目的依赖和部署
+### 方案
 
-**访问隔离方式：**
-- 管理端入口：`/admin/login`，独立登录页
-- 后台管理员账号存储在新表 `admin_users`（手机号+密码或固定账号）
-- 路由保护：`/admin/*` 检查 `localStorage` 中的 admin session，未登录跳转 `/admin/login`
-- 客户端 `/workspace/*` 和管理端 `/admin/*` 完全隔离，互不影响
+**新建 `src/pages/admin/AdminCallLogs.tsx`**
 
-## 管理端页面规划（初版 demo）
+从客户端 `CallLogs.tsx` 移植三个标签页的完整逻辑（含 mock 数据、筛选栏、分页组件），适配管理端场景：
+- 移除客户端特有的 `role`/`enterprise` props 限制，改为固定展示企业列（因管理端视角是全平台，默认显示"企业"列）
+- 保留三标签结构：使用日志 / 绘图日志 / 任务日志
+- 使用日志表格：增加「企业」列（跨企业视角）
+- 绘图日志、任务日志：结构保持一致
 
+**更新 `src/pages/admin/AdminLayout.tsx`**
+
+在「控制台」分组中新增「使用日志」导航项，路由 `call-logs`：
 ```text
-/admin/login              管理员登录页（账号密码）
-/admin                    重定向到 /admin/dashboard
-/admin/dashboard          数据总览（企业数、用户数、调用量、余额概览）
-/admin/enterprises        企业列表（搜索、查看详情、认证审核）
-/admin/users              用户列表（搜索手机号、查看所属企业）
-/admin/billing            计费管理（充值、兑换码生成与管理）
-/admin/models             模型配置（上下架、计费规则）
-/admin/stats              全局统计（调用量、收入趋势图）
+── 控制台 ──
+  数据总览     (dashboard)
+  使用日志     (call-logs)  ← 新增
+── 运营管理 ──
+  企业管理 / 用户管理 / 计费管理
+── 配置管理 ──
+  模型配置
+── 系统 ──
+  全局统计
 ```
 
-## 技术方案
+同时将侧边栏导航改为带分组标题的结构（替换当前的平铺列表），宽度加到 `w-60`。
 
-**新增文件：**
-- `src/pages/admin/AdminLogin.tsx` — 登录页
-- `src/pages/admin/AdminDashboard.tsx` — 数据总览
-- `src/pages/admin/AdminEnterprises.tsx` — 企业管理
-- `src/pages/admin/AdminUsers.tsx` — 用户管理
-- `src/pages/admin/AdminBilling.tsx` — 计费管理
-- `src/pages/admin/AdminLayout.tsx` — 管理端布局（侧边栏+顶栏）
-- `src/lib/adminAuth.ts` — 管理端鉴权逻辑
+**更新 `src/App.tsx`**
 
-**数据库：**
-- 新增 `admin_users` 表（手机号、密码哈希、权限级别）
-- 新增 RLS：仅 admin session 可读写敏感操作
-- `redeem_codes` 表新增 INSERT 权限（管理员生成兑换码）
-
-**`src/App.tsx` 新增路由：**
+`/admin/*` 路由组内已通过 `AdminLayout` 承接所有子路由，无需单独在 App.tsx 新增，只需在 AdminLayout 的 `<Routes>` 里加一条：
 ```tsx
-<Route path="/admin/login" element={<AdminLogin />} />
-<Route path="/admin/*" element={<AdminLayout />} />
+<Route path="call-logs" element={<AdminCallLogs />} />
 ```
 
-## 开发顺序（可分步实现）
+### 修改文件汇总
 
-1. 管理端登录 + 路由保护
-2. Dashboard 总览页
-3. 企业列表 + 认证审核
-4. 计费管理（充值 + 兑换码）
-5. 用户列表
-6. 全局统计图表
+| 文件 | 操作 |
+|------|------|
+| `src/pages/admin/AdminCallLogs.tsx` | 新建，移植三标签日志页 |
+| `src/pages/admin/AdminLayout.tsx` | 新增导航项 + 分组结构 + 新路由 |
 
----
-
-**先从第 1、2、3 步开始（登录 + 布局 + Dashboard + 企业管理），建立完整骨架，后续功能逐步填充。确认后即可开始实现。**
+### 无需数据库变更
+全部使用 mock 数据，与客户端 CallLogs 保持一致，后续可统一对接。
