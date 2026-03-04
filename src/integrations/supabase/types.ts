@@ -14,6 +14,33 @@ export type Database = {
   }
   public: {
     Tables: {
+      admin_users: {
+        Row: {
+          created_at: string
+          id: string
+          name: string | null
+          password_hash: string
+          phone: string
+          role: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          name?: string | null
+          password_hash: string
+          phone: string
+          role?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          name?: string | null
+          password_hash?: string
+          phone?: string
+          role?: string
+        }
+        Relationships: []
+      }
       api_keys: {
         Row: {
           allowed_models: string[] | null
@@ -413,6 +440,37 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      admin_create_redeem_code: {
+        Args: { p_amount: number; p_code: string }
+        Returns: {
+          amount: number
+          code: string
+          created_at: string
+          id: string
+          status: string
+          used_at: string | null
+          used_by: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "redeem_codes"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      admin_recharge_enterprise: {
+        Args: {
+          p_amount: number
+          p_enterprise_id: string
+          p_operator: string
+          p_remark?: string
+        }
+        Returns: undefined
+      }
+      admin_review_certification: {
+        Args: { p_enterprise_id: string; p_status: string }
+        Returns: undefined
+      }
       create_api_key: {
         Args: {
           p_allowed_models?: string[]
@@ -492,6 +550,15 @@ export type Database = {
           isOneToOne: true
           isSetofReturn: false
         }
+      }
+      verify_admin_login: {
+        Args: { p_password_hash: string; p_phone: string }
+        Returns: {
+          id: string
+          name: string
+          phone: string
+          role: string
+        }[]
       }
     }
     Enums: {

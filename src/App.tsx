@@ -10,6 +10,8 @@ import Invitations from "./pages/Invitations";
 import NoEnterprise from "./pages/NoEnterprise";
 import Workspace from "./pages/Workspace";
 import NotFound from "./pages/NotFound";
+import AdminLogin from "./pages/admin/AdminLogin";
+import AdminLayout from "./pages/admin/AdminLayout";
 
 const queryClient = new QueryClient();
 
@@ -27,6 +29,9 @@ const App = () => (
           <Route path="/no-enterprise" element={<NoEnterprise />} />
           <Route path="/workspace/*" element={<Workspace />} />
           <Route path="/invite/:id" element={<InvitePage />} />
+          {/* Admin routes */}
+          <Route path="/admin/login" element={<AdminLogin />} />
+          <Route path="/admin/*" element={<AdminLayout />} />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />
         </Routes>
