@@ -1,28 +1,32 @@
 
-## 计划：「计费管理」→「兑换码管理」
+## 计划：配置管理扩展 + 系统设置
 
-用户上传截图是 newAPI 的兑换码管理页面参考，要求：
-1. 侧边栏「计费管理」改名为「兑换码管理」，路由 `billing` → `redeem`（或保持 billing 路由不变，只改 label）
-2. 页面重构为类似截图的表格样式：顶部工具栏（添加兑换码、复制所选到剪贴板、清除失效兑换码）+ 右侧搜索框 + 表格（复选框、ID、名称、状态、额度、创建时间、过期时间、兑换人ID）
+### 当前状态
+配置管理组只有「模型配置」1项，系统分组只有「全局统计」。
 
-### 修改文件
-
-**`src/pages/admin/AdminBilling.tsx`**（重命名为 AdminRedeem 逻辑，保持文件名不动）
-- 页面标题改为"兑换码管理"
-- 移除企业充值 card，移除生成兑换码 card 的旧布局
-- 重构为新布局：
-  - 顶部工具栏：「添加兑换码」按钮（蓝色）、「复制所选兑换码到剪贴板」按钮、「清除失效兑换码」按钮（红色文字）、右侧关键字搜索框 + 查询/重置按钮
-  - 表格列：复选框 | ID | 名称（兑换码 code）| 状态（未使用/已使用 badge）| 额度 | 创建时间 | 过期时间 | 兑换人ID
-  - 空状态：显示"暂无兑换码"文字（截图中的空结果插图用文字代替）
-  - 「添加兑换码」点击弹出 Dialog，填写：名称/备注、面值、数量（1-100）、有效期（可选）
-- 保留真实 supabase 数据：`redeem_codes` 表，`admin_create_redeem_code` RPC
+### 修改内容
 
 **`src/pages/admin/AdminLayout.tsx`**
-- NAV_GROUPS 中「计费管理」label 改为「兑换码管理」，图标改为 `Ticket`（lucide）
+- 配置管理分组改为 4 项（按顺序）：渠道管理、模型管理、模型部署、系统设置
+- 系统分组保留「全局统计」，移除系统设置（系统设置放配置管理下）
+- 新增图标：`Network`（渠道）、`Cpu`（模型管理，已有）、`Layers`（模型部署）、`Settings`（系统设置）
+- 新增 4 个路由：`channels`、`models`（已有）、`model-deploy`、`settings`
 
-### 数据库
-`redeem_codes` 表现有字段：id, code, amount, status, created_at, used_by。
-- `name`/`expired_at` 字段可能不存在，显示时 fallback 到 code 字段和"—"
-- 不需要迁移，用现有字段
+**新建 3 个空白占位页面**
+- `src/pages/admin/AdminChannels.tsx` — 渠道管理（空页）
+- `src/pages/admin/AdminModelDeploy.tsx` — 模型部署（空页）
+- `src/pages/admin/AdminSettings.tsx` — 系统设置（空页）
 
-### 无需数据库变更
+每个空页只显示页面标题，无其他内容。
+
+### 导航结果
+```text
+── 配置管理 ──
+  渠道管理     (channels)
+  模型管理     (models)
+  模型部署     (model-deploy)
+  系统设置     (settings)
+
+── 系统 ──
+  全局统计     (stats)
+```
