@@ -11,6 +11,7 @@ import {
   LogOut,
   Shield,
   ChevronRight,
+  FileText,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import AdminDashboard from "./AdminDashboard";
@@ -19,14 +20,36 @@ import AdminUsers from "./AdminUsers";
 import AdminBilling from "./AdminBilling";
 import AdminModels from "./AdminModels";
 import AdminStats from "./AdminStats";
+import AdminCallLogs from "./AdminCallLogs";
 
-const NAV_ITEMS = [
-  { label: "数据总览", icon: LayoutDashboard, path: "dashboard" },
-  { label: "企业管理", icon: Building2, path: "enterprises" },
-  { label: "用户管理", icon: Users, path: "users" },
-  { label: "计费管理", icon: CreditCard, path: "billing" },
-  { label: "模型配置", icon: Cpu, path: "models" },
-  { label: "全局统计", icon: BarChart3, path: "stats" },
+const NAV_GROUPS = [
+  {
+    label: "控制台",
+    items: [
+      { label: "数据总览", icon: LayoutDashboard, path: "dashboard" },
+      { label: "使用日志", icon: FileText, path: "call-logs" },
+    ],
+  },
+  {
+    label: "运营管理",
+    items: [
+      { label: "企业管理", icon: Building2, path: "enterprises" },
+      { label: "用户管理", icon: Users, path: "users" },
+      { label: "计费管理", icon: CreditCard, path: "billing" },
+    ],
+  },
+  {
+    label: "配置管理",
+    items: [
+      { label: "模型配置", icon: Cpu, path: "models" },
+    ],
+  },
+  {
+    label: "系统",
+    items: [
+      { label: "全局统计", icon: BarChart3, path: "stats" },
+    ],
+  },
 ];
 
 export default function AdminLayout() {
@@ -50,7 +73,7 @@ export default function AdminLayout() {
   return (
     <div className="min-h-screen flex bg-muted/20">
       {/* Sidebar */}
-      <aside className="w-56 shrink-0 bg-card border-r flex flex-col">
+      <aside className="w-60 shrink-0 bg-card border-r flex flex-col">
         {/* Logo */}
         <div className="h-14 flex items-center gap-2.5 px-4 border-b">
           <div className="w-7 h-7 rounded-lg bg-primary flex items-center justify-center">
@@ -60,25 +83,32 @@ export default function AdminLayout() {
         </div>
 
         {/* Nav */}
-        <nav className="flex-1 p-3 space-y-0.5 overflow-y-auto">
-          {NAV_ITEMS.map((item) => {
-            const active = location.pathname === `/admin/${item.path}`;
-            return (
-              <NavLink
-                key={item.path}
-                to={`/admin/${item.path}`}
-                className={`flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm transition-colors ${
-                  active
-                    ? "bg-primary text-primary-foreground font-medium"
-                    : "text-muted-foreground hover:bg-muted hover:text-foreground"
-                }`}
-              >
-                <item.icon className="w-4 h-4 shrink-0" />
-                <span>{item.label}</span>
-                {active && <ChevronRight className="w-3 h-3 ml-auto opacity-70" />}
-              </NavLink>
-            );
-          })}
+        <nav className="flex-1 p-3 overflow-y-auto space-y-4">
+          {NAV_GROUPS.map((group) => (
+            <div key={group.label}>
+              <p className="px-3 mb-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/60">{group.label}</p>
+              <div className="space-y-0.5">
+                {group.items.map((item) => {
+                  const active = location.pathname === `/admin/${item.path}`;
+                  return (
+                    <NavLink
+                      key={item.path}
+                      to={`/admin/${item.path}`}
+                      className={`flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm transition-colors ${
+                        active
+                          ? "bg-primary text-primary-foreground font-medium"
+                          : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                      }`}
+                    >
+                      <item.icon className="w-4 h-4 shrink-0" />
+                      <span>{item.label}</span>
+                      {active && <ChevronRight className="w-3 h-3 ml-auto opacity-70" />}
+                    </NavLink>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
         </nav>
 
         {/* Footer */}
@@ -113,6 +143,7 @@ export default function AdminLayout() {
           <Route path="users" element={<AdminUsers />} />
           <Route path="billing" element={<AdminBilling />} />
           <Route path="models" element={<AdminModels />} />
+          <Route path="call-logs" element={<AdminCallLogs />} />
           <Route path="stats" element={<AdminStats />} />
           <Route path="*" element={<Navigate to="dashboard" replace />} />
         </Routes>
