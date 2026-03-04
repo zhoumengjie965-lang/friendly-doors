@@ -5,7 +5,7 @@ import {
   LayoutDashboard,
   Building2,
   Users,
-  CreditCard,
+  Ticket,
   BarChart3,
   Cpu,
   LogOut,
@@ -35,7 +35,7 @@ const NAV_GROUPS = [
     items: [
       { label: "企业管理", icon: Building2, path: "enterprises" },
       { label: "用户管理", icon: Users, path: "users" },
-      { label: "计费管理", icon: CreditCard, path: "billing" },
+      { label: "兑换码管理", icon: Ticket, path: "billing" },
     ],
   },
   {
