@@ -12,6 +12,9 @@ import {
   Shield,
   ChevronRight,
   FileText,
+  Network,
+  Layers,
+  Settings,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import AdminDashboard from "./AdminDashboard";
@@ -21,6 +24,9 @@ import AdminBilling from "./AdminBilling";
 import AdminModels from "./AdminModels";
 import AdminStats from "./AdminStats";
 import AdminCallLogs from "./AdminCallLogs";
+import AdminChannels from "./AdminChannels";
+import AdminModelDeploy from "./AdminModelDeploy";
+import AdminSettings from "./AdminSettings";
 
 const NAV_GROUPS = [
   {
@@ -41,7 +47,10 @@ const NAV_GROUPS = [
   {
     label: "配置管理",
     items: [
-      { label: "模型配置", icon: Cpu, path: "models" },
+      { label: "渠道管理", icon: Network, path: "channels" },
+      { label: "模型管理", icon: Cpu, path: "models" },
+      { label: "模型部署", icon: Layers, path: "model-deploy" },
+      { label: "系统设置", icon: Settings, path: "settings" },
     ],
   },
   {
@@ -142,7 +151,10 @@ export default function AdminLayout() {
           <Route path="enterprises" element={<AdminEnterprises />} />
           <Route path="users" element={<AdminUsers />} />
           <Route path="billing" element={<AdminBilling />} />
+          <Route path="channels" element={<AdminChannels />} />
           <Route path="models" element={<AdminModels />} />
+          <Route path="model-deploy" element={<AdminModelDeploy />} />
+          <Route path="settings" element={<AdminSettings />} />
           <Route path="call-logs" element={<AdminCallLogs />} />
           <Route path="stats" element={<AdminStats />} />
           <Route path="*" element={<Navigate to="dashboard" replace />} />
