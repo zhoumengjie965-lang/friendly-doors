@@ -1,106 +1,99 @@
 
-## Current State Analysis
+## Plan: Refactor AdminUsers with Edit Drawer + Disable Button
 
-`AdminUsers.tsx` currently:
-- Only stores ONE enterprise per user (last member record wins via `Object.fromEntries`)
-- No enterprise filter dropdown
-- No personal balance column
-- Grid: `grid-cols-[1.5fr_1fr_1.5fr_1fr_1fr]` (5 cols)
+### Current state
+- List has 6 columns, no actions column
+- No edit/disable interactions
+- No drawer component
 
-## Changes needed — only `src/pages/admin/AdminUsers.tsx`
+### Changes needed — only `src/pages/admin/AdminUsers.tsx`
 
-### 1. Data model changes
+#### 1. Grid update
+Add 7th column "操作" (actions): `grid-cols-[1.5fr_1fr_1.5fr_1fr_1fr_1fr_80px]`
 
-**`UserRow` interface**:
+Each row gets two icon buttons:
+- **编辑** (`Pencil` icon) — opens edit drawer
+- **禁用/启用** (`Ban` / `CheckCircle` icon) — toggles `users.status` between `'active'` and `'banned'`, updates in-memory state
+
+#### 2. Edit Drawer (Sheet component)
+State: `drawerOpen: boolean`, `drawerUser: UserRow | null`
+
+When opened, fetch enriched data for this specific user:
+- `members` with `organization_id` for that phone → join orgs to get org name
+- `enterprise_balances` for owned enterprise (personal balance)
+
+**Drawer layout (two sections)**:
+
+**Section A — 基本信息**
+- 用户名 (editable input, save button)
+- 手机号 (editable input, save button)  
+- 账号状态 (Switch: 启用/禁用, updates immediately)
+- 密码重置 (button stub — shows toast "功能开发中")
+
+**Section B — 空间关联管理**
+
+Sub-section 1: 个人空间
+- 显示个人余额 (¥X.XX)
+- 手动修改余额 input + 保存按钮 → `UPDATE enterprise_balances SET balance = X WHERE enterprise_id = owned_enterprise_id`
+
+Sub-section 2: 企业空间列表
+Table with columns: 企业名 | 所属组织 | 角色 | 操作
+- For each member record of this user, show: enterprise name, org name (from `organization_id`), role
+- 操作: "强制解除" button (`UserMinus` icon, red) → `DELETE FROM members WHERE id = member_record_id`, then refresh drawer data
+
+#### 3. Disable toggle in list row
+`handleToggleStatus(user)`: 
 ```ts
-interface UserRow {
-  id: string;
-  phone: string;
-  name: string | null;
-  created_at: string;
-  status: string;
-  enterprises: { id: string; name: string; role: string }[];  // all enterprises
-  personal_balance: number;  // from enterprise_balances where enterprise_id = personal space... 
+await supabase.from("users").update({ status: newStatus }).eq("id", user.id)
+```
+Update local state optimistically.
+
+#### 4. New state variables
+```ts
+const [drawerOpen, setDrawerOpen] = useState(false);
+const [drawerUser, setDrawerUser] = useState<UserRow | null>(null);
+const [drawerDetail, setDrawerDetail] = useState<DrawerDetail | null>(null);
+const [drawerLoading, setDrawerLoading] = useState(false);
+const [editName, setEditName] = useState("");
+const [editPhone, setEditPhone] = useState("");
+const [editBalance, setEditBalance] = useState("");
+const [savingName, setSavingName] = useState(false);
+const [savingBalance, setSavingBalance] = useState(false);
+```
+
+#### 5. DrawerDetail interface
+```ts
+interface MemberDetail {
+  id: string; // member record id
+  enterprise_id: string;
+  enterprise_name: string;
+  org_name: string | null;
+  role: string;
+}
+interface DrawerDetail {
+  personal_enterprise_id: string | null; // enterprise where owner_phone = this user's phone
+  personal_balance: number;
+  members: MemberDetail[];
 }
 ```
 
-Wait — "个人空间余额" needs clarification. Looking at the DB, `enterprise_balances` is keyed by `enterprise_id`. There's no separate "personal balance" table. The personal space likely IS an enterprise record (when a user has no org, they operate in a personal space). But the current users table has no direct balance. 
+#### 6. fetchDrawerDetail function
+When drawer opens:
+1. Fetch `enterprises` where `owner_phone = phone` → get personal enterprise_id
+2. Fetch `enterprise_balances` for that enterprise_id
+3. Fetch `members` where `user_phone = phone` with `enterprise_id, organization_id, role, id`
+4. Fetch enterprise names for those enterprise_ids
+5. Fetch org names for those organization_ids
 
-Actually re-reading: the user wants "个人余额" shown. This likely means: the balance of the user's "personal enterprise" (if they have one) OR it could just be a placeholder column showing ¥0.00 for now if there's no direct personal balance concept.
+#### 7. New imports needed
+- `Sheet, SheetContent, SheetHeader, SheetTitle` from `@/components/ui/sheet`
+- `Pencil, Ban, CheckCircle2, UserMinus` from `lucide-react`
+- `Switch` from `@/components/ui/switch`
+- `Label` from `@/components/ui/label`
+- `Separator` from `@/components/ui/separator`
+- `Badge` from `@/components/ui/badge`
+- `Button` from `@/components/ui/button`
+- `useToast` from `@/hooks/use-toast`
 
-Looking at DB tables: there's no "personal_balance" concept directly on users. `enterprise_balances` is per enterprise. Users may own an enterprise themselves. 
-
-I'll show the balance of the enterprise where the user is `owner` (i.e., where `enterprises.owner_phone = user.phone`). That's the closest to "personal space balance". If they don't own an enterprise, show ¥0.00.
-
-Actually let me reconsider — a user could be owner of an enterprise. I'll query `enterprises` where `owner_phone IN (phones)` to get their owned enterprises, then query `enterprise_balances` for those. Show balance of the enterprise they OWN as "个人余额". If they own multiple, sum them or show first.
-
-Wait, this is getting complex. The simplest interpretation: query `enterprise_balances` for enterprises they OWN. Show that as personal balance.
-
-### 2. Multi-enterprise display
-
-Change from `Object.fromEntries` (last-wins) to grouping all member records per phone:
-```ts
-const membersByPhone: Record<string, {enterprise_id: string, role: string}[]> = {};
-membersData.forEach(m => {
-  if (!membersByPhone[m.user_phone]) membersByPhone[m.user_phone] = [];
-  membersByPhone[m.user_phone].push({ enterprise_id: m.enterprise_id, role: m.role });
-});
-```
-
-Display: if 1 enterprise → show name. If >1 → show "企业A (+N)".
-
-### 3. Filter dropdown
-
-Add `filter: "all" | "no_enterprise" | "has_enterprise"` state.
-
-Filter options:
-- 全部
-- 仅散客 (no enterprise membership)
-- 仅企业成员 (has at least one enterprise membership)
-
-### 4. Personal balance column
-
-Query enterprises owned by these users → query enterprise_balances for those enterprise IDs → map owner_phone → balance.
-
-### 5. Grid update
-
-6 columns: `grid-cols-[1.5fr_1fr_1.5fr_1fr_1fr_1fr]`
-Headers: 手机号 | 姓名 | 所属企业 | 角色 | 个人余额 | 注册时间
-
-For role: if multi-enterprise, show first role or "多企业".
-
-### Implementation plan
-
-**State**: add `filter: "all" | "no_enterprise" | "has_enterprise"`
-
-**fetchAll**:
-1. Fetch all users
-2. Fetch all members for those phones (keep ALL records per phone)
-3. Fetch all enterprises for those enterprise_ids
-4. Fetch enterprises owned by user phones (for personal balance)
-5. Fetch enterprise_balances for owned enterprise_ids
-
-**Filtering**:
-```ts
-const filtered = users
-  .filter(u => search condition)
-  .filter(u => {
-    if (filter === "no_enterprise") return u.enterprises.length === 0;
-    if (filter === "has_enterprise") return u.enterprises.length > 0;
-    return true;
-  });
-```
-
-**Enterprise display cell**:
-```ts
-if (enterprises.length === 0) return "散客"
-if (enterprises.length === 1) return enterprises[0].name
-return `${enterprises[0].name} (+${enterprises.length - 1})`
-```
-
-**Role display**:
-- If no enterprises: "—"
-- If 1 enterprise: roleLabel(enterprises[0].role)
-- If >1: "多企业"
-
-**Header layout**: add filter dropdown to the right of search, replacing just-search area with a flex row.
+#### Status badge in list
+Add a status indicator — if `status === 'banned'`, show a red "已封禁" badge next to phone number.
