@@ -125,19 +125,29 @@ export default function AdminEnterprises() {
       supabase.from("members").select("enterprise_id,user_phone").in("enterprise_id", ids).eq("role", "admin"),
     ]);
 
-    // Fetch user names for admin members
-    const adminPhones = [...new Set((adminMembers || []).map((m) => m.user_phone))];
+    // Fetch user names for admin members + enterprise owners
+    const ownerPhones = ents.map((e) => e.owner_phone);
+    const adminPhones = [...new Set([
+      ...ownerPhones,
+      ...(adminMembers || []).map((m) => m.user_phone),
+    ])];
     const { data: userRecords } = adminPhones.length > 0
       ? await supabase.from("users").select("phone,name").in("phone", adminPhones)
       : { data: [] };
 
     const nameMap = Object.fromEntries((userRecords || []).map((u) => [u.phone, u.name]));
 
-    // Group admins by enterprise
+    // Group admins by enterprise: owner first, then org admins
     const adminsMap: Record<string, AdminInfo[]> = {};
+    for (const e of ents) {
+      adminsMap[e.id] = [{ phone: e.owner_phone, name: nameMap[e.owner_phone] ?? null }];
+    }
     for (const m of adminMembers || []) {
+      // avoid duplicating if owner is also an org admin
       if (!adminsMap[m.enterprise_id]) adminsMap[m.enterprise_id] = [];
-      adminsMap[m.enterprise_id].push({ phone: m.user_phone, name: nameMap[m.user_phone] ?? null });
+      if (!adminsMap[m.enterprise_id].find((a) => a.phone === m.user_phone)) {
+        adminsMap[m.enterprise_id].push({ phone: m.user_phone, name: nameMap[m.user_phone] ?? null });
+      }
     }
 
     const certMap = Object.fromEntries((certs || []).map((c) => [c.enterprise_id, c.status]));
@@ -192,7 +202,7 @@ export default function AdminEnterprises() {
       e.enterprise_code.includes(search)
   );
 
-  const COLS = "grid-cols-[1.6fr_1.2fr_80px_1.1fr_80px_100px]";
+  const COLS = "grid-cols-[2fr_1.5fr_1fr_1.2fr_1fr_88px]";
 
   return (
     <div className="p-6 space-y-5">
