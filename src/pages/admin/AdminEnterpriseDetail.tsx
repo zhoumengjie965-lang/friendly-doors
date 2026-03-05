@@ -8,6 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Progress } from "@/components/ui/progress";
 import {
   ArrowLeft,
   Wallet,
@@ -20,6 +21,7 @@ import {
   Clock,
   ShieldAlert,
   Plus,
+  UserCircle,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { getAdminSession } from "@/lib/adminAuth";
@@ -62,6 +64,8 @@ interface Org {
   admin_phone: string | null;
   monthly_budget: number | null;
   current_month_budget: number | null;
+  memberCount?: number;
+  adminName?: string | null;
 }
 
 interface Member {
@@ -146,18 +150,35 @@ export default function AdminEnterpriseDetail() {
     setBalanceSummary({ balance: bal?.balance ?? 0, total_consumed: bal?.total_consumed ?? 0 });
     setApiKeyCount(keyCount ?? 0);
     setBalanceRecords(records || []);
-    setOrgs(orgData || []);
 
-    // Enrich members with user names
+    // Enrich members with user names + compute org member counts
     const rawMembers = mems || [];
     setMemberCount(rawMembers.length);
-    if (rawMembers.length > 0) {
-      const phones = [...new Set(rawMembers.map((m) => m.user_phone))];
-      const { data: users } = await supabase.from("users").select("phone,name").in("phone", phones);
+
+    // Collect all phones needed: members + org admin_phones
+    const memberPhones = rawMembers.map((m) => m.user_phone);
+    const adminPhones = (orgData || []).map((o) => o.admin_phone).filter(Boolean) as string[];
+    const allPhones = [...new Set([...memberPhones, ...adminPhones])];
+
+    if (allPhones.length > 0) {
+      const { data: users } = await supabase.from("users").select("phone,name").in("phone", allPhones);
       const nameMap = Object.fromEntries((users || []).map((u) => [u.phone, u.name]));
       setMembers(rawMembers.map((m) => ({ ...m, name: nameMap[m.user_phone] || undefined })));
+
+      // Compute member count per org
+      const orgMemberCount = rawMembers.reduce((acc, m) => {
+        if (m.organization_id) acc[m.organization_id] = (acc[m.organization_id] || 0) + 1;
+        return acc;
+      }, {} as Record<string, number>);
+
+      setOrgs((orgData || []).map((o) => ({
+        ...o,
+        memberCount: orgMemberCount[o.id] || 0,
+        adminName: o.admin_phone ? (nameMap[o.admin_phone] || null) : null,
+      })));
     } else {
       setMembers([]);
+      setOrgs(orgData || []);
     }
 
     if (orgData && orgData.length > 0 && !selectedOrgId) {
@@ -413,42 +434,74 @@ export default function AdminEnterpriseDetail() {
               {orgs.length === 0 ? (
                 <div className="p-8 text-center text-sm text-muted-foreground">该企业暂未创建组织</div>
               ) : (
-                <div className="grid grid-cols-[240px_1fr] min-h-[400px]">
+                <div className="grid grid-cols-[280px_1fr] min-h-[400px]">
                   {/* Left: Org list */}
                   <div className="border-r">
                     <div className="px-4 py-3 border-b bg-muted/30">
                       <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">组织列表 ({orgs.length})</p>
                     </div>
                     <div className="overflow-y-auto">
-                      {orgs.map((org) => (
-                        <button
-                          key={org.id}
-                          className={`w-full text-left px-4 py-3 border-b last:border-0 text-sm transition-colors ${
-                            selectedOrgId === org.id
-                              ? "bg-primary/10 text-primary"
-                              : "text-foreground hover:bg-muted/40"
-                          }`}
-                          onClick={() => setSelectedOrgId(org.id)}
-                        >
-                          <p className="font-medium truncate">{org.name}</p>
-                          <div className="flex items-center gap-2 mt-0.5">
-                            <Badge
-                              variant={org.status === "active" ? "outline" : "secondary"}
-                              className="text-[10px] px-1.5 py-0"
-                            >
-                              {org.status === "active" ? "正常" : "停用"}
-                            </Badge>
-                            {org.admin_phone && (
-                              <span className="text-xs text-muted-foreground">{maskPhone(org.admin_phone)}</span>
+                      {orgs.map((org) => {
+                        const budget = org.current_month_budget ?? org.monthly_budget;
+                        const consumed = 0; // consumed tracked at enterprise level; org-level not stored separately
+                        const usageRatio = budget != null && budget > 0 ? Math.min((consumed / budget) * 100, 100) : 0;
+                        return (
+                          <button
+                            key={org.id}
+                            className={`w-full text-left px-4 py-3.5 border-b last:border-0 transition-colors ${
+                              selectedOrgId === org.id
+                                ? "bg-primary/10"
+                                : "hover:bg-muted/40"
+                            }`}
+                            onClick={() => setSelectedOrgId(org.id)}
+                          >
+                            {/* Row 1: name + status badge */}
+                            <div className="flex items-center justify-between gap-2 mb-1.5">
+                              <p className={`font-semibold text-sm truncate flex-1 ${selectedOrgId === org.id ? "text-primary" : "text-foreground"}`}>
+                                {org.name}
+                              </p>
+                              <Badge
+                                variant={org.status === "active" ? "outline" : "secondary"}
+                                className="text-[10px] px-1.5 py-0 shrink-0"
+                              >
+                                {org.status === "active" ? "已启用" : "已停用"}
+                              </Badge>
+                            </div>
+
+                            {/* Row 2: admin */}
+                            <div className="flex items-center gap-1 mb-1">
+                              <UserCircle className="w-3 h-3 text-muted-foreground shrink-0" />
+                              <span className="text-xs text-muted-foreground truncate">
+                                {org.admin_phone
+                                  ? (org.adminName ? `${org.adminName} · ${maskPhone(org.admin_phone)}` : maskPhone(org.admin_phone))
+                                  : "未设置管理员"}
+                              </span>
+                            </div>
+
+                            {/* Row 3: member count */}
+                            <div className="flex items-center gap-1 mb-1.5">
+                              <Users className="w-3 h-3 text-muted-foreground shrink-0" />
+                              <span className="text-xs text-muted-foreground">{org.memberCount ?? 0} 名成员</span>
+                            </div>
+
+                            {/* Row 4: budget */}
+                            <div className="flex items-center justify-between text-xs text-muted-foreground mb-1">
+                              <span>本月预算</span>
+                              <span className="font-medium text-foreground">
+                                {budget != null ? `¥${budget.toFixed(0)}` : "无限制"}
+                              </span>
+                            </div>
+
+                            {/* Row 5: usage bar (only if budget set) */}
+                            {budget != null && budget > 0 && (
+                              <div className="flex items-center gap-2">
+                                <Progress value={usageRatio} className="h-1.5 flex-1" />
+                                <span className="text-[10px] text-muted-foreground w-7 text-right">{usageRatio.toFixed(0)}%</span>
+                              </div>
                             )}
-                          </div>
-                          {org.monthly_budget != null && (
-                            <p className="text-xs text-muted-foreground mt-0.5">
-                              月预算 ¥{org.monthly_budget.toFixed(0)}
-                            </p>
-                          )}
-                        </button>
-                      ))}
+                          </button>
+                        );
+                      })}
                     </div>
                   </div>
 
