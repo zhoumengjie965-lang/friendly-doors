@@ -113,7 +113,7 @@ export default function AdminUsers() {
   };
 
   const enterpriseCell = (ents: EnterpriseRef[]) => {
-    if (ents.length === 0) return <span className="text-muted-foreground/60 italic">散客</span>;
+    if (ents.length === 0) return <span className="text-muted-foreground/60 italic">个人用户</span>;
     if (ents.length === 1) return <span className="text-muted-foreground truncate">{ents[0].name}</span>;
     return (
       <span className="text-muted-foreground truncate">
@@ -143,7 +143,7 @@ export default function AdminUsers() {
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">全部用户</SelectItem>
-              <SelectItem value="no_enterprise">仅散客</SelectItem>
+              <SelectItem value="no_enterprise">仅个人用户</SelectItem>
               <SelectItem value="has_enterprise">仅企业成员</SelectItem>
             </SelectContent>
           </Select>
