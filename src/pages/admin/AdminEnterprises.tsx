@@ -192,7 +192,7 @@ export default function AdminEnterprises() {
       e.enterprise_code.includes(search)
   );
 
-  const COLS = "grid-cols-[1.4fr_1.4fr_90px_1.2fr_1fr_160px]";
+  const COLS = "grid-cols-[1.6fr_1.2fr_80px_1.1fr_80px_100px]";
 
   return (
     <div className="p-6 space-y-5">
@@ -270,29 +270,29 @@ export default function AdminEnterprises() {
                   <Button
                     size="sm"
                     variant="ghost"
-                    className="h-7 px-2 text-xs text-muted-foreground hover:text-foreground"
+                    className="h-7 w-7 p-0 text-muted-foreground hover:text-foreground"
+                    title="查看详情"
                     onClick={() => navigate(`/admin/enterprises/${e.id}`)}
                   >
-                    <ExternalLink className="w-3 h-3 mr-1" />
-                    详情
+                    <ExternalLink className="w-3.5 h-3.5" />
                   </Button>
                   <Button
                     size="sm"
                     variant="ghost"
-                    className="h-7 px-2 text-xs text-primary hover:text-primary hover:bg-primary/10"
+                    className="h-7 w-7 p-0 text-primary hover:text-primary hover:bg-primary/10"
+                    title="手动充值"
                     onClick={() => { setRechargeTarget(e); setRechargeAmount(""); setRechargeRemark(""); }}
                   >
-                    <Zap className="w-3 h-3 mr-1" />
-                    充值
+                    <Zap className="w-3.5 h-3.5" />
                   </Button>
                   <Button
                     size="sm"
                     variant="ghost"
-                    className="h-7 px-2 text-xs text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+                    className="h-7 w-7 p-0 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+                    title="禁用企业"
                     onClick={() => toast({ title: "功能开发中", description: "禁用企业功能即将上线" })}
                   >
-                    <Ban className="w-3 h-3 mr-1" />
-                    禁用
+                    <Ban className="w-3.5 h-3.5" />
                   </Button>
                 </div>
               </div>
