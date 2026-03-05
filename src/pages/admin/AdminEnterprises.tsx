@@ -228,7 +228,7 @@ export default function AdminEnterprises() {
           <span>企业名称</span>
           <span>企业管理员</span>
           <span>认证状态</span>
-          <span>余额 / 总消耗</span>
+          <span>余额 / 历史消耗</span>
           <span>组织 / 成员</span>
           <span>操作</span>
         </div>
