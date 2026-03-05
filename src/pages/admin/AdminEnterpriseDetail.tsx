@@ -255,13 +255,13 @@ export default function AdminEnterpriseDetail() {
 
   const summaryCards = [
     {
-      label: "企业当前余额",
+      label: "可用余额",
       value: `¥${balanceSummary.balance.toFixed(2)}`,
       icon: <Wallet className="w-5 h-5" />,
       color: "text-primary bg-primary/10",
     },
     {
-      label: "总消耗额度",
+      label: "历史消耗",
       value: `¥${balanceSummary.total_consumed.toFixed(2)}`,
       icon: <TrendingDown className="w-5 h-5" />,
       color: "text-destructive bg-destructive/10",
@@ -344,7 +344,7 @@ export default function AdminEnterpriseDetail() {
                   <div className="flex items-center gap-2">
                     <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-gradient-to-r from-blue-500/15 to-purple-500/15 text-primary border border-primary/20">
                       <UserCircle className="w-3.5 h-3.5" />
-                      {ownerName ? `${ownerName} · ${maskPhone(enterprise.owner_phone)}` : maskPhone(enterprise.owner_phone)}
+                      {`${ownerName || "用户"} · ${maskPhone(enterprise.owner_phone)}`}
                     </span>
                   </div>
                 </div>
