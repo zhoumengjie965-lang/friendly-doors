@@ -1,77 +1,49 @@
 
-## 问题定位
+## 问题分析
 
-对比客户端截图 image-88（组织管理列表）和 image-87（详情页组织架构Tab），后台详情页的"组织架构"Tab 左侧组织列表信息太少：
+对比图1（客户端企业信息页）与图2（后台企业详情基本信息Tab）：
 
-**当前左侧**（每个组织只显示）：
-- 组织名称
-- 状态 badge
-- 管理员手机（小字）
-- 月预算 ¥xxx（小字）
+**图2多余字段**：
+- "唯一 ID"（UUID，客户端没有显示，且太长影响排版）
 
-**客户端 image-88 组织列表有**：
-- 组织名称
-- 组织管理员（姓名 + 手机）
-- 成员数
-- 本月预算上限
-- 本月消耗预算
-- 使用率（进度条）
-- 状态
+**图2缺少/不一致字段**：
+- 客户端显示"企业名称 + 企业 ID（enterprise_code）+ 创建时间 + 企业管理员"，后台应保持一致
+- 客户端"负责人手机"应显示成管理员的格式（带姓名pill标签样式，与图1企业管理员卡片对齐）
+- 认证状态在基本信息里只需要一个 badge，不需要单独一行
+- **图1里认证信息是独立的一个大卡片**，后台基本信息Tab里，认证信息区块目前是 `cert && certStatus !== "uncertified"` 才显示，意味着未认证时完全没有认证卡片占位 → 应始终显示认证区块
 
-后台管理端的组织列表应该与客户端保持一致的信息密度。
+## 具体修改（仅 `src/pages/admin/AdminEnterpriseDetail.tsx`）
 
----
+### 1. 基本信息区块重构（第 322-386 行）
 
-## 修改方案
-
-### 仅修改 `src/pages/admin/AdminEnterpriseDetail.tsx`
-
-**1. 数据增强**：
-- 利用已有的 `members` 数据，为每个组织计算 `memberCount`（按 `organization_id` 分组 count）
-- `organizations` 已 select 了 `monthly_budget` 和 `current_month_budget`，可以直接计算使用率
-
-**2. 左侧组织列表 UI 重构**：
-
-将每个组织卡片从简单的 3 行小字改为信息丰富的展示，对照 image-88：
+将"企业基本信息"的字段改为与图1一致：
 
 ```
-┌─────────────────────────────────┐
-│ 算法部门              [已启用]   │
-│ 组织管理员: 182****5009          │
-│ 成员数: 1人                      │
-│ 本月预算: ¥3000 / 已用 ¥0.00    │
-│ 使用率: ████░░ 0%                │
-└─────────────────────────────────┘
+企业名称   |  企业 ID（enterprise_code）
+创建时间   |  企业管理员（姓名pill + 手机）
 ```
 
-具体布局（左侧面板宽度从 240px 扩大到 280px）：
-- 第一行：组织名（粗体）+ 状态 badge（右对齐）
-- 第二行：组织管理员（姓名或脱敏手机，需从 users 表获取管理员姓名）
-- 第三行：`{n} 名成员`
-- 第四行：`本月预算 ¥{monthly_budget}`（如未设置显示"无限制"）
-- 第五行：使用率进度条 + 百分比（`current_month_budget / monthly_budget`）
+- 删除"唯一 ID"（`enterprise.id` UUID那行）
+- 删除独立的"认证状态"行（认证信息卡片本身有状态）
+- 改"负责人手机"为"企业管理员"，并以 pill 标签形式展示（参照图1的蓝紫渐变pill）
+  - 需要查询管理员姓名（已有 `admins` 数据但这里是单独详情页，可从 `cert` 或 members 中取）
+  - 实现方式：`fetchAll` 时已拉取 members，从中筛 admin role 的人并加一个 users 名字查询
 
-**3. 组织管理员姓名解析**：
-`organizations.admin_phone` 已经有了，只需在 fetchAll 后，用现有的 `users` nameMap（已在成员姓名查询时构建）去反查 admin_phone 对应的姓名。但 admin_phone 可能不在 members 里，需要单独或合并查询：
+### 2. 认证信息区块：始终显示占位卡片
 
-```ts
-// 合并所有需要查名字的手机号（members + org admin_phones）
-const allPhones = [...new Set([
-  ...rawMembers.map(m => m.user_phone),
-  ...orgPhones  // admin_phone 列表
-])];
-const { data: users } = await supabase.from("users").select("phone,name").in("phone", allPhones);
-```
+当前逻辑 `{cert && certStatus !== "uncertified"}` 导致未认证时无认证卡片。
 
-**4. 计算成员数**：
-```ts
-// members 数据已有 organization_id，按组织分组计数
-const orgMemberCount = rawMembers.reduce((acc, m) => {
-  if (m.organization_id) acc[m.organization_id] = (acc[m.organization_id] || 0) + 1;
-  return acc;
-}, {} as Record<string, number>);
-```
+修改为**始终渲染认证区块**，根据状态分四种样式（对应图1的四态设计）：
 
-然后在 `Org` 接口添加 `memberCount?: number; adminName?: string;` 字段，渲染时使用。
+- **未认证**：灰色背景，ShieldAlert 图标，"该企业尚未提交认证" 说明文字
+- **待审核**：黄色背景，Clock 图标 + 审核按钮（通过/拒绝），展示提交的公司信息
+- **已认证**：绿色背景，CheckCircle 图标，展示 公司名、信用代码、法人姓名、提交时间、审核时间（2列网格）
+- **已拒绝**：红色背景，XCircle 图标，说明被拒绝
 
-**无需修改数据库，无需新增接口调用**，复用已有数据重新计算即可。
+这样就达到图1的效果，且无论什么状态都有认证卡片占位。
+
+### 3. 数据补充
+
+为显示企业管理员姓名，需要在 `fetchAll` 中额外查询管理员姓名：
+- 用 `enterprise.owner_phone` 查 `users` 表获取名字
+- 在组件 state 增加 `ownerName: string | null`
