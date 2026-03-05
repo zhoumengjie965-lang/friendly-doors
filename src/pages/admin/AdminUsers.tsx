@@ -3,7 +3,14 @@ import { supabase } from "@/integrations/supabase/client";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { Search } from "lucide-react";
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
+import { Separator } from "@/components/ui/separator";
+import { Search, Pencil, Ban, CheckCircle2, UserMinus } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
 
 interface EnterpriseRef { id: string; name: string; role: string; }
 
@@ -17,88 +24,230 @@ interface UserRow {
   personal_balance: number;
 }
 
+interface MemberDetail {
+  id: string;
+  enterprise_id: string;
+  enterprise_name: string;
+  org_name: string | null;
+  role: string;
+}
+
+interface DrawerDetail {
+  personal_enterprise_id: string | null;
+  personal_balance: number;
+  members: MemberDetail[];
+}
+
 type FilterType = "all" | "no_enterprise" | "has_enterprise";
 
 export default function AdminUsers() {
+  const { toast } = useToast();
   const [users, setUsers] = useState<UserRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState<FilterType>("all");
 
+  // Drawer state
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  const [drawerUser, setDrawerUser] = useState<UserRow | null>(null);
+  const [drawerDetail, setDrawerDetail] = useState<DrawerDetail | null>(null);
+  const [drawerLoading, setDrawerLoading] = useState(false);
+  const [editName, setEditName] = useState("");
+  const [editPhone, setEditPhone] = useState("");
+  const [editBalance, setEditBalance] = useState("");
+  const [savingName, setSavingName] = useState(false);
+  const [savingPhone, setSavingPhone] = useState(false);
+  const [savingBalance, setSavingBalance] = useState(false);
+
   useEffect(() => {
-    const fetchAll = async () => {
-      // 1. Fetch all users
-      const { data: usersData } = await supabase
-        .from("users")
-        .select("id,phone,name,created_at,status")
-        .order("created_at", { ascending: false });
-
-      if (!usersData) { setLoading(false); return; }
-
-      const phones = usersData.map((u) => u.phone);
-
-      // 2. Fetch all members for these phones
-      const { data: membersData } = await supabase
-        .from("members")
-        .select("user_phone,role,enterprise_id")
-        .in("user_phone", phones);
-
-      // 3. Fetch all enterprises referenced
-      const enterpriseIds = [...new Set((membersData || []).map((m) => m.enterprise_id))];
-      const { data: enterprises } = enterpriseIds.length > 0
-        ? await supabase.from("enterprises").select("id,name,owner_phone").in("id", enterpriseIds)
-        : { data: [] };
-
-      // 4. Fetch enterprises owned by these users (for personal balance)
-      const { data: ownedEnterprises } = await supabase
-        .from("enterprises")
-        .select("id,owner_phone")
-        .in("owner_phone", phones);
-
-      // 5. Fetch enterprise_balances for owned enterprises
-      const ownedIds = (ownedEnterprises || []).map((e) => e.id);
-      const { data: balances } = ownedIds.length > 0
-        ? await supabase.from("enterprise_balances").select("enterprise_id,balance").in("enterprise_id", ownedIds)
-        : { data: [] };
-
-      // Build maps
-      const entMap: Record<string, string> = Object.fromEntries(
-        (enterprises || []).map((e) => [e.id, e.name])
-      );
-
-      // Group members by phone (ALL records)
-      const membersByPhone: Record<string, EnterpriseRef[]> = {};
-      (membersData || []).forEach((m) => {
-        if (!membersByPhone[m.user_phone]) membersByPhone[m.user_phone] = [];
-        membersByPhone[m.user_phone].push({
-          id: m.enterprise_id,
-          name: entMap[m.enterprise_id] || "未知企业",
-          role: m.role,
-        });
-      });
-
-      // Map owned enterprise_id -> balance
-      const balanceMap: Record<string, number> = Object.fromEntries(
-        (balances || []).map((b) => [b.enterprise_id, b.balance])
-      );
-
-      // Map owner_phone -> balance (sum owned enterprise balances)
-      const ownerBalanceMap: Record<string, number> = {};
-      (ownedEnterprises || []).forEach((e) => {
-        ownerBalanceMap[e.owner_phone] = (ownerBalanceMap[e.owner_phone] || 0) + (balanceMap[e.id] || 0);
-      });
-
-      setUsers(
-        usersData.map((u) => ({
-          ...u,
-          enterprises: membersByPhone[u.phone] || [],
-          personal_balance: ownerBalanceMap[u.phone] || 0,
-        }))
-      );
-      setLoading(false);
-    };
     fetchAll();
   }, []);
+
+  const fetchAll = async () => {
+    const { data: usersData } = await supabase
+      .from("users")
+      .select("id,phone,name,created_at,status")
+      .order("created_at", { ascending: false });
+
+    if (!usersData) { setLoading(false); return; }
+
+    const phones = usersData.map((u) => u.phone);
+
+    const { data: membersData } = await supabase
+      .from("members")
+      .select("user_phone,role,enterprise_id")
+      .in("user_phone", phones);
+
+    const enterpriseIds = [...new Set((membersData || []).map((m) => m.enterprise_id))];
+    const { data: enterprises } = enterpriseIds.length > 0
+      ? await supabase.from("enterprises").select("id,name,owner_phone").in("id", enterpriseIds)
+      : { data: [] };
+
+    const { data: ownedEnterprises } = await supabase
+      .from("enterprises")
+      .select("id,owner_phone")
+      .in("owner_phone", phones);
+
+    const ownedIds = (ownedEnterprises || []).map((e) => e.id);
+    const { data: balances } = ownedIds.length > 0
+      ? await supabase.from("enterprise_balances").select("enterprise_id,balance").in("enterprise_id", ownedIds)
+      : { data: [] };
+
+    const entMap: Record<string, string> = Object.fromEntries(
+      (enterprises || []).map((e) => [e.id, e.name])
+    );
+
+    const membersByPhone: Record<string, EnterpriseRef[]> = {};
+    (membersData || []).forEach((m) => {
+      if (!membersByPhone[m.user_phone]) membersByPhone[m.user_phone] = [];
+      membersByPhone[m.user_phone].push({
+        id: m.enterprise_id,
+        name: entMap[m.enterprise_id] || "未知企业",
+        role: m.role,
+      });
+    });
+
+    const balanceMap: Record<string, number> = Object.fromEntries(
+      (balances || []).map((b) => [b.enterprise_id, b.balance])
+    );
+
+    const ownerBalanceMap: Record<string, number> = {};
+    (ownedEnterprises || []).forEach((e) => {
+      ownerBalanceMap[e.owner_phone] = (ownerBalanceMap[e.owner_phone] || 0) + (balanceMap[e.id] || 0);
+    });
+
+    setUsers(
+      usersData.map((u) => ({
+        ...u,
+        enterprises: membersByPhone[u.phone] || [],
+        personal_balance: ownerBalanceMap[u.phone] || 0,
+      }))
+    );
+    setLoading(false);
+  };
+
+  const fetchDrawerDetail = async (phone: string) => {
+    setDrawerLoading(true);
+    setDrawerDetail(null);
+
+    // 1. Personal enterprise
+    const { data: ownedEnts } = await supabase
+      .from("enterprises")
+      .select("id")
+      .eq("owner_phone", phone);
+    const personalEntId = ownedEnts?.[0]?.id || null;
+
+    // 2. Personal balance
+    let personalBalance = 0;
+    if (personalEntId) {
+      const { data: bal } = await supabase
+        .from("enterprise_balances")
+        .select("balance")
+        .eq("enterprise_id", personalEntId)
+        .maybeSingle();
+      personalBalance = bal?.balance || 0;
+    }
+
+    // 3. Members
+    const { data: membersRaw } = await supabase
+      .from("members")
+      .select("id,enterprise_id,organization_id,role")
+      .eq("user_phone", phone);
+
+    if (!membersRaw || membersRaw.length === 0) {
+      setDrawerDetail({ personal_enterprise_id: personalEntId, personal_balance: personalBalance, members: [] });
+      setDrawerLoading(false);
+      return;
+    }
+
+    // 4. Enterprise names
+    const entIds = [...new Set(membersRaw.map((m) => m.enterprise_id))];
+    const { data: ents } = await supabase.from("enterprises").select("id,name").in("id", entIds);
+    const entMap: Record<string, string> = Object.fromEntries((ents || []).map((e) => [e.id, e.name]));
+
+    // 5. Org names
+    const orgIds = membersRaw.map((m) => m.organization_id).filter(Boolean) as string[];
+    const { data: orgs } = orgIds.length > 0
+      ? await supabase.from("organizations").select("id,name").in("id", orgIds)
+      : { data: [] };
+    const orgMap: Record<string, string> = Object.fromEntries((orgs || []).map((o) => [o.id, o.name]));
+
+    const members: MemberDetail[] = membersRaw.map((m) => ({
+      id: m.id,
+      enterprise_id: m.enterprise_id,
+      enterprise_name: entMap[m.enterprise_id] || "未知企业",
+      org_name: m.organization_id ? (orgMap[m.organization_id] || null) : null,
+      role: m.role,
+    }));
+
+    setDrawerDetail({ personal_enterprise_id: personalEntId, personal_balance: personalBalance, members });
+    setDrawerLoading(false);
+  };
+
+  const openDrawer = (user: UserRow) => {
+    setDrawerUser(user);
+    setEditName(user.name || "");
+    setEditPhone(user.phone);
+    setEditBalance("");
+    setDrawerOpen(true);
+    fetchDrawerDetail(user.phone);
+  };
+
+  const handleToggleStatus = async (user: UserRow) => {
+    const newStatus = user.status === "active" ? "banned" : "active";
+    setUsers((prev) => prev.map((u) => u.id === user.id ? { ...u, status: newStatus } : u));
+    if (drawerUser?.id === user.id) setDrawerUser((prev) => prev ? { ...prev, status: newStatus } : prev);
+    await supabase.from("users").update({ status: newStatus }).eq("id", user.id);
+  };
+
+  const handleSaveName = async () => {
+    if (!drawerUser) return;
+    setSavingName(true);
+    await supabase.from("users").update({ name: editName || null }).eq("id", drawerUser.id);
+    setUsers((prev) => prev.map((u) => u.id === drawerUser.id ? { ...u, name: editName || null } : u));
+    setDrawerUser((prev) => prev ? { ...prev, name: editName || null } : prev);
+    setSavingName(false);
+    toast({ title: "已保存", description: "用户名已更新" });
+  };
+
+  const handleSavePhone = async () => {
+    if (!drawerUser) return;
+    setSavingPhone(true);
+    await supabase.from("users").update({ phone: editPhone }).eq("id", drawerUser.id);
+    setUsers((prev) => prev.map((u) => u.id === drawerUser.id ? { ...u, phone: editPhone } : u));
+    setDrawerUser((prev) => prev ? { ...prev, phone: editPhone } : prev);
+    setSavingPhone(false);
+    toast({ title: "已保存", description: "手机号已更新" });
+  };
+
+  const handleSaveBalance = async () => {
+    if (!drawerDetail?.personal_enterprise_id) return;
+    const val = parseFloat(editBalance);
+    if (isNaN(val)) return;
+    setSavingBalance(true);
+    await supabase.from("enterprise_balances")
+      .update({ balance: val })
+      .eq("enterprise_id", drawerDetail.personal_enterprise_id);
+    setDrawerDetail((prev) => prev ? { ...prev, personal_balance: val } : prev);
+    setSavingBalance(false);
+    setEditBalance("");
+    toast({ title: "已保存", description: `个人余额已更新为 ¥${val.toFixed(2)}` });
+  };
+
+  const handleRemoveMember = async (memberId: string) => {
+    await supabase.from("members").delete().eq("id", memberId);
+    setDrawerDetail((prev) => prev
+      ? { ...prev, members: prev.members.filter((m) => m.id !== memberId) }
+      : prev
+    );
+    if (drawerUser) {
+      setUsers((prev) => prev.map((u) => u.phone === drawerUser.phone
+        ? { ...u, enterprises: u.enterprises.filter((e) => e.id !== drawerDetail?.members.find((m) => m.id === memberId)?.enterprise_id) }
+        : u
+      ));
+    }
+    toast({ title: "已解除", description: "用户已从该企业移除" });
+  };
 
   const filtered = users
     .filter((u) => u.phone.includes(search) || (u.name || "").includes(search))
@@ -177,13 +326,14 @@ export default function AdminUsers() {
       </div>
 
       <div className="bg-card border rounded-xl overflow-hidden">
-        <div className="grid grid-cols-[1.5fr_1fr_1.5fr_1fr_1fr_1fr] gap-4 px-5 py-3 bg-muted/50 text-xs font-medium text-muted-foreground border-b">
+        <div className="grid grid-cols-[1.5fr_1fr_1.5fr_1fr_1fr_1fr_80px] gap-4 px-5 py-3 bg-muted/50 text-xs font-medium text-muted-foreground border-b">
           <span>手机号</span>
           <span>姓名</span>
           <span>所属企业</span>
           <span>角色</span>
           <span>个人余额</span>
           <span>注册时间</span>
+          <span>操作</span>
         </div>
 
         {loading ? (
@@ -194,9 +344,14 @@ export default function AdminUsers() {
           filtered.map((u) => (
             <div
               key={u.id}
-              className="grid grid-cols-[1.5fr_1fr_1.5fr_1fr_1fr_1fr] gap-4 px-5 py-3.5 border-b last:border-0 text-sm items-center"
+              className="grid grid-cols-[1.5fr_1fr_1.5fr_1fr_1fr_1fr_80px] gap-4 px-5 py-3.5 border-b last:border-0 text-sm items-center"
             >
-              <span className="font-medium text-foreground">{u.phone}</span>
+              <div className="flex items-center gap-2 min-w-0">
+                <span className="font-medium text-foreground truncate">{u.phone}</span>
+                {u.status === "banned" && (
+                  <Badge variant="destructive" className="text-xs px-1.5 py-0 shrink-0">已封禁</Badge>
+                )}
+              </div>
               <span className="text-muted-foreground">{u.name || "—"}</span>
               <div className="flex items-center min-w-0">{enterpriseCell(u.enterprises)}</div>
               <div>{roleCell(u.enterprises)}</div>
@@ -206,10 +361,199 @@ export default function AdminUsers() {
               <span className="text-muted-foreground">
                 {new Date(u.created_at).toLocaleDateString("zh-CN")}
               </span>
+              <div className="flex items-center gap-1">
+                <TooltipProvider delayDuration={300}>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7"
+                        onClick={() => openDrawer(u)}
+                      >
+                        <Pencil className="w-3.5 h-3.5" />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>编辑</TooltipContent>
+                  </Tooltip>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className={`h-7 w-7 ${u.status === "banned" ? "text-green-600 hover:text-green-700" : "text-destructive hover:text-destructive/80"}`}
+                        onClick={() => handleToggleStatus(u)}
+                      >
+                        {u.status === "banned"
+                          ? <CheckCircle2 className="w-3.5 h-3.5" />
+                          : <Ban className="w-3.5 h-3.5" />
+                        }
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>{u.status === "banned" ? "解除封禁" : "封禁"}</TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+              </div>
             </div>
           ))
         )}
       </div>
+
+      {/* Edit Drawer */}
+      <Sheet open={drawerOpen} onOpenChange={setDrawerOpen}>
+        <SheetContent className="w-[520px] sm:max-w-[520px] overflow-y-auto">
+          <SheetHeader className="mb-5">
+            <SheetTitle>编辑用户</SheetTitle>
+          </SheetHeader>
+
+          {drawerUser && (
+            <div className="space-y-6">
+              {/* Section A: 基本信息 */}
+              <div className="space-y-4">
+                <h3 className="text-sm font-semibold text-foreground">基本信息</h3>
+
+                {/* 用户名 */}
+                <div className="space-y-1.5">
+                  <Label className="text-xs text-muted-foreground">用户名</Label>
+                  <div className="flex gap-2">
+                    <Input
+                      value={editName}
+                      onChange={(e) => setEditName(e.target.value)}
+                      placeholder="未设置"
+                      className="h-8 text-sm"
+                    />
+                    <Button size="sm" variant="outline" onClick={handleSaveName} disabled={savingName} className="h-8 shrink-0">
+                      {savingName ? "保存中…" : "保存"}
+                    </Button>
+                  </div>
+                </div>
+
+                {/* 手机号 */}
+                <div className="space-y-1.5">
+                  <Label className="text-xs text-muted-foreground">手机号</Label>
+                  <div className="flex gap-2">
+                    <Input
+                      value={editPhone}
+                      onChange={(e) => setEditPhone(e.target.value)}
+                      className="h-8 text-sm"
+                    />
+                    <Button size="sm" variant="outline" onClick={handleSavePhone} disabled={savingPhone} className="h-8 shrink-0">
+                      {savingPhone ? "保存中…" : "保存"}
+                    </Button>
+                  </div>
+                </div>
+
+                {/* 账号状态 */}
+                <div className="flex items-center justify-between">
+                  <div>
+                    <Label className="text-xs text-muted-foreground">账号状态</Label>
+                    <p className="text-sm mt-0.5">{drawerUser.status === "banned" ? "已封禁" : "正常"}</p>
+                  </div>
+                  <Switch
+                    checked={drawerUser.status === "active"}
+                    onCheckedChange={() => handleToggleStatus(drawerUser)}
+                  />
+                </div>
+
+                {/* 密码重置 */}
+                <div className="flex items-center justify-between">
+                  <div>
+                    <Label className="text-xs text-muted-foreground">密码重置</Label>
+                    <p className="text-xs text-muted-foreground mt-0.5">强制用户下次登录时重置密码</p>
+                  </div>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => toast({ title: "功能开发中", description: "密码重置功能即将上线" })}
+                  >
+                    重置密码
+                  </Button>
+                </div>
+              </div>
+
+              <Separator />
+
+              {/* Section B: 空间关联管理 */}
+              <div className="space-y-5">
+                <h3 className="text-sm font-semibold text-foreground">空间关联管理</h3>
+
+                {drawerLoading ? (
+                  <p className="text-sm text-muted-foreground">加载中…</p>
+                ) : drawerDetail ? (
+                  <>
+                    {/* 个人空间 */}
+                    <div className="bg-muted/40 rounded-lg p-4 space-y-3">
+                      <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">个人空间</p>
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm text-muted-foreground">当前余额</span>
+                        <span className="font-semibold tabular-nums">¥{drawerDetail.personal_balance.toFixed(2)}</span>
+                      </div>
+                      {drawerDetail.personal_enterprise_id ? (
+                        <div className="space-y-1.5">
+                          <Label className="text-xs text-muted-foreground">修改余额</Label>
+                          <div className="flex gap-2">
+                            <Input
+                              type="number"
+                              value={editBalance}
+                              onChange={(e) => setEditBalance(e.target.value)}
+                              placeholder={drawerDetail.personal_balance.toFixed(2)}
+                              className="h-8 text-sm"
+                            />
+                            <Button size="sm" variant="outline" onClick={handleSaveBalance} disabled={savingBalance || !editBalance} className="h-8 shrink-0">
+                              {savingBalance ? "保存中…" : "保存"}
+                            </Button>
+                          </div>
+                        </div>
+                      ) : (
+                        <p className="text-xs text-muted-foreground/60">该用户尚未创建企业空间</p>
+                      )}
+                    </div>
+
+                    {/* 企业空间列表 */}
+                    <div className="space-y-2">
+                      <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">企业空间</p>
+                      {drawerDetail.members.length === 0 ? (
+                        <p className="text-sm text-muted-foreground/60 italic">未加入任何企业</p>
+                      ) : (
+                        <div className="border rounded-lg overflow-hidden">
+                          <div className="grid grid-cols-[1fr_1fr_80px_60px] gap-2 px-3 py-2 bg-muted/40 text-xs font-medium text-muted-foreground border-b">
+                            <span>企业名称</span>
+                            <span>所属组织</span>
+                            <span>角色</span>
+                            <span></span>
+                          </div>
+                          {drawerDetail.members.map((m) => (
+                            <div key={m.id} className="grid grid-cols-[1fr_1fr_80px_60px] gap-2 px-3 py-2.5 border-b last:border-0 text-sm items-center">
+                              <span className="truncate font-medium">{m.enterprise_name}</span>
+                              <span className="text-muted-foreground truncate">{m.org_name || "—"}</span>
+                              <span className="text-muted-foreground text-xs">{roleLabel(m.role)}</span>
+                              <TooltipProvider delayDuration={300}>
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <Button
+                                      variant="ghost"
+                                      size="icon"
+                                      className="h-7 w-7 text-destructive hover:text-destructive/80"
+                                      onClick={() => handleRemoveMember(m.id)}
+                                    >
+                                      <UserMinus className="w-3.5 h-3.5" />
+                                    </Button>
+                                  </TooltipTrigger>
+                                  <TooltipContent>强制解除企业关联</TooltipContent>
+                                </Tooltip>
+                              </TooltipProvider>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </>
+                ) : null}
+              </div>
+            </div>
+          )}
+        </SheetContent>
+      </Sheet>
     </div>
   );
 }
