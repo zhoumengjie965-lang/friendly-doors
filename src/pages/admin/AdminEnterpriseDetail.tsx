@@ -127,7 +127,7 @@ export default function AdminEnterpriseDetail() {
       { data: ent },
       { data: certData },
       { data: bal },
-      { data: keys },
+      { count: keyCount },
       { data: mems },
       { data: records },
       { data: orgData },
@@ -135,7 +135,7 @@ export default function AdminEnterpriseDetail() {
       supabase.from("enterprises").select("*").eq("id", id).single(),
       supabase.from("enterprise_certifications").select("status,company_name,credit_code,legal_person,submitted_at,reviewed_at").eq("enterprise_id", id).maybeSingle(),
       supabase.from("enterprise_balances").select("balance,total_consumed").eq("enterprise_id", id).maybeSingle(),
-      supabase.from("api_keys").select("id", { count: "exact", head: true }).eq("enterprise_id", id),
+      supabase.from("api_keys").select("*", { count: "exact", head: true }).eq("enterprise_id", id),
       supabase.from("members").select("id,user_phone,role,status,daily_limit,organization_id").eq("enterprise_id", id),
       supabase.from("balance_records").select("id,amount,type,operator,remark,created_at").eq("enterprise_id", id).order("created_at", { ascending: false }),
       supabase.from("organizations").select("id,name,status,admin_phone,monthly_budget,current_month_budget").eq("enterprise_id", id).order("created_at", { ascending: true }),
@@ -144,7 +144,7 @@ export default function AdminEnterpriseDetail() {
     setEnterprise(ent || null);
     setCert(certData || null);
     setBalanceSummary({ balance: bal?.balance ?? 0, total_consumed: bal?.total_consumed ?? 0 });
-    setApiKeyCount((keys as any)?.count ?? 0);
+    setApiKeyCount(keyCount ?? 0);
     setBalanceRecords(records || []);
     setOrgs(orgData || []);
 
