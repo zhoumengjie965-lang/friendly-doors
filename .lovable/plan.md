@@ -1,55 +1,77 @@
 
-## 三个问题的根因与修复
+## 问题定位
 
-### 问题1：企业管理员只显示手机，没有名字
-**根因**：代码逻辑本身是对的（`first.name` 存在才显示），问题在于测试数据中的用户没有在 `users` 表设置 `name`。但从截图看确实只有手机号，显示是正确的（没有名字就只显示手机）。
-**实际需改之处**：无代码 bug，但可以把列样式优化得更清晰——参照截图 image-85 的效果，手机号已正确显示，这本身就是正确行为。
+对比客户端截图 image-88（组织管理列表）和 image-87（详情页组织架构Tab），后台详情页的"组织架构"Tab 左侧组织列表信息太少：
 
-### 问题2：禁用按钮无文字 ✅ 明确 bug
-`AdminEnterprises.tsx` 第 291-295 行，`<Ban />` 图标后面没有"禁用"文字。需补充。
+**当前左侧**（每个组织只显示）：
+- 组织名称
+- 状态 badge
+- 管理员手机（小字）
+- 月预算 ¥xxx（小字）
 
-### 问题3：详情页余额信息
-**根因**：summary cards 代码已存在（第 232-290 行），但测试企业的 `enterprise_balances` 表中可能没有对应行（只有充值过才有记录）。另外 `api_keys` 的 count 查询写法有问题：
-```tsx
-supabase.from("api_keys").select("id", { count: "exact", head: true }).eq("enterprise_id", id)
-```
-`count` 选项在 `head: true` 时返回在 `.count` 属性上，但代码里用 `(keys as any)?.count` 而不是直接用返回的 `count` 字段。这会导致 API Key 总数始终为 0 或 undefined。
+**客户端 image-88 组织列表有**：
+- 组织名称
+- 组织管理员（姓名 + 手机）
+- 成员数
+- 本月预算上限
+- 本月消耗预算
+- 使用率（进度条）
+- 状态
 
----
-
-## 修改计划
-
-### 修改 `src/pages/admin/AdminEnterprises.tsx`
-
-**仅一处改动**：禁用按钮加上"禁用"文字
-```tsx
-// 修改前
-<Ban className="w-3 h-3" />
-
-// 修改后  
-<Ban className="w-3 h-3 mr-1" />
-禁用
-```
-
-### 修改 `src/pages/admin/AdminEnterpriseDetail.tsx`
-
-**修复 API Key 数量查询**：正确使用 Supabase count 返回值
-```tsx
-// 修改前
-supabase.from("api_keys").select("id", { count: "exact", head: true }).eq("enterprise_id", id)
-// 返回中 (keys as any)?.count
-
-// 修改后：直接解构 count
-const { count: keyCount } = await supabase.from("api_keys").select("*", { count: "exact", head: true }).eq("enterprise_id", id);
-setApiKeyCount(keyCount ?? 0);
-```
-
-**余额卡片确保有数据**：`enterprise_balances` 可能没有该企业的行，余额显示 ¥0.00 是正确的，但要确保不因为 null 而报错（当前代码已有 `?? 0` fallback，这个是对的）。
+后台管理端的组织列表应该与客户端保持一致的信息密度。
 
 ---
 
-### 修改文件汇总
-| 文件 | 改动 |
-|------|------|
-| `src/pages/admin/AdminEnterprises.tsx` | 禁用按钮加"禁用"文字 |
-| `src/pages/admin/AdminEnterpriseDetail.tsx` | 修复 API Key count 查询写法 |
+## 修改方案
+
+### 仅修改 `src/pages/admin/AdminEnterpriseDetail.tsx`
+
+**1. 数据增强**：
+- 利用已有的 `members` 数据，为每个组织计算 `memberCount`（按 `organization_id` 分组 count）
+- `organizations` 已 select 了 `monthly_budget` 和 `current_month_budget`，可以直接计算使用率
+
+**2. 左侧组织列表 UI 重构**：
+
+将每个组织卡片从简单的 3 行小字改为信息丰富的展示，对照 image-88：
+
+```
+┌─────────────────────────────────┐
+│ 算法部门              [已启用]   │
+│ 组织管理员: 182****5009          │
+│ 成员数: 1人                      │
+│ 本月预算: ¥3000 / 已用 ¥0.00    │
+│ 使用率: ████░░ 0%                │
+└─────────────────────────────────┘
+```
+
+具体布局（左侧面板宽度从 240px 扩大到 280px）：
+- 第一行：组织名（粗体）+ 状态 badge（右对齐）
+- 第二行：组织管理员（姓名或脱敏手机，需从 users 表获取管理员姓名）
+- 第三行：`{n} 名成员`
+- 第四行：`本月预算 ¥{monthly_budget}`（如未设置显示"无限制"）
+- 第五行：使用率进度条 + 百分比（`current_month_budget / monthly_budget`）
+
+**3. 组织管理员姓名解析**：
+`organizations.admin_phone` 已经有了，只需在 fetchAll 后，用现有的 `users` nameMap（已在成员姓名查询时构建）去反查 admin_phone 对应的姓名。但 admin_phone 可能不在 members 里，需要单独或合并查询：
+
+```ts
+// 合并所有需要查名字的手机号（members + org admin_phones）
+const allPhones = [...new Set([
+  ...rawMembers.map(m => m.user_phone),
+  ...orgPhones  // admin_phone 列表
+])];
+const { data: users } = await supabase.from("users").select("phone,name").in("phone", allPhones);
+```
+
+**4. 计算成员数**：
+```ts
+// members 数据已有 organization_id，按组织分组计数
+const orgMemberCount = rawMembers.reduce((acc, m) => {
+  if (m.organization_id) acc[m.organization_id] = (acc[m.organization_id] || 0) + 1;
+  return acc;
+}, {} as Record<string, number>);
+```
+
+然后在 `Org` 接口添加 `memberCount?: number; adminName?: string;` 字段，渲染时使用。
+
+**无需修改数据库，无需新增接口调用**，复用已有数据重新计算即可。
