@@ -7,9 +7,15 @@ import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Search, ExternalLink, Zap, Ban } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { getAdminSession } from "@/lib/adminAuth";
+
+interface AdminInfo {
+  phone: string;
+  name: string | null;
+}
 
 interface Enterprise {
   id: string;
@@ -22,6 +28,7 @@ interface Enterprise {
   total_consumed: number;
   org_count: number;
   member_count: number;
+  admins: AdminInfo[];
 }
 
 const CERT_STATUS: Record<string, { label: string; variant: "default" | "secondary" | "destructive" | "outline" }> = {
@@ -30,6 +37,54 @@ const CERT_STATUS: Record<string, { label: string; variant: "default" | "seconda
   approved: { label: "已通过", variant: "outline" },
   rejected: { label: "已拒绝", variant: "destructive" },
 };
+
+function maskPhone(phone: string) {
+  if (phone.length < 7) return phone;
+  return phone.slice(0, 3) + "****" + phone.slice(-4);
+}
+
+function AdminCell({ admins }: { admins: AdminInfo[] }) {
+  if (admins.length === 0) {
+    return <span className="text-xs text-muted-foreground">—</span>;
+  }
+
+  const first = admins[0];
+  const extra = admins.length - 1;
+
+  const adminList = (
+    <div className="flex items-start gap-2">
+      <div className="min-w-0">
+        {first.name && (
+          <p className="text-xs font-medium text-foreground leading-4 truncate">{first.name}</p>
+        )}
+        <p className="text-xs text-muted-foreground leading-4">{maskPhone(first.phone)}</p>
+      </div>
+      {extra > 0 && (
+        <TooltipProvider>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <span className="flex-shrink-0 mt-0.5 inline-flex items-center justify-center h-4 min-w-4 px-1 rounded-full bg-muted text-muted-foreground text-[10px] font-medium cursor-default">
+                +{extra}
+              </span>
+            </TooltipTrigger>
+            <TooltipContent side="top" className="max-w-48">
+              <div className="space-y-1.5">
+                {admins.map((a) => (
+                  <div key={a.phone}>
+                    {a.name && <p className="text-xs font-medium">{a.name}</p>}
+                    <p className="text-xs text-muted-foreground">{maskPhone(a.phone)}</p>
+                  </div>
+                ))}
+              </div>
+            </TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
+      )}
+    </div>
+  );
+
+  return adminList;
+}
 
 export default function AdminEnterprises() {
   const { toast } = useToast();
@@ -61,12 +116,29 @@ export default function AdminEnterprises() {
       { data: balances },
       { data: orgs },
       { data: members },
+      { data: adminMembers },
     ] = await Promise.all([
       supabase.from("enterprise_certifications").select("enterprise_id,status").in("enterprise_id", ids),
       supabase.from("enterprise_balances").select("enterprise_id,balance,total_consumed").in("enterprise_id", ids),
       supabase.from("organizations").select("enterprise_id").in("enterprise_id", ids),
       supabase.from("members").select("enterprise_id").in("enterprise_id", ids),
+      supabase.from("members").select("enterprise_id,user_phone").in("enterprise_id", ids).eq("role", "admin"),
     ]);
+
+    // Fetch user names for admin members
+    const adminPhones = [...new Set((adminMembers || []).map((m) => m.user_phone))];
+    const { data: userRecords } = adminPhones.length > 0
+      ? await supabase.from("users").select("phone,name").in("phone", adminPhones)
+      : { data: [] };
+
+    const nameMap = Object.fromEntries((userRecords || []).map((u) => [u.phone, u.name]));
+
+    // Group admins by enterprise
+    const adminsMap: Record<string, AdminInfo[]> = {};
+    for (const m of adminMembers || []) {
+      if (!adminsMap[m.enterprise_id]) adminsMap[m.enterprise_id] = [];
+      adminsMap[m.enterprise_id].push({ phone: m.user_phone, name: nameMap[m.user_phone] ?? null });
+    }
 
     const certMap = Object.fromEntries((certs || []).map((c) => [c.enterprise_id, c.status]));
     const balMap = Object.fromEntries((balances || []).map((b) => [b.enterprise_id, b]));
@@ -80,6 +152,7 @@ export default function AdminEnterprises() {
       total_consumed: balMap[e.id]?.total_consumed ?? 0,
       org_count: orgCount[e.id] ?? 0,
       member_count: memberCount[e.id] ?? 0,
+      admins: adminsMap[e.id] ?? [],
     })));
     setLoading(false);
   };
@@ -119,6 +192,8 @@ export default function AdminEnterprises() {
       e.enterprise_code.includes(search)
   );
 
+  const COLS = "grid-cols-[1.4fr_1.4fr_90px_1.2fr_1fr_160px]";
+
   return (
     <div className="p-6 space-y-5">
       {/* Header */}
@@ -130,7 +205,7 @@ export default function AdminEnterprises() {
         <div className="relative w-64">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
           <Input
-            placeholder="搜索企业名称 / 负责人手机号…"
+            placeholder="搜索企业名称 / 手机号…"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className="pl-9"
@@ -141,9 +216,9 @@ export default function AdminEnterprises() {
       {/* Table */}
       <div className="bg-card border rounded-xl overflow-hidden">
         {/* Header row */}
-        <div className="grid grid-cols-[2fr_1fr_1fr_1.4fr_1.2fr_140px] gap-4 px-5 py-3 bg-muted/50 text-xs font-medium text-muted-foreground border-b">
+        <div className={`grid ${COLS} gap-3 px-5 py-3 bg-muted/50 text-xs font-medium text-muted-foreground border-b`}>
           <span>企业名称</span>
-          <span>负责人</span>
+          <span>企业管理员</span>
           <span>认证状态</span>
           <span>余额 / 总消耗</span>
           <span>组织 / 成员</span>
@@ -158,18 +233,20 @@ export default function AdminEnterprises() {
           filtered.map((e) => {
             const certBadge = CERT_STATUS[e.cert_status] || CERT_STATUS.uncertified;
             return (
-              <div key={e.id} className="grid grid-cols-[2fr_1fr_1fr_1.4fr_1.2fr_140px] gap-4 px-5 py-3.5 items-center text-sm border-b last:border-0 hover:bg-muted/20 transition-colors">
+              <div key={e.id} className={`grid ${COLS} gap-3 px-5 py-3.5 items-center text-sm border-b last:border-0 hover:bg-muted/20 transition-colors`}>
                 {/* 企业名称 */}
                 <div
-                  className="cursor-pointer group"
+                  className="cursor-pointer group min-w-0"
                   onClick={() => navigate(`/admin/enterprises/${e.id}`)}
                 >
-                  <p className="font-medium text-foreground group-hover:text-primary transition-colors">{e.name}</p>
-                  <p className="text-xs text-muted-foreground font-mono">{e.enterprise_code}</p>
+                  <p className="font-medium text-foreground group-hover:text-primary transition-colors truncate">{e.name}</p>
+                  <p className="text-xs text-muted-foreground font-mono truncate">{e.enterprise_code}</p>
                 </div>
 
-                {/* 负责人 */}
-                <span className="text-muted-foreground text-xs">{e.owner_phone}</span>
+                {/* 企业管理员 */}
+                <div className="min-w-0">
+                  <AdminCell admins={e.admins} />
+                </div>
 
                 {/* 认证状态 */}
                 <span>
@@ -189,7 +266,7 @@ export default function AdminEnterprises() {
                 </div>
 
                 {/* 操作 */}
-                <div className="flex items-center gap-1">
+                <div className="flex items-center gap-0.5">
                   <Button
                     size="sm"
                     variant="ghost"
