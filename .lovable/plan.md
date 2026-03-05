@@ -1,59 +1,106 @@
 
-Now I have a full picture of the current org tab. Here's the plan:
+## Current State Analysis
 
-## Changes needed — only `src/pages/admin/AdminEnterpriseDetail.tsx`
+`AdminUsers.tsx` currently:
+- Only stores ONE enterprise per user (last member record wins via `Object.fromEntries`)
+- No enterprise filter dropdown
+- No personal balance column
+- Grid: `grid-cols-[1.5fr_1fr_1.5fr_1fr_1fr]` (5 cols)
 
-### New state variables
-- `editOrgOpen: boolean` + `editOrgTarget: Org | null` — controls "edit org budget/daily-limit" dialog
-- `editOrgBudget: string`, `editOrgDailyLimit: string`, `editOrgLoading: boolean`
-- `editMemberOpen: boolean` + `editMemberTarget: Member | null` + `editMemberAction: "role" | "limit" | "ban" | null`
-- `editMemberRole: string`, `editMemberLimit: string`, `editMemberLoading: boolean`
+## Changes needed — only `src/pages/admin/AdminUsers.tsx`
 
-### Left org list — add edit icon
-- Inside each org card button row (org name + status row), add a pencil icon button on the right (after the status badge)
-- `stopPropagation` so it doesn't trigger org selection
-- Click opens `editOrgOpen` dialog pre-filled with org's `current_month_budget`
+### 1. Data model changes
 
-### Edit Org Dialog
-Fields:
-- 本月预算额度（元）: number input, current value pre-filled
-- 单日消耗上限（元）: number input (this will update all members' `daily_limit` in the org, or store on org level)
+**`UserRow` interface**:
+```ts
+interface UserRow {
+  id: string;
+  phone: string;
+  name: string | null;
+  created_at: string;
+  status: string;
+  enterprises: { id: string; name: string; role: string }[];  // all enterprises
+  personal_balance: number;  // from enterprise_balances where enterprise_id = personal space... 
+}
+```
 
-Action: `UPDATE organizations SET current_month_budget = X WHERE id = org.id` via supabase direct (RLS allows anyone to update).
+Wait — "个人空间余额" needs clarification. Looking at the DB, `enterprise_balances` is keyed by `enterprise_id`. There's no separate "personal balance" table. The personal space likely IS an enterprise record (when a user has no org, they operate in a personal space). But the current users table has no direct balance. 
 
-### Right member list — add "操作" column
-Change grid from `grid-cols-[2fr_1fr_1fr_1fr]` to `grid-cols-[2fr_1fr_1fr_1fr_100px]`, add "操作" header.
+Actually re-reading: the user wants "个人余额" shown. This likely means: the balance of the user's "personal enterprise" (if they have one) OR it could just be a placeholder column showing ¥0.00 for now if there's no direct personal balance concept.
 
-Each member row gets three icon buttons:
-1. **修改角色** (`UserCheck` icon) — opens dialog with radio: 普通成员 / 组织管理员. Updates `members.role`.
-2. **修改限额** (`DollarSign` icon) — opens dialog with number input for `daily_limit`. Updates `members.daily_limit`.
-3. **移除并封禁** (`UserX` icon, destructive red) — confirmation AlertDialog. On confirm:
-   - DELETE from `members` WHERE id = member.id
-   - UPDATE `users` SET status = 'banned' WHERE phone = member.user_phone — BUT `users` table has no `status` column. Need to add it OR we can do a soft ban by setting member.status = 'banned' AND also block the user at members level. Actually the user asked to "禁用该用户账号全平台" — need to add `status` column to `users` table via migration. Alternative: update ALL members of this user across the enterprise to `status = 'banned'`. But the request says "全平台禁用" = global ban. So we need a `users.status` column.
+Looking at DB tables: there's no "personal_balance" concept directly on users. `enterprise_balances` is per enterprise. Users may own an enterprise themselves. 
 
-Wait — let me re-check: `users` table currently has: phone, created_at, name, id. No `status` column.
+I'll show the balance of the enterprise where the user is `owner` (i.e., where `enterprises.owner_phone = user.phone`). That's the closest to "personal space balance". If they don't own an enterprise, show ¥0.00.
 
-**Migration needed**: `ALTER TABLE users ADD COLUMN status text NOT NULL DEFAULT 'active';`
+Actually let me reconsider — a user could be owner of an enterprise. I'll query `enterprises` where `owner_phone IN (phones)` to get their owned enterprises, then query `enterprise_balances` for those. Show balance of the enterprise they OWN as "个人余额". If they own multiple, sum them or show first.
 
-Then ban action:
-1. Delete or set `members.status = 'banned'` for this member record
-2. `UPDATE users SET status = 'banned' WHERE phone = member.user_phone`
+Wait, this is getting complex. The simplest interpretation: query `enterprise_balances` for enterprises they OWN. Show that as personal balance.
 
-### Summary of changes
+### 2. Multi-enterprise display
 
-**Migration**: Add `status` column to `users` table.
+Change from `Object.fromEntries` (last-wins) to grouping all member records per phone:
+```ts
+const membersByPhone: Record<string, {enterprise_id: string, role: string}[]> = {};
+membersData.forEach(m => {
+  if (!membersByPhone[m.user_phone]) membersByPhone[m.user_phone] = [];
+  membersByPhone[m.user_phone].push({ enterprise_id: m.enterprise_id, role: m.role });
+});
+```
 
-**`AdminEnterpriseDetail.tsx`**:
-1. Add new state vars (editOrg dialog, editMember dialog)
-2. Add `Pencil`, `UserCheck`, `DollarSign`, `UserX` to lucide imports
-3. Add `AlertDialog` imports
-4. Left org list: add pencil icon button in org card header row
-5. Right member table: add "操作" column with 3 icon buttons
-6. Add 3 new dialogs: Edit Org, Edit Member (role/limit combined with action type), Ban Confirm (AlertDialog)
-7. Add handler functions: `handleEditOrg`, `handleEditMember`, `handleBanMember`
+Display: if 1 enterprise → show name. If >1 → show "企业A (+N)".
 
-Handler implementations (all direct supabase calls, RLS allows updates):
-- `handleEditOrg`: `supabase.from("organizations").update({ current_month_budget: val }).eq("id", orgId)`
-- `handleEditMemberRole`: `supabase.from("members").update({ role: val }).eq("id", memberId)`
-- `handleEditMemberLimit`: `supabase.from("members").update({ daily_limit: val }).eq("id", memberId)`
-- `handleBanMember`: delete member + update users.status = 'banned'
+### 3. Filter dropdown
+
+Add `filter: "all" | "no_enterprise" | "has_enterprise"` state.
+
+Filter options:
+- 全部
+- 仅散客 (no enterprise membership)
+- 仅企业成员 (has at least one enterprise membership)
+
+### 4. Personal balance column
+
+Query enterprises owned by these users → query enterprise_balances for those enterprise IDs → map owner_phone → balance.
+
+### 5. Grid update
+
+6 columns: `grid-cols-[1.5fr_1fr_1.5fr_1fr_1fr_1fr]`
+Headers: 手机号 | 姓名 | 所属企业 | 角色 | 个人余额 | 注册时间
+
+For role: if multi-enterprise, show first role or "多企业".
+
+### Implementation plan
+
+**State**: add `filter: "all" | "no_enterprise" | "has_enterprise"`
+
+**fetchAll**:
+1. Fetch all users
+2. Fetch all members for those phones (keep ALL records per phone)
+3. Fetch all enterprises for those enterprise_ids
+4. Fetch enterprises owned by user phones (for personal balance)
+5. Fetch enterprise_balances for owned enterprise_ids
+
+**Filtering**:
+```ts
+const filtered = users
+  .filter(u => search condition)
+  .filter(u => {
+    if (filter === "no_enterprise") return u.enterprises.length === 0;
+    if (filter === "has_enterprise") return u.enterprises.length > 0;
+    return true;
+  });
+```
+
+**Enterprise display cell**:
+```ts
+if (enterprises.length === 0) return "散客"
+if (enterprises.length === 1) return enterprises[0].name
+return `${enterprises[0].name} (+${enterprises.length - 1})`
+```
+
+**Role display**:
+- If no enterprises: "—"
+- If 1 enterprise: roleLabel(enterprises[0].role)
+- If >1: "多企业"
+
+**Header layout**: add filter dropdown to the right of search, replacing just-search area with a flex row.
