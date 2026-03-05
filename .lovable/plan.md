@@ -1,68 +1,78 @@
 
-## 计划：企业管理页面全面升级
+## 分析用户的 4 个问题
 
-### 目标
-参照客户端截图（组织管理 + 组织治理页面）以及用户需求，升级管理端企业管理为：
-1. **列表页增强**：新增字段列，操作按钮增强
-2. **新建企业详情全屏页**：含3个Tab（基本信息、财务对账、组织架构），顶部4张汇总卡片
+### 问题1：列宽不均，操作按钮显示不全
+当前 grid 模板：`grid-cols-[2fr_1fr_1fr_1.4fr_1.2fr_140px]`
+- `2fr` 给企业名称太宽，其他列挤压
+- 操作栏 `140px` 不够放3个按钮（详情+充值+禁用图标）
+
+**修复方案**：改为 `grid-cols-[1.5fr_1.2fr_100px_1.2fr_1fr_160px]`，企业名称缩小，操作栏扩宽到160px。
+
+### 问题2："负责人"改为"企业管理员"，显示姓名+手机号
+- 当前只显示 `owner_phone`（负责人手机），但客户端"企业管理员"是通过 `members` 表中 `role='admin'` 的成员存储的
+- 需要额外 fetch `members` 表（`role='admin'`）+ `users` 表获取姓名
+- 最多3个管理员，列表里显示方式：若只有1个管理员，显示"姓名\n手机"；若有多个，折叠显示第一个+其余数量角标
+
+### 问题3：多个管理员（最多3个）如何展示
+- 显示第一个管理员的姓名/手机，若有更多则显示 `+N` 徽标（如 `+2`）
+- hover 或 tooltip 展示全部管理员列表
+
+### 问题4：余额预警信息是否需要在列表页显示
+从 `enterprise_balances` 中已有 `alert_threshold`、`alert_email`、`alert_method` 字段。
+- **建议**：列表页不展示（信息密度已高，且预警是企业自己的配置）。企业详情页的财务Tab已有这些数据。
+- 用一个问题确认用户意图。
+
+实际上用户只是"问是否需要"，不是"要求加"，所以回答：列表页不加，详情页财务Tab里会看到。
 
 ---
 
-### 文件修改
+## 计划
 
-#### 1. `src/pages/admin/AdminEnterprises.tsx`（列表页）
+### 修改 `src/pages/admin/AdminEnterprises.tsx`
 
-**表格列调整**（对照客户端组织管理表格字段）：
+**1. 数据层：新增管理员数据 fetch**
+```
+// 新增：fetch 所有企业的 admin 成员
+{ data: adminMembers } = await supabase
+  .from("members")
+  .select("enterprise_id, user_phone, role")
+  .in("enterprise_id", ids)
+  .eq("role", "admin")
 
-| 列 | 内容 |
-|---|---|
-| 企业名称 | 企业名 + 企业码（sub-text） |
-| 负责人 | owner_phone |
-| 认证状态 | badge |
-| 余额/总消耗 | `¥{balance} / ¥{total_consumed}` |
-| 组织数/成员数 | `{org_count} 组织 / {member_count} 人` |
-| 操作 | 详情（跳转）+ 快速充值（小Dialog）+ 禁用 |
-
-**数据增强**：额外 fetch `enterprise_balances` 取 `balance + total_consumed`，`organizations` 取 `org_count`。
-
-**操作栏**：
-- 「详情」→ `useNavigate` 跳转 `/admin/enterprises/:id`
-- 「快速充值」→ 内联小 Dialog（金额 + 备注）
-- 「禁用」→ UI only（enterprises 表无 status 字段，按钮展示但 toast 提示"功能开发中"）
-
-#### 2. 新建 `src/pages/admin/AdminEnterpriseDetail.tsx`（详情页）
-
-**顶部4卡片**（对齐客户端组织治理"组织数据总览"风格）：
-- 企业当前余额
-- 总消耗额度  
-- API Key 总数
-- 成员总数
-
-**Tab 1 - 基本信息**：企业名称、唯一ID、企业码、负责人手机、注册时间、认证状态 + 认证详情
-
-**Tab 2 - 财务对账**：
-- 充值历史列表（`balance_records` 表）：时间、类型（badge）、金额、操作人、备注
-- 手动充值按钮（调用 `admin_recharge_enterprise` RPC）
-
-**Tab 3 - 组织架构**（参照客户端 OrgManagement 字段）：
-- 左侧：组织列表（名称 + 状态 badge）
-- 右侧：选中组织的成员列表，字段对照客户端 OrgGovernance：成员（姓名+脱敏手机）、角色、单日上限、状态
-
-#### 3. `src/pages/admin/AdminLayout.tsx`
-
-新增路由：
-```tsx
-<Route path="enterprises/:id" element={<AdminEnterpriseDetail />} />
+// 同时 fetch users 表获取姓名
+{ data: userNames } = await supabase
+  .from("users")
+  .select("phone, name")
+  .in("phone", adminPhones)
 ```
 
+**2. Enterprise 接口新增字段**
+```ts
+admins: { phone: string; name: string | null }[]
+```
+
+**3. 列宽修正**
+```
+grid-cols-[1.4fr_1.4fr_90px_1.2fr_1fr_160px]
+```
+列顺序：企业名称 | 企业管理员 | 认证状态 | 余额/总消耗 | 组织/成员 | 操作
+
+**4. "企业管理员"列渲染**
+- 最多展示1个管理员，格式：上行姓名（若有）、下行脱敏手机
+- 若有多个管理员，右侧显示 `+N` 小徽标
+- 脱敏规则：`138****8888`（参照客户端 OrgGovernance 样式）
+
+**操作栏**：160px，三个按钮：详情（图标+文字）、充值（Zap图标+文字）、禁用（Ban图标，无文字），排列紧凑
+
 ---
 
-### 数据来源
-- `enterprise_balances`：`balance`, `total_consumed`
-- `organizations`：count 得 org_count，列表字段：name, status, monthly_budget, current_month_budget, admin_phone
-- `members`：count 得 member_count，字段：user_phone, role, daily_limit, status
-- `users`：phone → name 映射（用于成员姓名显示）
-- `api_keys`：count 得 API Key 总数
-- `balance_records`：充值历史
+### 关于余额预警
+不在列表页展示。理由：
+1. 预警设置是企业内部配置，不是管理员日常监控维度
+2. 列表已有余额数字，异常余额一目了然
+3. 企业详情页→财务对账 Tab 中可以查看/设置预警
 
-### 无需数据库变更
+---
+
+### 修改文件
+只修改 `src/pages/admin/AdminEnterprises.tsx`，不涉及其他文件。
