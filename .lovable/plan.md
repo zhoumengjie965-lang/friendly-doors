@@ -1,78 +1,55 @@
 
-## 分析用户的 4 个问题
+## 三个问题的根因与修复
 
-### 问题1：列宽不均，操作按钮显示不全
-当前 grid 模板：`grid-cols-[2fr_1fr_1fr_1.4fr_1.2fr_140px]`
-- `2fr` 给企业名称太宽，其他列挤压
-- 操作栏 `140px` 不够放3个按钮（详情+充值+禁用图标）
+### 问题1：企业管理员只显示手机，没有名字
+**根因**：代码逻辑本身是对的（`first.name` 存在才显示），问题在于测试数据中的用户没有在 `users` 表设置 `name`。但从截图看确实只有手机号，显示是正确的（没有名字就只显示手机）。
+**实际需改之处**：无代码 bug，但可以把列样式优化得更清晰——参照截图 image-85 的效果，手机号已正确显示，这本身就是正确行为。
 
-**修复方案**：改为 `grid-cols-[1.5fr_1.2fr_100px_1.2fr_1fr_160px]`，企业名称缩小，操作栏扩宽到160px。
+### 问题2：禁用按钮无文字 ✅ 明确 bug
+`AdminEnterprises.tsx` 第 291-295 行，`<Ban />` 图标后面没有"禁用"文字。需补充。
 
-### 问题2："负责人"改为"企业管理员"，显示姓名+手机号
-- 当前只显示 `owner_phone`（负责人手机），但客户端"企业管理员"是通过 `members` 表中 `role='admin'` 的成员存储的
-- 需要额外 fetch `members` 表（`role='admin'`）+ `users` 表获取姓名
-- 最多3个管理员，列表里显示方式：若只有1个管理员，显示"姓名\n手机"；若有多个，折叠显示第一个+其余数量角标
-
-### 问题3：多个管理员（最多3个）如何展示
-- 显示第一个管理员的姓名/手机，若有更多则显示 `+N` 徽标（如 `+2`）
-- hover 或 tooltip 展示全部管理员列表
-
-### 问题4：余额预警信息是否需要在列表页显示
-从 `enterprise_balances` 中已有 `alert_threshold`、`alert_email`、`alert_method` 字段。
-- **建议**：列表页不展示（信息密度已高，且预警是企业自己的配置）。企业详情页的财务Tab已有这些数据。
-- 用一个问题确认用户意图。
-
-实际上用户只是"问是否需要"，不是"要求加"，所以回答：列表页不加，详情页财务Tab里会看到。
+### 问题3：详情页余额信息
+**根因**：summary cards 代码已存在（第 232-290 行），但测试企业的 `enterprise_balances` 表中可能没有对应行（只有充值过才有记录）。另外 `api_keys` 的 count 查询写法有问题：
+```tsx
+supabase.from("api_keys").select("id", { count: "exact", head: true }).eq("enterprise_id", id)
+```
+`count` 选项在 `head: true` 时返回在 `.count` 属性上，但代码里用 `(keys as any)?.count` 而不是直接用返回的 `count` 字段。这会导致 API Key 总数始终为 0 或 undefined。
 
 ---
 
-## 计划
+## 修改计划
 
 ### 修改 `src/pages/admin/AdminEnterprises.tsx`
 
-**1. 数据层：新增管理员数据 fetch**
-```
-// 新增：fetch 所有企业的 admin 成员
-{ data: adminMembers } = await supabase
-  .from("members")
-  .select("enterprise_id, user_phone, role")
-  .in("enterprise_id", ids)
-  .eq("role", "admin")
+**仅一处改动**：禁用按钮加上"禁用"文字
+```tsx
+// 修改前
+<Ban className="w-3 h-3" />
 
-// 同时 fetch users 表获取姓名
-{ data: userNames } = await supabase
-  .from("users")
-  .select("phone, name")
-  .in("phone", adminPhones)
+// 修改后  
+<Ban className="w-3 h-3 mr-1" />
+禁用
 ```
 
-**2. Enterprise 接口新增字段**
-```ts
-admins: { phone: string; name: string | null }[]
+### 修改 `src/pages/admin/AdminEnterpriseDetail.tsx`
+
+**修复 API Key 数量查询**：正确使用 Supabase count 返回值
+```tsx
+// 修改前
+supabase.from("api_keys").select("id", { count: "exact", head: true }).eq("enterprise_id", id)
+// 返回中 (keys as any)?.count
+
+// 修改后：直接解构 count
+const { count: keyCount } = await supabase.from("api_keys").select("*", { count: "exact", head: true }).eq("enterprise_id", id);
+setApiKeyCount(keyCount ?? 0);
 ```
 
-**3. 列宽修正**
-```
-grid-cols-[1.4fr_1.4fr_90px_1.2fr_1fr_160px]
-```
-列顺序：企业名称 | 企业管理员 | 认证状态 | 余额/总消耗 | 组织/成员 | 操作
-
-**4. "企业管理员"列渲染**
-- 最多展示1个管理员，格式：上行姓名（若有）、下行脱敏手机
-- 若有多个管理员，右侧显示 `+N` 小徽标
-- 脱敏规则：`138****8888`（参照客户端 OrgGovernance 样式）
-
-**操作栏**：160px，三个按钮：详情（图标+文字）、充值（Zap图标+文字）、禁用（Ban图标，无文字），排列紧凑
+**余额卡片确保有数据**：`enterprise_balances` 可能没有该企业的行，余额显示 ¥0.00 是正确的，但要确保不因为 null 而报错（当前代码已有 `?? 0` fallback，这个是对的）。
 
 ---
 
-### 关于余额预警
-不在列表页展示。理由：
-1. 预警设置是企业内部配置，不是管理员日常监控维度
-2. 列表已有余额数字，异常余额一目了然
-3. 企业详情页→财务对账 Tab 中可以查看/设置预警
-
----
-
-### 修改文件
-只修改 `src/pages/admin/AdminEnterprises.tsx`，不涉及其他文件。
+### 修改文件汇总
+| 文件 | 改动 |
+|------|------|
+| `src/pages/admin/AdminEnterprises.tsx` | 禁用按钮加"禁用"文字 |
+| `src/pages/admin/AdminEnterpriseDetail.tsx` | 修复 API Key count 查询写法 |
