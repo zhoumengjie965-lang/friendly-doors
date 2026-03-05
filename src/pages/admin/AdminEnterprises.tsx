@@ -54,9 +54,7 @@ function AdminCell({ admins }: { admins: AdminInfo[] }) {
   const adminList = (
     <div className="flex items-start gap-2">
       <div className="min-w-0">
-        {first.name && (
-          <p className="text-xs font-medium text-foreground leading-4 truncate">{first.name}</p>
-        )}
+        <p className="text-xs font-medium text-foreground leading-4 truncate">{first.name || "用户"}</p>
         <p className="text-xs text-muted-foreground leading-4">{maskPhone(first.phone)}</p>
       </div>
       {extra > 0 && (
@@ -71,7 +69,7 @@ function AdminCell({ admins }: { admins: AdminInfo[] }) {
               <div className="space-y-1.5">
                 {admins.map((a) => (
                   <div key={a.phone}>
-                    {a.name && <p className="text-xs font-medium">{a.name}</p>}
+                    <p className="text-xs font-medium">{a.name || "用户"}</p>
                     <p className="text-xs text-muted-foreground">{maskPhone(a.phone)}</p>
                   </div>
                 ))}
