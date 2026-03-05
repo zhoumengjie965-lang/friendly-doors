@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Search } from "lucide-react";
 
 interface EnterpriseRef { id: string; name: string; role: string; }
@@ -116,10 +117,26 @@ export default function AdminUsers() {
     if (ents.length === 0) return <span className="text-muted-foreground/60 italic">个人用户</span>;
     if (ents.length === 1) return <span className="text-muted-foreground truncate">{ents[0].name}</span>;
     return (
-      <span className="text-muted-foreground truncate">
-        {ents[0].name}{" "}
-        <span className="text-xs bg-muted rounded px-1 py-0.5 ml-1">+{ents.length - 1}</span>
-      </span>
+      <TooltipProvider delayDuration={200}>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <span className="text-muted-foreground truncate cursor-default inline-flex items-center gap-1">
+              {ents[0].name}
+              <span className="text-xs bg-muted rounded px-1 py-0.5">+{ents.length - 1}</span>
+            </span>
+          </TooltipTrigger>
+          <TooltipContent side="top" className="max-w-xs">
+            <ul className="space-y-1 text-xs">
+              {ents.map((e) => (
+                <li key={e.id} className="flex items-center gap-2">
+                  <span>{e.name}</span>
+                  <span className="opacity-60">({roleLabel(e.role)})</span>
+                </li>
+              ))}
+            </ul>
+          </TooltipContent>
+        </Tooltip>
+      </TooltipProvider>
     );
   };
 
