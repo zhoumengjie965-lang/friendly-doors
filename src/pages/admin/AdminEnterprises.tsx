@@ -291,7 +291,8 @@ export default function AdminEnterprises() {
                     className="h-7 px-2 text-xs text-muted-foreground hover:text-destructive hover:bg-destructive/10"
                     onClick={() => toast({ title: "功能开发中", description: "禁用企业功能即将上线" })}
                   >
-                    <Ban className="w-3 h-3" />
+                    <Ban className="w-3 h-3 mr-1" />
+                    禁用
                   </Button>
                 </div>
               </div>
