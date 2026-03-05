@@ -27,6 +27,7 @@ import AdminCallLogs from "./AdminCallLogs";
 import AdminChannels from "./AdminChannels";
 import AdminModelDeploy from "./AdminModelDeploy";
 import AdminSettings from "./AdminSettings";
+import AdminEnterpriseDetail from "./AdminEnterpriseDetail";
 
 const NAV_GROUPS = [
   {
@@ -149,6 +150,7 @@ export default function AdminLayout() {
           <Route index element={<Navigate to="dashboard" replace />} />
           <Route path="dashboard" element={<AdminDashboard />} />
           <Route path="enterprises" element={<AdminEnterprises />} />
+          <Route path="enterprises/:id" element={<AdminEnterpriseDetail />} />
           <Route path="users" element={<AdminUsers />} />
           <Route path="billing" element={<AdminBilling />} />
           <Route path="channels" element={<AdminChannels />} />
