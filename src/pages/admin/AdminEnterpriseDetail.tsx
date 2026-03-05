@@ -7,8 +7,10 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { AlertDialog, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, AlertDialogDescription, AlertDialogFooter, AlertDialogCancel, AlertDialogAction } from "@/components/ui/alert-dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Progress } from "@/components/ui/progress";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import {
   ArrowLeft,
   Wallet,
@@ -22,6 +24,10 @@ import {
   ShieldAlert,
   Plus,
   UserCircle,
+  Pencil,
+  UserCheck,
+  DollarSign,
+  UserX,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { getAdminSession } from "@/lib/adminAuth";
@@ -123,6 +129,26 @@ export default function AdminEnterpriseDetail() {
 
   // Certification review
   const [reviewLoading, setReviewLoading] = useState<string | null>(null);
+
+  // Edit Org dialog
+  const [editOrgOpen, setEditOrgOpen] = useState(false);
+  const [editOrgTarget, setEditOrgTarget] = useState<Org | null>(null);
+  const [editOrgBudget, setEditOrgBudget] = useState("");
+  const [editOrgDailyLimit, setEditOrgDailyLimit] = useState("");
+  const [editOrgLoading, setEditOrgLoading] = useState(false);
+
+  // Edit Member dialog
+  const [editMemberOpen, setEditMemberOpen] = useState(false);
+  const [editMemberTarget, setEditMemberTarget] = useState<Member | null>(null);
+  const [editMemberAction, setEditMemberAction] = useState<"role" | "limit" | null>(null);
+  const [editMemberRole, setEditMemberRole] = useState("member");
+  const [editMemberLimit, setEditMemberLimit] = useState("");
+  const [editMemberLoading, setEditMemberLoading] = useState(false);
+
+  // Ban confirm dialog
+  const [banOpen, setBanOpen] = useState(false);
+  const [banTarget, setBanTarget] = useState<Member | null>(null);
+  const [banLoading, setBanLoading] = useState(false);
 
   const fetchAll = async () => {
     if (!id) return;
@@ -229,6 +255,72 @@ export default function AdminEnterpriseDetail() {
       toast({ title: "操作失败", description: error.message, variant: "destructive" });
     } else {
       toast({ title: status === "approved" ? "已通过认证" : "已拒绝认证" });
+      fetchAll();
+    }
+  };
+
+  const handleEditOrg = async () => {
+    if (!editOrgTarget) return;
+    setEditOrgLoading(true);
+    const budget = editOrgBudget !== "" ? parseFloat(editOrgBudget) : null;
+    const { error } = await supabase
+      .from("organizations")
+      .update({ current_month_budget: budget })
+      .eq("id", editOrgTarget.id);
+    if (!error && editOrgDailyLimit !== "") {
+      const limit = parseFloat(editOrgDailyLimit);
+      if (!isNaN(limit)) {
+        await supabase
+          .from("members")
+          .update({ daily_limit: limit })
+          .eq("organization_id", editOrgTarget.id);
+      }
+    }
+    setEditOrgLoading(false);
+    if (error) {
+      toast({ title: "保存失败", description: error.message, variant: "destructive" });
+    } else {
+      toast({ title: "组织设置已更新" });
+      setEditOrgOpen(false);
+      fetchAll();
+    }
+  };
+
+  const handleEditMember = async () => {
+    if (!editMemberTarget || !editMemberAction) return;
+    setEditMemberLoading(true);
+    let error: { message: string } | null = null;
+    if (editMemberAction === "role") {
+      const res = await supabase.from("members").update({ role: editMemberRole }).eq("id", editMemberTarget.id);
+      error = res.error;
+    } else if (editMemberAction === "limit") {
+      const limit = editMemberLimit !== "" ? parseFloat(editMemberLimit) : null;
+      const res = await supabase.from("members").update({ daily_limit: limit }).eq("id", editMemberTarget.id);
+      error = res.error;
+    }
+    setEditMemberLoading(false);
+    if (error) {
+      toast({ title: "操作失败", description: error.message, variant: "destructive" });
+    } else {
+      toast({ title: "成员信息已更新" });
+      setEditMemberOpen(false);
+      fetchAll();
+    }
+  };
+
+  const handleBanMember = async () => {
+    if (!banTarget) return;
+    setBanLoading(true);
+    const [res1, res2] = await Promise.all([
+      supabase.from("members").delete().eq("id", banTarget.id),
+      supabase.from("users").update({ status: "banned" } as never).eq("phone", banTarget.user_phone),
+    ]);
+    setBanLoading(false);
+    if (res1.error || res2.error) {
+      toast({ title: "操作失败", description: res1.error?.message || res2.error?.message, variant: "destructive" });
+    } else {
+      toast({ title: "已移除成员并禁用账号" });
+      setBanOpen(false);
       fetchAll();
     }
   };
@@ -480,19 +572,17 @@ export default function AdminEnterpriseDetail() {
                     <div className="overflow-y-auto">
                       {orgs.map((org) => {
                         const budget = org.current_month_budget ?? org.monthly_budget;
-                        const consumed = 0; // consumed tracked at enterprise level; org-level not stored separately
+                        const consumed = 0;
                         const usageRatio = budget != null && budget > 0 ? Math.min((consumed / budget) * 100, 100) : 0;
                         return (
                           <button
                             key={org.id}
                             className={`w-full text-left px-4 py-3.5 border-b last:border-0 transition-colors ${
-                              selectedOrgId === org.id
-                                ? "bg-primary/10"
-                                : "hover:bg-muted/40"
+                              selectedOrgId === org.id ? "bg-primary/10" : "hover:bg-muted/40"
                             }`}
                             onClick={() => setSelectedOrgId(org.id)}
                           >
-                            {/* Row 1: name + status badge */}
+                            {/* Row 1: name + status badge + edit icon */}
                             <div className="flex items-center justify-between gap-2 mb-1.5">
                               <p className={`font-semibold text-sm truncate flex-1 ${selectedOrgId === org.id ? "text-primary" : "text-foreground"}`}>
                                 {org.name}
@@ -503,6 +593,19 @@ export default function AdminEnterpriseDetail() {
                               >
                                 {org.status === "active" ? "已启用" : "已停用"}
                               </Badge>
+                              <span
+                                role="button"
+                                className="p-1 rounded hover:bg-muted text-muted-foreground hover:text-foreground transition-colors shrink-0"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setEditOrgTarget(org);
+                                  setEditOrgBudget(org.current_month_budget != null ? String(org.current_month_budget) : "");
+                                  setEditOrgDailyLimit("");
+                                  setEditOrgOpen(true);
+                                }}
+                              >
+                                <Pencil className="w-3 h-3" />
+                              </span>
                             </div>
 
                             {/* Row 2: admin */}
@@ -529,7 +632,7 @@ export default function AdminEnterpriseDetail() {
                               </span>
                             </div>
 
-                            {/* Row 5: usage bar (only if budget set) */}
+                            {/* Row 5: usage bar */}
                             {budget != null && budget > 0 && (
                               <div className="flex items-center gap-2">
                                 <Progress value={usageRatio} className="h-1.5 flex-1" />
@@ -551,11 +654,12 @@ export default function AdminEnterpriseDetail() {
                     </div>
 
                     {/* Member table header */}
-                    <div className="grid grid-cols-[2fr_1fr_1fr_1fr] gap-4 px-5 py-2.5 bg-muted/20 text-xs font-medium text-muted-foreground border-b">
+                    <div className="grid grid-cols-[2fr_1fr_1fr_1fr_100px] gap-3 px-5 py-2.5 bg-muted/20 text-xs font-medium text-muted-foreground border-b">
                       <span>成员</span>
                       <span>角色</span>
                       <span>单日上限</span>
                       <span>状态</span>
+                      <span>操作</span>
                     </div>
 
                     {orgMembers.length === 0 ? (
@@ -565,9 +669,9 @@ export default function AdminEnterpriseDetail() {
                     ) : (
                       <div className="overflow-y-auto">
                         {orgMembers.map((m) => (
-                          <div key={m.id} className="grid grid-cols-[2fr_1fr_1fr_1fr] gap-4 px-5 py-3 border-b last:border-0 text-sm items-center">
+                          <div key={m.id} className="grid grid-cols-[2fr_1fr_1fr_1fr_100px] gap-3 px-5 py-3 border-b last:border-0 text-sm items-center">
                             <div>
-                              {m.name && <p className="font-medium text-foreground">{m.name}</p>}
+                              <p className="font-medium text-foreground">{m.name || "用户"}</p>
                               <p className="text-xs text-muted-foreground">{maskPhone(m.user_phone)}</p>
                             </div>
                             <span className="text-xs text-muted-foreground">
@@ -584,6 +688,45 @@ export default function AdminEnterpriseDetail() {
                                 {m.status === "active" ? "正常" : "停用"}
                               </Badge>
                             </span>
+                            <div className="flex items-center gap-1">
+                              {/* Change role */}
+                              <button
+                                className="p-1.5 rounded hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
+                                title="修改角色"
+                                onClick={() => {
+                                  setEditMemberTarget(m);
+                                  setEditMemberAction("role");
+                                  setEditMemberRole(m.role);
+                                  setEditMemberOpen(true);
+                                }}
+                              >
+                                <UserCheck className="w-3.5 h-3.5" />
+                              </button>
+                              {/* Change limit */}
+                              <button
+                                className="p-1.5 rounded hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
+                                title="修改限额"
+                                onClick={() => {
+                                  setEditMemberTarget(m);
+                                  setEditMemberAction("limit");
+                                  setEditMemberLimit(m.daily_limit != null ? String(m.daily_limit) : "");
+                                  setEditMemberOpen(true);
+                                }}
+                              >
+                                <DollarSign className="w-3.5 h-3.5" />
+                              </button>
+                              {/* Ban */}
+                              <button
+                                className="p-1.5 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors"
+                                title="移除并封禁"
+                                onClick={() => {
+                                  setBanTarget(m);
+                                  setBanOpen(true);
+                                }}
+                              >
+                                <UserX className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
                           </div>
                         ))}
                       </div>
@@ -632,6 +775,112 @@ export default function AdminEnterpriseDetail() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Edit Org Dialog */}
+      <Dialog open={editOrgOpen} onOpenChange={setEditOrgOpen}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle>编辑组织 · {editOrgTarget?.name}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div className="space-y-1.5">
+              <Label>本月预算额度（元，留空表示无限制）</Label>
+              <Input
+                type="number"
+                min="0"
+                step="1"
+                placeholder="如：10000"
+                value={editOrgBudget}
+                onChange={(e) => setEditOrgBudget(e.target.value)}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label>单日消耗上限（元，将应用到该组织所有成员）</Label>
+              <Input
+                type="number"
+                min="0"
+                step="1"
+                placeholder="如：500，留空不修改"
+                value={editOrgDailyLimit}
+                onChange={(e) => setEditOrgDailyLimit(e.target.value)}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditOrgOpen(false)}>取消</Button>
+            <Button onClick={handleEditOrg} disabled={editOrgLoading}>
+              {editOrgLoading ? "保存中…" : "保存"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Member Dialog */}
+      <Dialog open={editMemberOpen} onOpenChange={setEditMemberOpen}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle>
+              {editMemberAction === "role" ? "修改角色" : "修改限额"} · {editMemberTarget?.name || "用户"} {editMemberTarget ? maskPhone(editMemberTarget.user_phone) : ""}
+            </DialogTitle>
+          </DialogHeader>
+          {editMemberAction === "role" && (
+            <div className="space-y-2">
+              <Label>选择角色</Label>
+              <RadioGroup value={editMemberRole} onValueChange={setEditMemberRole} className="flex gap-4 pt-1">
+                <div className="flex items-center gap-2">
+                  <RadioGroupItem value="member" id="role-member" />
+                  <Label htmlFor="role-member" className="font-normal cursor-pointer">普通成员</Label>
+                </div>
+                <div className="flex items-center gap-2">
+                  <RadioGroupItem value="admin" id="role-admin" />
+                  <Label htmlFor="role-admin" className="font-normal cursor-pointer">组织管理员</Label>
+                </div>
+              </RadioGroup>
+            </div>
+          )}
+          {editMemberAction === "limit" && (
+            <div className="space-y-1.5">
+              <Label>单日调用金额上限（元，留空表示无限制）</Label>
+              <Input
+                type="number"
+                min="0"
+                step="1"
+                placeholder="如：500"
+                value={editMemberLimit}
+                onChange={(e) => setEditMemberLimit(e.target.value)}
+              />
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditMemberOpen(false)}>取消</Button>
+            <Button onClick={handleEditMember} disabled={editMemberLoading}>
+              {editMemberLoading ? "保存中…" : "确认"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Ban Confirm Dialog */}
+      <AlertDialog open={banOpen} onOpenChange={setBanOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>移除并封禁用户</AlertDialogTitle>
+            <AlertDialogDescription>
+              将把 <strong>{banTarget?.name || "用户"} ({banTarget ? maskPhone(banTarget.user_phone) : ""})</strong> 从该组织移除，并在全平台禁用其账号。此操作不可撤销，确认继续？
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>取消</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={handleBanMember}
+              disabled={banLoading}
+            >
+              {banLoading ? "处理中…" : "确认移除并封禁"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

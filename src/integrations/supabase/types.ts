@@ -420,18 +420,21 @@ export type Database = {
           id: string
           name: string | null
           phone: string
+          status: string
         }
         Insert: {
           created_at?: string
           id?: string
           name?: string | null
           phone: string
+          status?: string
         }
         Update: {
           created_at?: string
           id?: string
           name?: string | null
           phone?: string
+          status?: string
         }
         Relationships: []
       }
