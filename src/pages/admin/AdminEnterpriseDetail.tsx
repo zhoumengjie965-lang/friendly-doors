@@ -104,6 +104,7 @@ export default function AdminEnterpriseDetail() {
   const session = getAdminSession();
 
   const [enterprise, setEnterprise] = useState<EnterpriseDetail | null>(null);
+  const [ownerName, setOwnerName] = useState<string | null>(null);
   const [cert, setCert] = useState<Cert | null>(null);
   const [balanceSummary, setBalanceSummary] = useState<BalanceSummary>({ balance: 0, total_consumed: 0 });
   const [apiKeyCount, setApiKeyCount] = useState(0);
@@ -155,14 +156,16 @@ export default function AdminEnterpriseDetail() {
     const rawMembers = mems || [];
     setMemberCount(rawMembers.length);
 
-    // Collect all phones needed: members + org admin_phones
+    // Collect all phones needed: owner + members + org admin_phones
+    const ownerPhone = ent?.owner_phone;
     const memberPhones = rawMembers.map((m) => m.user_phone);
-    const adminPhones = (orgData || []).map((o) => o.admin_phone).filter(Boolean) as string[];
-    const allPhones = [...new Set([...memberPhones, ...adminPhones])];
+    const orgAdminPhones = (orgData || []).map((o) => o.admin_phone).filter(Boolean) as string[];
+    const allPhones = [...new Set([...(ownerPhone ? [ownerPhone] : []), ...memberPhones, ...orgAdminPhones])];
 
     if (allPhones.length > 0) {
       const { data: users } = await supabase.from("users").select("phone,name").in("phone", allPhones);
       const nameMap = Object.fromEntries((users || []).map((u) => [u.phone, u.name]));
+      if (ownerPhone) setOwnerName(nameMap[ownerPhone] ?? null);
       setMembers(rawMembers.map((m) => ({ ...m, name: nameMap[m.user_phone] || undefined })));
 
       // Compute member count per org
@@ -319,69 +322,103 @@ export default function AdminEnterpriseDetail() {
           </TabsList>
 
           {/* Tab 1: Basic Info */}
-          <TabsContent value="info" className="mt-4">
-            <div className="bg-card border rounded-xl p-5 space-y-5">
+          <TabsContent value="info" className="mt-4 space-y-4">
+            {/* Basic Info Card */}
+            <div className="bg-card border rounded-xl p-5 space-y-4">
               <h3 className="text-sm font-semibold text-foreground">企业基本信息</h3>
               <div className="grid grid-cols-2 gap-x-8 gap-y-4 text-sm">
-                {[
-                  { label: "企业名称", value: enterprise.name },
-                  { label: "唯一 ID", value: <span className="font-mono text-xs">{enterprise.id}</span> },
-                  { label: "企业码", value: <span className="font-mono">{enterprise.enterprise_code}</span> },
-                  { label: "负责人手机", value: enterprise.owner_phone },
-                  { label: "注册时间", value: new Date(enterprise.created_at).toLocaleString("zh-CN") },
-                  { label: "认证状态", value: <Badge variant={certCfg.variant} className="text-xs">{certCfg.label}</Badge> },
-                ].map(({ label, value }) => (
-                  <div key={label}>
-                    <p className="text-xs text-muted-foreground mb-1">{label}</p>
-                    <p className="text-foreground">{value}</p>
+                <div>
+                  <p className="text-xs text-muted-foreground mb-1">企业名称</p>
+                  <p className="font-medium text-foreground">{enterprise.name}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground mb-1">企业 ID</p>
+                  <p className="font-mono text-foreground">{enterprise.enterprise_code}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground mb-1">创建时间</p>
+                  <p className="text-foreground">{new Date(enterprise.created_at).toLocaleString("zh-CN")}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground mb-1">企业管理员</p>
+                  <div className="flex items-center gap-2">
+                    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-gradient-to-r from-blue-500/15 to-purple-500/15 text-primary border border-primary/20">
+                      <UserCircle className="w-3.5 h-3.5" />
+                      {ownerName ? `${ownerName} · ${maskPhone(enterprise.owner_phone)}` : maskPhone(enterprise.owner_phone)}
+                    </span>
                   </div>
-                ))}
+                </div>
               </div>
+            </div>
 
-              {cert && certStatus !== "uncertified" && (
-                <>
-                  <div className="border-t pt-4">
-                    <h3 className="text-sm font-semibold text-foreground mb-3">企业认证信息</h3>
-                    <div className="grid grid-cols-2 gap-x-8 gap-y-4 text-sm">
-                      {[
-                        { label: "公司名称", value: cert.company_name || "—" },
-                        { label: "统一信用代码", value: cert.credit_code || "—" },
-                        { label: "法定代表人", value: cert.legal_person || "—" },
-                        { label: "提交时间", value: cert.submitted_at ? new Date(cert.submitted_at).toLocaleString("zh-CN") : "—" },
-                        { label: "审核时间", value: cert.reviewed_at ? new Date(cert.reviewed_at).toLocaleString("zh-CN") : "—" },
-                      ].map(({ label, value }) => (
-                        <div key={label}>
-                          <p className="text-xs text-muted-foreground mb-1">{label}</p>
-                          <p className="text-foreground">{value}</p>
-                        </div>
-                      ))}
-                    </div>
-                    {certStatus === "pending" && (
-                      <div className="flex gap-2 mt-4">
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="text-primary border-primary/20 hover:bg-primary/10"
-                          disabled={reviewLoading === "approved"}
-                          onClick={() => handleReview("approved")}
-                        >
-                          <CheckCircle className="w-4 h-4 mr-1.5" />
-                          通过认证
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="text-destructive border-destructive/20 hover:bg-destructive/10"
-                          disabled={reviewLoading === "rejected"}
-                          onClick={() => handleReview("rejected")}
-                        >
-                          <XCircle className="w-4 h-4 mr-1.5" />
-                          拒绝认证
-                        </Button>
-                      </div>
-                    )}
+            {/* Certification Card — always shown */}
+            <div className="bg-card border rounded-xl p-5">
+              <h3 className="text-sm font-semibold text-foreground mb-4">企业认证</h3>
+              {certStatus === "uncertified" && (
+                <div className="flex flex-col items-center justify-center gap-2 py-8 rounded-xl bg-muted/40 text-center">
+                  <ShieldAlert className="w-8 h-8 text-muted-foreground" />
+                  <p className="text-sm font-medium text-muted-foreground">该企业尚未提交认证</p>
+                </div>
+              )}
+              {certStatus === "pending" && cert && (
+                <div className="rounded-xl bg-yellow-50 dark:bg-yellow-950/30 border border-yellow-200 dark:border-yellow-800 p-4 space-y-4">
+                  <div className="flex items-center gap-2 text-yellow-700 dark:text-yellow-400">
+                    <Clock className="w-5 h-5" />
+                    <span className="text-sm font-medium">待审核</span>
                   </div>
-                </>
+                  <div className="grid grid-cols-2 gap-x-8 gap-y-3 text-sm">
+                    {[
+                      { label: "公司名称", value: cert.company_name || "—" },
+                      { label: "统一信用代码", value: cert.credit_code || "—" },
+                      { label: "法定代表人", value: cert.legal_person || "—" },
+                      { label: "提交时间", value: cert.submitted_at ? new Date(cert.submitted_at).toLocaleString("zh-CN") : "—" },
+                    ].map(({ label, value }) => (
+                      <div key={label}>
+                        <p className="text-xs text-muted-foreground mb-0.5">{label}</p>
+                        <p className="text-foreground">{value}</p>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="flex gap-2 pt-1">
+                    <Button size="sm" variant="outline" className="text-primary border-primary/20 hover:bg-primary/10" disabled={reviewLoading === "approved"} onClick={() => handleReview("approved")}>
+                      <CheckCircle className="w-4 h-4 mr-1.5" />通过认证
+                    </Button>
+                    <Button size="sm" variant="outline" className="text-destructive border-destructive/20 hover:bg-destructive/10" disabled={reviewLoading === "rejected"} onClick={() => handleReview("rejected")}>
+                      <XCircle className="w-4 h-4 mr-1.5" />拒绝认证
+                    </Button>
+                  </div>
+                </div>
+              )}
+              {certStatus === "approved" && cert && (
+                <div className="rounded-xl bg-green-50 dark:bg-green-950/30 border border-green-200 dark:border-green-800 p-4 space-y-3">
+                  <div className="flex items-center gap-2 text-green-700 dark:text-green-400">
+                    <CheckCircle className="w-5 h-5" />
+                    <span className="text-sm font-medium">已通过认证</span>
+                  </div>
+                  <div className="grid grid-cols-2 gap-x-8 gap-y-3 text-sm">
+                    {[
+                      { label: "公司名称", value: cert.company_name || "—" },
+                      { label: "统一信用代码", value: cert.credit_code || "—" },
+                      { label: "法定代表人", value: cert.legal_person || "—" },
+                      { label: "提交时间", value: cert.submitted_at ? new Date(cert.submitted_at).toLocaleString("zh-CN") : "—" },
+                      { label: "审核时间", value: cert.reviewed_at ? new Date(cert.reviewed_at).toLocaleString("zh-CN") : "—" },
+                    ].map(({ label, value }) => (
+                      <div key={label}>
+                        <p className="text-xs text-muted-foreground mb-0.5">{label}</p>
+                        <p className="text-foreground">{value}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {certStatus === "rejected" && (
+                <div className="rounded-xl bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800 p-4 flex items-center gap-3">
+                  <XCircle className="w-6 h-6 text-red-600 dark:text-red-400 shrink-0" />
+                  <div>
+                    <p className="text-sm font-medium text-red-700 dark:text-red-400">认证已被拒绝</p>
+                    {cert?.reviewed_at && <p className="text-xs text-muted-foreground mt-0.5">审核时间：{new Date(cert.reviewed_at).toLocaleString("zh-CN")}</p>}
+                  </div>
+                </div>
               )}
             </div>
           </TabsContent>
