@@ -1,49 +1,59 @@
 
-## 问题分析
+Now I have a full picture of the current org tab. Here's the plan:
 
-对比图1（客户端企业信息页）与图2（后台企业详情基本信息Tab）：
+## Changes needed — only `src/pages/admin/AdminEnterpriseDetail.tsx`
 
-**图2多余字段**：
-- "唯一 ID"（UUID，客户端没有显示，且太长影响排版）
+### New state variables
+- `editOrgOpen: boolean` + `editOrgTarget: Org | null` — controls "edit org budget/daily-limit" dialog
+- `editOrgBudget: string`, `editOrgDailyLimit: string`, `editOrgLoading: boolean`
+- `editMemberOpen: boolean` + `editMemberTarget: Member | null` + `editMemberAction: "role" | "limit" | "ban" | null`
+- `editMemberRole: string`, `editMemberLimit: string`, `editMemberLoading: boolean`
 
-**图2缺少/不一致字段**：
-- 客户端显示"企业名称 + 企业 ID（enterprise_code）+ 创建时间 + 企业管理员"，后台应保持一致
-- 客户端"负责人手机"应显示成管理员的格式（带姓名pill标签样式，与图1企业管理员卡片对齐）
-- 认证状态在基本信息里只需要一个 badge，不需要单独一行
-- **图1里认证信息是独立的一个大卡片**，后台基本信息Tab里，认证信息区块目前是 `cert && certStatus !== "uncertified"` 才显示，意味着未认证时完全没有认证卡片占位 → 应始终显示认证区块
+### Left org list — add edit icon
+- Inside each org card button row (org name + status row), add a pencil icon button on the right (after the status badge)
+- `stopPropagation` so it doesn't trigger org selection
+- Click opens `editOrgOpen` dialog pre-filled with org's `current_month_budget`
 
-## 具体修改（仅 `src/pages/admin/AdminEnterpriseDetail.tsx`）
+### Edit Org Dialog
+Fields:
+- 本月预算额度（元）: number input, current value pre-filled
+- 单日消耗上限（元）: number input (this will update all members' `daily_limit` in the org, or store on org level)
 
-### 1. 基本信息区块重构（第 322-386 行）
+Action: `UPDATE organizations SET current_month_budget = X WHERE id = org.id` via supabase direct (RLS allows anyone to update).
 
-将"企业基本信息"的字段改为与图1一致：
+### Right member list — add "操作" column
+Change grid from `grid-cols-[2fr_1fr_1fr_1fr]` to `grid-cols-[2fr_1fr_1fr_1fr_100px]`, add "操作" header.
 
-```
-企业名称   |  企业 ID（enterprise_code）
-创建时间   |  企业管理员（姓名pill + 手机）
-```
+Each member row gets three icon buttons:
+1. **修改角色** (`UserCheck` icon) — opens dialog with radio: 普通成员 / 组织管理员. Updates `members.role`.
+2. **修改限额** (`DollarSign` icon) — opens dialog with number input for `daily_limit`. Updates `members.daily_limit`.
+3. **移除并封禁** (`UserX` icon, destructive red) — confirmation AlertDialog. On confirm:
+   - DELETE from `members` WHERE id = member.id
+   - UPDATE `users` SET status = 'banned' WHERE phone = member.user_phone — BUT `users` table has no `status` column. Need to add it OR we can do a soft ban by setting member.status = 'banned' AND also block the user at members level. Actually the user asked to "禁用该用户账号全平台" — need to add `status` column to `users` table via migration. Alternative: update ALL members of this user across the enterprise to `status = 'banned'`. But the request says "全平台禁用" = global ban. So we need a `users.status` column.
 
-- 删除"唯一 ID"（`enterprise.id` UUID那行）
-- 删除独立的"认证状态"行（认证信息卡片本身有状态）
-- 改"负责人手机"为"企业管理员"，并以 pill 标签形式展示（参照图1的蓝紫渐变pill）
-  - 需要查询管理员姓名（已有 `admins` 数据但这里是单独详情页，可从 `cert` 或 members 中取）
-  - 实现方式：`fetchAll` 时已拉取 members，从中筛 admin role 的人并加一个 users 名字查询
+Wait — let me re-check: `users` table currently has: phone, created_at, name, id. No `status` column.
 
-### 2. 认证信息区块：始终显示占位卡片
+**Migration needed**: `ALTER TABLE users ADD COLUMN status text NOT NULL DEFAULT 'active';`
 
-当前逻辑 `{cert && certStatus !== "uncertified"}` 导致未认证时无认证卡片。
+Then ban action:
+1. Delete or set `members.status = 'banned'` for this member record
+2. `UPDATE users SET status = 'banned' WHERE phone = member.user_phone`
 
-修改为**始终渲染认证区块**，根据状态分四种样式（对应图1的四态设计）：
+### Summary of changes
 
-- **未认证**：灰色背景，ShieldAlert 图标，"该企业尚未提交认证" 说明文字
-- **待审核**：黄色背景，Clock 图标 + 审核按钮（通过/拒绝），展示提交的公司信息
-- **已认证**：绿色背景，CheckCircle 图标，展示 公司名、信用代码、法人姓名、提交时间、审核时间（2列网格）
-- **已拒绝**：红色背景，XCircle 图标，说明被拒绝
+**Migration**: Add `status` column to `users` table.
 
-这样就达到图1的效果，且无论什么状态都有认证卡片占位。
+**`AdminEnterpriseDetail.tsx`**:
+1. Add new state vars (editOrg dialog, editMember dialog)
+2. Add `Pencil`, `UserCheck`, `DollarSign`, `UserX` to lucide imports
+3. Add `AlertDialog` imports
+4. Left org list: add pencil icon button in org card header row
+5. Right member table: add "操作" column with 3 icon buttons
+6. Add 3 new dialogs: Edit Org, Edit Member (role/limit combined with action type), Ban Confirm (AlertDialog)
+7. Add handler functions: `handleEditOrg`, `handleEditMember`, `handleBanMember`
 
-### 3. 数据补充
-
-为显示企业管理员姓名，需要在 `fetchAll` 中额外查询管理员姓名：
-- 用 `enterprise.owner_phone` 查 `users` 表获取名字
-- 在组件 state 增加 `ownerName: string | null`
+Handler implementations (all direct supabase calls, RLS allows updates):
+- `handleEditOrg`: `supabase.from("organizations").update({ current_month_budget: val }).eq("id", orgId)`
+- `handleEditMemberRole`: `supabase.from("members").update({ role: val }).eq("id", memberId)`
+- `handleEditMemberLimit`: `supabase.from("members").update({ daily_limit: val }).eq("id", memberId)`
+- `handleBanMember`: delete member + update users.status = 'banned'
