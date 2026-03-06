@@ -1,44 +1,39 @@
 
-## Analysis
+## Plan: Show highest role (+n) for multi-enterprise users
 
-Current column order (line 329-337): 手机号 | 姓名 | 所属企业 | 角色 | 个人余额 | 注册时间 | 操作
+### Current state
+`roleCell` at line 292–296:
+```ts
+const roleCell = (ents: EnterpriseRef[]) => {
+  if (ents.length === 0) return <span>个人用户</span>;
+  if (ents.length === 1) return <span>{roleLabel(ents[0].role)}</span>;
+  return <span>多企业</span>;  // ← replace this
+};
+```
 
-Requested new order: 手机号 | 姓名 | **个人余额** | **所属企业** | **角色** | 注册时间 | 操作
+### Change needed — one function, ~5 lines
 
-Plus visual grouping:
-- 个人余额 → light background / left border marking "个人空间" zone
-- 所属企业 + 角色 → visually grouped as "企业身份" zone
-- Empty state: enterprises → `-`, role → `个人用户` (not italic "个人用户" text)
+**Role priority order**: `owner` (企业主) > `org_admin` (组织管理员) > `member` (成员)
 
-## Changes — `src/pages/admin/AdminUsers.tsx` only
+Pick the highest-priority role from `ents`, display it + a `+N` badge where N = `ents.length - 1`:
 
-### 1. Header row (line 329-337)
-Reorder columns: `手机号 | 姓名 | 个人余额 | 所属企业空间 | 角色 | 注册时间 | 操作`
+```tsx
+const ROLE_PRIORITY = ["owner", "org_admin", "member"];
 
-Add visual treatment to header cells:
-- `个人余额` header: `bg-blue-50/60` left border `border-l-2 border-l-blue-200` + slightly different bg
-- `所属企业空间` and `角色` headers: `bg-amber-50/40` subtle warm tint to group them
+const roleCell = (ents: EnterpriseRef[]) => {
+  if (ents.length === 0) return <span className="text-muted-foreground/70">个人用户</span>;
+  if (ents.length === 1) return <span className="text-muted-foreground">{roleLabel(ents[0].role)}</span>;
+  const top = ents.slice().sort((a, b) => ROLE_PRIORITY.indexOf(a.role) - ROLE_PRIORITY.indexOf(b.role))[0];
+  return (
+    <span className="flex items-center gap-1 text-muted-foreground">
+      {roleLabel(top.role)}
+      <span className="text-xs bg-muted rounded px-1 text-muted-foreground">+{ents.length - 1}</span>
+    </span>
+  );
+};
+```
 
-### 2. Data rows (line 344-398)
-Reorder the cells to match: phone → name → personal_balance → enterprise → role → date → actions
+Result: e.g. `企业主 +1` or `组织管理员 +2` — matching the style of the `+N` badge in image 2.
 
-Apply same cell-level background highlights:
-- Personal balance cell: `bg-blue-50/40 border-l-2 border-l-blue-200` 
-- Enterprise cell + role cell: `bg-amber-50/30`
-
-### 3. `enterpriseCell` update (line 265-290)
-- When `ents.length === 0`: return `<span className="text-muted-foreground/50">-</span>` (just a dash, clean)
-
-### 4. `roleCell` update (line 292-296)  
-- When `ents.length === 0`: return `<span className="text-muted-foreground/70">个人用户</span>` (replace `—`)
-
-### Grid template stays the same: `grid-cols-[1.5fr_1fr_1fr_1.5fr_1fr_1fr_80px]`
-Slight tweak: personal balance doesn't need 1.5fr, can be `1fr`. Enterprise gets `1.5fr`. So: `[1.5fr_1fr_1fr_1.5fr_1fr_1fr_80px]` — same total proportions, just reordered logically.
-
-## Summary of changes
-1. Swap `个人余额` to be 3rd column (after 姓名), before 所属企业
-2. Apply `bg-blue-50/40 border-l-2 border-l-blue-200` to personal balance header + cell
-3. Apply `bg-amber-50/30` to enterprise + role header + cells  
-4. `enterpriseCell`: empty state → `-`
-5. `roleCell`: empty state → `个人用户`
-6. Header labels: "所属企业" → "所属企业空间", keep "角色"
+### Files changed
+- `src/pages/admin/AdminUsers.tsx` — only `roleCell` function (lines 292–296) + add `ROLE_PRIORITY` constant above it
