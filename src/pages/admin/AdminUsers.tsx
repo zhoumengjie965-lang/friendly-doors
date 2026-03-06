@@ -9,7 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
-import { Search, Pencil, Ban, CheckCircle2, UserMinus } from "lucide-react";
+import { Search, Pencil, Ban, CheckCircle2, Copy } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 interface EnterpriseRef { id: string; name: string; role: string; }
@@ -52,11 +52,7 @@ export default function AdminUsers() {
   const [drawerUser, setDrawerUser] = useState<UserRow | null>(null);
   const [drawerDetail, setDrawerDetail] = useState<DrawerDetail | null>(null);
   const [drawerLoading, setDrawerLoading] = useState(false);
-  const [editName, setEditName] = useState("");
-  const [editPhone, setEditPhone] = useState("");
   const [editBalance, setEditBalance] = useState("");
-  const [savingName, setSavingName] = useState(false);
-  const [savingPhone, setSavingPhone] = useState(false);
   const [savingBalance, setSavingBalance] = useState(false);
 
   useEffect(() => {
@@ -186,8 +182,6 @@ export default function AdminUsers() {
 
   const openDrawer = (user: UserRow) => {
     setDrawerUser(user);
-    setEditName(user.name || "");
-    setEditPhone(user.phone);
     setEditBalance("");
     setDrawerOpen(true);
     fetchDrawerDetail(user.phone);
@@ -198,26 +192,6 @@ export default function AdminUsers() {
     setUsers((prev) => prev.map((u) => u.id === user.id ? { ...u, status: newStatus } : u));
     if (drawerUser?.id === user.id) setDrawerUser((prev) => prev ? { ...prev, status: newStatus } : prev);
     await supabase.from("users").update({ status: newStatus }).eq("id", user.id);
-  };
-
-  const handleSaveName = async () => {
-    if (!drawerUser) return;
-    setSavingName(true);
-    await supabase.from("users").update({ name: editName || null }).eq("id", drawerUser.id);
-    setUsers((prev) => prev.map((u) => u.id === drawerUser.id ? { ...u, name: editName || null } : u));
-    setDrawerUser((prev) => prev ? { ...prev, name: editName || null } : prev);
-    setSavingName(false);
-    toast({ title: "已保存", description: "用户名已更新" });
-  };
-
-  const handleSavePhone = async () => {
-    if (!drawerUser) return;
-    setSavingPhone(true);
-    await supabase.from("users").update({ phone: editPhone }).eq("id", drawerUser.id);
-    setUsers((prev) => prev.map((u) => u.id === drawerUser.id ? { ...u, phone: editPhone } : u));
-    setDrawerUser((prev) => prev ? { ...prev, phone: editPhone } : prev);
-    setSavingPhone(false);
-    toast({ title: "已保存", description: "手机号已更新" });
   };
 
   const handleSaveBalance = async () => {
@@ -421,34 +395,27 @@ export default function AdminUsers() {
                 <h3 className="text-sm font-semibold text-foreground">基本信息</h3>
 
                 {/* 用户名 */}
-                <div className="space-y-1.5">
-                  <Label className="text-xs text-muted-foreground">用户名</Label>
-                  <div className="flex gap-2">
-                    <Input
-                      value={editName}
-                      onChange={(e) => setEditName(e.target.value)}
-                      placeholder="未设置"
-                      className="h-8 text-sm"
-                    />
-                    <Button size="sm" variant="outline" onClick={handleSaveName} disabled={savingName} className="h-8 shrink-0">
-                      {savingName ? "保存中…" : "保存"}
-                    </Button>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <Label className="text-xs text-muted-foreground">用户名</Label>
+                    <p className="text-sm mt-0.5">{drawerUser.name || "—"}</p>
                   </div>
+                  <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground"
+                    onClick={() => { navigator.clipboard.writeText(drawerUser.name || ""); toast({ title: "已复制" }); }}>
+                    <Copy className="w-3.5 h-3.5" />
+                  </Button>
                 </div>
 
                 {/* 手机号 */}
-                <div className="space-y-1.5">
-                  <Label className="text-xs text-muted-foreground">手机号</Label>
-                  <div className="flex gap-2">
-                    <Input
-                      value={editPhone}
-                      onChange={(e) => setEditPhone(e.target.value)}
-                      className="h-8 text-sm"
-                    />
-                    <Button size="sm" variant="outline" onClick={handleSavePhone} disabled={savingPhone} className="h-8 shrink-0">
-                      {savingPhone ? "保存中…" : "保存"}
-                    </Button>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <Label className="text-xs text-muted-foreground">手机号</Label>
+                    <p className="text-sm mt-0.5 font-medium tabular-nums">{drawerUser.phone}</p>
                   </div>
+                  <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground"
+                    onClick={() => { navigator.clipboard.writeText(drawerUser.phone); toast({ title: "已复制" }); }}>
+                    <Copy className="w-3.5 h-3.5" />
+                  </Button>
                 </div>
 
                 {/* 账号状态 */}
@@ -490,7 +457,7 @@ export default function AdminUsers() {
                 ) : drawerDetail ? (
                   <>
                     {/* 个人空间 */}
-                    <div className="bg-muted/40 rounded-lg p-4 space-y-3">
+                    <div className="bg-blue-50/50 border border-blue-100 rounded-lg p-4 space-y-3">
                       <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">个人空间</p>
                       <div className="flex items-center justify-between">
                         <span className="text-sm text-muted-foreground">当前余额</span>
@@ -511,6 +478,7 @@ export default function AdminUsers() {
                               {savingBalance ? "保存中…" : "保存"}
                             </Button>
                           </div>
+                          <p className="text-xs text-blue-500/70 mt-1">此操作仅影响个人钱包，不影响企业配额</p>
                         </div>
                       ) : (
                         <p className="text-xs text-muted-foreground/60">该用户尚未创建企业空间</p>
@@ -524,32 +492,25 @@ export default function AdminUsers() {
                         <p className="text-sm text-muted-foreground/60 italic">未加入任何企业</p>
                       ) : (
                         <div className="border rounded-lg overflow-hidden">
-                          <div className="grid grid-cols-[1fr_1fr_80px_60px] gap-2 px-3 py-2 bg-muted/40 text-xs font-medium text-muted-foreground border-b">
+                          <div className="grid grid-cols-[1fr_1fr_80px_auto] gap-2 px-3 py-2 bg-muted/40 text-xs font-medium text-muted-foreground border-b">
                             <span>企业名称</span>
                             <span>所属组织</span>
                             <span>角色</span>
                             <span></span>
                           </div>
                           {drawerDetail.members.map((m) => (
-                            <div key={m.id} className="grid grid-cols-[1fr_1fr_80px_60px] gap-2 px-3 py-2.5 border-b last:border-0 text-sm items-center">
+                            <div key={m.id} className="grid grid-cols-[1fr_1fr_80px_auto] gap-2 px-3 py-2.5 border-b last:border-0 text-sm items-center">
                               <span className="truncate font-medium">{m.enterprise_name}</span>
                               <span className="text-muted-foreground truncate">{m.org_name || "—"}</span>
                               <span className="text-muted-foreground text-xs">{roleLabel(m.role)}</span>
-                              <TooltipProvider delayDuration={300}>
-                                <Tooltip>
-                                  <TooltipTrigger asChild>
-                                    <Button
-                                      variant="ghost"
-                                      size="icon"
-                                      className="h-7 w-7 text-destructive hover:text-destructive/80"
-                                      onClick={() => handleRemoveMember(m.id)}
-                                    >
-                                      <UserMinus className="w-3.5 h-3.5" />
-                                    </Button>
-                                  </TooltipTrigger>
-                                  <TooltipContent>强制解除企业关联</TooltipContent>
-                                </Tooltip>
-                              </TooltipProvider>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className="h-6 text-xs text-destructive border-destructive/30 hover:bg-destructive/10 shrink-0"
+                                onClick={() => handleRemoveMember(m.id)}
+                              >
+                                解绑
+                              </Button>
                             </div>
                           ))}
                         </div>
