@@ -289,10 +289,18 @@ export default function AdminUsers() {
     );
   };
 
+  const ROLE_PRIORITY = ["owner", "org_admin", "member"];
+
   const roleCell = (ents: EnterpriseRef[]) => {
     if (ents.length === 0) return <span className="text-muted-foreground/70">个人用户</span>;
     if (ents.length === 1) return <span className="text-muted-foreground">{roleLabel(ents[0].role)}</span>;
-    return <span className="text-muted-foreground">多企业</span>;
+    const top = ents.slice().sort((a, b) => ROLE_PRIORITY.indexOf(a.role) - ROLE_PRIORITY.indexOf(b.role))[0];
+    return (
+      <span className="flex items-center gap-1 text-muted-foreground">
+        {roleLabel(top.role)}
+        <span className="text-xs bg-muted rounded px-1 text-muted-foreground">+{ents.length - 1}</span>
+      </span>
+    );
   };
 
   return (
