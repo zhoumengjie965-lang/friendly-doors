@@ -391,65 +391,68 @@ export default function AdminUsers() {
           {drawerUser && (
             <div className="space-y-6">
               {/* Section A: 基本信息 */}
-              <div className="space-y-4">
+              <div className="space-y-3">
                 <h3 className="text-sm font-semibold text-foreground">基本信息</h3>
 
-                {/* 用户名 */}
-                <div className="flex items-center justify-between">
-                  <div>
-                    <Label className="text-xs text-muted-foreground">用户名</Label>
-                    <p className="text-sm mt-0.5">{drawerUser.name || "—"}</p>
+                <div className="grid grid-cols-2 gap-x-4 gap-y-2">
+                  {/* 用户名 — top-left */}
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <Label className="text-xs text-muted-foreground">用户名</Label>
+                      <p className="text-sm mt-0.5">{drawerUser.name || "—"}</p>
+                    </div>
+                    <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground shrink-0"
+                      onClick={() => { navigator.clipboard.writeText(drawerUser.name || ""); toast({ title: "已复制" }); }}>
+                      <Copy className="w-3.5 h-3.5" />
+                    </Button>
                   </div>
-                  <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground"
-                    onClick={() => { navigator.clipboard.writeText(drawerUser.name || ""); toast({ title: "已复制" }); }}>
-                    <Copy className="w-3.5 h-3.5" />
-                  </Button>
-                </div>
 
-                {/* 手机号 */}
-                <div className="flex items-center justify-between">
-                  <div>
-                    <Label className="text-xs text-muted-foreground">手机号</Label>
-                    <p className="text-sm mt-0.5 font-medium tabular-nums">{drawerUser.phone}</p>
+                  {/* 手机号 — top-right */}
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <Label className="text-xs text-muted-foreground">手机号</Label>
+                      <p className="text-sm mt-0.5 font-medium tabular-nums">{drawerUser.phone}</p>
+                    </div>
+                    <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground shrink-0"
+                      onClick={() => { navigator.clipboard.writeText(drawerUser.phone); toast({ title: "已复制" }); }}>
+                      <Copy className="w-3.5 h-3.5" />
+                    </Button>
                   </div>
-                  <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground"
-                    onClick={() => { navigator.clipboard.writeText(drawerUser.phone); toast({ title: "已复制" }); }}>
-                    <Copy className="w-3.5 h-3.5" />
-                  </Button>
-                </div>
 
-                {/* 账号状态 */}
-                <div className="flex items-center justify-between">
-                  <div>
-                    <Label className="text-xs text-muted-foreground">账号状态</Label>
-                    <p className="text-sm mt-0.5">{drawerUser.status === "banned" ? "已封禁" : "正常"}</p>
+                  {/* 账号状态 — bottom-left */}
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <Label className="text-xs text-muted-foreground">账号状态</Label>
+                      <p className="text-sm mt-0.5">{drawerUser.status === "banned" ? "已封禁" : "正常"}</p>
+                    </div>
+                    <Switch
+                      checked={drawerUser.status === "active"}
+                      onCheckedChange={() => handleToggleStatus(drawerUser)}
+                    />
                   </div>
-                  <Switch
-                    checked={drawerUser.status === "active"}
-                    onCheckedChange={() => handleToggleStatus(drawerUser)}
-                  />
-                </div>
 
-                {/* 密码重置 */}
-                <div className="flex items-center justify-between">
-                  <div>
-                    <Label className="text-xs text-muted-foreground">密码重置</Label>
-                    <p className="text-xs text-muted-foreground mt-0.5">强制用户下次登录时重置密码</p>
+                  {/* 密码重置 — bottom-right */}
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <Label className="text-xs text-muted-foreground">密码重置</Label>
+                      <p className="text-xs text-muted-foreground mt-0.5">强制重置密码</p>
+                    </div>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="h-7 text-xs shrink-0"
+                      onClick={() => toast({ title: "功能开发中", description: "密码重置功能即将上线" })}
+                    >
+                      重置密码
+                    </Button>
                   </div>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => toast({ title: "功能开发中", description: "密码重置功能即将上线" })}
-                  >
-                    重置密码
-                  </Button>
                 </div>
               </div>
 
               <Separator />
 
               {/* Section B: 空间关联管理 */}
-              <div className="space-y-5">
+              <div className="space-y-4">
                 <h3 className="text-sm font-semibold text-foreground">空间关联管理</h3>
 
                 {drawerLoading ? (
@@ -457,32 +460,34 @@ export default function AdminUsers() {
                 ) : drawerDetail ? (
                   <>
                     {/* 个人空间 */}
-                    <div className="bg-blue-50/50 border border-blue-100 rounded-lg p-4 space-y-3">
-                      <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">个人空间</p>
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm text-muted-foreground">当前余额</span>
-                        <span className="font-semibold tabular-nums">¥{drawerDetail.personal_balance.toFixed(2)}</span>
-                      </div>
-                      {drawerDetail.personal_enterprise_id ? (
-                        <div className="space-y-1.5">
-                          <Label className="text-xs text-muted-foreground">修改余额</Label>
-                          <div className="flex gap-2">
-                            <Input
-                              type="number"
-                              value={editBalance}
-                              onChange={(e) => setEditBalance(e.target.value)}
-                              placeholder={drawerDetail.personal_balance.toFixed(2)}
-                              className="h-8 text-sm"
-                            />
-                            <Button size="sm" variant="outline" onClick={handleSaveBalance} disabled={savingBalance || !editBalance} className="h-8 shrink-0">
-                              {savingBalance ? "保存中…" : "保存"}
-                            </Button>
-                          </div>
-                          <p className="text-xs text-blue-500/70 mt-1">此操作仅影响个人钱包，不影响企业配额</p>
+                    <div>
+                      <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1.5">个人空间</p>
+                      <div className="bg-blue-50/50 border border-blue-100 rounded-lg p-3 space-y-2">
+                        <div className="flex items-center justify-between">
+                          <span className="text-sm text-muted-foreground">当前余额</span>
+                          <span className="font-semibold tabular-nums">¥{drawerDetail.personal_balance.toFixed(2)}</span>
                         </div>
-                      ) : (
-                        <p className="text-xs text-muted-foreground/60">该用户尚未创建企业空间</p>
-                      )}
+                        {drawerDetail.personal_enterprise_id ? (
+                          <div className="space-y-1.5">
+                            <Label className="text-xs text-muted-foreground">修改余额</Label>
+                            <div className="flex gap-2">
+                              <Input
+                                type="number"
+                                value={editBalance}
+                                onChange={(e) => setEditBalance(e.target.value)}
+                                placeholder={drawerDetail.personal_balance.toFixed(2)}
+                                className="h-8 text-sm"
+                              />
+                              <Button size="sm" variant="outline" onClick={handleSaveBalance} disabled={savingBalance || !editBalance} className="h-8 shrink-0">
+                                {savingBalance ? "保存中…" : "保存"}
+                              </Button>
+                            </div>
+                            <p className="text-xs text-blue-500/70 mt-1">此操作仅影响个人钱包，不影响企业配额</p>
+                          </div>
+                        ) : (
+                          <p className="text-xs text-muted-foreground/60">该用户尚未创建企业空间</p>
+                        )}
+                      </div>
                     </div>
 
                     {/* 企业空间列表 */}
