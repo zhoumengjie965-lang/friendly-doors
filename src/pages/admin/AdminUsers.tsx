@@ -263,7 +263,7 @@ export default function AdminUsers() {
   };
 
   const enterpriseCell = (ents: EnterpriseRef[]) => {
-    if (ents.length === 0) return <span className="text-muted-foreground/60 italic">个人用户</span>;
+    if (ents.length === 0) return <span className="text-muted-foreground/50">-</span>;
     if (ents.length === 1) return <span className="text-muted-foreground truncate">{ents[0].name}</span>;
     return (
       <TooltipProvider delayDuration={200}>
@@ -290,7 +290,7 @@ export default function AdminUsers() {
   };
 
   const roleCell = (ents: EnterpriseRef[]) => {
-    if (ents.length === 0) return <span className="text-muted-foreground">—</span>;
+    if (ents.length === 0) return <span className="text-muted-foreground/70">个人用户</span>;
     if (ents.length === 1) return <span className="text-muted-foreground">{roleLabel(ents[0].role)}</span>;
     return <span className="text-muted-foreground">多企业</span>;
   };
@@ -326,14 +326,14 @@ export default function AdminUsers() {
       </div>
 
       <div className="bg-card border rounded-xl overflow-hidden">
-        <div className="grid grid-cols-[1.5fr_1fr_1.5fr_1fr_1fr_1fr_80px] gap-4 px-5 py-3 bg-muted/50 text-xs font-medium text-muted-foreground border-b">
-          <span>手机号</span>
-          <span>姓名</span>
-          <span>所属企业</span>
-          <span>角色</span>
-          <span>个人余额</span>
-          <span>注册时间</span>
-          <span>操作</span>
+        <div className="grid grid-cols-[1.5fr_1fr_1fr_1.5fr_1fr_1fr_80px] text-xs font-medium text-muted-foreground border-b">
+          <span className="px-5 py-3">手机号</span>
+          <span className="px-5 py-3">姓名</span>
+          <span className="px-3 py-3 bg-blue-50/60 border-l-2 border-l-blue-200">个人余额</span>
+          <span className="px-5 py-3 bg-amber-50/40">所属企业空间</span>
+          <span className="px-3 py-3 bg-amber-50/40">角色</span>
+          <span className="px-5 py-3">注册时间</span>
+          <span className="px-3 py-3">操作</span>
         </div>
 
         {loading ? (
@@ -344,24 +344,24 @@ export default function AdminUsers() {
           filtered.map((u) => (
             <div
               key={u.id}
-              className="grid grid-cols-[1.5fr_1fr_1.5fr_1fr_1fr_1fr_80px] gap-4 px-5 py-3.5 border-b last:border-0 text-sm items-center"
+              className="grid grid-cols-[1.5fr_1fr_1fr_1.5fr_1fr_1fr_80px] border-b last:border-0 text-sm items-center"
             >
-              <div className="flex items-center gap-2 min-w-0">
+              <div className="flex items-center gap-2 min-w-0 px-5 py-3.5">
                 <span className="font-medium text-foreground truncate">{u.phone}</span>
                 {u.status === "banned" && (
                   <Badge variant="destructive" className="text-xs px-1.5 py-0 shrink-0">已封禁</Badge>
                 )}
               </div>
-              <span className="text-muted-foreground">{u.name || "—"}</span>
-              <div className="flex items-center min-w-0">{enterpriseCell(u.enterprises)}</div>
-              <div>{roleCell(u.enterprises)}</div>
-              <span className="text-muted-foreground tabular-nums">
+              <span className="text-muted-foreground px-5 py-3.5">{u.name || "—"}</span>
+              <span className="text-muted-foreground tabular-nums px-3 py-3.5 bg-blue-50/40 border-l-2 border-l-blue-200">
                 ¥{u.personal_balance.toFixed(2)}
               </span>
-              <span className="text-muted-foreground">
+              <div className="flex items-center min-w-0 px-5 py-3.5 bg-amber-50/30">{enterpriseCell(u.enterprises)}</div>
+              <div className="px-3 py-3.5 bg-amber-50/30">{roleCell(u.enterprises)}</div>
+              <span className="text-muted-foreground px-5 py-3.5">
                 {new Date(u.created_at).toLocaleDateString("zh-CN")}
               </span>
-              <div className="flex items-center gap-1">
+              <div className="flex items-center gap-1 px-3 py-3.5">
                 <TooltipProvider delayDuration={300}>
                   <Tooltip>
                     <TooltipTrigger asChild>
