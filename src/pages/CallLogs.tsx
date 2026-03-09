@@ -509,6 +509,31 @@ const roleTabs = [
 export default function CallLogs({ enterprise, role, currentOrg, orgList = [] }: Props) {
   const [viewRole, setViewRole] = useState(role);
 
+  // org context: derived from real orgList or mock fallback
+  const mockAllOrgs = Array.from(new Set(mockUsageLogs.map(r => r.org)));
+  const orgAdminOrgOptions: OrgInfo[] = orgList.length > 0
+    ? orgList
+    : mockAllOrgs.map(name => ({ id: name, name }));
+
+  // default to first org in list
+  const [filterOrg, setFilterOrg] = useState<string>(
+    currentOrg?.id ?? (orgAdminOrgOptions[0]?.id ?? "all")
+  );
+
+  // reset org context when switching away from org_admin view
+  const handleViewRole = (key: string) => {
+    setViewRole(key);
+    if (key === "org_admin") {
+      setFilterOrg(currentOrg?.id ?? (orgAdminOrgOptions[0]?.id ?? "all"));
+    } else {
+      setFilterOrg("all");
+    }
+  };
+
+  const activeOrgName = filterOrg === "all"
+    ? null
+    : (orgAdminOrgOptions.find(o => o.id === filterOrg)?.name ?? filterOrg);
+
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
@@ -517,22 +542,41 @@ export default function CallLogs({ enterprise, role, currentOrg, orgList = [] }:
           <p className="text-muted-foreground mt-1 text-sm">查看 API 调用详情与任务执行记录</p>
         </div>
 
-        {/* Role switcher */}
-        <div className="flex items-center bg-muted rounded-lg p-1 h-9">
-          {roleTabs.map((tab) => (
-            <button
-              key={tab.key}
-              onClick={() => setViewRole(tab.key)}
-              className={cn(
-                "px-4 py-1.5 rounded-md text-xs font-medium transition-all",
-                viewRole === tab.key
-                  ? "bg-background text-foreground shadow-sm"
-                  : "text-muted-foreground hover:text-foreground"
-              )}
-            >
-              {tab.label}
-            </button>
-          ))}
+        <div className="flex items-center gap-3">
+          {/* 组织管理员：右上角组织上下文选择器 */}
+          {viewRole === "org_admin" && (
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-muted-foreground whitespace-nowrap">当前组织</span>
+              <Select value={filterOrg} onValueChange={setFilterOrg}>
+                <SelectTrigger className="h-9 w-36 text-sm font-medium border-primary/40 bg-primary/5 text-primary focus:ring-primary/30">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {orgAdminOrgOptions.map(o => (
+                    <SelectItem key={o.id} value={o.id}>{o.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+
+          {/* Role switcher */}
+          <div className="flex items-center bg-muted rounded-lg p-1 h-9">
+            {roleTabs.map((tab) => (
+              <button
+                key={tab.key}
+                onClick={() => handleViewRole(tab.key)}
+                className={cn(
+                  "px-4 py-1.5 rounded-md text-xs font-medium transition-all",
+                  viewRole === tab.key
+                    ? "bg-background text-foreground shadow-sm"
+                    : "text-muted-foreground hover:text-foreground"
+                )}
+              >
+                {tab.label}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
 
@@ -550,7 +594,15 @@ export default function CallLogs({ enterprise, role, currentOrg, orgList = [] }:
         </TabsList>
 
         <TabsContent value="usage" className="mt-4">
-          <UsageLogsTab role={viewRole} currentOrg={currentOrg} orgList={orgList} />
+          <UsageLogsTab
+            role={viewRole}
+            filterOrg={activeOrgName ?? "all"}
+            setFilterOrg={(name) => {
+              const found = orgAdminOrgOptions.find(o => o.name === name);
+              setFilterOrg(found ? found.id : name);
+            }}
+            orgAdminOrgOptions={orgAdminOrgOptions}
+          />
         </TabsContent>
         <TabsContent value="drawing" className="mt-4">
           <DrawingLogsTab />
