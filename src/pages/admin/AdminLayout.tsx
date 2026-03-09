@@ -28,6 +28,8 @@ import AdminChannels from "./AdminChannels";
 import AdminModelDeploy from "./AdminModelDeploy";
 import AdminSettings from "./AdminSettings";
 import AdminEnterpriseDetail from "./AdminEnterpriseDetail";
+import AdminResourceStats from "./AdminResourceStats";
+import AdminTokens from "./AdminTokens";
 
 const NAV_GROUPS = [
   {
