@@ -1,71 +1,47 @@
 
-## Two focused layout tweaks — `src/pages/admin/AdminUsers.tsx` only
 
-### Change 1: Basic info — 2×2 grid (lines 394–447)
+## Plan: Update Admin Nav + Create Admin Token Management Page
 
-Currently 4 rows stacked vertically with `space-y-4`. Redesign as a **2×2 grid** — left column: 用户名 + 账号状态, right column: 手机号 + 密码重置.
+### 1. Update Admin Sidebar Navigation
 
-```tsx
-<div className="grid grid-cols-2 gap-x-4 gap-y-3">
-  {/* 用户名 — top-left */}
-  <div className="flex items-center justify-between">
-    <div>
-      <Label className="text-xs text-muted-foreground">用户名</Label>
-      <p className="text-sm mt-0.5">{drawerUser.name || "—"}</p>
-    </div>
-    <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground" onClick={...}>
-      <Copy className="w-3.5 h-3.5" />
-    </Button>
-  </div>
+**File: `src/pages/admin/AdminLayout.tsx`**
 
-  {/* 手机号 — top-right */}
-  <div className="flex items-center justify-between">
-    <div>
-      <Label className="text-xs text-muted-foreground">手机号</Label>
-      <p className="text-sm mt-0.5 font-medium tabular-nums">{drawerUser.phone}</p>
-    </div>
-    <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground" onClick={...}>
-      <Copy className="w-3.5 h-3.5" />
-    </Button>
-  </div>
-
-  {/* 账号状态 — bottom-left */}
-  <div className="flex items-center justify-between">
-    <div>
-      <Label className="text-xs text-muted-foreground">账号状态</Label>
-      <p className="text-sm mt-0.5">...</p>
-    </div>
-    <Switch ... />
-  </div>
-
-  {/* 密码重置 — bottom-right */}
-  <div className="flex items-center justify-between">
-    <div>
-      <Label className="text-xs text-muted-foreground">密码重置</Label>
-      <p className="text-xs text-muted-foreground mt-0.5">强制用户下次登录时重置密码</p>
-    </div>
-    <Button size="sm" variant="outline" ...>重置密码</Button>
-  </div>
-</div>
+Change the "控制台" group from 2 items to 4:
+```
+控制台:
+  - 数据总览 (dashboard) — LayoutDashboard
+  - 资源统计 (resource-stats) — BarChart2
+  - 调用日志 (call-logs) — FileText  (rename from 使用日志)
+  - 令牌管理 (tokens) — Key
 ```
 
-### Change 2: Personal space — label outside card, tighter padding (lines 459–486)
+Add corresponding routes for `resource-stats` and `tokens`.
 
-Move "个人空间" text **above** the card border, reduce internal padding from `p-4 space-y-3` to `p-3 space-y-2`:
+### 2. Create Admin Resource Stats Page
 
-```tsx
-{/* 个人空间 */}
-<div>
-  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1.5">个人空间</p>
-  <div className="bg-blue-50/50 border border-blue-100 rounded-lg p-3 space-y-2">
-    <div className="flex items-center justify-between">
-      <span className="text-sm text-muted-foreground">当前余额</span>
-      <span className="font-semibold tabular-nums">¥{...}</span>
-    </div>
-    {/* balance edit input + 保存 button + disclaimer — unchanged */}
-  </div>
-</div>
-```
+**New file: `src/pages/admin/AdminResourceStats.tsx`**
 
-### Files changed
-- `src/pages/admin/AdminUsers.tsx` — lines 394–486 only
+A simplified admin-level resource statistics page (similar to the client-side `ResourceStats.tsx` but with an enterprise filter dropdown). Mock data for now.
+
+### 3. Create Admin Token Management Page
+
+**New file: `src/pages/admin/AdminTokens.tsx`**
+
+Based on the reference screenshot (image-107), this is a full token/API key management page at the platform admin level. Key features:
+
+- **Header**: "令牌管理" title with "聚类列表" toggle in top-right
+- **Action bar**: "添加令牌", "复制所选令牌", "删除所选令牌" buttons + search by keyword + search by key value + "查询"/"重置" buttons
+- **Table columns**: Checkbox, 名称, 状态 (已启用), 剩余额度/总额度, 分组, 密钥 (masked with show/copy), 可用模型 (icons), IP限制, 创建时间, 过期时间, 操作 (聊天/禁用/编辑/删除)
+- **Data**: Query all `api_keys` across all enterprises (admin view)
+- **Operations**: Enable/disable, edit, delete tokens via existing RPC patterns
+- Pagination footer reusing the same pattern from `AdminCallLogs`
+
+### 4. Rename "使用日志" to "调用日志"
+
+In `AdminLayout.tsx`, update the label from "使用日志" to "调用日志".
+
+### Files to modify
+- `src/pages/admin/AdminLayout.tsx` — nav items + routes
+- `src/pages/admin/AdminResourceStats.tsx` — new file
+- `src/pages/admin/AdminTokens.tsx` — new file
+
