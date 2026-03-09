@@ -452,7 +452,14 @@ export default function Workspace() {
             ) : location.pathname === "/workspace/stats" ? (
               <ResourceStats enterprise={enterprise} role={role} />
             ) : location.pathname === "/workspace/logs" ? (
-              <CallLogs enterprise={enterprise} role={role} />
+              <CallLogs
+                enterprise={enterprise}
+                role={role}
+                currentOrg={currentOrg}
+                orgList={enterprises
+                  .filter(e => e.enterprise.id === enterprise.id && e.role === "org_admin" && e.org)
+                  .map(e => e.org!)}
+              />
             ) : location.pathname === "/workspace/profile" ? (
               <Profile enterprise={enterprise} currentOrg={currentOrg} role={role} />
             ) : (

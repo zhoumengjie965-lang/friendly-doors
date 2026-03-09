@@ -14,10 +14,13 @@ import {
 } from "@/components/ui/pagination";
 
 interface Enterprise { id: string; name: string; enterprise_code: string; }
+interface OrgInfo { id: string; name: string; }
 
 interface Props {
   enterprise: Enterprise;
   role: string;
+  currentOrg?: OrgInfo | null;
+  orgList?: OrgInfo[];
 }
 
 // ── Mock data ──
