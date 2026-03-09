@@ -521,7 +521,7 @@ const roleTabs = [
 ];
 
 // ── Main ──
-export default function CallLogs({ enterprise, role }: Props) {
+export default function CallLogs({ enterprise, role, currentOrg, orgList = [] }: Props) {
   const [viewRole, setViewRole] = useState(role);
 
   return (
@@ -565,7 +565,7 @@ export default function CallLogs({ enterprise, role }: Props) {
         </TabsList>
 
         <TabsContent value="usage" className="mt-4">
-          <UsageLogsTab role={viewRole} />
+          <UsageLogsTab role={viewRole} currentOrg={currentOrg} orgList={orgList} />
         </TabsContent>
         <TabsContent value="drawing" className="mt-4">
           <DrawingLogsTab />
