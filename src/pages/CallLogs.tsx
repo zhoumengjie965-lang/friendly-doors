@@ -142,13 +142,17 @@ function PaginationFooter({
 }
 
 // ── Tab 1: 使用日志 ──
-function UsageLogsTab({ role, currentOrg, orgList = [] }: { role: string; currentOrg?: OrgInfo | null; orgList?: OrgInfo[] }) {
+function UsageLogsTab({ role, filterOrg, setFilterOrg, orgAdminOrgOptions }: {
+  role: string;
+  filterOrg: string;
+  setFilterOrg: (v: string) => void;
+  orgAdminOrgOptions: OrgInfo[];
+}) {
   const [expanded, setExpanded] = useState(false);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
   const [filterGroup, setFilterGroup] = useState("all");
   const [filterType, setFilterType] = useState("all");
-  const [filterOrg, setFilterOrg] = useState<string>(currentOrg?.id ?? "all");
   const [filterMember, setFilterMember] = useState("all");
 
   const isEnterpriseAdmin = role === "enterprise_admin";
@@ -157,11 +161,6 @@ function UsageLogsTab({ role, currentOrg, orgList = [] }: { role: string; curren
   const allGroups = Array.from(new Set(mockUsageLogs.map(r => r.group)));
   const allOrgs = Array.from(new Set(mockUsageLogs.map(r => r.org)));
   const allMembers = Array.from(new Set(mockUsageLogs.map(r => r.member)));
-
-  // org_admin 视角：优先用传入的 orgList，否则 fallback 到 mock 数据里的组织列表
-  const orgAdminOrgOptions: OrgInfo[] = isOrgAdmin
-    ? (orgList.length > 0 ? orgList : allOrgs.map(name => ({ id: name, name })))
-    : [];
 
   const filtered = mockUsageLogs.filter(r => {
     if (filterGroup !== "all" && r.group !== filterGroup) return false;
@@ -213,21 +212,6 @@ function UsageLogsTab({ role, currentOrg, orgList = [] }: { role: string; curren
               </Select>
             </div>
           )}
-          {/* 组织管理员：组织切换下拉 */}
-          {isOrgAdmin && (
-            <div className="flex items-center gap-2">
-              <span className="text-sm text-muted-foreground whitespace-nowrap">组织</span>
-              <Select value={filterOrg} onValueChange={v => { setFilterOrg(v); setPage(1); }}>
-                <SelectTrigger className={`h-9 w-36 text-sm ${filterOrg !== "all" ? "border-primary text-primary" : ""}`}>
-                  <SelectValue placeholder="全部" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">全部</SelectItem>
-                  {orgAdminOrgOptions.map(o => <SelectItem key={o.id} value={o.id}>{o.name}</SelectItem>)}
-                </SelectContent>
-              </Select>
-            </div>
-          )}
           {/* 组织管理员：成员下拉 */}
           {isOrgAdmin && (
             <div className="flex items-center gap-2">
@@ -242,7 +226,7 @@ function UsageLogsTab({ role, currentOrg, orgList = [] }: { role: string; curren
             </div>
           )}
           <Button size="sm" className="h-9">搜索</Button>
-          <Button size="sm" variant="outline" className="h-9" onClick={() => { setFilterGroup("all"); setFilterType("all"); setFilterOrg(currentOrg?.id ?? "all"); setFilterMember("all"); }}>重置</Button>
+          <Button size="sm" variant="outline" className="h-9" onClick={() => { setFilterGroup("all"); setFilterType("all"); setFilterMember("all"); }}>重置</Button>
           <Button
             size="sm" variant="ghost" className="h-9 gap-1 text-muted-foreground"
             onClick={() => setExpanded(v => !v)}
