@@ -212,6 +212,21 @@ function UsageLogsTab({ role, currentOrg, orgList = [] }: { role: string; curren
               </Select>
             </div>
           )}
+          {/* 组织管理员：当多个组织时，显示组织切换下拉 */}
+          {hasMultiOrg && (
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-muted-foreground whitespace-nowrap">组织</span>
+              <Select value={filterOrg} onValueChange={v => { setFilterOrg(v); setPage(1); }}>
+                <SelectTrigger className={`h-9 w-36 text-sm ${filterOrg !== "all" ? "border-primary text-primary" : ""}`}>
+                  <SelectValue placeholder="全部" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">全部</SelectItem>
+                  {orgList.map(o => <SelectItem key={o.id} value={o.id}>{o.name}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
           {/* 组织管理员：成员下拉 */}
           {isOrgAdmin && (
             <div className="flex items-center gap-2">
@@ -226,7 +241,7 @@ function UsageLogsTab({ role, currentOrg, orgList = [] }: { role: string; curren
             </div>
           )}
           <Button size="sm" className="h-9">搜索</Button>
-          <Button size="sm" variant="outline" className="h-9" onClick={() => { setFilterGroup("all"); setFilterType("all"); setFilterOrg("all"); setFilterMember("all"); }}>重置</Button>
+          <Button size="sm" variant="outline" className="h-9" onClick={() => { setFilterGroup("all"); setFilterType("all"); setFilterOrg(currentOrg?.id ?? "all"); setFilterMember("all"); }}>重置</Button>
           <Button
             size="sm" variant="ghost" className="h-9 gap-1 text-muted-foreground"
             onClick={() => setExpanded(v => !v)}
