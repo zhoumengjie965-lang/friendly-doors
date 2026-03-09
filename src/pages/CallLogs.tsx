@@ -14,10 +14,13 @@ import {
 } from "@/components/ui/pagination";
 
 interface Enterprise { id: string; name: string; enterprise_code: string; }
+interface OrgInfo { id: string; name: string; }
 
 interface Props {
   enterprise: Enterprise;
   role: string;
+  currentOrg?: OrgInfo | null;
+  orgList?: OrgInfo[];
 }
 
 // ── Mock data ──
@@ -139,26 +142,31 @@ function PaginationFooter({
 }
 
 // ── Tab 1: 使用日志 ──
-function UsageLogsTab({ role }: { role: string }) {
+function UsageLogsTab({ role, currentOrg, orgList = [] }: { role: string; currentOrg?: OrgInfo | null; orgList?: OrgInfo[] }) {
   const [expanded, setExpanded] = useState(false);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
   const [filterGroup, setFilterGroup] = useState("all");
   const [filterType, setFilterType] = useState("all");
-  const [filterOrg, setFilterOrg] = useState("all");
+  const [filterOrg, setFilterOrg] = useState<string>(currentOrg?.id ?? "all");
   const [filterMember, setFilterMember] = useState("all");
 
   const isEnterpriseAdmin = role === "enterprise_admin";
   const isOrgAdmin = role === "org_admin";
+  const hasMultiOrg = isOrgAdmin && orgList.length > 1;
 
   const allGroups = Array.from(new Set(mockUsageLogs.map(r => r.group)));
   const allOrgs = Array.from(new Set(mockUsageLogs.map(r => r.org)));
   const allMembers = Array.from(new Set(mockUsageLogs.map(r => r.member)));
 
+  // resolve active org name for filtering
+  const activeOrgName = filterOrg === "all" ? null : (orgList.find(o => o.id === filterOrg)?.name ?? null);
+
   const filtered = mockUsageLogs.filter(r => {
     if (filterGroup !== "all" && r.group !== filterGroup) return false;
     if (filterType !== "all" && r.type !== filterType) return false;
     if (isEnterpriseAdmin && filterOrg !== "all" && r.org !== filterOrg) return false;
+    if (isOrgAdmin && activeOrgName && r.org !== activeOrgName) return false;
     if (isOrgAdmin && filterMember !== "all" && r.member !== filterMember) return false;
     return true;
   });
@@ -204,6 +212,21 @@ function UsageLogsTab({ role }: { role: string }) {
               </Select>
             </div>
           )}
+          {/* 组织管理员：当多个组织时，显示组织切换下拉 */}
+          {hasMultiOrg && (
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-muted-foreground whitespace-nowrap">组织</span>
+              <Select value={filterOrg} onValueChange={v => { setFilterOrg(v); setPage(1); }}>
+                <SelectTrigger className={`h-9 w-36 text-sm ${filterOrg !== "all" ? "border-primary text-primary" : ""}`}>
+                  <SelectValue placeholder="全部" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">全部</SelectItem>
+                  {orgList.map(o => <SelectItem key={o.id} value={o.id}>{o.name}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
           {/* 组织管理员：成员下拉 */}
           {isOrgAdmin && (
             <div className="flex items-center gap-2">
@@ -218,7 +241,7 @@ function UsageLogsTab({ role }: { role: string }) {
             </div>
           )}
           <Button size="sm" className="h-9">搜索</Button>
-          <Button size="sm" variant="outline" className="h-9" onClick={() => { setFilterGroup("all"); setFilterType("all"); setFilterOrg("all"); setFilterMember("all"); }}>重置</Button>
+          <Button size="sm" variant="outline" className="h-9" onClick={() => { setFilterGroup("all"); setFilterType("all"); setFilterOrg(currentOrg?.id ?? "all"); setFilterMember("all"); }}>重置</Button>
           <Button
             size="sm" variant="ghost" className="h-9 gap-1 text-muted-foreground"
             onClick={() => setExpanded(v => !v)}
@@ -498,7 +521,7 @@ const roleTabs = [
 ];
 
 // ── Main ──
-export default function CallLogs({ enterprise, role }: Props) {
+export default function CallLogs({ enterprise, role, currentOrg, orgList = [] }: Props) {
   const [viewRole, setViewRole] = useState(role);
 
   return (
@@ -542,7 +565,7 @@ export default function CallLogs({ enterprise, role }: Props) {
         </TabsList>
 
         <TabsContent value="usage" className="mt-4">
-          <UsageLogsTab role={viewRole} />
+          <UsageLogsTab role={viewRole} currentOrg={currentOrg} orgList={orgList} />
         </TabsContent>
         <TabsContent value="drawing" className="mt-4">
           <DrawingLogsTab />
