@@ -153,20 +153,21 @@ function UsageLogsTab({ role, currentOrg, orgList = [] }: { role: string; curren
 
   const isEnterpriseAdmin = role === "enterprise_admin";
   const isOrgAdmin = role === "org_admin";
-  const hasMultiOrg = isOrgAdmin && orgList.length >= 1;
 
   const allGroups = Array.from(new Set(mockUsageLogs.map(r => r.group)));
   const allOrgs = Array.from(new Set(mockUsageLogs.map(r => r.org)));
   const allMembers = Array.from(new Set(mockUsageLogs.map(r => r.member)));
 
-  // resolve active org name for filtering
-  const activeOrgName = filterOrg === "all" ? null : (orgList.find(o => o.id === filterOrg)?.name ?? null);
+  // org_admin 视角：优先用传入的 orgList，否则 fallback 到 mock 数据里的组织列表
+  const orgAdminOrgOptions: OrgInfo[] = isOrgAdmin
+    ? (orgList.length > 0 ? orgList : allOrgs.map(name => ({ id: name, name })))
+    : [];
 
   const filtered = mockUsageLogs.filter(r => {
     if (filterGroup !== "all" && r.group !== filterGroup) return false;
     if (filterType !== "all" && r.type !== filterType) return false;
     if (isEnterpriseAdmin && filterOrg !== "all" && r.org !== filterOrg) return false;
-    if (isOrgAdmin && activeOrgName && r.org !== activeOrgName) return false;
+    if (isOrgAdmin && filterOrg !== "all" && r.org !== filterOrg) return false;
     if (isOrgAdmin && filterMember !== "all" && r.member !== filterMember) return false;
     return true;
   });
@@ -212,8 +213,8 @@ function UsageLogsTab({ role, currentOrg, orgList = [] }: { role: string; curren
               </Select>
             </div>
           )}
-          {/* 组织管理员：当多个组织时，显示组织切换下拉 */}
-          {hasMultiOrg && (
+          {/* 组织管理员：组织切换下拉 */}
+          {isOrgAdmin && (
             <div className="flex items-center gap-2">
               <span className="text-sm text-muted-foreground whitespace-nowrap">组织</span>
               <Select value={filterOrg} onValueChange={v => { setFilterOrg(v); setPage(1); }}>
@@ -222,7 +223,7 @@ function UsageLogsTab({ role, currentOrg, orgList = [] }: { role: string; curren
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">全部</SelectItem>
-                  {orgList.map(o => <SelectItem key={o.id} value={o.id}>{o.name}</SelectItem>)}
+                  {orgAdminOrgOptions.map(o => <SelectItem key={o.id} value={o.id}>{o.name}</SelectItem>)}
                 </SelectContent>
               </Select>
             </div>
