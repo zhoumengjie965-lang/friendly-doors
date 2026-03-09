@@ -213,8 +213,8 @@ function UsageLogsTab({ role, currentOrg, orgList = [] }: { role: string; curren
               </Select>
             </div>
           )}
-          {/* 组织管理员：当多个组织时，显示组织切换下拉 */}
-          {hasMultiOrg && (
+          {/* 组织管理员：组织切换下拉 */}
+          {isOrgAdmin && (
             <div className="flex items-center gap-2">
               <span className="text-sm text-muted-foreground whitespace-nowrap">组织</span>
               <Select value={filterOrg} onValueChange={v => { setFilterOrg(v); setPage(1); }}>
@@ -223,7 +223,7 @@ function UsageLogsTab({ role, currentOrg, orgList = [] }: { role: string; curren
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">全部</SelectItem>
-                  {orgList.map(o => <SelectItem key={o.id} value={o.id}>{o.name}</SelectItem>)}
+                  {orgAdminOrgOptions.map(o => <SelectItem key={o.id} value={o.id}>{o.name}</SelectItem>)}
                 </SelectContent>
               </Select>
             </div>
