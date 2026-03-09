@@ -153,7 +153,7 @@ function UsageLogsTab({ role, currentOrg, orgList = [] }: { role: string; curren
 
   const isEnterpriseAdmin = role === "enterprise_admin";
   const isOrgAdmin = role === "org_admin";
-  const hasMultiOrg = isOrgAdmin && orgList.length > 1;
+  const hasMultiOrg = isOrgAdmin && orgList.length >= 1;
 
   const allGroups = Array.from(new Set(mockUsageLogs.map(r => r.group)));
   const allOrgs = Array.from(new Set(mockUsageLogs.map(r => r.org)));
