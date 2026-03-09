@@ -15,6 +15,7 @@ import {
   Network,
   Layers,
   Settings,
+  KeyRound,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import AdminDashboard from "./AdminDashboard";
@@ -28,13 +29,17 @@ import AdminChannels from "./AdminChannels";
 import AdminModelDeploy from "./AdminModelDeploy";
 import AdminSettings from "./AdminSettings";
 import AdminEnterpriseDetail from "./AdminEnterpriseDetail";
+import AdminResourceStats from "./AdminResourceStats";
+import AdminTokens from "./AdminTokens";
 
 const NAV_GROUPS = [
   {
     label: "控制台",
     items: [
       { label: "数据总览", icon: LayoutDashboard, path: "dashboard" },
-      { label: "使用日志", icon: FileText, path: "call-logs" },
+      { label: "资源统计", icon: BarChart3, path: "resource-stats" },
+      { label: "调用日志", icon: FileText, path: "call-logs" },
+      { label: "令牌管理", icon: KeyRound, path: "tokens" },
     ],
   },
   {
@@ -158,6 +163,8 @@ export default function AdminLayout() {
           <Route path="model-deploy" element={<AdminModelDeploy />} />
           <Route path="settings" element={<AdminSettings />} />
           <Route path="call-logs" element={<AdminCallLogs />} />
+          <Route path="resource-stats" element={<AdminResourceStats />} />
+          <Route path="tokens" element={<AdminTokens />} />
           <Route path="stats" element={<AdminStats />} />
           <Route path="*" element={<Navigate to="dashboard" replace />} />
         </Routes>
