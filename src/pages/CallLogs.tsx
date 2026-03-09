@@ -142,26 +142,31 @@ function PaginationFooter({
 }
 
 // ── Tab 1: 使用日志 ──
-function UsageLogsTab({ role }: { role: string }) {
+function UsageLogsTab({ role, currentOrg, orgList = [] }: { role: string; currentOrg?: OrgInfo | null; orgList?: OrgInfo[] }) {
   const [expanded, setExpanded] = useState(false);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
   const [filterGroup, setFilterGroup] = useState("all");
   const [filterType, setFilterType] = useState("all");
-  const [filterOrg, setFilterOrg] = useState("all");
+  const [filterOrg, setFilterOrg] = useState<string>(currentOrg?.id ?? "all");
   const [filterMember, setFilterMember] = useState("all");
 
   const isEnterpriseAdmin = role === "enterprise_admin";
   const isOrgAdmin = role === "org_admin";
+  const hasMultiOrg = isOrgAdmin && orgList.length > 1;
 
   const allGroups = Array.from(new Set(mockUsageLogs.map(r => r.group)));
   const allOrgs = Array.from(new Set(mockUsageLogs.map(r => r.org)));
   const allMembers = Array.from(new Set(mockUsageLogs.map(r => r.member)));
 
+  // resolve active org name for filtering
+  const activeOrgName = filterOrg === "all" ? null : (orgList.find(o => o.id === filterOrg)?.name ?? null);
+
   const filtered = mockUsageLogs.filter(r => {
     if (filterGroup !== "all" && r.group !== filterGroup) return false;
     if (filterType !== "all" && r.type !== filterType) return false;
     if (isEnterpriseAdmin && filterOrg !== "all" && r.org !== filterOrg) return false;
+    if (isOrgAdmin && activeOrgName && r.org !== activeOrgName) return false;
     if (isOrgAdmin && filterMember !== "all" && r.member !== filterMember) return false;
     return true;
   });
