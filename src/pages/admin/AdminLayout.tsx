@@ -163,6 +163,8 @@ export default function AdminLayout() {
           <Route path="model-deploy" element={<AdminModelDeploy />} />
           <Route path="settings" element={<AdminSettings />} />
           <Route path="call-logs" element={<AdminCallLogs />} />
+          <Route path="resource-stats" element={<AdminResourceStats />} />
+          <Route path="tokens" element={<AdminTokens />} />
           <Route path="stats" element={<AdminStats />} />
           <Route path="*" element={<Navigate to="dashboard" replace />} />
         </Routes>
