@@ -335,7 +335,7 @@ function CallLogsTab({ role, globalOrg, globalMember }: {
                     }
                   </td>
 ...
-                  <td className="px-3 py-2.5 text-xs text-foreground">{row.cost}</td>
+                  <td className="px-3 py-2.5 text-xs text-foreground">¥{Number(row.cost).toFixed(4)}</td>
                   <td className="px-3 py-2.5 text-xs text-muted-foreground max-w-[200px] truncate">{row.detail}</td>
                 </tr>
               ))}
