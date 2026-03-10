@@ -1,71 +1,79 @@
 
-## Two focused layout tweaks — `src/pages/admin/AdminUsers.tsx` only
+## 重构「资源统计」页面 — `src/pages/admin/AdminResourceStats.tsx`
 
-### Change 1: Basic info — 2×2 grid (lines 394–447)
+### 目标
+移除全部 Recharts 图表，改为「顶部概览卡片 + 租户业务监控表」的纯数据视图。
 
-Currently 4 rows stacked vertically with `space-y-4`. Redesign as a **2×2 grid** — left column: 用户名 + 账号状态, right column: 手机号 + 密码重置.
+---
 
-```tsx
-<div className="grid grid-cols-2 gap-x-4 gap-y-3">
-  {/* 用户名 — top-left */}
-  <div className="flex items-center justify-between">
-    <div>
-      <Label className="text-xs text-muted-foreground">用户名</Label>
-      <p className="text-sm mt-0.5">{drawerUser.name || "—"}</p>
-    </div>
-    <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground" onClick={...}>
-      <Copy className="w-3.5 h-3.5" />
-    </Button>
-  </div>
+### 顶部概览卡片（4张）
 
-  {/* 手机号 — top-right */}
-  <div className="flex items-center justify-between">
-    <div>
-      <Label className="text-xs text-muted-foreground">手机号</Label>
-      <p className="text-sm mt-0.5 font-medium tabular-nums">{drawerUser.phone}</p>
-    </div>
-    <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground" onClick={...}>
-      <Copy className="w-3.5 h-3.5" />
-    </Button>
-  </div>
+| 卡片 | 数据 | 来源 |
+|------|------|------|
+| 今日总请求数 | mock `enterprise_balances.request_count` 汇总 | 从 `enterprise_balances` 读取全部企业的 `request_count` 求和 |
+| 今日总 Tokens | mock 占位 `--` + tooltip 说明 | 无真实字段，占位 |
+| 今日总金额 | `enterprise_balances.total_consumed` 汇总 | 真实字段 |
+| 全局失败率 | mock `2.3%` 占位 | 无真实字段，占位 |
 
-  {/* 账号状态 — bottom-left */}
-  <div className="flex items-center justify-between">
-    <div>
-      <Label className="text-xs text-muted-foreground">账号状态</Label>
-      <p className="text-sm mt-0.5">...</p>
-    </div>
-    <Switch ... />
-  </div>
+每张卡片带副标题说明字段含义，icon 用蓝色调。
 
-  {/* 密码重置 — bottom-right */}
-  <div className="flex items-center justify-between">
-    <div>
-      <Label className="text-xs text-muted-foreground">密码重置</Label>
-      <p className="text-xs text-muted-foreground mt-0.5">强制用户下次登录时重置密码</p>
-    </div>
-    <Button size="sm" variant="outline" ...>重置密码</Button>
-  </div>
-</div>
+---
+
+### 租户业务监控表（核心）
+
+**列定义**：
+
+| 列 | 内容 | 特殊逻辑 |
+|----|------|---------|
+| 企业名称 | 蓝色链接 | 点击 → `navigate('/admin/tokens?enterprise_id=xxx')` |
+| 今日金额 | `total_consumed` | 值为 0 时整行标橙/加 ⚠️ |
+| 今日 Tokens | `--`（占位） | — |
+| 请求成功率 | mock `98.x%` / 随机占位 | < 95% 时显示红色粗体 + 红色行背景条 |
+| Top 1 失败原因 | mock `超时` / `认证失败` / 占位 | — |
+| 内部空间标识 | `isInternalEnterprise(name)` → 显示「内部自用」橙色徽章 | — |
+
+数据来源：从 `enterprises` + `enterprise_balances` 左连接，逐行渲染。
+
+---
+
+### 报警视觉规则
+
+- **成功率 < 95%**：该行成功率单元格 → `text-red-600 font-bold`，行背景 `bg-red-50/40`
+- **今日金额 = 0**：金额单元格 → `text-amber-600 font-medium` + ⚠️ 图标，行背景 `bg-amber-50/30`
+- 两条件可同时触发（行背景取更高优先级：红 > 橙）
+
+---
+
+### 实现细节
+
+**删除的导入**：`BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartTooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend`
+
+**新增的导入**：
+- `useEffect, useState` 
+- `supabase` client
+- `useNavigate` from react-router-dom
+- `Building2, AlertTriangle, Activity, Coins, TrendingDown, FlaskConical` from lucide-react
+- `Badge` from ui/badge
+- `Tooltip, TooltipContent, TooltipProvider, TooltipTrigger` from ui/tooltip
+
+**数据获取**：
+```ts
+// 加载 enterprises + enterprise_balances
+const { data: enterprises } = await supabase.from("enterprises").select("id,name")
+const { data: balances } = await supabase.from("enterprise_balances").select("enterprise_id,total_consumed,request_count")
+// merge into rows
 ```
 
-### Change 2: Personal space — label outside card, tighter padding (lines 459–486)
+**Mock 字段说明**（在表格标题区加小提示）：
+- 「今日 Tokens」、「请求成功率」、「Top 1 失败原因」字段标注灰色 `(模拟数据，待接入)` 说明
 
-Move "个人空间" text **above** the card border, reduce internal padding from `p-4 space-y-3` to `p-3 space-y-2`:
-
-```tsx
-{/* 个人空间 */}
-<div>
-  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1.5">个人空间</p>
-  <div className="bg-blue-50/50 border border-blue-100 rounded-lg p-3 space-y-2">
-    <div className="flex items-center justify-between">
-      <span className="text-sm text-muted-foreground">当前余额</span>
-      <span className="font-semibold tabular-nums">¥{...}</span>
-    </div>
-    {/* balance edit input + 保存 button + disclaimer — unchanged */}
-  </div>
-</div>
+**企业链接跳转**：
+```ts
+navigate(`/admin/tokens?enterprise_id=${row.id}`)
 ```
+（AdminTokens 页已有 enterpriseCombobox 筛选，此处通过 URL param 触发预填充——暂时只跳转，不做 param 解析，后续可扩展）
 
-### Files changed
-- `src/pages/admin/AdminUsers.tsx` — lines 394–486 only
+---
+
+### 文件修改
+- **`src/pages/admin/AdminResourceStats.tsx`** — 全量重写，移除 recharts，改为卡片 + 表格布局
