@@ -14,7 +14,7 @@ import {
 } from "@/components/ui/dialog";
 import {
   RefreshCw, Settings, ChevronDown, ChevronUp, Activity, ClipboardList,
-  Shield, Calendar, Check, X, Building2,
+  Shield, Calendar, Check, X,
 } from "lucide-react";
 import {
   Pagination, PaginationContent, PaginationItem, PaginationLink,
