@@ -224,7 +224,6 @@ function CallLogsTab({ globalEnterpriseId, globalOrgId, globalCreator, enterpris
   organizations: Organization[];
 }) {
   const navigate = useNavigate();
-  const [expanded, setExpanded] = useState(false);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
   const [filterModel, setFilterModel] = useState("all");
@@ -255,7 +254,7 @@ function CallLogsTab({ globalEnterpriseId, globalOrgId, globalCreator, enterpris
   });
 
   const paginated = filtered.slice((page - 1) * pageSize, page * pageSize);
-  const headers = ["时间", "所属企业", "APIKey", "组织", "分组", "类型", "模型", "上游渠道", "用时/首字", "输入", "输出", "花费", "IP", "详情"];
+  const headers = ["时间", "所属企业", "APIKey", "组织", "分组", "类型", "模型", "上游渠道", "用时/首字", "输入", "输出", "花费", "详情"];
 
   return (
     <div className="space-y-4">
@@ -267,6 +266,7 @@ function CallLogsTab({ globalEnterpriseId, globalOrgId, globalCreator, enterpris
             <span>2026-03-03 23:59:59</span>
             <Calendar className="w-4 h-4 ml-2 text-muted-foreground" />
           </div>
+          <Input className="h-9 w-44 text-sm" placeholder="APIKey 名称" value={filterApiKey} onChange={e => { setFilterApiKey(e.target.value); setPage(1); }} />
           <Select value={filterModel} onValueChange={v => { setFilterModel(v); setPage(1); }}>
             <SelectTrigger className="h-9 w-44 text-sm"><SelectValue placeholder="模型名称" /></SelectTrigger>
             <SelectContent>
@@ -274,35 +274,10 @@ function CallLogsTab({ globalEnterpriseId, globalOrgId, globalCreator, enterpris
               {allModels.map(m => <SelectItem key={m} value={m}>{m}</SelectItem>)}
             </SelectContent>
           </Select>
-          <Select value={filterType} onValueChange={v => { setFilterType(v); setPage(1); }}>
-            <SelectTrigger className="h-9 w-40 text-sm"><SelectValue placeholder="类型" /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">全部类型</SelectItem>
-              <SelectItem value="消费">消费（成功）</SelectItem>
-              <SelectItem value="错误">错误（失败）</SelectItem>
-            </SelectContent>
-          </Select>
           <Button size="sm" variant="outline" className="h-9 gap-1.5" onClick={handleReset}>
             <X className="w-3.5 h-3.5" />重置
           </Button>
-          <Button size="sm" variant="ghost" className="h-9 gap-1 text-muted-foreground" onClick={() => setExpanded(v => !v)}>
-            展开 {expanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-          </Button>
         </div>
-
-        {expanded && (
-          <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-border">
-            <Input className="h-9 w-44 text-sm" placeholder="APIKey 名称" value={filterApiKey} onChange={e => { setFilterApiKey(e.target.value); setPage(1); }} />
-            <Select value={filterGroup} onValueChange={v => { setFilterGroup(v); setPage(1); }}>
-              <SelectTrigger className="h-9 w-36 text-sm"><SelectValue placeholder="分组" /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">全部分组</SelectItem>
-                {allGroups.map(g => <SelectItem key={g} value={g}>{g}</SelectItem>)}
-              </SelectContent>
-            </Select>
-            <Input className="h-9 w-40 text-sm" placeholder="IP 地址" />
-          </div>
-        )}
       </div>
 
       <div className="flex items-center justify-between">
@@ -337,6 +312,21 @@ function CallLogsTab({ globalEnterpriseId, globalOrgId, globalCreator, enterpris
                       </Select>
                     </th>
                   );
+                  if (h === "类型") return (
+                    <th key={h} className="px-3 py-2.5 text-left text-xs font-medium text-muted-foreground whitespace-nowrap">
+                      <Select value={filterType} onValueChange={v => { setFilterType(v); setPage(1); }}>
+                        <SelectTrigger className="h-auto w-auto border-0 bg-transparent p-0 shadow-none focus:ring-0 gap-0.5 [&>svg]:hidden">
+                          <span className={cn("text-xs font-medium", filterType !== "all" ? "text-primary" : "text-muted-foreground")}>类型</span>
+                          <ChevronDown className="w-3 h-3 text-muted-foreground" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">全部</SelectItem>
+                          <SelectItem value="错误">错误</SelectItem>
+                          <SelectItem value="消费">消费</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </th>
+                  );
                   return <th key={h} className="px-3 py-2.5 text-left text-xs font-medium text-muted-foreground whitespace-nowrap">{h}</th>;
                 })}
               </tr>
@@ -355,8 +345,8 @@ function CallLogsTab({ globalEnterpriseId, globalOrgId, globalCreator, enterpris
                   <td className="px-3 py-2.5 text-xs text-foreground">{row.group}</td>
                   <td className="px-3 py-2.5">
                     {row.type === "错误"
-                      ? <span className="bg-red-100 text-red-600 border border-red-200 text-xs px-1.5 py-0.5 rounded">错误（失败）</span>
-                      : <span className="bg-green-100 text-green-600 border border-green-200 text-xs px-1.5 py-0.5 rounded">消费（成功）</span>
+                      ? <span className="bg-red-100 text-red-600 border border-red-200 text-xs px-1.5 py-0.5 rounded">错误</span>
+                      : <span className="bg-green-100 text-green-600 border border-green-200 text-xs px-1.5 py-0.5 rounded">消费</span>
                     }
                   </td>
                   <td className="px-3 py-2.5">
@@ -374,9 +364,6 @@ function CallLogsTab({ globalEnterpriseId, globalOrgId, globalCreator, enterpris
                   <td className="px-3 py-2.5 text-xs text-foreground">{row.input}</td>
                   <td className="px-3 py-2.5 text-xs text-foreground">{row.output}</td>
                   <td className="px-3 py-2.5 text-xs text-foreground">{row.cost}</td>
-                  <td className="px-3 py-2.5">
-                    <span className="bg-orange-100 text-orange-700 text-xs px-1.5 py-0.5 rounded">{row.ip}</span>
-                  </td>
                   <td className="px-3 py-2.5 text-xs text-muted-foreground max-w-[200px] truncate">{row.detail}</td>
                 </tr>
               ))}
