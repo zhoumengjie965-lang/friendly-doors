@@ -97,27 +97,35 @@ function PaginationFooter({
   );
 }
 
+// ── Channel badge color mapping ──
+function getChannelStyle(channel: string) {
+  if (channel === "OpenAI") return "bg-emerald-50 text-emerald-700 border border-emerald-200";
+  if (channel === "Anthropic") return "bg-amber-50 text-amber-700 border border-amber-200";
+  if (channel === "Azure") return "bg-sky-50 text-sky-700 border border-sky-200";
+  return "bg-muted text-muted-foreground border border-border";
+}
+
 // ── Tab 1: 使用日志（管理端视角：固定显示企业列）──
 function UsageLogsTab() {
+  const navigate = useNavigate();
   const [expanded, setExpanded] = useState(false);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
   const [filterGroup, setFilterGroup] = useState("all");
   const [filterType, setFilterType] = useState("all");
-  const [filterEnterprise, setFilterEnterprise] = useState("all");
+  const [enterpriseSearch, setEnterpriseSearch] = useState("");
 
   const allGroups = Array.from(new Set(mockUsageLogs.map(r => r.group)));
-  const allEnterprises = Array.from(new Set(mockUsageLogs.map(r => r.enterprise)));
 
   const filtered = mockUsageLogs.filter(r => {
     if (filterGroup !== "all" && r.group !== filterGroup) return false;
     if (filterType !== "all" && r.type !== filterType) return false;
-    if (filterEnterprise !== "all" && r.enterprise !== filterEnterprise) return false;
+    if (enterpriseSearch.trim() && !r.enterprise.includes(enterpriseSearch.trim())) return false;
     return true;
   });
 
   const paginated = filtered.slice((page - 1) * pageSize, page * pageSize);
-  const headers = ["时间", "企业", "APIKey", "组织", "分组", "类型", "模型", "用时/首字", "输入", "输出", "花费", "IP", "详情"];
+  const headers = ["时间", "所属企业", "APIKey", "组织", "分组", "类型", "模型", "上游渠道", "用时/首字", "输入", "输出", "花费", "IP", "详情"];
 
   return (
     <div className="space-y-4">
@@ -134,20 +142,22 @@ function UsageLogsTab() {
           </div>
           <div className="flex items-center gap-2">
             <span className="text-sm text-muted-foreground whitespace-nowrap">企业</span>
-            <Select value={filterEnterprise} onValueChange={v => { setFilterEnterprise(v); setPage(1); }}>
-              <SelectTrigger className="h-9 w-36 text-sm"><SelectValue placeholder="全部" /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">全部</SelectItem>
-                {allEnterprises.map(e => <SelectItem key={e} value={e}>{e}</SelectItem>)}
-              </SelectContent>
-            </Select>
+            <div className="relative">
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground pointer-events-none" />
+              <Input
+                className="h-9 w-44 text-sm pl-7"
+                placeholder="搜索企业名称"
+                value={enterpriseSearch}
+                onChange={e => { setEnterpriseSearch(e.target.value); setPage(1); }}
+              />
+            </div>
           </div>
           <div className="flex items-center gap-2">
             <span className="text-sm text-muted-foreground whitespace-nowrap">APIKey</span>
             <Input className="h-9 w-44 text-sm" placeholder="请输入APIKey名称" />
           </div>
           <Button size="sm" className="h-9">搜索</Button>
-          <Button size="sm" variant="outline" className="h-9" onClick={() => { setFilterGroup("all"); setFilterType("all"); setFilterEnterprise("all"); }}>重置</Button>
+          <Button size="sm" variant="outline" className="h-9" onClick={() => { setFilterGroup("all"); setFilterType("all"); setEnterpriseSearch(""); setPage(1); }}>重置</Button>
           <Button size="sm" variant="ghost" className="h-9 gap-1 text-muted-foreground" onClick={() => setExpanded(v => !v)}>
             展开 {expanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
           </Button>
@@ -223,9 +233,23 @@ function UsageLogsTab() {
                   <td className="px-3 py-2.5 text-xs text-muted-foreground whitespace-nowrap font-mono">{row.time}</td>
                   <td className="px-3 py-2.5 text-xs text-foreground whitespace-nowrap font-medium">{row.enterprise}</td>
                   <td className="px-3 py-2.5">
-                    <span className={`text-xs px-2 py-0.5 rounded ${getApiKeyColor(row.apiKey)}`}>{row.apiKey}</span>
+                    <button
+                      className={`text-xs px-2 py-0.5 rounded cursor-pointer hover:opacity-80 transition-opacity ${getApiKeyColor(row.apiKey)}`}
+                      onClick={() => navigate(`/admin/tokens?key=${row.apiKey}`)}
+                      title="跳转至令牌管理"
+                    >
+                      {row.apiKey}
+                    </button>
                   </td>
-                  <td className="px-3 py-2.5 text-xs text-foreground whitespace-nowrap">{row.org}</td>
+                  <td className="px-3 py-2.5">
+                    <button
+                      className="text-xs text-primary hover:underline whitespace-nowrap cursor-pointer"
+                      onClick={() => navigate(`/admin/enterprises?org=${encodeURIComponent(row.org)}`)}
+                      title="跳转至企业管理"
+                    >
+                      {row.org}
+                    </button>
+                  </td>
                   <td className="px-3 py-2.5 text-xs text-foreground">{row.group}</td>
                   <td className="px-3 py-2.5">
                     {row.type === "错误"
@@ -235,6 +259,9 @@ function UsageLogsTab() {
                   </td>
                   <td className="px-3 py-2.5">
                     <span className="border border-purple-200 text-purple-700 bg-purple-50 text-xs px-1.5 py-0.5 rounded">{row.model}</span>
+                  </td>
+                  <td className="px-3 py-2.5">
+                    <span className={`text-xs px-1.5 py-0.5 rounded ${getChannelStyle(row.channel)}`}>{row.channel}</span>
                   </td>
                   <td className="px-3 py-2.5">
                     <div className="flex items-center gap-1">
