@@ -541,16 +541,6 @@ export default function AdminTokens() {
               value={filterCreator}
               onChange={e => { setFilterCreator(e.target.value); setPage(1); }}
             />
-            <div className="ml-auto flex items-center gap-2">
-              <Switch
-                id="exclude-internal"
-                checked={excludeInternal}
-                onCheckedChange={v => { setExcludeInternal(v); setPage(1); }}
-              />
-              <Label htmlFor="exclude-internal" className="text-sm text-muted-foreground cursor-pointer whitespace-nowrap">
-                排除内部测试数据
-              </Label>
-            </div>
           </div>
 
           {/* Row 2 — Action + name/key search */}
