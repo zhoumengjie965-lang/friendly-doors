@@ -13,8 +13,8 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
 import {
-  RefreshCw, Settings, ChevronDown, ChevronUp, Activity, ClipboardList,
-  Shield, Calendar, Check, X,
+  RefreshCw, Settings, ChevronDown, Activity, ClipboardList,
+  Shield, Calendar, Check, X, Search,
 } from "lucide-react";
 import {
   Pagination, PaginationContent, PaginationItem, PaginationLink,
@@ -24,6 +24,7 @@ import { cn } from "@/lib/utils";
 
 interface Enterprise { id: string; name: string; }
 interface Organization { id: string; name: string; enterprise_id: string; }
+interface Member { id: string; name: string; phone: string; }
 
 // ── Generic Combobox ──
 function FilterCombobox({
@@ -76,16 +77,16 @@ function FilterCombobox({
 
 // ── Mock data ──
 const mockUsageLogs = [
-  { time: "2026-03-03 11:15:44", enterprise: "极光科技", apiKey: "test", group: "default", org: "技术部", type: "错误", model: "mock-error", channel: "Azure", duration: "0s", streaming: "非流", input: 0, output: 0, cost: 0, ip: "10.244.109.64", detail: "Incorrect API key provided." },
-  { time: "2026-03-03 11:14:22", enterprise: "蓝海智能", apiKey: "prod", group: "default", org: "产品部", type: "消费", model: "gpt-4o", channel: "OpenAI", duration: "1.2s", streaming: "流式", input: 156, output: 312, cost: 0.003, ip: "10.244.109.65", detail: "Request completed successfully." },
-  { time: "2026-03-03 11:13:01", enterprise: "极光科技", apiKey: "test", group: "dev", org: "技术部", type: "错误", model: "mock-error", channel: "Azure", duration: "0s", streaming: "非流", input: 0, output: 0, cost: 0, ip: "10.244.109.66", detail: "Rate limit exceeded." },
-  { time: "2026-03-03 11:12:55", enterprise: "云启数字", apiKey: "prod", group: "default", org: "产品部", type: "消费", model: "claude-3-5-sonnet", channel: "Anthropic", duration: "2.3s", streaming: "流式", input: 240, output: 480, cost: 0.008, ip: "10.244.109.67", detail: "Request completed successfully." },
-  { time: "2026-03-03 11:11:33", enterprise: "蓝海智能", apiKey: "dev-key", group: "dev", org: "研发部", type: "消费", model: "gpt-4o-mini", channel: "OpenAI", duration: "0.8s", streaming: "非流", input: 88, output: 120, cost: 0.001, ip: "10.244.109.68", detail: "Request completed successfully." },
-  { time: "2026-03-03 11:10:14", enterprise: "极光科技", apiKey: "test", group: "default", org: "技术部", type: "错误", model: "mock-error", channel: "Azure", duration: "0s", streaming: "非流", input: 0, output: 0, cost: 0, ip: "10.244.109.64", detail: "Incorrect API key provided." },
-  { time: "2026-03-03 11:09:02", enterprise: "云启数字", apiKey: "prod", group: "finance", org: "财务部", type: "消费", model: "gpt-4o", channel: "OpenAI", duration: "1.8s", streaming: "流式", input: 320, output: 640, cost: 0.012, ip: "10.244.109.69", detail: "Request completed successfully." },
-  { time: "2026-03-03 11:08:47", enterprise: "蓝海智能", apiKey: "dev-key", group: "dev", org: "研发部", type: "消费", model: "claude-3-haiku", channel: "Anthropic", duration: "0.5s", streaming: "非流", input: 64, output: 96, cost: 0.001, ip: "10.244.109.70", detail: "Request completed successfully." },
-  { time: "2026-03-03 11:07:30", enterprise: "极光科技", apiKey: "test", group: "default", org: "技术部", type: "错误", model: "mock-error", channel: "Azure", duration: "0s", streaming: "非流", input: 0, output: 0, cost: 0, ip: "10.244.109.64", detail: "Incorrect API key provided." },
-  { time: "2026-03-03 11:06:15", enterprise: "云启数字", apiKey: "prod", group: "default", org: "产品部", type: "消费", model: "gpt-4o", channel: "OpenAI", duration: "1.5s", streaming: "流式", input: 200, output: 400, cost: 0.007, ip: "10.244.109.71", detail: "Request completed successfully." },
+  { time: "2026-03-03 11:15:44", enterprise: "极光科技", apiKey: "test", group: "default", org: "技术部", member: "张三", type: "错误", model: "mock-error", channel: "Azure", retryChannel: "-", duration: "0s", streaming: "非流", input: 0, output: 0, cost: 0, detail: "Incorrect API key provided." },
+  { time: "2026-03-03 11:14:22", enterprise: "蓝海智能", apiKey: "prod", group: "default", org: "产品部", member: "李四", type: "消费", model: "gpt-4o", channel: "OpenAI", retryChannel: "Azure", duration: "1.2s", streaming: "流式", input: 156, output: 312, cost: 0.003, detail: "Request completed successfully." },
+  { time: "2026-03-03 11:13:01", enterprise: "极光科技", apiKey: "test", group: "dev", org: "技术部", member: "王五", type: "错误", model: "mock-error", channel: "Azure", retryChannel: "OpenAI", duration: "0s", streaming: "非流", input: 0, output: 0, cost: 0, detail: "Rate limit exceeded." },
+  { time: "2026-03-03 11:12:55", enterprise: "云启数字", apiKey: "prod", group: "default", org: "产品部", member: "赵六", type: "消费", model: "claude-3-5-sonnet", channel: "Anthropic", retryChannel: "-", duration: "2.3s", streaming: "流式", input: 240, output: 480, cost: 0.008, detail: "Request completed successfully." },
+  { time: "2026-03-03 11:11:33", enterprise: "蓝海智能", apiKey: "dev-key", group: "dev", org: "研发部", member: "张三", type: "消费", model: "gpt-4o-mini", channel: "OpenAI", retryChannel: "-", duration: "0.8s", streaming: "非流", input: 88, output: 120, cost: 0.001, detail: "Request completed successfully." },
+  { time: "2026-03-03 11:10:14", enterprise: "极光科技", apiKey: "test", group: "default", org: "技术部", member: "李四", type: "错误", model: "mock-error", channel: "Azure", retryChannel: "Anthropic", duration: "0s", streaming: "非流", input: 0, output: 0, cost: 0, detail: "Incorrect API key provided." },
+  { time: "2026-03-03 11:09:02", enterprise: "云启数字", apiKey: "prod", group: "finance", org: "财务部", member: "王五", type: "消费", model: "gpt-4o", channel: "OpenAI", retryChannel: "-", duration: "1.8s", streaming: "流式", input: 320, output: 640, cost: 0.012, detail: "Request completed successfully." },
+  { time: "2026-03-03 11:08:47", enterprise: "蓝海智能", apiKey: "dev-key", group: "dev", org: "研发部", member: "赵六", type: "消费", model: "claude-3-haiku", channel: "Anthropic", retryChannel: "OpenAI", duration: "0.5s", streaming: "非流", input: 64, output: 96, cost: 0.001, detail: "Request completed successfully." },
+  { time: "2026-03-03 11:07:30", enterprise: "极光科技", apiKey: "test", group: "default", org: "技术部", member: "张三", type: "错误", model: "mock-error", channel: "Azure", retryChannel: "-", duration: "0s", streaming: "非流", input: 0, output: 0, cost: 0, detail: "Incorrect API key provided." },
+  { time: "2026-03-03 11:06:15", enterprise: "云启数字", apiKey: "prod", group: "default", org: "产品部", member: "李四", type: "消费", model: "gpt-4o", channel: "OpenAI", retryChannel: "Azure", duration: "1.5s", streaming: "流式", input: 200, output: 400, cost: 0.007, detail: "Request completed successfully." },
 ];
 
 const mockTaskLogs = [
@@ -108,6 +109,13 @@ const mockAuditLogs = [
   { time: "2026-03-03 10:05:33", enterprise: "-", operator: "超级管理员 · 130****0001", opType: "设置变更", content: "修改平台全局限速阈值为 1000 RPM", result: "成功", ip: "192.168.1.10" },
   { time: "2026-03-03 09:47:01", enterprise: "蓝海智能", operator: "运营专员 · 132****0003", opType: "企业审核", content: "拒绝企业「蓝海智能」变更申请，原因：材料不全", result: "成功", ip: "192.168.1.12" },
   { time: "2026-03-03 09:30:18", enterprise: "-", operator: "运营专员 · 131****0002", opType: "登录", content: "登录失败：密码错误（第 1 次）", result: "失败", ip: "192.168.1.11" },
+];
+
+const mockMembers: Member[] = [
+  { id: "1", name: "张三", phone: "138****0001" },
+  { id: "2", name: "李四", phone: "139****0002" },
+  { id: "3", name: "王五", phone: "137****0003" },
+  { id: "4", name: "赵六", phone: "136****0004" },
 ];
 
 const apiKeyColors: Record<string, string> = {
@@ -216,49 +224,56 @@ function PaginationFooter({
 }
 
 // ── Tab 1: 调用日志 ──
-function CallLogsTab({ globalEnterpriseId, globalOrgId, globalCreator, enterprises, organizations }: {
+function CallLogsTab({ globalEnterpriseId, globalOrgId, globalMember, enterprises, organizations }: {
   globalEnterpriseId: string;
   globalOrgId: string;
-  globalCreator: string;
+  globalMember: string;
   enterprises: Enterprise[];
   organizations: Organization[];
 }) {
   const navigate = useNavigate();
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
-  const [filterModel, setFilterModel] = useState("all");
+  const [filterModel, setFilterModel] = useState("");
   const [filterType, setFilterType] = useState("all");
   const [filterGroup, setFilterGroup] = useState("all");
+  const [filterChannel, setFilterChannel] = useState("all");
+  const [filterRetryChannel, setFilterRetryChannel] = useState("all");
   const [filterApiKey, setFilterApiKey] = useState("");
 
   const allGroups = Array.from(new Set(mockUsageLogs.map(r => r.group)));
-  const allModels = Array.from(new Set(mockUsageLogs.map(r => r.model)));
+  const allChannels = Array.from(new Set(mockUsageLogs.map(r => r.channel)));
+  const allRetryChannels = Array.from(new Set(mockUsageLogs.map(r => r.retryChannel)));
 
   const selectedEnterpriseName = enterprises.find(e => e.id === globalEnterpriseId)?.name ?? "";
   const selectedOrgName = organizations.find(o => o.id === globalOrgId)?.name ?? "";
+  const selectedMemberName = mockMembers.find(m => m.id === globalMember)?.name ?? "";
 
   const handleReset = () => {
-    setFilterModel("all"); setFilterType("all"); setFilterGroup("all"); setFilterApiKey("");
+    setFilterModel(""); setFilterType("all"); setFilterGroup("all");
+    setFilterChannel("all"); setFilterRetryChannel("all"); setFilterApiKey("");
     setPage(1);
   };
 
   const filtered = mockUsageLogs.filter(r => {
     if (globalEnterpriseId && selectedEnterpriseName && r.enterprise !== selectedEnterpriseName) return false;
     if (globalOrgId && selectedOrgName && r.org !== selectedOrgName) return false;
-    if (globalCreator.trim() && !r.apiKey.toLowerCase().includes(globalCreator.toLowerCase())) return false;
-    if (filterModel !== "all" && r.model !== filterModel) return false;
+    if (globalMember && selectedMemberName && r.member !== selectedMemberName) return false;
+    if (filterModel.trim() && !r.model.toLowerCase().includes(filterModel.toLowerCase())) return false;
     if (filterType !== "all" && r.type !== filterType) return false;
     if (filterGroup !== "all" && r.group !== filterGroup) return false;
+    if (filterChannel !== "all" && r.channel !== filterChannel) return false;
+    if (filterRetryChannel !== "all" && r.retryChannel !== filterRetryChannel) return false;
     if (filterApiKey.trim() && !r.apiKey.toLowerCase().includes(filterApiKey.toLowerCase())) return false;
     return true;
   });
 
   const paginated = filtered.slice((page - 1) * pageSize, page * pageSize);
-  const headers = ["时间", "所属企业", "APIKey", "组织", "分组", "类型", "模型", "上游渠道", "用时/首字", "输入", "输出", "花费", "详情"];
+  const headers = ["时间", "APIKey", "企业", "组织", "成员", "分组", "类型", "模型", "上游渠道", "重试渠道", "用时/首字", "输入", "输出", "花费", "详情"];
 
   return (
     <div className="space-y-4">
-      <div className="border-l-4 border-l-primary/60 bg-card border border-border rounded-xl p-4 space-y-3">
+      <div className="border-l-4 border-l-primary/60 bg-card border border-border rounded-xl p-4">
         <div className="flex flex-wrap items-center gap-2">
           <div className="flex items-center gap-1 border border-border rounded-md px-3 h-9 text-sm text-foreground bg-background">
             <span>2026-03-03 00:00:00</span>
@@ -267,13 +282,10 @@ function CallLogsTab({ globalEnterpriseId, globalOrgId, globalCreator, enterpris
             <Calendar className="w-4 h-4 ml-2 text-muted-foreground" />
           </div>
           <Input className="h-9 w-44 text-sm" placeholder="APIKey 名称" value={filterApiKey} onChange={e => { setFilterApiKey(e.target.value); setPage(1); }} />
-          <Select value={filterModel} onValueChange={v => { setFilterModel(v); setPage(1); }}>
-            <SelectTrigger className="h-9 w-44 text-sm"><SelectValue placeholder="模型名称" /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">全部模型</SelectItem>
-              {allModels.map(m => <SelectItem key={m} value={m}>{m}</SelectItem>)}
-            </SelectContent>
-          </Select>
+          <Input className="h-9 w-44 text-sm" placeholder="模型名称" value={filterModel} onChange={e => { setFilterModel(e.target.value); setPage(1); }} />
+          <Button size="sm" variant="default" className="h-9 gap-1.5" onClick={() => setPage(1)}>
+            <Search className="w-3.5 h-3.5" />搜索
+          </Button>
           <Button size="sm" variant="outline" className="h-9" onClick={handleReset}>重置</Button>
         </div>
       </div>
@@ -323,6 +335,32 @@ function CallLogsTab({ globalEnterpriseId, globalOrgId, globalCreator, enterpris
                       </Select>
                     </th>
                   );
+                  if (h === "上游渠道") return (
+                    <th key={h} className="px-3 py-2.5 text-left text-xs font-medium text-muted-foreground whitespace-nowrap">
+                      <Select value={filterChannel} onValueChange={v => { setFilterChannel(v); setPage(1); }}>
+                        <SelectTrigger className="h-auto w-auto border-0 bg-transparent p-0 shadow-none focus:ring-0 gap-1 [&>svg]:w-3 [&>svg]:h-3 [&>svg]:opacity-60">
+                          <span className={cn("text-xs font-medium", filterChannel !== "all" ? "text-primary" : "text-muted-foreground")}>上游渠道</span>
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">全部</SelectItem>
+                          {allChannels.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+                        </SelectContent>
+                      </Select>
+                    </th>
+                  );
+                  if (h === "重试渠道") return (
+                    <th key={h} className="px-3 py-2.5 text-left text-xs font-medium text-muted-foreground whitespace-nowrap">
+                      <Select value={filterRetryChannel} onValueChange={v => { setFilterRetryChannel(v); setPage(1); }}>
+                        <SelectTrigger className="h-auto w-auto border-0 bg-transparent p-0 shadow-none focus:ring-0 gap-1 [&>svg]:w-3 [&>svg]:h-3 [&>svg]:opacity-60">
+                          <span className={cn("text-xs font-medium", filterRetryChannel !== "all" ? "text-primary" : "text-muted-foreground")}>重试渠道</span>
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">全部</SelectItem>
+                          {allRetryChannels.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+                        </SelectContent>
+                      </Select>
+                    </th>
+                  );
                   return <th key={h} className="px-3 py-2.5 text-left text-xs font-medium text-muted-foreground whitespace-nowrap">{h}</th>;
                 })}
               </tr>
@@ -331,13 +369,14 @@ function CallLogsTab({ globalEnterpriseId, globalOrgId, globalCreator, enterpris
               {paginated.map((row, i) => (
                 <tr key={i} className="border-b border-border last:border-0 hover:bg-muted/30 transition-colors">
                   <td className="px-3 py-2.5 text-xs text-muted-foreground whitespace-nowrap font-mono">{row.time}</td>
-                  <td className="px-3 py-2.5 text-xs text-foreground whitespace-nowrap font-medium">{row.enterprise}</td>
                   <td className="px-3 py-2.5">
                     <button className={`text-xs px-2 py-0.5 rounded cursor-pointer hover:opacity-80 transition-opacity ${getApiKeyColor(row.apiKey)}`} onClick={() => navigate(`/admin/tokens?key=${row.apiKey}`)} title="跳转至令牌管理">{row.apiKey}</button>
                   </td>
+                  <td className="px-3 py-2.5 text-xs text-foreground whitespace-nowrap font-medium">{row.enterprise}</td>
                   <td className="px-3 py-2.5">
                     <button className="text-xs text-primary hover:underline whitespace-nowrap cursor-pointer" onClick={() => navigate(`/admin/enterprises?org=${encodeURIComponent(row.org)}`)} title="跳转至企业管理">{row.org}</button>
                   </td>
+                  <td className="px-3 py-2.5 text-xs text-foreground whitespace-nowrap">{row.member}</td>
                   <td className="px-3 py-2.5 text-xs text-foreground">{row.group}</td>
                   <td className="px-3 py-2.5">
                     {row.type === "错误"
@@ -350,6 +389,9 @@ function CallLogsTab({ globalEnterpriseId, globalOrgId, globalCreator, enterpris
                   </td>
                   <td className="px-3 py-2.5">
                     <span className={`text-xs px-1.5 py-0.5 rounded ${getChannelStyle(row.channel)}`}>{row.channel}</span>
+                  </td>
+                  <td className="px-3 py-2.5">
+                    <span className={`text-xs px-1.5 py-0.5 rounded ${getChannelStyle(row.retryChannel)}`}>{row.retryChannel}</span>
                   </td>
                   <td className="px-3 py-2.5">
                     <div className="flex items-center gap-1">
@@ -422,7 +464,7 @@ function TaskLogsTab({ globalEnterpriseId, globalOrgId, enterprises, organizatio
               <SelectItem value="失败">失败</SelectItem>
             </SelectContent>
           </Select>
-          <Button size="sm" variant="outline" className="h-9 gap-1.5" onClick={handleReset}>重置</Button>
+          <Button size="sm" variant="outline" className="h-9" onClick={handleReset}>重置</Button>
         </div>
       </div>
 
@@ -517,9 +559,9 @@ function TaskLogsTab({ globalEnterpriseId, globalOrgId, enterprises, organizatio
 }
 
 // ── Tab 3: 审计日志 ──
-function AuditLogsTab({ globalEnterpriseId, globalCreator, enterprises }: {
+function AuditLogsTab({ globalEnterpriseId, globalMember, enterprises }: {
   globalEnterpriseId: string;
-  globalCreator: string;
+  globalMember: string;
   enterprises: Enterprise[];
 }) {
   const [page, setPage] = useState(1);
@@ -528,10 +570,11 @@ function AuditLogsTab({ globalEnterpriseId, globalCreator, enterprises }: {
   const [filterOpType, setFilterOpType] = useState("all");
 
   const selectedEnterpriseName = enterprises.find(e => e.id === globalEnterpriseId)?.name ?? "";
+  const selectedMemberName = mockMembers.find(m => m.id === globalMember)?.name ?? "";
 
   const filtered = mockAuditLogs.filter(r => {
     if (globalEnterpriseId && selectedEnterpriseName && r.enterprise !== selectedEnterpriseName && r.enterprise !== "-") return false;
-    if (globalCreator.trim() && !r.operator.toLowerCase().includes(globalCreator.toLowerCase())) return false;
+    if (globalMember && selectedMemberName && !r.operator.toLowerCase().includes(selectedMemberName.toLowerCase())) return false;
     if (filterOperator.trim() && !r.operator.toLowerCase().includes(filterOperator.toLowerCase())) return false;
     if (filterOpType !== "all" && r.opType !== filterOpType) return false;
     return true;
@@ -614,11 +657,9 @@ function AuditLogsTab({ globalEnterpriseId, globalCreator, enterprises }: {
 export default function AdminCallLogs() {
   const [enterprises, setEnterprises] = useState<Enterprise[]>([]);
   const [organizations, setOrganizations] = useState<Organization[]>([]);
-
-  // Global context state — lifted to top-level, shared across all 3 tabs
   const [globalEnterpriseId, setGlobalEnterpriseId] = useState("");
   const [globalOrgId, setGlobalOrgId] = useState("");
-  const [globalCreator, setGlobalCreator] = useState("");
+  const [globalMember, setGlobalMember] = useState("");
 
   useEffect(() => {
     supabase.from("enterprises").select("id, name").order("name")
@@ -631,24 +672,22 @@ export default function AdminCallLogs() {
     ? organizations.filter(o => o.enterprise_id === globalEnterpriseId)
     : organizations;
 
-  const hasGlobalFilter = !!(globalEnterpriseId || globalOrgId || globalCreator.trim());
+  const hasGlobalFilter = !!(globalEnterpriseId || globalOrgId || globalMember);
 
   const handleGlobalReset = () => {
     setGlobalEnterpriseId("");
     setGlobalOrgId("");
-    setGlobalCreator("");
+    setGlobalMember("");
   };
 
   return (
     <div className="p-6 space-y-4">
-      {/* Header row — title only */}
       <div>
         <h1 className="text-2xl font-bold text-foreground">调用日志</h1>
         <p className="text-muted-foreground mt-1 text-sm">查看全平台 API 调用详情、任务执行记录与审计轨迹</p>
       </div>
 
       <Tabs defaultValue="call">
-        {/* Tab row: tabs on left, global dimension filters on right — same line */}
         <div className="flex items-center justify-between gap-3">
           <TabsList className="gap-1 h-auto p-1">
             <TabsTrigger value="call" className="gap-1.5 text-sm px-4 py-2">
@@ -662,7 +701,6 @@ export default function AdminCallLogs() {
             </TabsTrigger>
           </TabsList>
 
-          {/* Global context selectors — inline with tabs */}
           <div className="flex items-center gap-2">
             <FilterCombobox
               items={enterprises}
@@ -680,11 +718,13 @@ export default function AdminCallLogs() {
               emptyText={globalEnterpriseId ? "该企业暂无组织" : "未找到组织"}
               width="w-36"
             />
-            <Input
-              className="h-9 w-40 text-sm"
-              placeholder="创建人 / 手机号"
-              value={globalCreator}
-              onChange={e => setGlobalCreator(e.target.value)}
+            <FilterCombobox
+              items={mockMembers}
+              value={globalMember}
+              onChange={setGlobalMember}
+              placeholder="所属成员"
+              emptyText="未找到成员"
+              width="w-36"
             />
             {hasGlobalFilter && (
               <Button size="sm" variant="ghost" className="h-9 gap-1 text-muted-foreground hover:text-foreground px-2" onClick={handleGlobalReset}>
@@ -698,7 +738,7 @@ export default function AdminCallLogs() {
           <CallLogsTab
             globalEnterpriseId={globalEnterpriseId}
             globalOrgId={globalOrgId}
-            globalCreator={globalCreator}
+            globalMember={globalMember}
             enterprises={enterprises}
             organizations={organizations}
           />
@@ -714,7 +754,7 @@ export default function AdminCallLogs() {
         <TabsContent value="audit" className="mt-4">
           <AuditLogsTab
             globalEnterpriseId={globalEnterpriseId}
-            globalCreator={globalCreator}
+            globalMember={globalMember}
             enterprises={enterprises}
           />
         </TabsContent>
