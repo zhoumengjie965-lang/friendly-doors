@@ -389,6 +389,20 @@ export default function AdminTokens() {
   // Enterprise name cache
   const [enterpriseNames, setEnterpriseNames] = useState<Record<string, string>>({});
 
+  // Create dialog
+  const [createOpen, setCreateOpen] = useState(false);
+  const [createLoading, setCreateLoading] = useState(false);
+  const [createForm, setCreateForm] = useState({
+    name: "",
+    enterprise_id: "",
+    group_name: "",
+    total_quota: "",
+    expires_at: "",
+    allowed_models: "",
+    ip_whitelist: "",
+    phone: "",
+  });
+
   const fetchKeys = useCallback(async () => {
     setLoading(true);
     const { data, error } = await supabase
