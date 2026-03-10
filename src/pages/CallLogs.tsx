@@ -203,6 +203,7 @@ function CallLogsTab({ role, globalOrg, globalMember }: {
   globalMember: string; // member name or "all"
 }) {
   const [filterModel, setFilterModel] = useState("");
+  const [filterApiKey, setFilterApiKey] = useState("");
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
   const [filterGroup, setFilterGroup] = useState("all");
@@ -216,6 +217,8 @@ function CallLogsTab({ role, globalOrg, globalMember }: {
   const filtered = mockUsageLogs.filter(r => {
     if (filterGroup !== "all" && r.group !== filterGroup) return false;
     if (filterType !== "all" && r.type !== filterType) return false;
+    if (filterModel.trim() && !r.model.toLowerCase().includes(filterModel.toLowerCase())) return false;
+    if (filterApiKey.trim() && !r.apiKey.toLowerCase().includes(filterApiKey.toLowerCase())) return false;
     if ((isEnterpriseAdmin || isOrgAdmin) && globalOrg !== "all" && r.org !== globalOrg) return false;
     if (isOrgAdmin && globalMember !== "all" && r.member !== globalMember) return false;
     return true;
@@ -233,6 +236,8 @@ function CallLogsTab({ role, globalOrg, globalMember }: {
   const handleReset = () => {
     setFilterGroup("all");
     setFilterType("all");
+    setFilterModel("");
+    setFilterApiKey("");
     setPage(1);
   };
 
