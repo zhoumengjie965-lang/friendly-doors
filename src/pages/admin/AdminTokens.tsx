@@ -28,7 +28,7 @@ import {
 } from "@/components/ui/sheet";
 import {
   Plus, Copy, Trash2, Search, Eye, EyeOff, Check, Ban, RefreshCw,
-  FlaskConical, Info, FileText,
+  FlaskConical, Info, FileText, X,
 } from "lucide-react";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
@@ -43,6 +43,55 @@ import {
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import { ChevronDown } from "lucide-react";
+
+// ─── Generic filter combobox (shared by enterprise & org dropdowns) ───────────
+
+function FilterCombobox({
+  items, value, onChange, placeholder, emptyText,
+}: {
+  items: { id: string; name: string }[];
+  value: string;
+  onChange: (v: string) => void;
+  placeholder: string;
+  emptyText: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const [search, setSearch] = useState("");
+  const filtered = items.filter(i => i.name.toLowerCase().includes(search.toLowerCase()));
+  const selected = items.find(i => i.id === value);
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <Button variant="outline" role="combobox" className="h-9 w-48 justify-between text-sm font-normal">
+          <span className="truncate text-left">{selected ? selected.name : placeholder}</span>
+          <ChevronDown className="ml-1 w-3.5 h-3.5 shrink-0 opacity-50" />
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent className="w-56 p-0" align="start">
+        <Command>
+          <CommandInput placeholder="搜索…" value={search} onValueChange={setSearch} />
+          <CommandList>
+            <CommandEmpty>{emptyText}</CommandEmpty>
+            <CommandGroup>
+              {value && (
+                <CommandItem value="__clear__" onSelect={() => { onChange(""); setOpen(false); setSearch(""); }} className="text-muted-foreground">
+                  清除筛选
+                </CommandItem>
+              )}
+              {filtered.map(i => (
+                <CommandItem key={i.id} value={i.id} onSelect={() => { onChange(i.id); setOpen(false); setSearch(""); }}>
+                  <span className="truncate">{i.name}</span>
+                  {i.id === value && <Check className="ml-auto w-3.5 h-3.5 shrink-0" />}
+                </CommandItem>
+              ))}
+            </CommandGroup>
+          </CommandList>
+        </Command>
+      </PopoverContent>
+    </Popover>
+  );
+}
 
 // ─── Constants ───────────────────────────────────────────────────────────────
 
@@ -74,6 +123,12 @@ interface ApiKey {
 interface Enterprise {
   id: string;
   name: string;
+}
+
+interface Organization {
+  id: string;
+  name: string;
+  enterprise_id: string;
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -359,6 +414,7 @@ export default function AdminTokens() {
   const navigate = useNavigate();
   const [keys, setKeys] = useState<ApiKey[]>([]);
   const [enterprises, setEnterprises] = useState<Enterprise[]>([]);
+  const [organizations, setOrganizations] = useState<Organization[]>([]);
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
@@ -367,9 +423,11 @@ export default function AdminTokens() {
   const [searchName, setSearchName] = useState("");
   const [searchKey, setSearchKey] = useState("");
 
-  // God-view filters
+  // Filters
   const [filterEnterpriseId, setFilterEnterpriseId] = useState("");
+  const [filterOrgId, setFilterOrgId] = useState("");
   const [filterCreator, setFilterCreator] = useState("");
+  const [filterStatus, setFilterStatus] = useState("all");
 
   // Internal filter
   const [excludeInternal, setExcludeInternal] = useState(false);
@@ -432,16 +490,29 @@ export default function AdminTokens() {
     if (data) setEnterprises(data as Enterprise[]);
   }, []);
 
+  const fetchOrganizations = useCallback(async () => {
+    const { data } = await supabase.from("organizations").select("id, name, enterprise_id").order("name");
+    if (data) setOrganizations(data as Organization[]);
+  }, []);
+
   useEffect(() => {
     fetchKeys();
     fetchEnterprises();
-  }, [fetchKeys, fetchEnterprises]);
+    fetchOrganizations();
+  }, [fetchKeys, fetchEnterprises, fetchOrganizations]);
+
+  // Cascade: filter orgs by selected enterprise
+  const availableOrgs = filterEnterpriseId
+    ? organizations.filter(o => o.enterprise_id === filterEnterpriseId)
+    : organizations;
 
   const filtered = keys.filter(k => {
     if (searchName && !k.name.toLowerCase().includes(searchName.toLowerCase())) return false;
     if (searchKey && !k.key_value.toLowerCase().includes(searchKey.toLowerCase())) return false;
     if (filterEnterpriseId && k.enterprise_id !== filterEnterpriseId) return false;
+    if (filterOrgId && k.organization_id !== filterOrgId) return false;
     if (filterCreator && !k.creator_phone.includes(filterCreator)) return false;
+    if (filterStatus !== "all" && k.status !== filterStatus) return false;
     if (excludeInternal) {
       const eName = enterpriseNames[k.enterprise_id] || "";
       if (isInternalEnterprise(eName)) return false;
@@ -523,7 +594,9 @@ export default function AdminTokens() {
     setSearchName("");
     setSearchKey("");
     setFilterEnterpriseId("");
+    setFilterOrgId("");
     setFilterCreator("");
+    setFilterStatus("all");
     setExcludeInternal(false);
     setPage(1);
   };
@@ -674,19 +747,41 @@ export default function AdminTokens() {
 
         {/* Filter bar */}
         <div className="border-l-4 border-l-primary/60 bg-card border border-border rounded-xl p-4 space-y-3">
-          {/* Row 1 — Filters */}
+          {/* Row 1 — Dimension Filters */}
           <div className="flex flex-wrap items-center gap-2">
             <EnterpriseCombobox
               enterprises={enterprises}
               value={filterEnterpriseId}
-              onChange={v => { setFilterEnterpriseId(v); setPage(1); }}
+              onChange={v => { setFilterEnterpriseId(v); setFilterOrgId(""); setPage(1); }}
+            />
+            {/* 所属组织 — cascades with enterprise */}
+            <FilterCombobox
+              items={availableOrgs}
+              value={filterOrgId}
+              onChange={v => { setFilterOrgId(v); setPage(1); }}
+              placeholder="所属组织（下拉搜索）"
+              emptyText={filterEnterpriseId ? "该企业暂无组织" : "未找到组织"}
             />
             <Input
-              className="h-9 w-48 text-sm"
-              placeholder="创建人手机 / 用户ID"
+              className="h-9 w-44 text-sm"
+              placeholder="创建人手机 / 用户名"
               value={filterCreator}
               onChange={e => { setFilterCreator(e.target.value); setPage(1); }}
             />
+            <Select value={filterStatus} onValueChange={v => { setFilterStatus(v); setPage(1); }}>
+              <SelectTrigger className="h-9 w-32 text-sm">
+                <SelectValue placeholder="状态" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">全部状态</SelectItem>
+                <SelectItem value="active">已启用</SelectItem>
+                <SelectItem value="disabled">已禁用</SelectItem>
+              </SelectContent>
+            </Select>
+            <Button size="sm" variant="outline" className="h-9 gap-1.5" onClick={handleReset}>
+              <X className="w-3.5 h-3.5" />
+              重置
+            </Button>
           </div>
 
           {/* Row 2 — Action + name/key search */}
@@ -720,7 +815,6 @@ export default function AdminTokens() {
                 <Search className="w-3.5 h-3.5" />
                 查询
               </Button>
-              <Button size="sm" variant="outline" className="h-9" onClick={handleReset}>重置</Button>
             </div>
           </div>
         </div>
