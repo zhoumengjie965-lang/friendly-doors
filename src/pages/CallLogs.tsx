@@ -692,92 +692,103 @@ export default function CallLogs({ enterprise, role, currentOrg, orgList = [] }:
   const isEnterpriseAdmin = viewRole === "enterprise_admin";
   const isOrgAdmin = viewRole === "org_admin";
   const showOrgSelector = isEnterpriseAdmin || isOrgAdmin;
+  // Enterprise admin also gets member selector (two-level: org → member)
+  const showMemberSelector = isOrgAdmin || isEnterpriseAdmin;
 
   // Derive display name for passing to tabs
   const activeOrgName = globalOrg === "all"
     ? "all"
     : (orgOptions.find(o => o.id === globalOrg)?.name ?? globalOrg);
 
+  // Members filtered by selected org (for enterprise_admin cascading)
+  const membersForOrg = globalOrg === "all"
+    ? allMembers
+    : Array.from(new Set(mockUsageLogs.filter(r => r.org === activeOrgName).map(r => r.member)));
+
   return (
     <div className="space-y-4">
-      {/* Header row */}
+      {/* Header row — title + role switcher only */}
       <div className="flex items-start justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-foreground">调用日志</h1>
           <p className="text-muted-foreground mt-1 text-sm">查看 API 调用详情与任务执行记录</p>
         </div>
 
-        <div className="flex items-center gap-2 flex-wrap justify-end">
-          {/* Global context selectors — fixed top-right, shared across all tabs */}
-          {showOrgSelector && (
-            <div className="flex items-center gap-1.5 bg-muted/50 border border-border rounded-lg px-3 py-1.5">
-              <Building2 className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
-              <span className="text-xs text-muted-foreground whitespace-nowrap">当前组织</span>
-              <Select value={globalOrg} onValueChange={v => { setGlobalOrg(v); setGlobalMember("all"); }}>
-                <SelectTrigger className="h-7 w-32 text-xs font-medium border-primary/40 bg-primary/5 text-primary focus:ring-primary/30 px-2">
-                  <SelectValue placeholder="选择组织" />
-                </SelectTrigger>
-                <SelectContent>
-                  {isEnterpriseAdmin && <SelectItem value="all">全部组织</SelectItem>}
-                  {orgOptions.map(o => (
-                    <SelectItem key={o.id} value={o.id}>{o.name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          )}
-
-          {/* Member selector — only for org_admin */}
-          {isOrgAdmin && (
-            <div className="flex items-center gap-1.5 bg-muted/50 border border-border rounded-lg px-3 py-1.5">
-              <Users className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
-              <span className="text-xs text-muted-foreground whitespace-nowrap">成员</span>
-              <Select value={globalMember} onValueChange={setGlobalMember}>
-                <SelectTrigger className="h-7 w-28 text-xs font-medium border-border bg-background px-2">
-                  <SelectValue placeholder="全部成员" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">全部成员</SelectItem>
-                  {allMembers.map(m => (
-                    <SelectItem key={m} value={m}>{m}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          )}
-
-          {/* Role switcher */}
-          <div className="flex items-center bg-muted rounded-lg p-1 h-9">
-            {roleTabs.map((tab) => (
-              <button
-                key={tab.key}
-                onClick={() => handleViewRole(tab.key)}
-                className={cn(
-                  "px-4 py-1.5 rounded-md text-xs font-medium transition-all",
-                  viewRole === tab.key
-                    ? "bg-background text-foreground shadow-sm"
-                    : "text-muted-foreground hover:text-foreground"
-                )}
-              >
-                {tab.label}
-              </button>
-            ))}
-          </div>
+        {/* Role switcher */}
+        <div className="flex items-center bg-muted rounded-lg p-1 h-9 shrink-0">
+          {roleTabs.map((tab) => (
+            <button
+              key={tab.key}
+              onClick={() => handleViewRole(tab.key)}
+              className={cn(
+                "px-4 py-1.5 rounded-md text-xs font-medium transition-all",
+                viewRole === tab.key
+                  ? "bg-background text-foreground shadow-sm"
+                  : "text-muted-foreground hover:text-foreground"
+              )}
+            >
+              {tab.label}
+            </button>
+          ))}
         </div>
       </div>
 
       <Tabs defaultValue="call">
-        <TabsList className="gap-1 h-auto p-1">
-          <TabsTrigger value="call" className="gap-1.5 text-sm px-4 py-2">
-            <Activity className="w-4 h-4" />调用日志
-          </TabsTrigger>
-          <TabsTrigger value="task" className="gap-1.5 text-sm px-4 py-2">
-            <ClipboardList className="w-4 h-4" />任务日志
-          </TabsTrigger>
-          <TabsTrigger value="audit" className="gap-1.5 text-sm px-4 py-2">
-            <Shield className="w-4 h-4" />审计日志
-          </TabsTrigger>
-        </TabsList>
+        {/* Tab row: tabs on left, context selectors on right — same line */}
+        <div className="flex items-center justify-between gap-3">
+          <TabsList className="gap-1 h-auto p-1">
+            <TabsTrigger value="call" className="gap-1.5 text-sm px-4 py-2">
+              <Activity className="w-4 h-4" />调用日志
+            </TabsTrigger>
+            <TabsTrigger value="task" className="gap-1.5 text-sm px-4 py-2">
+              <ClipboardList className="w-4 h-4" />任务日志
+            </TabsTrigger>
+            <TabsTrigger value="audit" className="gap-1.5 text-sm px-4 py-2">
+              <Shield className="w-4 h-4" />审计日志
+            </TabsTrigger>
+          </TabsList>
+
+          {/* Context selectors — inline with tabs on the right */}
+          {(showOrgSelector || showMemberSelector) && (
+            <div className="flex items-center gap-2">
+              {showOrgSelector && (
+                <div className="flex items-center gap-1.5">
+                  <Building2 className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
+                  <span className="text-xs text-muted-foreground whitespace-nowrap">当前组织</span>
+                  <Select value={globalOrg} onValueChange={v => { setGlobalOrg(v); setGlobalMember("all"); }}>
+                    <SelectTrigger className="h-8 w-32 text-xs font-medium border-primary/40 bg-primary/5 text-primary focus:ring-primary/30">
+                      <SelectValue placeholder="选择组织" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {isEnterpriseAdmin && <SelectItem value="all">全部组织</SelectItem>}
+                      {orgOptions.map(o => (
+                        <SelectItem key={o.id} value={o.id}>{o.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+
+              {showMemberSelector && (
+                <div className="flex items-center gap-1.5">
+                  <Users className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
+                  <span className="text-xs text-muted-foreground whitespace-nowrap">成员</span>
+                  <Select value={globalMember} onValueChange={setGlobalMember}>
+                    <SelectTrigger className="h-8 w-28 text-xs font-medium border-border bg-background">
+                      <SelectValue placeholder="全部成员" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">全部成员</SelectItem>
+                      {membersForOrg.map(m => (
+                        <SelectItem key={m} value={m}>{m}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
 
         <TabsContent value="call" className="mt-4">
           <CallLogsTab
