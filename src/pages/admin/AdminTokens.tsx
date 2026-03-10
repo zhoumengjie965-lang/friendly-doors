@@ -759,7 +759,7 @@ export default function AdminTokens() {
                           </Tooltip>
                         </span>
                       </th>
-                      <th className="px-3 py-2.5 text-left text-xs font-semibold" style={{ color: "hsl(var(--primary)/0.75)" }}>已用/总额度</th>
+                      <th className="px-3 py-2.5 text-left text-xs font-semibold" style={{ color: "hsl(var(--primary)/0.75)" }}>已消耗/预算上限</th>
                       <th className="px-3 py-2.5 text-center text-xs font-semibold" style={{ color: "hsl(var(--primary)/0.75)" }}>操作</th>
                     </tr>
                   </thead>
