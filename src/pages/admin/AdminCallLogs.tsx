@@ -299,9 +299,8 @@ function CallLogsTab({ globalEnterpriseId, globalOrgId, globalCreator, enterpris
                   if (h === "分组") return (
                     <th key={h} className="px-3 py-2.5 text-left text-xs font-medium text-muted-foreground whitespace-nowrap">
                       <Select value={filterGroup} onValueChange={v => { setFilterGroup(v); setPage(1); }}>
-                        <SelectTrigger className="h-auto w-auto border-0 bg-transparent p-0 shadow-none focus:ring-0 gap-0.5 [&>svg]:hidden">
+                        <SelectTrigger className="h-auto w-auto border-0 bg-transparent p-0 shadow-none focus:ring-0 gap-1 [&>svg]:w-3 [&>svg]:h-3 [&>svg]:opacity-60">
                           <span className={cn("text-xs font-medium", filterGroup !== "all" ? "text-primary" : "text-muted-foreground")}>分组</span>
-                          <ChevronDown className="w-3 h-3 text-muted-foreground" />
                         </SelectTrigger>
                         <SelectContent>
                           <SelectItem value="all">全部</SelectItem>
@@ -313,9 +312,8 @@ function CallLogsTab({ globalEnterpriseId, globalOrgId, globalCreator, enterpris
                   if (h === "类型") return (
                     <th key={h} className="px-3 py-2.5 text-left text-xs font-medium text-muted-foreground whitespace-nowrap">
                       <Select value={filterType} onValueChange={v => { setFilterType(v); setPage(1); }}>
-                        <SelectTrigger className="h-auto w-auto border-0 bg-transparent p-0 shadow-none focus:ring-0 gap-0.5 [&>svg]:hidden">
+                        <SelectTrigger className="h-auto w-auto border-0 bg-transparent p-0 shadow-none focus:ring-0 gap-1 [&>svg]:w-3 [&>svg]:h-3 [&>svg]:opacity-60">
                           <span className={cn("text-xs font-medium", filterType !== "all" ? "text-primary" : "text-muted-foreground")}>类型</span>
-                          <ChevronDown className="w-3 h-3 text-muted-foreground" />
                         </SelectTrigger>
                         <SelectContent>
                           <SelectItem value="all">全部</SelectItem>
