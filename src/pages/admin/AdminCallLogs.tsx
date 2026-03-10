@@ -267,6 +267,7 @@ function CallLogsTab({ globalEnterpriseId, globalOrgId, globalCreator, enterpris
             <span>2026-03-03 23:59:59</span>
             <Calendar className="w-4 h-4 ml-2 text-muted-foreground" />
           </div>
+          <Input className="h-9 w-44 text-sm" placeholder="APIKey 名称" value={filterApiKey} onChange={e => { setFilterApiKey(e.target.value); setPage(1); }} />
           <Select value={filterModel} onValueChange={v => { setFilterModel(v); setPage(1); }}>
             <SelectTrigger className="h-9 w-44 text-sm"><SelectValue placeholder="模型名称" /></SelectTrigger>
             <SelectContent>
@@ -274,35 +275,10 @@ function CallLogsTab({ globalEnterpriseId, globalOrgId, globalCreator, enterpris
               {allModels.map(m => <SelectItem key={m} value={m}>{m}</SelectItem>)}
             </SelectContent>
           </Select>
-          <Select value={filterType} onValueChange={v => { setFilterType(v); setPage(1); }}>
-            <SelectTrigger className="h-9 w-40 text-sm"><SelectValue placeholder="类型" /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">全部类型</SelectItem>
-              <SelectItem value="消费">消费（成功）</SelectItem>
-              <SelectItem value="错误">错误（失败）</SelectItem>
-            </SelectContent>
-          </Select>
           <Button size="sm" variant="outline" className="h-9 gap-1.5" onClick={handleReset}>
             <X className="w-3.5 h-3.5" />重置
           </Button>
-          <Button size="sm" variant="ghost" className="h-9 gap-1 text-muted-foreground" onClick={() => setExpanded(v => !v)}>
-            展开 {expanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-          </Button>
         </div>
-
-        {expanded && (
-          <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-border">
-            <Input className="h-9 w-44 text-sm" placeholder="APIKey 名称" value={filterApiKey} onChange={e => { setFilterApiKey(e.target.value); setPage(1); }} />
-            <Select value={filterGroup} onValueChange={v => { setFilterGroup(v); setPage(1); }}>
-              <SelectTrigger className="h-9 w-36 text-sm"><SelectValue placeholder="分组" /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">全部分组</SelectItem>
-                {allGroups.map(g => <SelectItem key={g} value={g}>{g}</SelectItem>)}
-              </SelectContent>
-            </Select>
-            <Input className="h-9 w-40 text-sm" placeholder="IP 地址" />
-          </div>
-        )}
       </div>
 
       <div className="flex items-center justify-between">

@@ -314,6 +314,21 @@ function CallLogsTab({ role, globalOrg, globalMember }: {
                       </Select>
                     </th>
                   );
+                  if (h === "类型") return (
+                    <th key={h} className="px-3 py-2.5 text-left text-xs font-medium text-muted-foreground whitespace-nowrap">
+                      <Select value={filterType} onValueChange={v => { setFilterType(v); setPage(1); }}>
+                        <SelectTrigger className="h-auto w-auto border-0 bg-transparent p-0 shadow-none focus:ring-0 gap-0.5 [&>svg]:hidden">
+                          <span className={`text-xs font-medium ${filterType !== "all" ? "text-primary" : "text-muted-foreground"}`}>类型</span>
+                          <ChevronDown className="w-3 h-3 text-muted-foreground" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">全部</SelectItem>
+                          <SelectItem value="错误">错误</SelectItem>
+                          <SelectItem value="消费">消费</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </th>
+                  );
                   return <th key={h} className="px-3 py-2.5 text-left text-xs font-medium text-muted-foreground whitespace-nowrap">{h}</th>;
                 })}
               </tr>
