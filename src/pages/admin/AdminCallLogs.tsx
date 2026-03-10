@@ -14,7 +14,7 @@ import {
 } from "@/components/ui/dialog";
 import {
   RefreshCw, Settings, ChevronDown, ChevronUp, Activity, ClipboardList,
-  Shield, HelpCircle, Calendar, Check, X,
+  Shield, Calendar, Check, X, Building2,
 } from "lucide-react";
 import {
   Pagination, PaginationContent, PaginationItem, PaginationLink,
@@ -27,13 +27,14 @@ interface Organization { id: string; name: string; enterprise_id: string; }
 
 // ── Generic Combobox ──
 function FilterCombobox({
-  items, value, onChange, placeholder, emptyText,
+  items, value, onChange, placeholder, emptyText, width = "w-48",
 }: {
   items: { id: string; name: string }[];
   value: string;
   onChange: (v: string) => void;
   placeholder: string;
   emptyText: string;
+  width?: string;
 }) {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
@@ -43,14 +44,14 @@ function FilterCombobox({
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
-        <Button variant="outline" role="combobox" className="h-9 w-48 justify-between text-sm font-normal">
+        <Button variant="outline" role="combobox" className={cn("h-9 justify-between text-sm font-normal", width)}>
           <span className="truncate text-left">{selected ? selected.name : placeholder}</span>
           <ChevronDown className="ml-1 w-3.5 h-3.5 shrink-0 opacity-50" />
         </Button>
       </PopoverTrigger>
       <PopoverContent className="w-56 p-0" align="start">
         <Command>
-          <CommandInput placeholder={`搜索…`} value={search} onValueChange={setSearch} />
+          <CommandInput placeholder="搜索…" value={search} onValueChange={setSearch} />
           <CommandList>
             <CommandEmpty>{emptyText}</CommandEmpty>
             <CommandGroup>
@@ -87,19 +88,17 @@ const mockUsageLogs = [
   { time: "2026-03-03 11:06:15", enterprise: "云启数字", apiKey: "prod", group: "default", org: "产品部", type: "消费", model: "gpt-4o", channel: "OpenAI", duration: "1.5s", streaming: "流式", input: 200, output: 400, cost: 0.007, ip: "10.244.109.71", detail: "Request completed successfully." },
 ];
 
-// ── Merged task logs (drawing + async tasks) ──
 const mockTaskLogs = [
-  { submitTime: "2026-03-03 10:19:16", endTime: "2026-03-03 10:42:37", cost: "1401 秒", enterprise: "极光科技", platform: "Suno", type: "生成歌词", taskId: "13b57429c9714eb7ab078f5622490531", execStatus: "失败", progress: "-", detail: "读取响应超时，请检查网络连接后重试" },
-  { submitTime: "2026-03-03 09:55:02", endTime: "2026-03-03 10:01:45", cost: "403 秒", enterprise: "蓝海智能", platform: "Suno", type: "生成音乐", taskId: "a4c82e13f0b347d9ac1562ef83720104", execStatus: "已完成", progress: "100%", detail: "生成完成" },
-  { submitTime: "2026-03-03 09:30:11", endTime: "2026-03-03 09:55:34", cost: "1523 秒", enterprise: "云启数字", platform: "Suno", type: "生成歌词", taskId: "7f3d9c21b0e54a8d913047cf25816b93", execStatus: "失败", progress: "-", detail: "服务暂时不可用" },
-  { submitTime: "2026-03-03 09:10:44", endTime: "2026-03-03 09:16:22", cost: "338 秒", enterprise: "蓝海智能", platform: "Suno", type: "风格转换", taskId: "b8e51f62d3c04719a270583c946d17f5", execStatus: "已完成", progress: "100%", detail: "转换完成" },
-  { submitTime: "2026-03-03 08:48:30", endTime: "2026-03-03 09:10:05", cost: "1295 秒", enterprise: "极光科技", platform: "Suno", type: "生成歌词", taskId: "c6a703e89d1b42f0b58349a71c24fe62", execStatus: "失败", progress: "-", detail: "读取响应超时，请检查网络连接后重试" },
-  { submitTime: "2026-03-03 08:20:05", endTime: "2026-03-03 08:22:14", cost: "129 秒", enterprise: "蓝海智能", platform: "Midjourney", type: "文生图", taskId: "d1e4f9a02b3c47e8b912765c034fd821", execStatus: "已完成", progress: "100%", detail: "图像生成完成，分辨率 1024×1024" },
-  { submitTime: "2026-03-03 08:05:33", endTime: "-", cost: "进行中", enterprise: "云启数字", platform: "Stable Diffusion", type: "图生图", taskId: "e2f5g8h01c4d57f9c023876d145ge932", execStatus: "进行中", progress: "47%", detail: "正在渲染第 3/6 步" },
-  { submitTime: "2026-03-03 07:55:12", endTime: "2026-03-03 08:01:48", cost: "396 秒", enterprise: "极光科技", platform: "Midjourney", type: "图像变体", taskId: "f3g6h9i12d5e68a0d134987e256hf043", execStatus: "已完成", progress: "100%", detail: "四宫格变体生成完成" },
+  { submitTime: "2026-03-03 10:19:16", endTime: "2026-03-03 10:42:37", cost: "1401 秒", enterprise: "极光科技", org: "技术部", platform: "Suno", type: "生成歌词", taskId: "13b57429c9714eb7ab078f5622490531", execStatus: "失败", progress: "-", detail: "读取响应超时，请检查网络连接后重试" },
+  { submitTime: "2026-03-03 09:55:02", endTime: "2026-03-03 10:01:45", cost: "403 秒", enterprise: "蓝海智能", org: "产品部", platform: "Suno", type: "生成音乐", taskId: "a4c82e13f0b347d9ac1562ef83720104", execStatus: "已完成", progress: "100%", detail: "生成完成" },
+  { submitTime: "2026-03-03 09:30:11", endTime: "2026-03-03 09:55:34", cost: "1523 秒", enterprise: "云启数字", org: "研发部", platform: "Suno", type: "生成歌词", taskId: "7f3d9c21b0e54a8d913047cf25816b93", execStatus: "失败", progress: "-", detail: "服务暂时不可用" },
+  { submitTime: "2026-03-03 09:10:44", endTime: "2026-03-03 09:16:22", cost: "338 秒", enterprise: "蓝海智能", org: "产品部", platform: "Suno", type: "风格转换", taskId: "b8e51f62d3c04719a270583c946d17f5", execStatus: "已完成", progress: "100%", detail: "转换完成" },
+  { submitTime: "2026-03-03 08:48:30", endTime: "2026-03-03 09:10:05", cost: "1295 秒", enterprise: "极光科技", org: "财务部", platform: "Suno", type: "生成歌词", taskId: "c6a703e89d1b42f0b58349a71c24fe62", execStatus: "失败", progress: "-", detail: "读取响应超时，请检查网络连接后重试" },
+  { submitTime: "2026-03-03 08:20:05", endTime: "2026-03-03 08:22:14", cost: "129 秒", enterprise: "蓝海智能", org: "研发部", platform: "Midjourney", type: "文生图", taskId: "d1e4f9a02b3c47e8b912765c034fd821", execStatus: "已完成", progress: "100%", detail: "图像生成完成，分辨率 1024×1024" },
+  { submitTime: "2026-03-03 08:05:33", endTime: "-", cost: "进行中", enterprise: "云启数字", org: "技术部", platform: "Stable Diffusion", type: "图生图", taskId: "e2f5g8h01c4d57f9c023876d145ge932", execStatus: "进行中", progress: "47%", detail: "正在渲染第 3/6 步" },
+  { submitTime: "2026-03-03 07:55:12", endTime: "2026-03-03 08:01:48", cost: "396 秒", enterprise: "极光科技", org: "技术部", platform: "Midjourney", type: "图像变体", taskId: "f3g6h9i12d5e68a0d134987e256hf043", execStatus: "已完成", progress: "100%", detail: "四宫格变体生成完成" },
 ];
 
-// ── Audit logs (admin-level operations) ──
 const mockAuditLogs = [
   { time: "2026-03-03 11:30:05", enterprise: "极光科技", operator: "超级管理员 · 130****0001", opType: "企业审核", content: "审核通过企业「极光科技」实名认证", result: "成功", ip: "192.168.1.10" },
   { time: "2026-03-03 11:15:22", enterprise: "蓝海智能", operator: "运营专员 · 131****0002", opType: "账户充值", content: "为企业「蓝海智能」充值 ¥5,000.00", result: "成功", ip: "192.168.1.11" },
@@ -127,7 +126,6 @@ function getChannelStyle(channel: string) {
   return "bg-muted text-muted-foreground border border-border";
 }
 
-// ── Execution status badge ──
 function ExecStatusBadge({ status }: { status: string }) {
   if (status === "进行中") return (
     <div className="flex items-center gap-1.5">
@@ -149,7 +147,6 @@ function ExecStatusBadge({ status }: { status: string }) {
   );
 }
 
-// ── Audit type badge ──
 function AuditTypeBadge({ type }: { type: string }) {
   const styles: Record<string, string> = {
     "登录": "bg-blue-50 text-blue-700 border border-blue-200",
@@ -219,50 +216,37 @@ function PaginationFooter({
 }
 
 // ── Tab 1: 调用日志 ──
-function CallLogsTab() {
+function CallLogsTab({ globalEnterpriseId, globalOrgId, globalCreator, enterprises, organizations }: {
+  globalEnterpriseId: string;
+  globalOrgId: string;
+  globalCreator: string;
+  enterprises: Enterprise[];
+  organizations: Organization[];
+}) {
   const navigate = useNavigate();
   const [expanded, setExpanded] = useState(false);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
-
-  const [enterprises, setEnterprises] = useState<Enterprise[]>([]);
-  const [organizations, setOrganizations] = useState<Organization[]>([]);
-
-  const [filterEnterpriseId, setFilterEnterpriseId] = useState("");
-  const [filterOrgId, setFilterOrgId] = useState("");
-  const [filterCreator, setFilterCreator] = useState("");
   const [filterModel, setFilterModel] = useState("all");
   const [filterType, setFilterType] = useState("all");
   const [filterGroup, setFilterGroup] = useState("all");
   const [filterApiKey, setFilterApiKey] = useState("");
 
-  useEffect(() => {
-    supabase.from("enterprises").select("id, name").order("name")
-      .then(({ data }) => { if (data) setEnterprises(data as Enterprise[]); });
-    supabase.from("organizations").select("id, name, enterprise_id").order("name")
-      .then(({ data }) => { if (data) setOrganizations(data as Organization[]); });
-  }, []);
-
-  const availableOrgs = filterEnterpriseId
-    ? organizations.filter(o => o.enterprise_id === filterEnterpriseId)
-    : organizations;
-
   const allGroups = Array.from(new Set(mockUsageLogs.map(r => r.group)));
   const allModels = Array.from(new Set(mockUsageLogs.map(r => r.model)));
 
+  const selectedEnterpriseName = enterprises.find(e => e.id === globalEnterpriseId)?.name ?? "";
+  const selectedOrgName = organizations.find(o => o.id === globalOrgId)?.name ?? "";
+
   const handleReset = () => {
-    setFilterEnterpriseId(""); setFilterOrgId(""); setFilterCreator("");
     setFilterModel("all"); setFilterType("all"); setFilterGroup("all"); setFilterApiKey("");
     setPage(1);
   };
 
-  const selectedEnterpriseName = enterprises.find(e => e.id === filterEnterpriseId)?.name ?? "";
-  const selectedOrgName = organizations.find(o => o.id === filterOrgId)?.name ?? "";
-
   const filtered = mockUsageLogs.filter(r => {
-    if (filterEnterpriseId && selectedEnterpriseName && r.enterprise !== selectedEnterpriseName) return false;
-    if (filterOrgId && selectedOrgName && r.org !== selectedOrgName) return false;
-    if (filterCreator.trim() && !r.apiKey.toLowerCase().includes(filterCreator.toLowerCase())) return false;
+    if (globalEnterpriseId && selectedEnterpriseName && r.enterprise !== selectedEnterpriseName) return false;
+    if (globalOrgId && selectedOrgName && r.org !== selectedOrgName) return false;
+    if (globalCreator.trim() && !r.apiKey.toLowerCase().includes(globalCreator.toLowerCase())) return false;
     if (filterModel !== "all" && r.model !== filterModel) return false;
     if (filterType !== "all" && r.type !== filterType) return false;
     if (filterGroup !== "all" && r.group !== filterGroup) return false;
@@ -283,9 +267,6 @@ function CallLogsTab() {
             <span>2026-03-03 23:59:59</span>
             <Calendar className="w-4 h-4 ml-2 text-muted-foreground" />
           </div>
-          <FilterCombobox items={enterprises} value={filterEnterpriseId} onChange={v => { setFilterEnterpriseId(v); setFilterOrgId(""); setPage(1); }} placeholder="所属企业（下拉搜索）" emptyText="未找到企业" />
-          <FilterCombobox items={availableOrgs} value={filterOrgId} onChange={v => { setFilterOrgId(v); setPage(1); }} placeholder="所属组织（下拉搜索）" emptyText={filterEnterpriseId ? "该企业暂无组织" : "未找到组织"} />
-          <Input className="h-9 w-44 text-sm" placeholder="创建人手机 / 用户名" value={filterCreator} onChange={e => { setFilterCreator(e.target.value); setPage(1); }} />
           <Select value={filterModel} onValueChange={v => { setFilterModel(v); setPage(1); }}>
             <SelectTrigger className="h-9 w-44 text-sm"><SelectValue placeholder="模型名称" /></SelectTrigger>
             <SelectContent>
@@ -408,33 +389,25 @@ function CallLogsTab() {
   );
 }
 
-// ── Tab 2: 任务日志（合并绘图+任务，管理端） ──
-function TaskLogsTab() {
+// ── Tab 2: 任务日志 ──
+function TaskLogsTab({ globalEnterpriseId, globalOrgId, enterprises, organizations }: {
+  globalEnterpriseId: string;
+  globalOrgId: string;
+  enterprises: Enterprise[];
+  organizations: Organization[];
+}) {
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
-  const [enterprises, setEnterprises] = useState<Enterprise[]>([]);
-  const [organizations, setOrganizations] = useState<Organization[]>([]);
-  const [filterEnterpriseId, setFilterEnterpriseId] = useState("");
-  const [filterOrgId, setFilterOrgId] = useState("");
   const [filterTaskId, setFilterTaskId] = useState("");
   const [filterExecStatus, setFilterExecStatus] = useState("all");
   const [selectedTask, setSelectedTask] = useState<typeof mockTaskLogs[0] | null>(null);
 
-  useEffect(() => {
-    supabase.from("enterprises").select("id, name").order("name")
-      .then(({ data }) => { if (data) setEnterprises(data as Enterprise[]); });
-    supabase.from("organizations").select("id, name, enterprise_id").order("name")
-      .then(({ data }) => { if (data) setOrganizations(data as Organization[]); });
-  }, []);
-
-  const availableOrgs = filterEnterpriseId
-    ? organizations.filter(o => o.enterprise_id === filterEnterpriseId)
-    : organizations;
-
-  const selectedEnterpriseName = enterprises.find(e => e.id === filterEnterpriseId)?.name ?? "";
+  const selectedEnterpriseName = enterprises.find(e => e.id === globalEnterpriseId)?.name ?? "";
+  const selectedOrgName = organizations.find(o => o.id === globalOrgId)?.name ?? "";
 
   const filtered = mockTaskLogs.filter(r => {
-    if (filterEnterpriseId && selectedEnterpriseName && r.enterprise !== selectedEnterpriseName) return false;
+    if (globalEnterpriseId && selectedEnterpriseName && r.enterprise !== selectedEnterpriseName) return false;
+    if (globalOrgId && selectedOrgName && r.org !== selectedOrgName) return false;
     if (filterTaskId.trim() && !r.taskId.toLowerCase().includes(filterTaskId.toLowerCase())) return false;
     if (filterExecStatus !== "all" && r.execStatus !== filterExecStatus) return false;
     return true;
@@ -443,7 +416,6 @@ function TaskLogsTab() {
   const paginated = filtered.slice((page - 1) * pageSize, page * pageSize);
 
   const handleReset = () => {
-    setFilterEnterpriseId(""); setFilterOrgId("");
     setFilterTaskId(""); setFilterExecStatus("all"); setPage(1);
   };
 
@@ -457,8 +429,6 @@ function TaskLogsTab() {
             <span>2026-03-03 23:59:59</span>
             <Calendar className="w-4 h-4 ml-2 text-muted-foreground" />
           </div>
-          <FilterCombobox items={enterprises} value={filterEnterpriseId} onChange={v => { setFilterEnterpriseId(v); setFilterOrgId(""); setPage(1); }} placeholder="所属企业（下拉搜索）" emptyText="未找到企业" />
-          <FilterCombobox items={availableOrgs} value={filterOrgId} onChange={v => { setFilterOrgId(v); setPage(1); }} placeholder="所属组织（下拉搜索）" emptyText={filterEnterpriseId ? "该企业暂无组织" : "未找到组织"} />
           <Input className="h-9 w-48 text-sm" placeholder="任务ID" value={filterTaskId} onChange={e => { setFilterTaskId(e.target.value); setPage(1); }} />
           <Select value={filterExecStatus} onValueChange={v => { setFilterExecStatus(v); setPage(1); }}>
             <SelectTrigger className="h-9 w-36 text-sm"><SelectValue placeholder="执行状态" /></SelectTrigger>
@@ -522,7 +492,6 @@ function TaskLogsTab() {
         <PaginationFooter total={filtered.length} page={page} pageSize={pageSize} onPageChange={setPage} onPageSizeChange={setPageSize} />
       </div>
 
-      {/* Task detail dialog */}
       <Dialog open={!!selectedTask} onOpenChange={open => { if (!open) setSelectedTask(null); }}>
         <DialogContent className="max-w-lg">
           <DialogHeader>
@@ -566,32 +535,22 @@ function TaskLogsTab() {
   );
 }
 
-// ── Tab 3: 审计日志（管理端） ──
-function AuditLogsTab() {
+// ── Tab 3: 审计日志 ──
+function AuditLogsTab({ globalEnterpriseId, globalCreator, enterprises }: {
+  globalEnterpriseId: string;
+  globalCreator: string;
+  enterprises: Enterprise[];
+}) {
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
-  const [enterprises, setEnterprises] = useState<Enterprise[]>([]);
-  const [organizations, setOrganizations] = useState<Organization[]>([]);
-  const [filterEnterpriseId, setFilterEnterpriseId] = useState("");
-  const [filterOrgId, setFilterOrgId] = useState("");
   const [filterOperator, setFilterOperator] = useState("");
   const [filterOpType, setFilterOpType] = useState("all");
 
-  useEffect(() => {
-    supabase.from("enterprises").select("id, name").order("name")
-      .then(({ data }) => { if (data) setEnterprises(data as Enterprise[]); });
-    supabase.from("organizations").select("id, name, enterprise_id").order("name")
-      .then(({ data }) => { if (data) setOrganizations(data as Organization[]); });
-  }, []);
-
-  const availableOrgs = filterEnterpriseId
-    ? organizations.filter(o => o.enterprise_id === filterEnterpriseId)
-    : organizations;
-
-  const selectedEnterpriseName = enterprises.find(e => e.id === filterEnterpriseId)?.name ?? "";
+  const selectedEnterpriseName = enterprises.find(e => e.id === globalEnterpriseId)?.name ?? "";
 
   const filtered = mockAuditLogs.filter(r => {
-    if (filterEnterpriseId && selectedEnterpriseName && r.enterprise !== selectedEnterpriseName && r.enterprise !== "-") return false;
+    if (globalEnterpriseId && selectedEnterpriseName && r.enterprise !== selectedEnterpriseName && r.enterprise !== "-") return false;
+    if (globalCreator.trim() && !r.operator.toLowerCase().includes(globalCreator.toLowerCase())) return false;
     if (filterOperator.trim() && !r.operator.toLowerCase().includes(filterOperator.toLowerCase())) return false;
     if (filterOpType !== "all" && r.opType !== filterOpType) return false;
     return true;
@@ -600,7 +559,6 @@ function AuditLogsTab() {
   const paginated = filtered.slice((page - 1) * pageSize, page * pageSize);
 
   const handleReset = () => {
-    setFilterEnterpriseId(""); setFilterOrgId("");
     setFilterOperator(""); setFilterOpType("all"); setPage(1);
   };
 
@@ -614,8 +572,6 @@ function AuditLogsTab() {
             <span>2026-03-03 23:59:59</span>
             <Calendar className="w-4 h-4 ml-2 text-muted-foreground" />
           </div>
-          <FilterCombobox items={enterprises} value={filterEnterpriseId} onChange={v => { setFilterEnterpriseId(v); setFilterOrgId(""); setPage(1); }} placeholder="所属企业（下拉搜索）" emptyText="未找到企业" />
-          <FilterCombobox items={availableOrgs} value={filterOrgId} onChange={v => { setFilterOrgId(v); setPage(1); }} placeholder="所属组织（下拉搜索）" emptyText={filterEnterpriseId ? "该企业暂无组织" : "未找到组织"} />
           <Input className="h-9 w-44 text-sm" placeholder="操作人 / 手机号" value={filterOperator} onChange={e => { setFilterOperator(e.target.value); setPage(1); }} />
           <Select value={filterOpType} onValueChange={v => { setFilterOpType(v); setPage(1); }}>
             <SelectTrigger className="h-9 w-40 text-sm"><SelectValue placeholder="操作类型" /></SelectTrigger>
@@ -675,12 +631,78 @@ function AuditLogsTab() {
   );
 }
 
+// ── Main ──
 export default function AdminCallLogs() {
+  const [enterprises, setEnterprises] = useState<Enterprise[]>([]);
+  const [organizations, setOrganizations] = useState<Organization[]>([]);
+
+  // Global context state — lifted to top-level, shared across all 3 tabs
+  const [globalEnterpriseId, setGlobalEnterpriseId] = useState("");
+  const [globalOrgId, setGlobalOrgId] = useState("");
+  const [globalCreator, setGlobalCreator] = useState("");
+
+  useEffect(() => {
+    supabase.from("enterprises").select("id, name").order("name")
+      .then(({ data }) => { if (data) setEnterprises(data as Enterprise[]); });
+    supabase.from("organizations").select("id, name, enterprise_id").order("name")
+      .then(({ data }) => { if (data) setOrganizations(data as Organization[]); });
+  }, []);
+
+  const availableOrgs = globalEnterpriseId
+    ? organizations.filter(o => o.enterprise_id === globalEnterpriseId)
+    : organizations;
+
+  const hasGlobalFilter = !!(globalEnterpriseId || globalOrgId || globalCreator.trim());
+
+  const handleGlobalReset = () => {
+    setGlobalEnterpriseId("");
+    setGlobalOrgId("");
+    setGlobalCreator("");
+  };
+
   return (
     <div className="p-6 space-y-4">
-      <div>
-        <h1 className="text-2xl font-bold text-foreground">调用日志</h1>
-        <p className="text-muted-foreground mt-1 text-sm">查看全平台 API 调用详情、任务执行记录与审计轨迹</p>
+      {/* Header row with global context filters pinned top-right */}
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold text-foreground">调用日志</h1>
+          <p className="text-muted-foreground mt-1 text-sm">查看全平台 API 调用详情、任务执行记录与审计轨迹</p>
+        </div>
+
+        {/* Global dimension filters — highest priority, shared across all tabs */}
+        <div className="flex items-center gap-2 flex-wrap justify-end">
+          <div className="flex items-center gap-1.5 bg-muted/40 border border-border rounded-lg px-3 py-2">
+            <Building2 className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
+            <FilterCombobox
+              items={enterprises}
+              value={globalEnterpriseId}
+              onChange={v => { setGlobalEnterpriseId(v); setGlobalOrgId(""); }}
+              placeholder="所属企业"
+              emptyText="未找到企业"
+              width="w-40"
+            />
+            <FilterCombobox
+              items={availableOrgs}
+              value={globalOrgId}
+              onChange={setGlobalOrgId}
+              placeholder="所属组织"
+              emptyText={globalEnterpriseId ? "该企业暂无组织" : "未找到组织"}
+              width="w-36"
+            />
+            <Input
+              className="h-9 w-40 text-sm"
+              placeholder="创建人 / 手机号"
+              value={globalCreator}
+              onChange={e => setGlobalCreator(e.target.value)}
+            />
+            {hasGlobalFilter && (
+              <Button size="sm" variant="ghost" className="h-9 gap-1 text-muted-foreground hover:text-foreground px-2" onClick={handleGlobalReset}>
+                <X className="w-3.5 h-3.5" />
+                <span className="text-xs">重置</span>
+              </Button>
+            )}
+          </div>
+        </div>
       </div>
 
       <Tabs defaultValue="call">
@@ -695,9 +717,30 @@ export default function AdminCallLogs() {
             <Shield className="w-4 h-4" />审计日志
           </TabsTrigger>
         </TabsList>
-        <TabsContent value="call" className="mt-4"><CallLogsTab /></TabsContent>
-        <TabsContent value="task" className="mt-4"><TaskLogsTab /></TabsContent>
-        <TabsContent value="audit" className="mt-4"><AuditLogsTab /></TabsContent>
+        <TabsContent value="call" className="mt-4">
+          <CallLogsTab
+            globalEnterpriseId={globalEnterpriseId}
+            globalOrgId={globalOrgId}
+            globalCreator={globalCreator}
+            enterprises={enterprises}
+            organizations={organizations}
+          />
+        </TabsContent>
+        <TabsContent value="task" className="mt-4">
+          <TaskLogsTab
+            globalEnterpriseId={globalEnterpriseId}
+            globalOrgId={globalOrgId}
+            enterprises={enterprises}
+            organizations={organizations}
+          />
+        </TabsContent>
+        <TabsContent value="audit" className="mt-4">
+          <AuditLogsTab
+            globalEnterpriseId={globalEnterpriseId}
+            globalCreator={globalCreator}
+            enterprises={enterprises}
+          />
+        </TabsContent>
       </Tabs>
     </div>
   );

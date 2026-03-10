@@ -9,7 +9,7 @@ import {
 } from "@/components/ui/dialog";
 import {
   RefreshCw, Settings, ChevronDown, ChevronUp, Activity, ClipboardList,
-  Shield, HelpCircle, Calendar, X,
+  Shield, Calendar, X, Users, Building2,
 } from "lucide-react";
 import {
   Pagination, PaginationContent, PaginationItem, PaginationLink,
@@ -33,34 +33,34 @@ const mockUsageLogs = [
   { time: "2026-03-03 11:13:01", apiKey: "test", group: "dev", org: "技术部", member: "王五", type: "错误", model: "mock-error", duration: "0s", streaming: "非流", input: 0, output: 0, cost: 0, ip: "10.244.109.66", detail: "Rate limit exceeded. Please try again later." },
   { time: "2026-03-03 11:12:55", apiKey: "prod", group: "default", org: "产品部", member: "赵六", type: "消费", model: "claude-3-5-sonnet", duration: "2.3s", streaming: "流式", input: 240, output: 480, cost: 0.008, ip: "10.244.109.67", detail: "Request completed successfully." },
   { time: "2026-03-03 11:11:33", apiKey: "dev-key", group: "dev", org: "研发部", member: "陈七", type: "消费", model: "gpt-4o-mini", duration: "0.8s", streaming: "非流", input: 88, output: 120, cost: 0.001, ip: "10.244.109.68", detail: "Request completed successfully." },
-  { time: "2026-03-03 11:10:14", apiKey: "test", group: "default", org: "技术部", member: "张三", type: "错误", model: "mock-error", duration: "0s", streaming: "非流", input: 0, output: 0, cost: 0, ip: "10.244.109.64", detail: "Incorrect API key provided. You can find your API key at https://***.com/***/**" },
+  { time: "2026-03-03 11:10:14", apiKey: "test", group: "default", org: "技术部", member: "张三", type: "错误", model: "mock-error", duration: "0s", streaming: "非流", input: 0, output: 0, cost: 0, ip: "10.244.109.64", detail: "Incorrect API key provided." },
   { time: "2026-03-03 11:09:02", apiKey: "prod", group: "finance", org: "财务部", member: "周八", type: "消费", model: "gpt-4o", duration: "1.8s", streaming: "流式", input: 320, output: 640, cost: 0.012, ip: "10.244.109.69", detail: "Request completed successfully." },
   { time: "2026-03-03 11:08:47", apiKey: "dev-key", group: "dev", org: "研发部", member: "吴九", type: "消费", model: "claude-3-haiku", duration: "0.5s", streaming: "非流", input: 64, output: 96, cost: 0.001, ip: "10.244.109.70", detail: "Request completed successfully." },
-  { time: "2026-03-03 11:07:30", apiKey: "test", group: "default", org: "技术部", member: "郑十", type: "错误", model: "mock-error", duration: "0s", streaming: "非流", input: 0, output: 0, cost: 0, ip: "10.244.109.64", detail: "Incorrect API key provided. You can find your API key at https://***.com/***/**" },
+  { time: "2026-03-03 11:07:30", apiKey: "test", group: "default", org: "技术部", member: "郑十", type: "错误", model: "mock-error", duration: "0s", streaming: "非流", input: 0, output: 0, cost: 0, ip: "10.244.109.64", detail: "Incorrect API key provided." },
   { time: "2026-03-03 11:06:15", apiKey: "prod", group: "default", org: "产品部", member: "李四", type: "消费", model: "gpt-4o", duration: "1.5s", streaming: "流式", input: 200, output: 400, cost: 0.007, ip: "10.244.109.71", detail: "Request completed successfully." },
 ];
 
 // ── Merged task logs (drawing + async tasks) ──
 const mockTaskLogs = [
-  { submitTime: "2026-03-03 10:19:16", endTime: "2026-03-03 10:42:37", cost: "1401 秒", platform: "Suno", type: "生成歌词", taskId: "13b57429c9714eb7ab078f5622490531", execStatus: "失败", progress: "-", detail: "读取响应超时，请检查网络连接后重试" },
-  { submitTime: "2026-03-03 09:55:02", endTime: "2026-03-03 10:01:45", cost: "403 秒", platform: "Suno", type: "生成音乐", taskId: "a4c82e13f0b347d9ac1562ef83720104", execStatus: "已完成", progress: "100%", detail: "生成完成" },
-  { submitTime: "2026-03-03 09:30:11", endTime: "2026-03-03 09:55:34", cost: "1523 秒", platform: "Suno", type: "生成歌词", taskId: "7f3d9c21b0e54a8d913047cf25816b93", execStatus: "失败", progress: "-", detail: "服务暂时不可用" },
-  { submitTime: "2026-03-03 09:10:44", endTime: "2026-03-03 09:16:22", cost: "338 秒", platform: "Suno", type: "风格转换", taskId: "b8e51f62d3c04719a270583c946d17f5", execStatus: "已完成", progress: "100%", detail: "转换完成" },
-  { submitTime: "2026-03-03 08:48:30", endTime: "2026-03-03 09:10:05", cost: "1295 秒", platform: "Suno", type: "生成歌词", taskId: "c6a703e89d1b42f0b58349a71c24fe62", execStatus: "失败", progress: "-", detail: "读取响应超时，请检查网络连接后重试" },
-  { submitTime: "2026-03-03 08:20:05", endTime: "2026-03-03 08:22:14", cost: "129 秒", platform: "Midjourney", type: "文生图", taskId: "d1e4f9a02b3c47e8b912765c034fd821", execStatus: "已完成", progress: "100%", detail: "图像生成完成，分辨率 1024×1024" },
-  { submitTime: "2026-03-03 08:05:33", endTime: "-", cost: "进行中", platform: "Stable Diffusion", type: "图生图", taskId: "e2f5g8h01c4d57f9c023876d145ge932", execStatus: "进行中", progress: "47%", detail: "正在渲染第 3/6 步" },
-  { submitTime: "2026-03-03 07:55:12", endTime: "2026-03-03 08:01:48", cost: "396 秒", platform: "Midjourney", type: "图像变体", taskId: "f3g6h9i12d5e68a0d134987e256hf043", execStatus: "已完成", progress: "100%", detail: "四宫格变体生成完成" },
+  { submitTime: "2026-03-03 10:19:16", endTime: "2026-03-03 10:42:37", cost: "1401 秒", platform: "Suno", type: "生成歌词", org: "技术部", member: "张三", taskId: "13b57429c9714eb7ab078f5622490531", execStatus: "失败", progress: "-", detail: "读取响应超时，请检查网络连接后重试" },
+  { submitTime: "2026-03-03 09:55:02", endTime: "2026-03-03 10:01:45", cost: "403 秒", platform: "Suno", type: "生成音乐", org: "产品部", member: "李四", taskId: "a4c82e13f0b347d9ac1562ef83720104", execStatus: "已完成", progress: "100%", detail: "生成完成" },
+  { submitTime: "2026-03-03 09:30:11", endTime: "2026-03-03 09:55:34", cost: "1523 秒", platform: "Suno", type: "生成歌词", org: "研发部", member: "王五", taskId: "7f3d9c21b0e54a8d913047cf25816b93", execStatus: "失败", progress: "-", detail: "服务暂时不可用" },
+  { submitTime: "2026-03-03 09:10:44", endTime: "2026-03-03 09:16:22", cost: "338 秒", platform: "Suno", type: "风格转换", org: "技术部", member: "张三", taskId: "b8e51f62d3c04719a270583c946d17f5", execStatus: "已完成", progress: "100%", detail: "转换完成" },
+  { submitTime: "2026-03-03 08:48:30", endTime: "2026-03-03 09:10:05", cost: "1295 秒", platform: "Suno", type: "生成歌词", org: "财务部", member: "周八", taskId: "c6a703e89d1b42f0b58349a71c24fe62", execStatus: "失败", progress: "-", detail: "读取响应超时，请检查网络连接后重试" },
+  { submitTime: "2026-03-03 08:20:05", endTime: "2026-03-03 08:22:14", cost: "129 秒", platform: "Midjourney", type: "文生图", org: "产品部", member: "赵六", taskId: "d1e4f9a02b3c47e8b912765c034fd821", execStatus: "已完成", progress: "100%", detail: "图像生成完成，分辨率 1024×1024" },
+  { submitTime: "2026-03-03 08:05:33", endTime: "-", cost: "进行中", platform: "Stable Diffusion", type: "图生图", org: "研发部", member: "陈七", taskId: "e2f5g8h01c4d57f9c023876d145ge932", execStatus: "进行中", progress: "47%", detail: "正在渲染第 3/6 步" },
+  { submitTime: "2026-03-03 07:55:12", endTime: "2026-03-03 08:01:48", cost: "396 秒", platform: "Midjourney", type: "图像变体", org: "技术部", member: "张三", taskId: "f3g6h9i12d5e68a0d134987e256hf043", execStatus: "已完成", progress: "100%", detail: "四宫格变体生成完成" },
 ];
 
 // ── Audit logs ──
 const mockAuditLogs = [
-  { time: "2026-03-03 11:20:05", operator: "张三 · 138****8888", opType: "登录", content: "用户登录成功", result: "成功", ip: "10.244.109.64" },
-  { time: "2026-03-03 11:05:33", operator: "李四 · 139****9999", opType: "令牌操作", content: "创建 API Key「生产环境-v2」", result: "成功", ip: "10.244.109.65" },
-  { time: "2026-03-03 10:48:17", operator: "王五 · 135****5555", opType: "设置变更", content: "修改告警阈值为 ¥500", result: "成功", ip: "10.244.109.66" },
-  { time: "2026-03-03 10:31:44", operator: "张三 · 138****8888", opType: "登录", content: "登录失败：密码错误（第 2 次）", result: "失败", ip: "10.244.109.64" },
-  { time: "2026-03-03 10:12:09", operator: "赵六 · 136****6666", opType: "令牌操作", content: "禁用 API Key「测试密钥」", result: "成功", ip: "10.244.109.67" },
-  { time: "2026-03-03 09:55:22", operator: "陈七 · 137****7777", opType: "密码重置", content: "重置账户密码", result: "成功", ip: "10.244.109.68" },
-  { time: "2026-03-03 09:30:01", operator: "李四 · 139****9999", opType: "设置变更", content: "修改告警方式为「邮件+短信」", result: "成功", ip: "10.244.109.65" },
+  { time: "2026-03-03 11:20:05", operator: "张三 · 138****8888", org: "技术部", opType: "登录", content: "用户登录成功", result: "成功", ip: "10.244.109.64" },
+  { time: "2026-03-03 11:05:33", operator: "李四 · 139****9999", org: "产品部", opType: "令牌操作", content: "创建 API Key「生产环境-v2」", result: "成功", ip: "10.244.109.65" },
+  { time: "2026-03-03 10:48:17", operator: "王五 · 135****5555", org: "研发部", opType: "设置变更", content: "修改告警阈值为 ¥500", result: "成功", ip: "10.244.109.66" },
+  { time: "2026-03-03 10:31:44", operator: "张三 · 138****8888", org: "技术部", opType: "登录", content: "登录失败：密码错误（第 2 次）", result: "失败", ip: "10.244.109.64" },
+  { time: "2026-03-03 10:12:09", operator: "赵六 · 136****6666", org: "产品部", opType: "令牌操作", content: "禁用 API Key「测试密钥」", result: "成功", ip: "10.244.109.67" },
+  { time: "2026-03-03 09:55:22", operator: "陈七 · 137****7777", org: "研发部", opType: "密码重置", content: "重置账户密码", result: "成功", ip: "10.244.109.68" },
+  { time: "2026-03-03 09:30:01", operator: "李四 · 139****9999", org: "产品部", opType: "设置变更", content: "修改告警方式为「邮件+短信」", result: "成功", ip: "10.244.109.65" },
 ];
 
 // ── APIKey chip colors ──
@@ -197,32 +197,27 @@ function PaginationFooter({
 }
 
 // ── Tab 1: 调用日志 ──
-function CallLogsTab({ role, filterOrg, setFilterOrg, orgAdminOrgOptions }: {
+function CallLogsTab({ role, globalOrg, globalMember }: {
   role: string;
-  filterOrg: string;
-  setFilterOrg: (v: string) => void;
-  orgAdminOrgOptions: OrgInfo[];
+  globalOrg: string;   // org name or "all"
+  globalMember: string; // member name or "all"
 }) {
   const [expanded, setExpanded] = useState(false);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
   const [filterGroup, setFilterGroup] = useState("all");
   const [filterType, setFilterType] = useState("all");
-  const [filterMember, setFilterMember] = useState("all");
 
   const isEnterpriseAdmin = role === "enterprise_admin";
   const isOrgAdmin = role === "org_admin";
 
   const allGroups = Array.from(new Set(mockUsageLogs.map(r => r.group)));
-  const allOrgs = Array.from(new Set(mockUsageLogs.map(r => r.org)));
-  const allMembers = Array.from(new Set(mockUsageLogs.map(r => r.member)));
 
   const filtered = mockUsageLogs.filter(r => {
     if (filterGroup !== "all" && r.group !== filterGroup) return false;
     if (filterType !== "all" && r.type !== filterType) return false;
-    if (isEnterpriseAdmin && filterOrg !== "all" && r.org !== filterOrg) return false;
-    if (isOrgAdmin && filterOrg !== "all" && r.org !== filterOrg) return false;
-    if (isOrgAdmin && filterMember !== "all" && r.member !== filterMember) return false;
+    if ((isEnterpriseAdmin || isOrgAdmin) && globalOrg !== "all" && r.org !== globalOrg) return false;
+    if (isOrgAdmin && globalMember !== "all" && r.member !== globalMember) return false;
     return true;
   });
 
@@ -238,8 +233,6 @@ function CallLogsTab({ role, filterOrg, setFilterOrg, orgAdminOrgOptions }: {
   const handleReset = () => {
     setFilterGroup("all");
     setFilterType("all");
-    setFilterMember("all");
-    setFilterOrg("all");
     setPage(1);
   };
 
@@ -261,32 +254,6 @@ function CallLogsTab({ role, filterOrg, setFilterOrg, orgAdminOrgOptions }: {
             <span className="text-sm text-muted-foreground whitespace-nowrap">APIKey</span>
             <Input className="h-9 w-44 text-sm" placeholder="请输入APIKey名称" />
           </div>
-          {/* 企业管理员：组织下拉 */}
-          {isEnterpriseAdmin && (
-            <div className="flex items-center gap-2">
-              <span className="text-sm text-muted-foreground whitespace-nowrap">组织</span>
-              <Select value={filterOrg} onValueChange={v => { setFilterOrg(v); setPage(1); }}>
-                <SelectTrigger className="h-9 w-32 text-sm"><SelectValue placeholder="全部" /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">全部</SelectItem>
-                  {allOrgs.map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}
-                </SelectContent>
-              </Select>
-            </div>
-          )}
-          {/* 组织管理员：成员下拉 */}
-          {isOrgAdmin && (
-            <div className="flex items-center gap-2">
-              <span className="text-sm text-muted-foreground whitespace-nowrap">成员</span>
-              <Select value={filterMember} onValueChange={v => { setFilterMember(v); setPage(1); }}>
-                <SelectTrigger className="h-9 w-32 text-sm"><SelectValue placeholder="全部" /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">全部</SelectItem>
-                  {allMembers.map(m => <SelectItem key={m} value={m}>{m}</SelectItem>)}
-                </SelectContent>
-              </Select>
-            </div>
-          )}
           {/* 类型 */}
           <div className="flex items-center gap-2">
             <span className="text-sm text-muted-foreground whitespace-nowrap">类型</span>
@@ -420,8 +387,11 @@ function CallLogsTab({ role, filterOrg, setFilterOrg, orgAdminOrgOptions }: {
   );
 }
 
-// ── Tab 2: 任务日志（合并绘图+任务）──
-function TaskLogsTab() {
+// ── Tab 2: 任务日志 ──
+function TaskLogsTab({ globalOrg, globalMember }: {
+  globalOrg: string;
+  globalMember: string;
+}) {
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
   const [filterTaskId, setFilterTaskId] = useState("");
@@ -429,6 +399,8 @@ function TaskLogsTab() {
   const [selectedTask, setSelectedTask] = useState<typeof mockTaskLogs[0] | null>(null);
 
   const filtered = mockTaskLogs.filter(r => {
+    if (globalOrg !== "all" && r.org !== globalOrg) return false;
+    if (globalMember !== "all" && r.member !== globalMember) return false;
     if (filterTaskId.trim() && !r.taskId.toLowerCase().includes(filterTaskId.toLowerCase())) return false;
     if (filterExecStatus !== "all" && r.execStatus !== filterExecStatus) return false;
     return true;
@@ -579,12 +551,17 @@ function TaskLogsTab() {
 }
 
 // ── Tab 3: 审计日志 ──
-function AuditLogsTab() {
+function AuditLogsTab({ globalOrg, globalMember }: {
+  globalOrg: string;
+  globalMember: string;
+}) {
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
   const [filterOpType, setFilterOpType] = useState("all");
 
   const filtered = mockAuditLogs.filter(r => {
+    if (globalOrg !== "all" && r.org !== globalOrg) return false;
+    if (globalMember !== "all" && !r.operator.includes(globalMember.replace(/[^·]*·/, "").trim())) return false;
     if (filterOpType !== "all" && r.opType !== filterOpType) return false;
     return true;
   });
@@ -686,47 +663,83 @@ export default function CallLogs({ enterprise, role, currentOrg, orgList = [] }:
   const [viewRole, setViewRole] = useState(role);
 
   const mockAllOrgs = Array.from(new Set(mockUsageLogs.map(r => r.org)));
-  const orgAdminOrgOptions: OrgInfo[] = orgList.length > 0
+  const orgOptions: OrgInfo[] = orgList.length > 0
     ? orgList
     : mockAllOrgs.map(name => ({ id: name, name }));
 
-  const [filterOrg, setFilterOrg] = useState<string>(
-    currentOrg?.id ?? (orgAdminOrgOptions[0]?.id ?? "all")
+  const allMembers = Array.from(new Set(mockUsageLogs.map(r => r.member)));
+
+  // Global context state — shared across all 3 tabs
+  const [globalOrg, setGlobalOrg] = useState<string>(
+    viewRole === "org_admin"
+      ? (currentOrg?.id ?? orgOptions[0]?.id ?? "all")
+      : "all"
   );
+  const [globalMember, setGlobalMember] = useState<string>("all");
 
   const handleViewRole = (key: string) => {
     setViewRole(key);
     if (key === "org_admin") {
-      setFilterOrg(currentOrg?.id ?? (orgAdminOrgOptions[0]?.id ?? "all"));
+      setGlobalOrg(currentOrg?.id ?? orgOptions[0]?.id ?? "all");
+    } else if (key === "enterprise_admin") {
+      setGlobalOrg("all");
     } else {
-      setFilterOrg("all");
+      setGlobalOrg("all");
     }
+    setGlobalMember("all");
   };
 
-  const activeOrgName = filterOrg === "all"
-    ? null
-    : (orgAdminOrgOptions.find(o => o.id === filterOrg)?.name ?? filterOrg);
+  const isEnterpriseAdmin = viewRole === "enterprise_admin";
+  const isOrgAdmin = viewRole === "org_admin";
+  const showOrgSelector = isEnterpriseAdmin || isOrgAdmin;
+
+  // Derive display name for passing to tabs
+  const activeOrgName = globalOrg === "all"
+    ? "all"
+    : (orgOptions.find(o => o.id === globalOrg)?.name ?? globalOrg);
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
+      {/* Header row */}
+      <div className="flex items-start justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-foreground">调用日志</h1>
           <p className="text-muted-foreground mt-1 text-sm">查看 API 调用详情与任务执行记录</p>
         </div>
 
-        <div className="flex items-center gap-3">
-          {/* 组织管理员：右上角组织上下文选择器 */}
-          {viewRole === "org_admin" && (
-            <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap justify-end">
+          {/* Global context selectors — fixed top-right, shared across all tabs */}
+          {showOrgSelector && (
+            <div className="flex items-center gap-1.5 bg-muted/50 border border-border rounded-lg px-3 py-1.5">
+              <Building2 className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
               <span className="text-xs text-muted-foreground whitespace-nowrap">当前组织</span>
-              <Select value={filterOrg} onValueChange={setFilterOrg}>
-                <SelectTrigger className="h-9 w-36 text-sm font-medium border-primary/40 bg-primary/5 text-primary focus:ring-primary/30">
-                  <SelectValue />
+              <Select value={globalOrg} onValueChange={v => { setGlobalOrg(v); setGlobalMember("all"); }}>
+                <SelectTrigger className="h-7 w-32 text-xs font-medium border-primary/40 bg-primary/5 text-primary focus:ring-primary/30 px-2">
+                  <SelectValue placeholder="选择组织" />
                 </SelectTrigger>
                 <SelectContent>
-                  {orgAdminOrgOptions.map(o => (
+                  {isEnterpriseAdmin && <SelectItem value="all">全部组织</SelectItem>}
+                  {orgOptions.map(o => (
                     <SelectItem key={o.id} value={o.id}>{o.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+
+          {/* Member selector — only for org_admin */}
+          {isOrgAdmin && (
+            <div className="flex items-center gap-1.5 bg-muted/50 border border-border rounded-lg px-3 py-1.5">
+              <Users className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
+              <span className="text-xs text-muted-foreground whitespace-nowrap">成员</span>
+              <Select value={globalMember} onValueChange={setGlobalMember}>
+                <SelectTrigger className="h-7 w-28 text-xs font-medium border-border bg-background px-2">
+                  <SelectValue placeholder="全部成员" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">全部成员</SelectItem>
+                  {allMembers.map(m => (
+                    <SelectItem key={m} value={m}>{m}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
@@ -769,19 +782,21 @@ export default function CallLogs({ enterprise, role, currentOrg, orgList = [] }:
         <TabsContent value="call" className="mt-4">
           <CallLogsTab
             role={viewRole}
-            filterOrg={activeOrgName ?? "all"}
-            setFilterOrg={(name) => {
-              const found = orgAdminOrgOptions.find(o => o.name === name);
-              setFilterOrg(found ? found.id : name);
-            }}
-            orgAdminOrgOptions={orgAdminOrgOptions}
+            globalOrg={activeOrgName}
+            globalMember={globalMember}
           />
         </TabsContent>
         <TabsContent value="task" className="mt-4">
-          <TaskLogsTab />
+          <TaskLogsTab
+            globalOrg={activeOrgName}
+            globalMember={globalMember}
+          />
         </TabsContent>
         <TabsContent value="audit" className="mt-4">
-          <AuditLogsTab />
+          <AuditLogsTab
+            globalOrg={activeOrgName}
+            globalMember={globalMember}
+          />
         </TabsContent>
       </Tabs>
     </div>
