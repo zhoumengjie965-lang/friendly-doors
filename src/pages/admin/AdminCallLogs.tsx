@@ -274,9 +274,7 @@ function CallLogsTab({ globalEnterpriseId, globalOrgId, globalCreator, enterpris
               {allModels.map(m => <SelectItem key={m} value={m}>{m}</SelectItem>)}
             </SelectContent>
           </Select>
-          <Button size="sm" variant="outline" className="h-9 gap-1.5" onClick={handleReset}>
-            <X className="w-3.5 h-3.5" />重置
-          </Button>
+          <Button size="sm" variant="outline" className="h-9" onClick={handleReset}>重置</Button>
         </div>
       </div>
 

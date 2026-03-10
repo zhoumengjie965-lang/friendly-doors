@@ -202,7 +202,7 @@ function CallLogsTab({ role, globalOrg, globalMember }: {
   globalOrg: string;   // org name or "all"
   globalMember: string; // member name or "all"
 }) {
-  const [expanded, setExpanded] = useState(false);
+  const [filterModel, setFilterModel] = useState("");
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
   const [filterGroup, setFilterGroup] = useState("all");
