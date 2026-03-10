@@ -76,6 +76,12 @@ interface Enterprise {
   name: string;
 }
 
+interface Organization {
+  id: string;
+  name: string;
+  enterprise_id: string;
+}
+
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function maskKey(key: string, show: boolean) {

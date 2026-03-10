@@ -1,17 +1,74 @@
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
+import { supabase } from "@/integrations/supabase/client";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
+  Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList,
+} from "@/components/ui/command";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import {
   RefreshCw, Settings, ChevronDown, ChevronUp, BarChart2, Palette, ClipboardList,
-  HelpCircle, Calendar, Search
+  HelpCircle, Calendar, Search, Check, X,
 } from "lucide-react";
 import {
   Pagination, PaginationContent, PaginationItem, PaginationLink,
   PaginationNext, PaginationPrevious
 } from "@/components/ui/pagination";
+import { cn } from "@/lib/utils";
+
+interface Enterprise { id: string; name: string; }
+interface Organization { id: string; name: string; enterprise_id: string; }
+
+// ── Generic Combobox ──
+function FilterCombobox({
+  items, value, onChange, placeholder, emptyText,
+}: {
+  items: { id: string; name: string }[];
+  value: string;
+  onChange: (v: string) => void;
+  placeholder: string;
+  emptyText: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const [search, setSearch] = useState("");
+  const filtered = items.filter(i => i.name.toLowerCase().includes(search.toLowerCase()));
+  const selected = items.find(i => i.id === value);
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <Button variant="outline" role="combobox" className="h-9 w-48 justify-between text-sm font-normal">
+          <span className="truncate text-left">{selected ? selected.name : placeholder}</span>
+          <ChevronDown className="ml-1 w-3.5 h-3.5 shrink-0 opacity-50" />
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent className="w-56 p-0" align="start">
+        <Command>
+          <CommandInput placeholder={`搜索…`} value={search} onValueChange={setSearch} />
+          <CommandList>
+            <CommandEmpty>{emptyText}</CommandEmpty>
+            <CommandGroup>
+              {value && (
+                <CommandItem value="__clear__" onSelect={() => { onChange(""); setOpen(false); setSearch(""); }} className="text-muted-foreground">
+                  清除筛选
+                </CommandItem>
+              )}
+              {filtered.map(i => (
+                <CommandItem key={i.id} value={i.id} onSelect={() => { onChange(i.id); setOpen(false); setSearch(""); }}>
+                  <span className="truncate">{i.name}</span>
+                  {i.id === value && <Check className="ml-auto w-3.5 h-3.5 shrink-0" />}
+                </CommandItem>
+              ))}
+            </CommandGroup>
+          </CommandList>
+        </Command>
+      </PopoverContent>
+    </Popover>
+  );
+}
 
 // ── Mock data (admin view: includes enterprise + channel columns) ──
 const mockUsageLogs = [
