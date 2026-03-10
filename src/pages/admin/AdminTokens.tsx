@@ -1,10 +1,13 @@
 import { useState, useEffect, useCallback } from "react";
+import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
@@ -17,8 +20,11 @@ import {
   Tooltip, TooltipContent, TooltipProvider, TooltipTrigger,
 } from "@/components/ui/tooltip";
 import {
+  Sheet, SheetContent, SheetHeader, SheetTitle,
+} from "@/components/ui/sheet";
+import {
   Plus, Copy, Trash2, Search, Eye, EyeOff, Check, Ban, RefreshCw,
-  FlaskConical, Info,
+  FlaskConical, Info, FileText,
 } from "lucide-react";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
@@ -74,10 +80,19 @@ function maskKey(key: string, show: boolean) {
   return key.slice(0, 4) + "**********" + key.slice(-4);
 }
 
-function maskPhone(phone: string, reveal: boolean) {
-  if (reveal) return phone;
+function maskPhone(phone: string) {
   if (phone.length < 7) return phone;
   return phone.slice(0, 3) + "****" + phone.slice(-4);
+}
+
+function getRunningStatus(k: ApiKey): { label: string; cls: string } {
+  if (k.expires_at && new Date(k.expires_at) < new Date()) {
+    return { label: "已过期", cls: "bg-gray-100 text-gray-500 border-gray-200" };
+  }
+  if (k.total_quota !== null && k.used_quota >= k.total_quota) {
+    return { label: "额度耗尽", cls: "bg-red-50 text-red-600 border-red-200" };
+  }
+  return { label: "正常", cls: "bg-green-50 text-green-700 border-green-200" };
 }
 
 // ─── Pagination Footer ────────────────────────────────────────────────────────
@@ -209,10 +224,135 @@ function EnterpriseCombobox({
   );
 }
 
+// ─── Detail Drawer ────────────────────────────────────────────────────────────
+
+function KeyDetailDrawer({
+  k, enterpriseName, open, onClose,
+}: {
+  k: ApiKey | null;
+  enterpriseName: string;
+  open: boolean;
+  onClose: () => void;
+}) {
+  const [showKey, setShowKey] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const { toast } = useToast();
+
+  useEffect(() => { if (!open) setShowKey(false); }, [open]);
+
+  const copyKey = async () => {
+    if (!k) return;
+    await navigator.clipboard.writeText(k.key_value);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+    toast({ title: "密钥已复制" });
+  };
+
+  if (!k) return null;
+
+  return (
+    <Sheet open={open} onOpenChange={v => { if (!v) onClose(); }}>
+      <SheetContent side="right" className="w-[420px] sm:w-[480px] overflow-y-auto">
+        <SheetHeader className="mb-5">
+          <SheetTitle className="flex items-center gap-2">
+            <FileText className="w-4 h-4 text-primary" />
+            令牌详情
+          </SheetTitle>
+        </SheetHeader>
+
+        <div className="space-y-5 text-sm">
+          {/* 名称 */}
+          <div>
+            <p className="text-xs text-muted-foreground mb-1">令牌名称</p>
+            <p className="font-medium">{k.name}</p>
+          </div>
+
+          {/* 所属企业 */}
+          <div>
+            <p className="text-xs text-muted-foreground mb-1">所属企业</p>
+            <p className="font-medium">{enterpriseName}</p>
+          </div>
+
+          {/* 分组 */}
+          <div>
+            <p className="text-xs text-muted-foreground mb-1">分组</p>
+            <p>{k.group_name || <span className="text-muted-foreground">未设置</span>}</p>
+          </div>
+
+          {/* 密钥 */}
+          <div>
+            <p className="text-xs text-muted-foreground mb-1">密钥（API Key）</p>
+            <div className="flex items-center gap-2">
+              <code className="flex-1 text-xs font-mono bg-muted px-2 py-1.5 rounded break-all leading-relaxed">
+                {maskKey(k.key_value, showKey)}
+              </code>
+              <div className="flex flex-col gap-1 shrink-0">
+                <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => setShowKey(v => !v)}>
+                  {showKey ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                </Button>
+                <Button size="icon" variant="ghost" className="h-7 w-7" onClick={copyKey}>
+                  {copied ? <Check className="w-3.5 h-3.5 text-green-600" /> : <Copy className="w-3.5 h-3.5" />}
+                </Button>
+              </div>
+            </div>
+          </div>
+
+          {/* 可用模型 */}
+          <div>
+            <p className="text-xs text-muted-foreground mb-1">可用模型</p>
+            {k.allowed_models && k.allowed_models.length > 0 ? (
+              <div className="flex flex-wrap gap-1">
+                {k.allowed_models.map(m => (
+                  <span key={m} className="text-xs bg-purple-50 text-purple-700 border border-purple-200 rounded px-1.5 py-0.5">{m}</span>
+                ))}
+              </div>
+            ) : (
+              <span className="text-muted-foreground">全部模型可用</span>
+            )}
+          </div>
+
+          {/* IP 白名单 */}
+          <div>
+            <p className="text-xs text-muted-foreground mb-1">IP 白名单限制</p>
+            {k.ip_whitelist && k.ip_whitelist.length > 0 ? (
+              <div className="space-y-1">
+                {k.ip_whitelist.map(ip => (
+                  <code key={ip} className="block text-xs font-mono bg-muted px-2 py-1 rounded text-orange-700">{ip}</code>
+                ))}
+              </div>
+            ) : (
+              <span className="text-muted-foreground">无限制</span>
+            )}
+          </div>
+
+          {/* 创建时间 */}
+          <div>
+            <p className="text-xs text-muted-foreground mb-1">创建时间</p>
+            <p className="font-mono text-xs">{format(new Date(k.created_at), "yyyy-MM-dd HH:mm:ss")}</p>
+          </div>
+
+          {/* 过期时间 */}
+          <div>
+            <p className="text-xs text-muted-foreground mb-1">过期时间</p>
+            {k.expires_at ? (
+              <p className={cn("font-mono text-xs", new Date(k.expires_at) < new Date() ? "text-destructive" : "")}>
+                {format(new Date(k.expires_at), "yyyy-MM-dd HH:mm:ss")}
+              </p>
+            ) : (
+              <span className="text-muted-foreground">永不过期</span>
+            )}
+          </div>
+        </div>
+      </SheetContent>
+    </Sheet>
+  );
+}
+
 // ─── Main Component ───────────────────────────────────────────────────────────
 
 export default function AdminTokens() {
   const { toast } = useToast();
+  const navigate = useNavigate();
   const [keys, setKeys] = useState<ApiKey[]>([]);
   const [enterprises, setEnterprises] = useState<Enterprise[]>([]);
   const [loading, setLoading] = useState(true);
@@ -227,16 +367,20 @@ export default function AdminTokens() {
   const [filterEnterpriseId, setFilterEnterpriseId] = useState("");
   const [filterCreator, setFilterCreator] = useState("");
 
+  // Internal filter
+  const [excludeInternal, setExcludeInternal] = useState(false);
+
   // Selection
   const [selected, setSelected] = useState<Set<string>>(new Set());
 
-  // Visibility
-  const [visibleKeys, setVisibleKeys] = useState<Set<string>>(new Set());
-  const [revealedPhones, setRevealedPhones] = useState<Set<string>>(new Set());
+  // Copy feedback
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
 
   // Delete
   const [deleteTarget, setDeleteTarget] = useState<ApiKey | null>(null);
+
+  // Detail drawer
+  const [drawerKey, setDrawerKey] = useState<ApiKey | null>(null);
 
   // Enterprise name cache
   const [enterpriseNames, setEnterpriseNames] = useState<Record<string, string>>({});
@@ -280,19 +424,15 @@ export default function AdminTokens() {
     if (searchKey && !k.key_value.toLowerCase().includes(searchKey.toLowerCase())) return false;
     if (filterEnterpriseId && k.enterprise_id !== filterEnterpriseId) return false;
     if (filterCreator && !k.creator_phone.includes(filterCreator)) return false;
+    if (excludeInternal) {
+      const eName = enterpriseNames[k.enterprise_id] || "";
+      if (isInternalEnterprise(eName)) return false;
+    }
     return true;
   });
 
   const totalFiltered = filtered.length;
   const paged = filtered.slice((page - 1) * pageSize, page * pageSize);
-
-  const toggleVisible = (id: string) => {
-    setVisibleKeys(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n; });
-  };
-
-  const togglePhone = (id: string) => {
-    setRevealedPhones(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n; });
-  };
 
   const copyKeyValue = async (k: ApiKey) => {
     await navigator.clipboard.writeText(k.key_value);
@@ -366,8 +506,13 @@ export default function AdminTokens() {
     setSearchKey("");
     setFilterEnterpriseId("");
     setFilterCreator("");
+    setExcludeInternal(false);
     setPage(1);
   };
+
+  const drawerEnterpriseName = drawerKey
+    ? (enterpriseNames[drawerKey.enterprise_id] || drawerKey.enterprise_id.slice(0, 8))
+    : "";
 
   return (
     <TooltipProvider>
@@ -383,9 +528,8 @@ export default function AdminTokens() {
 
         {/* Filter bar */}
         <div className="border-l-4 border-l-primary/60 bg-card border border-border rounded-xl p-4 space-y-3">
-          {/* Row 1 — God-view filters */}
+          {/* Row 1 — Filters */}
           <div className="flex flex-wrap items-center gap-2">
-            <span className="text-xs font-medium text-muted-foreground w-14 shrink-0">上帝视角</span>
             <EnterpriseCombobox
               enterprises={enterprises}
               value={filterEnterpriseId}
@@ -397,6 +541,16 @@ export default function AdminTokens() {
               value={filterCreator}
               onChange={e => { setFilterCreator(e.target.value); setPage(1); }}
             />
+            <div className="ml-auto flex items-center gap-2">
+              <Switch
+                id="exclude-internal"
+                checked={excludeInternal}
+                onCheckedChange={v => { setExcludeInternal(v); setPage(1); }}
+              />
+              <Label htmlFor="exclude-internal" className="text-sm text-muted-foreground cursor-pointer whitespace-nowrap">
+                排除内部测试数据
+              </Label>
+            </div>
           </div>
 
           {/* Row 2 — Action + name/key search */}
@@ -407,11 +561,11 @@ export default function AdminTokens() {
             </Button>
             <Button size="sm" variant="outline" className="h-9 gap-1.5" onClick={handleCopySelected} disabled={selected.size === 0}>
               <Copy className="w-3.5 h-3.5" />
-              复制所选令牌
+              批量复制
             </Button>
             <Button size="sm" variant="destructive" className="h-9 gap-1.5" onClick={handleBulkDelete} disabled={selected.size === 0}>
               <Trash2 className="w-3.5 h-3.5" />
-              删除所选令牌
+              批量删除
             </Button>
             <div className="ml-auto flex items-center gap-2">
               <Input
@@ -454,7 +608,8 @@ export default function AdminTokens() {
                       <th className="px-3 py-2.5 text-left text-xs font-semibold" style={{ color: "hsl(var(--primary)/0.75)" }}>名称</th>
                       <th className="px-3 py-2.5 text-left text-xs font-semibold" style={{ color: "hsl(var(--primary)/0.75)" }}>所属企业</th>
                       <th className="px-3 py-2.5 text-left text-xs font-semibold" style={{ color: "hsl(var(--primary)/0.75)" }}>创建人</th>
-                      <th className="px-3 py-2.5 text-left text-xs font-semibold" style={{ color: "hsl(var(--primary)/0.75)" }}>状态</th>
+                      <th className="px-3 py-2.5 text-left text-xs font-semibold" style={{ color: "hsl(var(--primary)/0.75)" }}>管理状态</th>
+                      <th className="px-3 py-2.5 text-left text-xs font-semibold" style={{ color: "hsl(var(--primary)/0.75)" }}>运行状态</th>
                       <th className="px-3 py-2.5 text-left text-xs font-semibold whitespace-nowrap" style={{ color: "hsl(var(--primary)/0.75)" }}>
                         <span className="flex items-center gap-1">
                           今日消耗 Tokens
@@ -469,26 +624,20 @@ export default function AdminTokens() {
                         </span>
                       </th>
                       <th className="px-3 py-2.5 text-left text-xs font-semibold" style={{ color: "hsl(var(--primary)/0.75)" }}>已用/总额度</th>
-                      <th className="px-3 py-2.5 text-left text-xs font-semibold" style={{ color: "hsl(var(--primary)/0.75)" }}>分组</th>
-                      <th className="px-3 py-2.5 text-left text-xs font-semibold" style={{ color: "hsl(var(--primary)/0.75)" }}>密钥</th>
-                      <th className="px-3 py-2.5 text-left text-xs font-semibold" style={{ color: "hsl(var(--primary)/0.75)" }}>可用模型</th>
-                      <th className="px-3 py-2.5 text-left text-xs font-semibold" style={{ color: "hsl(var(--primary)/0.75)" }}>IP 限制</th>
-                      <th className="px-3 py-2.5 text-left text-xs font-semibold" style={{ color: "hsl(var(--primary)/0.75)" }}>创建时间</th>
-                      <th className="px-3 py-2.5 text-left text-xs font-semibold" style={{ color: "hsl(var(--primary)/0.75)" }}>过期时间</th>
                       <th className="px-3 py-2.5 text-center text-xs font-semibold" style={{ color: "hsl(var(--primary)/0.75)" }}>操作</th>
                     </tr>
                   </thead>
                   <tbody>
                     {paged.length === 0 ? (
                       <tr>
-                        <td colSpan={15} className="text-center text-muted-foreground py-16">暂无令牌数据</td>
+                        <td colSpan={9} className="text-center text-muted-foreground py-16">暂无令牌数据</td>
                       </tr>
                     ) : paged.map(k => {
                       const isActive = k.status === "active";
-                      const isExpired = k.expires_at && new Date(k.expires_at) < new Date();
                       const usedPct = k.total_quota ? Math.min(100, (k.used_quota / k.total_quota) * 100) : 0;
                       const enterpriseName = enterpriseNames[k.enterprise_id] || k.enterprise_id.slice(0, 8);
                       const internal = isInternalEnterprise(enterpriseName);
+                      const runStatus = getRunningStatus(k);
 
                       return (
                         <tr
@@ -509,48 +658,48 @@ export default function AdminTokens() {
                           {/* 所属企业 */}
                           <td className="px-3 py-2.5">
                             <div className="flex flex-col gap-0.5">
-                              <div className="flex items-center gap-1">
-                                {internal && (
-                                  <Tooltip>
-                                    <TooltipTrigger asChild>
-                                      <span className="inline-flex items-center gap-0.5 text-[10px] font-medium bg-orange-50 text-orange-700 border border-orange-200 rounded px-1 py-px cursor-help shrink-0">
-                                        <FlaskConical className="w-2.5 h-2.5" />
-                                        内部测试
-                                      </span>
-                                    </TooltipTrigger>
-                                    <TooltipContent side="top" className="text-xs">
-                                      该企业属于内部测试空间，不计入财务消耗统计
-                                    </TooltipContent>
-                                  </Tooltip>
-                                )}
-                                <span className="text-xs text-foreground whitespace-nowrap">{enterpriseName}</span>
-                              </div>
+                              {internal && !excludeInternal && (
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <span className="inline-flex items-center gap-0.5 self-start text-[10px] font-medium bg-orange-50 text-orange-700 border border-orange-200 rounded px-1 py-px cursor-help">
+                                      <FlaskConical className="w-2.5 h-2.5" />
+                                      内部自用
+                                    </span>
+                                  </TooltipTrigger>
+                                  <TooltipContent side="top" className="text-xs">
+                                    该企业属于内部自用空间，不计入财务消耗统计
+                                  </TooltipContent>
+                                </Tooltip>
+                              )}
+                              <button
+                                onClick={() => navigate(`/admin/enterprises/${k.enterprise_id}`)}
+                                className="text-xs text-primary hover:underline text-left whitespace-nowrap transition-colors"
+                              >
+                                {enterpriseName}
+                              </button>
                             </div>
                           </td>
 
                           {/* 创建人 */}
                           <td className="px-3 py-2.5">
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <button
-                                  onClick={() => togglePhone(k.id)}
-                                  className="text-xs font-mono text-foreground hover:text-primary transition-colors cursor-pointer"
-                                >
-                                  {maskPhone(k.creator_phone, revealedPhones.has(k.id))}
-                                </button>
-                              </TooltipTrigger>
-                              <TooltipContent side="top" className="text-xs">
-                                点击{revealedPhones.has(k.id) ? "隐藏" : "显示"}完整手机号
-                              </TooltipContent>
-                            </Tooltip>
+                            <span className="text-xs font-mono text-foreground">
+                              {maskPhone(k.creator_phone)}
+                            </span>
                           </td>
 
-                          {/* 状态 */}
+                          {/* 管理状态 */}
                           <td className="px-3 py-2.5">
                             {isActive
                               ? <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200 text-xs">已启用</Badge>
                               : <Badge variant="outline" className="bg-gray-100 text-gray-500 border-gray-200 text-xs">已禁用</Badge>
                             }
+                          </td>
+
+                          {/* 运行状态 */}
+                          <td className="px-3 py-2.5">
+                            <Badge variant="outline" className={cn("text-xs", runStatus.cls)}>
+                              {runStatus.label}
+                            </Badge>
                           </td>
 
                           {/* 今日消耗 Tokens */}
@@ -576,74 +725,6 @@ export default function AdminTokens() {
                             </div>
                           </td>
 
-                          {/* 分组 */}
-                          <td className="px-3 py-2.5 text-xs text-foreground">{k.group_name || "-"}</td>
-
-                          {/* 密钥 */}
-                          <td className="px-3 py-2.5">
-                            <div className="flex items-center gap-1">
-                              <code className="text-xs font-mono bg-muted px-1.5 py-0.5 rounded max-w-[160px] truncate">
-                                {maskKey(k.key_value, visibleKeys.has(k.id))}
-                              </code>
-                              <Tooltip>
-                                <TooltipTrigger asChild>
-                                  <button onClick={() => toggleVisible(k.id)} className="p-0.5 hover:bg-muted rounded text-muted-foreground">
-                                    {visibleKeys.has(k.id) ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
-                                  </button>
-                                </TooltipTrigger>
-                                <TooltipContent side="top" className="text-xs">{visibleKeys.has(k.id) ? "隐藏" : "显示"}密钥</TooltipContent>
-                              </Tooltip>
-                              <Tooltip>
-                                <TooltipTrigger asChild>
-                                  <button onClick={() => copyKeyValue(k)} className="p-0.5 hover:bg-muted rounded text-muted-foreground">
-                                    {copiedKey === k.id ? <Check className="w-3.5 h-3.5 text-green-600" /> : <Copy className="w-3.5 h-3.5" />}
-                                  </button>
-                                </TooltipTrigger>
-                                <TooltipContent side="top" className="text-xs">复制密钥</TooltipContent>
-                              </Tooltip>
-                            </div>
-                          </td>
-
-                          {/* 可用模型 */}
-                          <td className="px-3 py-2.5">
-                            {k.allowed_models && k.allowed_models.length > 0 ? (
-                              <div className="flex flex-wrap gap-0.5 max-w-[140px]">
-                                {k.allowed_models.slice(0, 2).map(m => (
-                                  <span key={m} className="text-[10px] bg-purple-50 text-purple-700 border border-purple-200 rounded px-1 py-px">{m}</span>
-                                ))}
-                                {k.allowed_models.length > 2 && (
-                                  <span className="text-[10px] text-muted-foreground">+{k.allowed_models.length - 2}</span>
-                                )}
-                              </div>
-                            ) : (
-                              <span className="text-xs text-muted-foreground">全部</span>
-                            )}
-                          </td>
-
-                          {/* IP 限制 */}
-                          <td className="px-3 py-2.5 text-xs text-muted-foreground">
-                            {k.ip_whitelist && k.ip_whitelist.length > 0
-                              ? <span className="text-orange-600">{k.ip_whitelist.length} 条</span>
-                              : "-"
-                            }
-                          </td>
-
-                          {/* 创建时间 */}
-                          <td className="px-3 py-2.5 text-xs text-muted-foreground whitespace-nowrap font-mono">
-                            {format(new Date(k.created_at), "yyyy-MM-dd HH:mm")}
-                          </td>
-
-                          {/* 过期时间 */}
-                          <td className="px-3 py-2.5 text-xs whitespace-nowrap font-mono">
-                            {k.expires_at ? (
-                              <span className={isExpired ? "text-destructive" : "text-muted-foreground"}>
-                                {format(new Date(k.expires_at), "yyyy-MM-dd HH:mm")}
-                              </span>
-                            ) : (
-                              <span className="text-muted-foreground">永不过期</span>
-                            )}
-                          </td>
-
                           {/* 操作 */}
                           <td className="px-3 py-2.5">
                             <div className="flex items-center justify-center gap-1">
@@ -664,6 +745,17 @@ export default function AdminTokens() {
                                 <TooltipContent side="top" className="text-xs">
                                   {isActive ? "禁用令牌" : "启用令牌"}
                                 </TooltipContent>
+                              </Tooltip>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <button
+                                    onClick={() => setDrawerKey(k)}
+                                    className="p-1 rounded text-primary hover:bg-primary/10 transition-colors"
+                                  >
+                                    <FileText className="w-3.5 h-3.5" />
+                                  </button>
+                                </TooltipTrigger>
+                                <TooltipContent side="top" className="text-xs">查看详情</TooltipContent>
                               </Tooltip>
                               <Tooltip>
                                 <TooltipTrigger asChild>
@@ -694,6 +786,14 @@ export default function AdminTokens() {
             </>
           )}
         </div>
+
+        {/* Detail Drawer */}
+        <KeyDetailDrawer
+          k={drawerKey}
+          enterpriseName={drawerEnterpriseName}
+          open={!!drawerKey}
+          onClose={() => setDrawerKey(null)}
+        />
 
         {/* Delete dialog */}
         <AlertDialog open={!!deleteTarget} onOpenChange={open => { if (!open) setDeleteTarget(null); }}>
