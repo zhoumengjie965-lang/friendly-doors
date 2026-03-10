@@ -441,16 +441,29 @@ export default function AdminTokens() {
     if (data) setEnterprises(data as Enterprise[]);
   }, []);
 
+  const fetchOrganizations = useCallback(async () => {
+    const { data } = await supabase.from("organizations").select("id, name, enterprise_id").order("name");
+    if (data) setOrganizations(data as Organization[]);
+  }, []);
+
   useEffect(() => {
     fetchKeys();
     fetchEnterprises();
-  }, [fetchKeys, fetchEnterprises]);
+    fetchOrganizations();
+  }, [fetchKeys, fetchEnterprises, fetchOrganizations]);
+
+  // Cascade: filter orgs by selected enterprise
+  const availableOrgs = filterEnterpriseId
+    ? organizations.filter(o => o.enterprise_id === filterEnterpriseId)
+    : organizations;
 
   const filtered = keys.filter(k => {
     if (searchName && !k.name.toLowerCase().includes(searchName.toLowerCase())) return false;
     if (searchKey && !k.key_value.toLowerCase().includes(searchKey.toLowerCase())) return false;
     if (filterEnterpriseId && k.enterprise_id !== filterEnterpriseId) return false;
+    if (filterOrgId && k.organization_id !== filterOrgId) return false;
     if (filterCreator && !k.creator_phone.includes(filterCreator)) return false;
+    if (filterStatus !== "all" && k.status !== filterStatus) return false;
     if (excludeInternal) {
       const eName = enterpriseNames[k.enterprise_id] || "";
       if (isInternalEnterprise(eName)) return false;
