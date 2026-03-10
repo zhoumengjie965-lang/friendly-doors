@@ -365,9 +365,6 @@ function CallLogsTab({ globalEnterpriseId, globalOrgId, globalCreator, enterpris
                   <td className="px-3 py-2.5 text-xs text-foreground">{row.input}</td>
                   <td className="px-3 py-2.5 text-xs text-foreground">{row.output}</td>
                   <td className="px-3 py-2.5 text-xs text-foreground">{row.cost}</td>
-                  <td className="px-3 py-2.5">
-                    <span className="bg-orange-100 text-orange-700 text-xs px-1.5 py-0.5 rounded">{row.ip}</span>
-                  </td>
                   <td className="px-3 py-2.5 text-xs text-muted-foreground max-w-[200px] truncate">{row.detail}</td>
                 </tr>
               ))}
