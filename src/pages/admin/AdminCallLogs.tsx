@@ -330,7 +330,20 @@ function CallLogsTab({ globalEnterpriseId, globalOrgId, globalCreator, enterpris
                   );
                   return <th key={h} className="px-3 py-2.5 text-left text-xs font-medium text-muted-foreground whitespace-nowrap">{h}</th>;
                 })}
-...
+              </tr>
+            </thead>
+            <tbody>
+              {paginated.map((row, i) => (
+                <tr key={i} className="border-b border-border last:border-0 hover:bg-muted/30 transition-colors">
+                  <td className="px-3 py-2.5 text-xs text-muted-foreground whitespace-nowrap font-mono">{row.time}</td>
+                  <td className="px-3 py-2.5 text-xs text-foreground whitespace-nowrap font-medium">{row.enterprise}</td>
+                  <td className="px-3 py-2.5">
+                    <button className={`text-xs px-2 py-0.5 rounded cursor-pointer hover:opacity-80 transition-opacity ${getApiKeyColor(row.apiKey)}`} onClick={() => navigate(`/admin/tokens?key=${row.apiKey}`)} title="跳转至令牌管理">{row.apiKey}</button>
+                  </td>
+                  <td className="px-3 py-2.5">
+                    <button className="text-xs text-primary hover:underline whitespace-nowrap cursor-pointer" onClick={() => navigate(`/admin/enterprises?org=${encodeURIComponent(row.org)}`)} title="跳转至企业管理">{row.org}</button>
+                  </td>
+                  <td className="px-3 py-2.5 text-xs text-foreground">{row.group}</td>
                   <td className="px-3 py-2.5">
                     {row.type === "错误"
                       ? <span className="bg-red-100 text-red-600 border border-red-200 text-xs px-1.5 py-0.5 rounded">错误</span>
