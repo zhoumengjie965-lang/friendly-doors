@@ -349,25 +349,12 @@ function CallLogsTab({ role, globalOrg, globalMember }: {
                   <td className="px-3 py-2.5 text-xs text-foreground">{row.group}</td>
                   <td className="px-3 py-2.5">
                     {row.type === "错误"
-                      ? <span className="bg-red-100 text-red-600 border border-red-200 text-xs px-1.5 py-0.5 rounded">错误（失败）</span>
-                      : <span className="bg-green-100 text-green-600 border border-green-200 text-xs px-1.5 py-0.5 rounded">消费（成功）</span>
+                      ? <span className="bg-red-100 text-red-600 border border-red-200 text-xs px-1.5 py-0.5 rounded">错误</span>
+                      : <span className="bg-green-100 text-green-600 border border-green-200 text-xs px-1.5 py-0.5 rounded">消费</span>
                     }
                   </td>
-                  <td className="px-3 py-2.5">
-                    <span className="border border-purple-200 text-purple-700 bg-purple-50 text-xs px-1.5 py-0.5 rounded">{row.model}</span>
-                  </td>
-                  <td className="px-3 py-2.5">
-                    <div className="flex items-center gap-1">
-                      <span className="bg-green-100 text-green-700 text-xs px-1.5 py-0.5 rounded">{row.duration}</span>
-                      <span className="bg-muted text-muted-foreground text-xs px-1.5 py-0.5 rounded">{row.streaming}</span>
-                    </div>
-                  </td>
-                  <td className="px-3 py-2.5 text-xs text-foreground">{row.input}</td>
-                  <td className="px-3 py-2.5 text-xs text-foreground">{row.output}</td>
+...
                   <td className="px-3 py-2.5 text-xs text-foreground">{row.cost}</td>
-                  <td className="px-3 py-2.5">
-                    <span className="bg-orange-100 text-orange-700 text-xs px-1.5 py-0.5 rounded">{row.ip}</span>
-                  </td>
                   <td className="px-3 py-2.5 text-xs text-muted-foreground max-w-[200px] truncate">{row.detail}</td>
                 </tr>
               ))}

@@ -313,26 +313,28 @@ function CallLogsTab({ globalEnterpriseId, globalOrgId, globalCreator, enterpris
                       </Select>
                     </th>
                   );
+                  if (h === "类型") return (
+                    <th key={h} className="px-3 py-2.5 text-left text-xs font-medium text-muted-foreground whitespace-nowrap">
+                      <Select value={filterType} onValueChange={v => { setFilterType(v); setPage(1); }}>
+                        <SelectTrigger className="h-auto w-auto border-0 bg-transparent p-0 shadow-none focus:ring-0 gap-0.5 [&>svg]:hidden">
+                          <span className={cn("text-xs font-medium", filterType !== "all" ? "text-primary" : "text-muted-foreground")}>类型</span>
+                          <ChevronDown className="w-3 h-3 text-muted-foreground" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">全部</SelectItem>
+                          <SelectItem value="错误">错误</SelectItem>
+                          <SelectItem value="消费">消费</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </th>
+                  );
                   return <th key={h} className="px-3 py-2.5 text-left text-xs font-medium text-muted-foreground whitespace-nowrap">{h}</th>;
                 })}
-              </tr>
-            </thead>
-            <tbody>
-              {paginated.map((row, i) => (
-                <tr key={i} className="border-b border-border last:border-0 hover:bg-muted/30 transition-colors">
-                  <td className="px-3 py-2.5 text-xs text-muted-foreground whitespace-nowrap font-mono">{row.time}</td>
-                  <td className="px-3 py-2.5 text-xs text-foreground whitespace-nowrap font-medium">{row.enterprise}</td>
-                  <td className="px-3 py-2.5">
-                    <button className={`text-xs px-2 py-0.5 rounded cursor-pointer hover:opacity-80 transition-opacity ${getApiKeyColor(row.apiKey)}`} onClick={() => navigate(`/admin/tokens?key=${row.apiKey}`)} title="跳转至令牌管理">{row.apiKey}</button>
-                  </td>
-                  <td className="px-3 py-2.5">
-                    <button className="text-xs text-primary hover:underline whitespace-nowrap cursor-pointer" onClick={() => navigate(`/admin/enterprises?org=${encodeURIComponent(row.org)}`)} title="跳转至企业管理">{row.org}</button>
-                  </td>
-                  <td className="px-3 py-2.5 text-xs text-foreground">{row.group}</td>
+...
                   <td className="px-3 py-2.5">
                     {row.type === "错误"
-                      ? <span className="bg-red-100 text-red-600 border border-red-200 text-xs px-1.5 py-0.5 rounded">错误（失败）</span>
-                      : <span className="bg-green-100 text-green-600 border border-green-200 text-xs px-1.5 py-0.5 rounded">消费（成功）</span>
+                      ? <span className="bg-red-100 text-red-600 border border-red-200 text-xs px-1.5 py-0.5 rounded">错误</span>
+                      : <span className="bg-green-100 text-green-600 border border-green-200 text-xs px-1.5 py-0.5 rounded">消费</span>
                     }
                   </td>
                   <td className="px-3 py-2.5">
