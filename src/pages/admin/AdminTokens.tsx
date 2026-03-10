@@ -698,19 +698,41 @@ export default function AdminTokens() {
 
         {/* Filter bar */}
         <div className="border-l-4 border-l-primary/60 bg-card border border-border rounded-xl p-4 space-y-3">
-          {/* Row 1 — Filters */}
+          {/* Row 1 — Dimension Filters */}
           <div className="flex flex-wrap items-center gap-2">
             <EnterpriseCombobox
               enterprises={enterprises}
               value={filterEnterpriseId}
-              onChange={v => { setFilterEnterpriseId(v); setPage(1); }}
+              onChange={v => { setFilterEnterpriseId(v); setFilterOrgId(""); setPage(1); }}
+            />
+            {/* 所属组织 — cascades with enterprise */}
+            <FilterCombobox
+              items={availableOrgs}
+              value={filterOrgId}
+              onChange={v => { setFilterOrgId(v); setPage(1); }}
+              placeholder="所属组织（下拉搜索）"
+              emptyText={filterEnterpriseId ? "该企业暂无组织" : "未找到组织"}
             />
             <Input
-              className="h-9 w-48 text-sm"
-              placeholder="创建人手机 / 用户ID"
+              className="h-9 w-44 text-sm"
+              placeholder="创建人手机 / 用户名"
               value={filterCreator}
               onChange={e => { setFilterCreator(e.target.value); setPage(1); }}
             />
+            <Select value={filterStatus} onValueChange={v => { setFilterStatus(v); setPage(1); }}>
+              <SelectTrigger className="h-9 w-32 text-sm">
+                <SelectValue placeholder="状态" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">全部状态</SelectItem>
+                <SelectItem value="active">已启用</SelectItem>
+                <SelectItem value="disabled">已禁用</SelectItem>
+              </SelectContent>
+            </Select>
+            <Button size="sm" variant="outline" className="h-9 gap-1.5" onClick={handleReset}>
+              <X className="w-3.5 h-3.5" />
+              重置
+            </Button>
           </div>
 
           {/* Row 2 — Action + name/key search */}
@@ -744,7 +766,6 @@ export default function AdminTokens() {
                 <Search className="w-3.5 h-3.5" />
                 查询
               </Button>
-              <Button size="sm" variant="outline" className="h-9" onClick={handleReset}>重置</Button>
             </div>
           </div>
         </div>
