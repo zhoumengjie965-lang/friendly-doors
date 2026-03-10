@@ -1,71 +1,46 @@
 
-## Two focused layout tweaks — `src/pages/admin/AdminUsers.tsx` only
+## Changes to `src/pages/admin/AdminCallLogs.tsx`
 
-### Change 1: Basic info — 2×2 grid (lines 394–447)
+### 1. Global filter bar (tabs row, right side)
+- Rename `"创建人 / 手机号"` Input → replace with a **FilterCombobox** dropdown labeled `"所属成员"` (fed from a `members` list loaded from Supabase, showing `user_phone` as the display name)
+- State rename: `globalCreator` → `globalMember`
+- Pass `globalMember` down to `CallLogsTab` and `AuditLogsTab`
 
-Currently 4 rows stacked vertically with `space-y-4`. Redesign as a **2×2 grid** — left column: 用户名 + 账号状态, right column: 手机号 + 密码重置.
+### 2. CallLogsTab — filter bar (lines 259–278)
+- **模型**: change from `<Select>` dropdown → `<Input>` text search (same pattern as APIKey field)
+- **搜索 button**: add a `<Button>` with a search icon before 重置
+- **重置 button**: remove any remaining X icon, text-only
 
-```tsx
-<div className="grid grid-cols-2 gap-x-4 gap-y-3">
-  {/* 用户名 — top-left */}
-  <div className="flex items-center justify-between">
-    <div>
-      <Label className="text-xs text-muted-foreground">用户名</Label>
-      <p className="text-sm mt-0.5">{drawerUser.name || "—"}</p>
-    </div>
-    <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground" onClick={...}>
-      <Copy className="w-3.5 h-3.5" />
-    </Button>
-  </div>
+### 3. CallLogsTab — mock data
+- Add `retryChannel` field to each mock row (e.g., `"Azure"`, `"-"`, `"OpenAI"`)
+- Add `member` field (e.g., `"张三"`, `"李四"`)
 
-  {/* 手机号 — top-right */}
-  <div className="flex items-center justify-between">
-    <div>
-      <Label className="text-xs text-muted-foreground">手机号</Label>
-      <p className="text-sm mt-0.5 font-medium tabular-nums">{drawerUser.phone}</p>
-    </div>
-    <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground" onClick={...}>
-      <Copy className="w-3.5 h-3.5" />
-    </Button>
-  </div>
-
-  {/* 账号状态 — bottom-left */}
-  <div className="flex items-center justify-between">
-    <div>
-      <Label className="text-xs text-muted-foreground">账号状态</Label>
-      <p className="text-sm mt-0.5">...</p>
-    </div>
-    <Switch ... />
-  </div>
-
-  {/* 密码重置 — bottom-right */}
-  <div className="flex items-center justify-between">
-    <div>
-      <Label className="text-xs text-muted-foreground">密码重置</Label>
-      <p className="text-xs text-muted-foreground mt-0.5">强制用户下次登录时重置密码</p>
-    </div>
-    <Button size="sm" variant="outline" ...>重置密码</Button>
-  </div>
-</div>
+### 4. CallLogsTab — table headers & column order
+New ordered headers array:
 ```
-
-### Change 2: Personal space — label outside card, tighter padding (lines 459–486)
-
-Move "个人空间" text **above** the card border, reduce internal padding from `p-4 space-y-3` to `p-3 space-y-2`:
-
-```tsx
-{/* 个人空间 */}
-<div>
-  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1.5">个人空间</p>
-  <div className="bg-blue-50/50 border border-blue-100 rounded-lg p-3 space-y-2">
-    <div className="flex items-center justify-between">
-      <span className="text-sm text-muted-foreground">当前余额</span>
-      <span className="font-semibold tabular-nums">¥{...}</span>
-    </div>
-    {/* balance edit input + 保存 button + disclaimer — unchanged */}
-  </div>
-</div>
+["时间", "APIKey", "企业", "组织", "成员", "分组", "类型", "模型", "上游渠道", "重试渠道", "用时/首字", "输入", "输出", "花费", "详情"]
 ```
+- Remove old `"所属企业"` label → rename to `"企业"`
+- Add `"成员"` between 组织 and 分组
+- Add `"重试渠道"` between 上游渠道 and 用时/首字
+- Ensure table has `overflow-x-auto` (already does) so wide table scrolls
+
+### 5. CallLogsTab — inline header dropdowns (4 columns)
+The `headers.map` logic needs cases for 4 inline-filter headers:
+- `"分组"` — already done ✓
+- `"类型"` — already done ✓
+- `"上游渠道"` — new: `filterChannel` state, options derived from mock data
+- `"重试渠道"` — new: `filterRetryChannel` state, options derived from mock data
+
+### 6. CallLogsTab — table body row cells (reordered)
+New cell order to match headers:
+`时间 → APIKey → 企业 → 组织 → 成员 → 分组 → 类型 → 模型 → 上游渠道 → 重试渠道 → 用时/首字 → 输入 → 输出 → 花费 → 详情`
+
+### 7. CallLogsTab — filter logic
+Update `filtered` to also filter by `globalMember`, `filterChannel`, `filterRetryChannel`, and model as text input (instead of exact match).
+
+### 8. handleReset
+Add `setFilterChannel("all")`, `setFilterRetryChannel("all")`, `setFilterModel("")` (now a string, not "all").
 
 ### Files changed
-- `src/pages/admin/AdminUsers.tsx` — lines 394–486 only
+- `src/pages/admin/AdminCallLogs.tsx`
