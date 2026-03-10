@@ -168,16 +168,58 @@ function UsageLogsTab() {
   const [expanded, setExpanded] = useState(false);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
-  const [filterGroup, setFilterGroup] = useState("all");
+
+  // Supabase data for cascading filters
+  const [enterprises, setEnterprises] = useState<Enterprise[]>([]);
+  const [organizations, setOrganizations] = useState<Organization[]>([]);
+
+  // Filters
+  const [filterEnterpriseId, setFilterEnterpriseId] = useState("");
+  const [filterOrgId, setFilterOrgId] = useState("");
+  const [filterCreator, setFilterCreator] = useState("");
+  const [filterModel, setFilterModel] = useState("all");
   const [filterType, setFilterType] = useState("all");
-  const [enterpriseSearch, setEnterpriseSearch] = useState("");
+  const [filterGroup, setFilterGroup] = useState("all");
+  const [filterApiKey, setFilterApiKey] = useState("");
+
+  useEffect(() => {
+    supabase.from("enterprises").select("id, name").order("name")
+      .then(({ data }) => { if (data) setEnterprises(data as Enterprise[]); });
+    supabase.from("organizations").select("id, name, enterprise_id").order("name")
+      .then(({ data }) => { if (data) setOrganizations(data as Organization[]); });
+  }, []);
+
+  // Cascade: filter orgs by selected enterprise
+  const availableOrgs = filterEnterpriseId
+    ? organizations.filter(o => o.enterprise_id === filterEnterpriseId)
+    : organizations;
 
   const allGroups = Array.from(new Set(mockUsageLogs.map(r => r.group)));
+  const allModels = Array.from(new Set(mockUsageLogs.map(r => r.model)));
+
+  const handleReset = () => {
+    setFilterEnterpriseId("");
+    setFilterOrgId("");
+    setFilterCreator("");
+    setFilterModel("all");
+    setFilterType("all");
+    setFilterGroup("all");
+    setFilterApiKey("");
+    setPage(1);
+  };
+
+  // Find enterprise name from supabase list for mock-data matching by name
+  const selectedEnterpriseName = enterprises.find(e => e.id === filterEnterpriseId)?.name ?? "";
+  const selectedOrgName = organizations.find(o => o.id === filterOrgId)?.name ?? "";
 
   const filtered = mockUsageLogs.filter(r => {
-    if (filterGroup !== "all" && r.group !== filterGroup) return false;
+    if (filterEnterpriseId && selectedEnterpriseName && r.enterprise !== selectedEnterpriseName) return false;
+    if (filterOrgId && selectedOrgName && r.org !== selectedOrgName) return false;
+    if (filterCreator.trim() && !r.apiKey.toLowerCase().includes(filterCreator.toLowerCase())) return false;
+    if (filterModel !== "all" && r.model !== filterModel) return false;
     if (filterType !== "all" && r.type !== filterType) return false;
-    if (enterpriseSearch.trim() && !r.enterprise.includes(enterpriseSearch.trim())) return false;
+    if (filterGroup !== "all" && r.group !== filterGroup) return false;
+    if (filterApiKey.trim() && !r.apiKey.toLowerCase().includes(filterApiKey.toLowerCase())) return false;
     return true;
   });
 
@@ -186,49 +228,91 @@ function UsageLogsTab() {
 
   return (
     <div className="space-y-4">
-      <div className="bg-card border border-border rounded-xl p-4 space-y-3">
-        <div className="flex flex-wrap items-center gap-3">
-          <div className="flex items-center gap-2">
-            <span className="text-sm text-muted-foreground whitespace-nowrap">时间</span>
-            <div className="flex items-center gap-1 border border-border rounded-md px-3 h-9 text-sm text-foreground bg-background min-w-[280px]">
-              <span>2026-03-03 00:00:00</span>
-              <span className="mx-1 text-muted-foreground">→</span>
-              <span>2026-03-03 23:59:59</span>
-              <Calendar className="w-4 h-4 ml-2 text-muted-foreground" />
-            </div>
+      {/* Filter bar */}
+      <div className="border-l-4 border-l-primary/60 bg-card border border-border rounded-xl p-4 space-y-3">
+        {/* Row 1 — Dimension filters */}
+        <div className="flex flex-wrap items-center gap-2">
+          {/* 时间 */}
+          <div className="flex items-center gap-1 border border-border rounded-md px-3 h-9 text-sm text-foreground bg-background">
+            <span>2026-03-03 00:00:00</span>
+            <span className="mx-1 text-muted-foreground">→</span>
+            <span>2026-03-03 23:59:59</span>
+            <Calendar className="w-4 h-4 ml-2 text-muted-foreground" />
           </div>
-          <div className="flex items-center gap-2">
-            <span className="text-sm text-muted-foreground whitespace-nowrap">企业</span>
-            <div className="relative">
-              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground pointer-events-none" />
-              <Input
-                className="h-9 w-44 text-sm pl-7"
-                placeholder="搜索企业名称"
-                value={enterpriseSearch}
-                onChange={e => { setEnterpriseSearch(e.target.value); setPage(1); }}
-              />
-            </div>
-          </div>
-          <div className="flex items-center gap-2">
-            <span className="text-sm text-muted-foreground whitespace-nowrap">APIKey</span>
-            <Input className="h-9 w-44 text-sm" placeholder="请输入APIKey名称" />
-          </div>
-          <Button size="sm" className="h-9">搜索</Button>
-          <Button size="sm" variant="outline" className="h-9" onClick={() => { setFilterGroup("all"); setFilterType("all"); setEnterpriseSearch(""); setPage(1); }}>重置</Button>
+          {/* 所属企业 */}
+          <FilterCombobox
+            items={enterprises}
+            value={filterEnterpriseId}
+            onChange={v => { setFilterEnterpriseId(v); setFilterOrgId(""); setPage(1); }}
+            placeholder="所属企业（下拉搜索）"
+            emptyText="未找到企业"
+          />
+          {/* 所属组织 — cascades */}
+          <FilterCombobox
+            items={availableOrgs}
+            value={filterOrgId}
+            onChange={v => { setFilterOrgId(v); setPage(1); }}
+            placeholder="所属组织（下拉搜索）"
+            emptyText={filterEnterpriseId ? "该企业暂无组织" : "未找到组织"}
+          />
+          {/* 创建人手机 */}
+          <Input
+            className="h-9 w-44 text-sm"
+            placeholder="创建人手机 / 用户名"
+            value={filterCreator}
+            onChange={e => { setFilterCreator(e.target.value); setPage(1); }}
+          />
+          {/* 模型 */}
+          <Select value={filterModel} onValueChange={v => { setFilterModel(v); setPage(1); }}>
+            <SelectTrigger className="h-9 w-44 text-sm">
+              <SelectValue placeholder="模型名称" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">全部模型</SelectItem>
+              {allModels.map(m => <SelectItem key={m} value={m}>{m}</SelectItem>)}
+            </SelectContent>
+          </Select>
+          {/* 类型 */}
+          <Select value={filterType} onValueChange={v => { setFilterType(v); setPage(1); }}>
+            <SelectTrigger className="h-9 w-32 text-sm">
+              <SelectValue placeholder="类型" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">全部类型</SelectItem>
+              <SelectItem value="成功">成功</SelectItem>
+              <SelectItem value="错误">错误</SelectItem>
+            </SelectContent>
+          </Select>
+          {/* 重置 */}
+          <Button size="sm" variant="outline" className="h-9 gap-1.5" onClick={handleReset}>
+            <X className="w-3.5 h-3.5" />
+            重置
+          </Button>
+          {/* 展开 */}
           <Button size="sm" variant="ghost" className="h-9 gap-1 text-muted-foreground" onClick={() => setExpanded(v => !v)}>
             展开 {expanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
           </Button>
         </div>
+
+        {/* Expanded row */}
         {expanded && (
-          <div className="flex flex-wrap items-center gap-3 pt-2 border-t border-border">
-            <div className="flex items-center gap-2">
-              <span className="text-sm text-muted-foreground whitespace-nowrap">模型</span>
-              <Input className="h-9 w-40 text-sm" placeholder="请输入模型名称" />
-            </div>
-            <div className="flex items-center gap-2">
-              <span className="text-sm text-muted-foreground whitespace-nowrap">IP</span>
-              <Input className="h-9 w-40 text-sm" placeholder="请输入IP地址" />
-            </div>
+          <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-border">
+            <Input
+              className="h-9 w-44 text-sm"
+              placeholder="APIKey 名称"
+              value={filterApiKey}
+              onChange={e => { setFilterApiKey(e.target.value); setPage(1); }}
+            />
+            <Select value={filterGroup} onValueChange={v => { setFilterGroup(v); setPage(1); }}>
+              <SelectTrigger className="h-9 w-36 text-sm">
+                <SelectValue placeholder="分组" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">全部分组</SelectItem>
+                {allGroups.map(g => <SelectItem key={g} value={g}>{g}</SelectItem>)}
+              </SelectContent>
+            </Select>
+            <Input className="h-9 w-40 text-sm" placeholder="IP 地址" />
           </div>
         )}
       </div>
@@ -255,7 +339,7 @@ function UsageLogsTab() {
                     <th key={h} className="px-3 py-2.5 text-left text-xs font-medium text-muted-foreground whitespace-nowrap">
                       <Select value={filterGroup} onValueChange={v => { setFilterGroup(v); setPage(1); }}>
                         <SelectTrigger className="h-auto w-auto border-0 bg-transparent p-0 shadow-none focus:ring-0 gap-0.5 [&>svg]:hidden">
-                          <span className={`text-xs font-medium ${filterGroup !== "all" ? "text-primary" : "text-muted-foreground"}`}>分组</span>
+                          <span className={cn("text-xs font-medium", filterGroup !== "all" ? "text-primary" : "text-muted-foreground")}>分组</span>
                           <ChevronDown className="w-3 h-3 text-muted-foreground" />
                         </SelectTrigger>
                         <SelectContent>
@@ -269,7 +353,7 @@ function UsageLogsTab() {
                     <th key={h} className="px-3 py-2.5 text-left text-xs font-medium text-muted-foreground whitespace-nowrap">
                       <Select value={filterType} onValueChange={v => { setFilterType(v); setPage(1); }}>
                         <SelectTrigger className="h-auto w-auto border-0 bg-transparent p-0 shadow-none focus:ring-0 gap-0.5 [&>svg]:hidden">
-                          <span className={`text-xs font-medium ${filterType !== "all" ? "text-primary" : "text-muted-foreground"}`}>类型</span>
+                          <span className={cn("text-xs font-medium", filterType !== "all" ? "text-primary" : "text-muted-foreground")}>类型</span>
                           <ChevronDown className="w-3 h-3 text-muted-foreground" />
                         </SelectTrigger>
                         <SelectContent>
