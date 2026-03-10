@@ -234,7 +234,7 @@ export default function AdminResourceStats() {
                     {/* 今日金额 */}
                     <TableCell>
                       {isZeroAmount ? (
-                        <span className="flex items-center gap-1 text-amber-600 font-medium text-sm">
+                        <span className="flex items-center gap-1 text-[hsl(38,92%,40%)] font-medium text-sm">
                           <AlertTriangle className="h-3.5 w-3.5" />
                           ¥0.00
                         </span>
