@@ -239,41 +239,19 @@ function CallLogsTab({ role, globalOrg, globalMember }: {
   return (
     <div className="space-y-4">
       {/* Filter bar */}
-      <div className="bg-card border border-border rounded-xl p-4 space-y-3">
+      <div className="bg-card border border-border rounded-xl p-4">
         <div className="flex flex-wrap items-center gap-3">
-          <div className="flex items-center gap-2">
-            <span className="text-sm text-muted-foreground whitespace-nowrap">时间</span>
-            <div className="flex items-center gap-1 border border-border rounded-md px-3 h-9 text-sm text-foreground bg-background min-w-[280px]">
-              <span>2026-03-03 00:00:00</span>
-              <span className="mx-1 text-muted-foreground">→</span>
-              <span>2026-03-03 23:59:59</span>
-              <Calendar className="w-4 h-4 ml-2 text-muted-foreground" />
-            </div>
+          <div className="flex items-center gap-1 border border-border rounded-md px-3 h-9 text-sm text-foreground bg-background whitespace-nowrap">
+            <span>2026-03-03 00:00:00</span>
+            <span className="mx-1 text-muted-foreground">→</span>
+            <span>2026-03-03 23:59:59</span>
+            <Calendar className="w-4 h-4 ml-2 text-muted-foreground" />
           </div>
-          <div className="flex items-center gap-2">
-            <span className="text-sm text-muted-foreground whitespace-nowrap">APIKey</span>
-            <Input className="h-9 w-44 text-sm" placeholder="请输入APIKey名称" />
-          </div>
+          <Input className="h-9 w-40 text-sm" placeholder="APIKey名称" value={filterApiKey} onChange={e => setFilterApiKey(e.target.value)} />
+          <Input className="h-9 w-36 text-sm" placeholder="模型名称" value={filterModel} onChange={e => setFilterModel(e.target.value)} />
           <Button size="sm" className="h-9">搜索</Button>
-          <Button size="sm" variant="outline" className="h-9 gap-1" onClick={handleReset}>
-            <X className="w-3.5 h-3.5" />重置
-          </Button>
-          <Button
-            size="sm" variant="ghost" className="h-9 gap-1 text-muted-foreground"
-            onClick={() => setExpanded(v => !v)}
-          >
-            展开 {expanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-          </Button>
+          <Button size="sm" variant="outline" className="h-9" onClick={handleReset}>重置</Button>
         </div>
-
-        {expanded && (
-          <div className="flex flex-wrap items-center gap-3 pt-2 border-t border-border">
-            <div className="flex items-center gap-2">
-              <span className="text-sm text-muted-foreground whitespace-nowrap">模型</span>
-              <Input className="h-9 w-40 text-sm" placeholder="请输入模型名称" />
-            </div>
-          </div>
-        )}
       </div>
 
       {/* Summary + toolbar */}
