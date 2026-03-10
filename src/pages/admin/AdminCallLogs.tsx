@@ -424,8 +424,14 @@ function TaskLogsTab({ globalEnterpriseId, globalOrgId, enterprises, organizatio
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
   const [filterTaskId, setFilterTaskId] = useState("");
+  const [filterModel, setFilterModel] = useState("");
+  const [filterType, setFilterType] = useState("all");
   const [filterExecStatus, setFilterExecStatus] = useState("all");
+  const [filterChannel, setFilterChannel] = useState("all");
   const [selectedTask, setSelectedTask] = useState<typeof mockTaskLogs[0] | null>(null);
+
+  const allTypes = Array.from(new Set(mockTaskLogs.map(r => r.type)));
+  const allChannels = Array.from(new Set(mockTaskLogs.map(r => r.channel)));
 
   const selectedEnterpriseName = enterprises.find(e => e.id === globalEnterpriseId)?.name ?? "";
   const selectedOrgName = organizations.find(o => o.id === globalOrgId)?.name ?? "";
@@ -434,15 +440,21 @@ function TaskLogsTab({ globalEnterpriseId, globalOrgId, enterprises, organizatio
     if (globalEnterpriseId && selectedEnterpriseName && r.enterprise !== selectedEnterpriseName) return false;
     if (globalOrgId && selectedOrgName && r.org !== selectedOrgName) return false;
     if (filterTaskId.trim() && !r.taskId.toLowerCase().includes(filterTaskId.toLowerCase())) return false;
+    if (filterModel.trim() && !r.model.toLowerCase().includes(filterModel.toLowerCase())) return false;
+    if (filterType !== "all" && r.type !== filterType) return false;
     if (filterExecStatus !== "all" && r.execStatus !== filterExecStatus) return false;
+    if (filterChannel !== "all" && r.channel !== filterChannel) return false;
     return true;
   });
 
   const paginated = filtered.slice((page - 1) * pageSize, page * pageSize);
 
   const handleReset = () => {
-    setFilterTaskId(""); setFilterExecStatus("all"); setPage(1);
+    setFilterTaskId(""); setFilterModel(""); setFilterType("all");
+    setFilterExecStatus("all"); setFilterChannel("all"); setPage(1);
   };
+
+  const taskHeaders = ["提交时间", "花费时间", "模型", "渠道", "类型", "任务ID", "执行状态", "进度", "详情"];
 
   return (
     <div className="space-y-4">
@@ -455,15 +467,10 @@ function TaskLogsTab({ globalEnterpriseId, globalOrgId, enterprises, organizatio
             <Calendar className="w-4 h-4 ml-2 text-muted-foreground" />
           </div>
           <Input className="h-9 w-48 text-sm" placeholder="任务ID" value={filterTaskId} onChange={e => { setFilterTaskId(e.target.value); setPage(1); }} />
-          <Select value={filterExecStatus} onValueChange={v => { setFilterExecStatus(v); setPage(1); }}>
-            <SelectTrigger className="h-9 w-36 text-sm"><SelectValue placeholder="执行状态" /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">全部状态</SelectItem>
-              <SelectItem value="进行中">进行中</SelectItem>
-              <SelectItem value="已完成">已完成</SelectItem>
-              <SelectItem value="失败">失败</SelectItem>
-            </SelectContent>
-          </Select>
+          <Input className="h-9 w-36 text-sm" placeholder="模型名称" value={filterModel} onChange={e => { setFilterModel(e.target.value); setPage(1); }} />
+          <Button size="sm" variant="default" className="h-9 gap-1.5" onClick={() => setPage(1)}>
+            <Search className="w-3.5 h-3.5" />搜索
+          </Button>
           <Button size="sm" variant="outline" className="h-9" onClick={handleReset}>重置</Button>
         </div>
       </div>
@@ -473,22 +480,64 @@ function TaskLogsTab({ globalEnterpriseId, globalOrgId, enterprises, organizatio
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-border bg-muted/40">
-                {["提交时间", "结束时间", "花费时间", "所属企业", "平台", "类型", "任务ID", "执行状态", "进度", "详情"].map(h => (
-                  <th key={h} className="px-3 py-2.5 text-left text-xs font-medium text-muted-foreground whitespace-nowrap">{h}</th>
-                ))}
+                {taskHeaders.map(h => {
+                  if (h === "类型") return (
+                    <th key={h} className="px-3 py-2.5 text-left text-xs font-medium text-muted-foreground whitespace-nowrap">
+                      <Select value={filterType} onValueChange={v => { setFilterType(v); setPage(1); }}>
+                        <SelectTrigger className="h-auto w-auto border-0 bg-transparent p-0 shadow-none focus:ring-0 gap-1 [&>svg]:w-3 [&>svg]:h-3 [&>svg]:opacity-60">
+                          <span className={cn("text-xs font-medium", filterType !== "all" ? "text-primary" : "text-muted-foreground")}>类型</span>
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">全部</SelectItem>
+                          {allTypes.map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}
+                        </SelectContent>
+                      </Select>
+                    </th>
+                  );
+                  if (h === "执行状态") return (
+                    <th key={h} className="px-3 py-2.5 text-left text-xs font-medium text-muted-foreground whitespace-nowrap">
+                      <Select value={filterExecStatus} onValueChange={v => { setFilterExecStatus(v); setPage(1); }}>
+                        <SelectTrigger className="h-auto w-auto border-0 bg-transparent p-0 shadow-none focus:ring-0 gap-1 [&>svg]:w-3 [&>svg]:h-3 [&>svg]:opacity-60">
+                          <span className={cn("text-xs font-medium", filterExecStatus !== "all" ? "text-primary" : "text-muted-foreground")}>执行状态</span>
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">全部</SelectItem>
+                          <SelectItem value="进行中">进行中</SelectItem>
+                          <SelectItem value="已完成">已完成</SelectItem>
+                          <SelectItem value="失败">失败</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </th>
+                  );
+                  if (h === "渠道") return (
+                    <th key={h} className="px-3 py-2.5 text-left text-xs font-medium text-muted-foreground whitespace-nowrap">
+                      <Select value={filterChannel} onValueChange={v => { setFilterChannel(v); setPage(1); }}>
+                        <SelectTrigger className="h-auto w-auto border-0 bg-transparent p-0 shadow-none focus:ring-0 gap-1 [&>svg]:w-3 [&>svg]:h-3 [&>svg]:opacity-60">
+                          <span className={cn("text-xs font-medium", filterChannel !== "all" ? "text-primary" : "text-muted-foreground")}>渠道</span>
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">全部</SelectItem>
+                          {allChannels.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+                        </SelectContent>
+                      </Select>
+                    </th>
+                  );
+                  return <th key={h} className="px-3 py-2.5 text-left text-xs font-medium text-muted-foreground whitespace-nowrap">{h}</th>;
+                })}
               </tr>
             </thead>
             <tbody>
               {paginated.map((row, i) => (
                 <tr key={i} className="border-b border-border last:border-0 hover:bg-muted/30 transition-colors">
                   <td className="px-3 py-2.5 text-xs text-muted-foreground whitespace-nowrap font-mono">{row.submitTime}</td>
-                  <td className="px-3 py-2.5 text-xs text-muted-foreground whitespace-nowrap font-mono">{row.endTime}</td>
                   <td className="px-3 py-2.5">
                     <span className="bg-red-50 text-red-500 border border-red-200 text-xs px-1.5 py-0.5 rounded">{row.cost}</span>
                   </td>
-                  <td className="px-3 py-2.5 text-xs text-foreground font-medium whitespace-nowrap">{row.enterprise}</td>
                   <td className="px-3 py-2.5">
-                    <span className="bg-green-100 text-green-700 border border-green-200 text-xs px-1.5 py-0.5 rounded">{row.platform}</span>
+                    <span className="bg-green-100 text-green-700 border border-green-200 text-xs px-1.5 py-0.5 rounded">{row.model}</span>
+                  </td>
+                  <td className="px-3 py-2.5">
+                    <span className={`text-xs px-1.5 py-0.5 rounded ${getChannelStyle(row.channel)}`}>{row.channel}</span>
                   </td>
                   <td className="px-3 py-2.5">
                     <span className="bg-pink-100 text-pink-700 border border-pink-200 text-xs px-1.5 py-0.5 rounded">{row.type}</span>
@@ -506,7 +555,9 @@ function TaskLogsTab({ globalEnterpriseId, globalOrgId, enterprises, organizatio
                     <ExecStatusBadge status={row.execStatus} />
                   </td>
                   <td className="px-3 py-2.5 text-xs text-muted-foreground">{row.progress}</td>
-                  <td className="px-3 py-2.5 text-xs text-muted-foreground max-w-[180px] truncate">{row.detail}</td>
+                  <td className="px-3 py-2.5">
+                    <Button size="sm" variant="outline" className="h-6 px-2 text-xs" onClick={() => setSelectedTask(row)}>查看</Button>
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -527,9 +578,13 @@ function TaskLogsTab({ globalEnterpriseId, globalOrgId, enterprises, organizatio
                 <span className="col-span-2 font-mono text-xs break-all text-foreground">{selectedTask.taskId}</span>
                 <span className="text-muted-foreground">所属企业</span>
                 <span className="col-span-2 font-medium text-foreground">{selectedTask.enterprise}</span>
-                <span className="text-muted-foreground">平台</span>
+                <span className="text-muted-foreground">模型</span>
                 <span className="col-span-2">
-                  <span className="bg-green-100 text-green-700 border border-green-200 text-xs px-1.5 py-0.5 rounded">{selectedTask.platform}</span>
+                  <span className="bg-green-100 text-green-700 border border-green-200 text-xs px-1.5 py-0.5 rounded">{selectedTask.model}</span>
+                </span>
+                <span className="text-muted-foreground">渠道</span>
+                <span className="col-span-2">
+                  <span className={`text-xs px-1.5 py-0.5 rounded ${getChannelStyle(selectedTask.channel)}`}>{selectedTask.channel}</span>
                 </span>
                 <span className="text-muted-foreground">类型</span>
                 <span className="col-span-2">
@@ -541,8 +596,6 @@ function TaskLogsTab({ globalEnterpriseId, globalOrgId, enterprises, organizatio
                 <span className="col-span-2 text-foreground">{selectedTask.progress}</span>
                 <span className="text-muted-foreground">提交时间</span>
                 <span className="col-span-2 font-mono text-xs text-foreground">{selectedTask.submitTime}</span>
-                <span className="text-muted-foreground">结束时间</span>
-                <span className="col-span-2 font-mono text-xs text-foreground">{selectedTask.endTime}</span>
                 <span className="text-muted-foreground">耗时</span>
                 <span className="col-span-2 text-foreground">{selectedTask.cost}</span>
               </div>
