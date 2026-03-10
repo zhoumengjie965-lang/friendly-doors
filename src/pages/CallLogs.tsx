@@ -202,7 +202,8 @@ function CallLogsTab({ role, globalOrg, globalMember }: {
   globalOrg: string;   // org name or "all"
   globalMember: string; // member name or "all"
 }) {
-  const [expanded, setExpanded] = useState(false);
+  const [filterModel, setFilterModel] = useState("");
+  const [filterApiKey, setFilterApiKey] = useState("");
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
   const [filterGroup, setFilterGroup] = useState("all");
@@ -216,6 +217,8 @@ function CallLogsTab({ role, globalOrg, globalMember }: {
   const filtered = mockUsageLogs.filter(r => {
     if (filterGroup !== "all" && r.group !== filterGroup) return false;
     if (filterType !== "all" && r.type !== filterType) return false;
+    if (filterModel.trim() && !r.model.toLowerCase().includes(filterModel.toLowerCase())) return false;
+    if (filterApiKey.trim() && !r.apiKey.toLowerCase().includes(filterApiKey.toLowerCase())) return false;
     if ((isEnterpriseAdmin || isOrgAdmin) && globalOrg !== "all" && r.org !== globalOrg) return false;
     if (isOrgAdmin && globalMember !== "all" && r.member !== globalMember) return false;
     return true;
@@ -233,47 +236,27 @@ function CallLogsTab({ role, globalOrg, globalMember }: {
   const handleReset = () => {
     setFilterGroup("all");
     setFilterType("all");
+    setFilterModel("");
+    setFilterApiKey("");
     setPage(1);
   };
 
   return (
     <div className="space-y-4">
       {/* Filter bar */}
-      <div className="bg-card border border-border rounded-xl p-4 space-y-3">
+      <div className="bg-card border border-border rounded-xl p-4">
         <div className="flex flex-wrap items-center gap-3">
-          <div className="flex items-center gap-2">
-            <span className="text-sm text-muted-foreground whitespace-nowrap">时间</span>
-            <div className="flex items-center gap-1 border border-border rounded-md px-3 h-9 text-sm text-foreground bg-background min-w-[280px]">
-              <span>2026-03-03 00:00:00</span>
-              <span className="mx-1 text-muted-foreground">→</span>
-              <span>2026-03-03 23:59:59</span>
-              <Calendar className="w-4 h-4 ml-2 text-muted-foreground" />
-            </div>
+          <div className="flex items-center gap-1 border border-border rounded-md px-3 h-9 text-sm text-foreground bg-background whitespace-nowrap">
+            <span>2026-03-03 00:00:00</span>
+            <span className="mx-1 text-muted-foreground">→</span>
+            <span>2026-03-03 23:59:59</span>
+            <Calendar className="w-4 h-4 ml-2 text-muted-foreground" />
           </div>
-          <div className="flex items-center gap-2">
-            <span className="text-sm text-muted-foreground whitespace-nowrap">APIKey</span>
-            <Input className="h-9 w-44 text-sm" placeholder="请输入APIKey名称" />
-          </div>
+          <Input className="h-9 w-40 text-sm" placeholder="APIKey名称" value={filterApiKey} onChange={e => setFilterApiKey(e.target.value)} />
+          <Input className="h-9 w-36 text-sm" placeholder="模型名称" value={filterModel} onChange={e => setFilterModel(e.target.value)} />
           <Button size="sm" className="h-9">搜索</Button>
-          <Button size="sm" variant="outline" className="h-9 gap-1" onClick={handleReset}>
-            <X className="w-3.5 h-3.5" />重置
-          </Button>
-          <Button
-            size="sm" variant="ghost" className="h-9 gap-1 text-muted-foreground"
-            onClick={() => setExpanded(v => !v)}
-          >
-            展开 {expanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-          </Button>
+          <Button size="sm" variant="outline" className="h-9" onClick={handleReset}>重置</Button>
         </div>
-
-        {expanded && (
-          <div className="flex flex-wrap items-center gap-3 pt-2 border-t border-border">
-            <div className="flex items-center gap-2">
-              <span className="text-sm text-muted-foreground whitespace-nowrap">模型</span>
-              <Input className="h-9 w-40 text-sm" placeholder="请输入模型名称" />
-            </div>
-          </div>
-        )}
       </div>
 
       {/* Summary + toolbar */}
@@ -303,9 +286,8 @@ function CallLogsTab({ role, globalOrg, globalMember }: {
                   if (h === "分组") return (
                     <th key={h} className="px-3 py-2.5 text-left text-xs font-medium text-muted-foreground whitespace-nowrap">
                       <Select value={filterGroup} onValueChange={v => { setFilterGroup(v); setPage(1); }}>
-                        <SelectTrigger className="h-auto w-auto border-0 bg-transparent p-0 shadow-none focus:ring-0 gap-0.5 [&>svg]:hidden">
+                        <SelectTrigger className="h-auto w-auto border-0 bg-transparent p-0 shadow-none focus:ring-0 gap-1 [&>svg]:w-3 [&>svg]:h-3 [&>svg]:opacity-60">
                           <span className={`text-xs font-medium ${filterGroup !== "all" ? "text-primary" : "text-muted-foreground"}`}>分组</span>
-                          <ChevronDown className="w-3 h-3 text-muted-foreground" />
                         </SelectTrigger>
                         <SelectContent>
                           <SelectItem value="all">全部</SelectItem>
@@ -317,9 +299,8 @@ function CallLogsTab({ role, globalOrg, globalMember }: {
                   if (h === "类型") return (
                     <th key={h} className="px-3 py-2.5 text-left text-xs font-medium text-muted-foreground whitespace-nowrap">
                       <Select value={filterType} onValueChange={v => { setFilterType(v); setPage(1); }}>
-                        <SelectTrigger className="h-auto w-auto border-0 bg-transparent p-0 shadow-none focus:ring-0 gap-0.5 [&>svg]:hidden">
+                        <SelectTrigger className="h-auto w-auto border-0 bg-transparent p-0 shadow-none focus:ring-0 gap-1 [&>svg]:w-3 [&>svg]:h-3 [&>svg]:opacity-60">
                           <span className={`text-xs font-medium ${filterType !== "all" ? "text-primary" : "text-muted-foreground"}`}>类型</span>
-                          <ChevronDown className="w-3 h-3 text-muted-foreground" />
                         </SelectTrigger>
                         <SelectContent>
                           <SelectItem value="all">全部</SelectItem>
@@ -354,7 +335,7 @@ function CallLogsTab({ role, globalOrg, globalMember }: {
                     }
                   </td>
 ...
-                  <td className="px-3 py-2.5 text-xs text-foreground">{row.cost}</td>
+                  <td className="px-3 py-2.5 text-xs text-foreground">¥{Number(row.cost).toFixed(4)}</td>
                   <td className="px-3 py-2.5 text-xs text-muted-foreground max-w-[200px] truncate">{row.detail}</td>
                 </tr>
               ))}
@@ -435,9 +416,7 @@ function TaskLogsTab({ globalOrg, globalMember }: {
               </SelectContent>
             </Select>
           </div>
-          <Button size="sm" variant="outline" className="h-9 gap-1" onClick={handleReset}>
-            <X className="w-3.5 h-3.5" />重置
-          </Button>
+          <Button size="sm" variant="outline" className="h-9" onClick={handleReset}>重置</Button>
         </div>
       </div>
 
@@ -586,9 +565,7 @@ function AuditLogsTab({ globalOrg, globalMember }: {
               </SelectContent>
             </Select>
           </div>
-          <Button size="sm" variant="outline" className="h-9 gap-1" onClick={handleReset}>
-            <X className="w-3.5 h-3.5" />重置
-          </Button>
+          <Button size="sm" variant="outline" className="h-9" onClick={handleReset}>重置</Button>
         </div>
       </div>
 

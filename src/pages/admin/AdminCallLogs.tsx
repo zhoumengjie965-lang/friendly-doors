@@ -274,9 +274,7 @@ function CallLogsTab({ globalEnterpriseId, globalOrgId, globalCreator, enterpris
               {allModels.map(m => <SelectItem key={m} value={m}>{m}</SelectItem>)}
             </SelectContent>
           </Select>
-          <Button size="sm" variant="outline" className="h-9 gap-1.5" onClick={handleReset}>
-            <X className="w-3.5 h-3.5" />重置
-          </Button>
+          <Button size="sm" variant="outline" className="h-9" onClick={handleReset}>重置</Button>
         </div>
       </div>
 
@@ -301,9 +299,8 @@ function CallLogsTab({ globalEnterpriseId, globalOrgId, globalCreator, enterpris
                   if (h === "分组") return (
                     <th key={h} className="px-3 py-2.5 text-left text-xs font-medium text-muted-foreground whitespace-nowrap">
                       <Select value={filterGroup} onValueChange={v => { setFilterGroup(v); setPage(1); }}>
-                        <SelectTrigger className="h-auto w-auto border-0 bg-transparent p-0 shadow-none focus:ring-0 gap-0.5 [&>svg]:hidden">
+                        <SelectTrigger className="h-auto w-auto border-0 bg-transparent p-0 shadow-none focus:ring-0 gap-1 [&>svg]:w-3 [&>svg]:h-3 [&>svg]:opacity-60">
                           <span className={cn("text-xs font-medium", filterGroup !== "all" ? "text-primary" : "text-muted-foreground")}>分组</span>
-                          <ChevronDown className="w-3 h-3 text-muted-foreground" />
                         </SelectTrigger>
                         <SelectContent>
                           <SelectItem value="all">全部</SelectItem>
@@ -315,9 +312,8 @@ function CallLogsTab({ globalEnterpriseId, globalOrgId, globalCreator, enterpris
                   if (h === "类型") return (
                     <th key={h} className="px-3 py-2.5 text-left text-xs font-medium text-muted-foreground whitespace-nowrap">
                       <Select value={filterType} onValueChange={v => { setFilterType(v); setPage(1); }}>
-                        <SelectTrigger className="h-auto w-auto border-0 bg-transparent p-0 shadow-none focus:ring-0 gap-0.5 [&>svg]:hidden">
+                        <SelectTrigger className="h-auto w-auto border-0 bg-transparent p-0 shadow-none focus:ring-0 gap-1 [&>svg]:w-3 [&>svg]:h-3 [&>svg]:opacity-60">
                           <span className={cn("text-xs font-medium", filterType !== "all" ? "text-primary" : "text-muted-foreground")}>类型</span>
-                          <ChevronDown className="w-3 h-3 text-muted-foreground" />
                         </SelectTrigger>
                         <SelectContent>
                           <SelectItem value="all">全部</SelectItem>
@@ -363,7 +359,7 @@ function CallLogsTab({ globalEnterpriseId, globalOrgId, globalCreator, enterpris
                   </td>
                   <td className="px-3 py-2.5 text-xs text-foreground">{row.input}</td>
                   <td className="px-3 py-2.5 text-xs text-foreground">{row.output}</td>
-                  <td className="px-3 py-2.5 text-xs text-foreground">{row.cost}</td>
+                  <td className="px-3 py-2.5 text-xs text-foreground">¥{Number(row.cost).toFixed(4)}</td>
                   <td className="px-3 py-2.5 text-xs text-muted-foreground max-w-[200px] truncate">{row.detail}</td>
                 </tr>
               ))}
@@ -426,9 +422,7 @@ function TaskLogsTab({ globalEnterpriseId, globalOrgId, enterprises, organizatio
               <SelectItem value="失败">失败</SelectItem>
             </SelectContent>
           </Select>
-          <Button size="sm" variant="outline" className="h-9 gap-1.5" onClick={handleReset}>
-            <X className="w-3.5 h-3.5" />重置
-          </Button>
+          <Button size="sm" variant="outline" className="h-9 gap-1.5" onClick={handleReset}>重置</Button>
         </div>
       </div>
 
@@ -572,9 +566,7 @@ function AuditLogsTab({ globalEnterpriseId, globalCreator, enterprises }: {
               <SelectItem value="设置变更">设置变更</SelectItem>
             </SelectContent>
           </Select>
-          <Button size="sm" variant="outline" className="h-9 gap-1.5" onClick={handleReset}>
-            <X className="w-3.5 h-3.5" />重置
-          </Button>
+          <Button size="sm" variant="outline" className="h-9" onClick={handleReset}>重置</Button>
         </div>
       </div>
 
