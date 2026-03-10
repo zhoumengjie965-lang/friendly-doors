@@ -272,10 +272,6 @@ function CallLogsTab({ role, globalOrg, globalMember }: {
               <span className="text-sm text-muted-foreground whitespace-nowrap">模型</span>
               <Input className="h-9 w-40 text-sm" placeholder="请输入模型名称" />
             </div>
-            <div className="flex items-center gap-2">
-              <span className="text-sm text-muted-foreground whitespace-nowrap">IP</span>
-              <Input className="h-9 w-40 text-sm" placeholder="请输入IP地址" />
-            </div>
           </div>
         )}
       </div>
