@@ -10,8 +10,11 @@ import {
 } from "@/components/ui/command";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import {
-  RefreshCw, Settings, ChevronDown, ChevronUp, BarChart2, Palette, ClipboardList,
-  HelpCircle, Calendar, Search, Check, X,
+  Dialog, DialogContent, DialogHeader, DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  RefreshCw, Settings, ChevronDown, ChevronUp, Activity, ClipboardList,
+  Shield, HelpCircle, Calendar, Check, X,
 } from "lucide-react";
 import {
   Pagination, PaginationContent, PaginationItem, PaginationLink,
@@ -70,26 +73,42 @@ function FilterCombobox({
   );
 }
 
-// ── Mock data (admin view: includes enterprise + channel columns) ──
+// ── Mock data ──
 const mockUsageLogs = [
   { time: "2026-03-03 11:15:44", enterprise: "极光科技", apiKey: "test", group: "default", org: "技术部", type: "错误", model: "mock-error", channel: "Azure", duration: "0s", streaming: "非流", input: 0, output: 0, cost: 0, ip: "10.244.109.64", detail: "Incorrect API key provided." },
-  { time: "2026-03-03 11:14:22", enterprise: "蓝海智能", apiKey: "prod", group: "default", org: "产品部", type: "成功", model: "gpt-4o", channel: "OpenAI", duration: "1.2s", streaming: "流式", input: 156, output: 312, cost: 0.003, ip: "10.244.109.65", detail: "Request completed successfully." },
+  { time: "2026-03-03 11:14:22", enterprise: "蓝海智能", apiKey: "prod", group: "default", org: "产品部", type: "消费", model: "gpt-4o", channel: "OpenAI", duration: "1.2s", streaming: "流式", input: 156, output: 312, cost: 0.003, ip: "10.244.109.65", detail: "Request completed successfully." },
   { time: "2026-03-03 11:13:01", enterprise: "极光科技", apiKey: "test", group: "dev", org: "技术部", type: "错误", model: "mock-error", channel: "Azure", duration: "0s", streaming: "非流", input: 0, output: 0, cost: 0, ip: "10.244.109.66", detail: "Rate limit exceeded." },
-  { time: "2026-03-03 11:12:55", enterprise: "云启数字", apiKey: "prod", group: "default", org: "产品部", type: "成功", model: "claude-3-5-sonnet", channel: "Anthropic", duration: "2.3s", streaming: "流式", input: 240, output: 480, cost: 0.008, ip: "10.244.109.67", detail: "Request completed successfully." },
-  { time: "2026-03-03 11:11:33", enterprise: "蓝海智能", apiKey: "dev-key", group: "dev", org: "研发部", type: "成功", model: "gpt-4o-mini", channel: "OpenAI", duration: "0.8s", streaming: "非流", input: 88, output: 120, cost: 0.001, ip: "10.244.109.68", detail: "Request completed successfully." },
+  { time: "2026-03-03 11:12:55", enterprise: "云启数字", apiKey: "prod", group: "default", org: "产品部", type: "消费", model: "claude-3-5-sonnet", channel: "Anthropic", duration: "2.3s", streaming: "流式", input: 240, output: 480, cost: 0.008, ip: "10.244.109.67", detail: "Request completed successfully." },
+  { time: "2026-03-03 11:11:33", enterprise: "蓝海智能", apiKey: "dev-key", group: "dev", org: "研发部", type: "消费", model: "gpt-4o-mini", channel: "OpenAI", duration: "0.8s", streaming: "非流", input: 88, output: 120, cost: 0.001, ip: "10.244.109.68", detail: "Request completed successfully." },
   { time: "2026-03-03 11:10:14", enterprise: "极光科技", apiKey: "test", group: "default", org: "技术部", type: "错误", model: "mock-error", channel: "Azure", duration: "0s", streaming: "非流", input: 0, output: 0, cost: 0, ip: "10.244.109.64", detail: "Incorrect API key provided." },
-  { time: "2026-03-03 11:09:02", enterprise: "云启数字", apiKey: "prod", group: "finance", org: "财务部", type: "成功", model: "gpt-4o", channel: "OpenAI", duration: "1.8s", streaming: "流式", input: 320, output: 640, cost: 0.012, ip: "10.244.109.69", detail: "Request completed successfully." },
-  { time: "2026-03-03 11:08:47", enterprise: "蓝海智能", apiKey: "dev-key", group: "dev", org: "研发部", type: "成功", model: "claude-3-haiku", channel: "Anthropic", duration: "0.5s", streaming: "非流", input: 64, output: 96, cost: 0.001, ip: "10.244.109.70", detail: "Request completed successfully." },
+  { time: "2026-03-03 11:09:02", enterprise: "云启数字", apiKey: "prod", group: "finance", org: "财务部", type: "消费", model: "gpt-4o", channel: "OpenAI", duration: "1.8s", streaming: "流式", input: 320, output: 640, cost: 0.012, ip: "10.244.109.69", detail: "Request completed successfully." },
+  { time: "2026-03-03 11:08:47", enterprise: "蓝海智能", apiKey: "dev-key", group: "dev", org: "研发部", type: "消费", model: "claude-3-haiku", channel: "Anthropic", duration: "0.5s", streaming: "非流", input: 64, output: 96, cost: 0.001, ip: "10.244.109.70", detail: "Request completed successfully." },
   { time: "2026-03-03 11:07:30", enterprise: "极光科技", apiKey: "test", group: "default", org: "技术部", type: "错误", model: "mock-error", channel: "Azure", duration: "0s", streaming: "非流", input: 0, output: 0, cost: 0, ip: "10.244.109.64", detail: "Incorrect API key provided." },
-  { time: "2026-03-03 11:06:15", enterprise: "云启数字", apiKey: "prod", group: "default", org: "产品部", type: "成功", model: "gpt-4o", channel: "OpenAI", duration: "1.5s", streaming: "流式", input: 200, output: 400, cost: 0.007, ip: "10.244.109.71", detail: "Request completed successfully." },
+  { time: "2026-03-03 11:06:15", enterprise: "云启数字", apiKey: "prod", group: "default", org: "产品部", type: "消费", model: "gpt-4o", channel: "OpenAI", duration: "1.5s", streaming: "流式", input: 200, output: 400, cost: 0.007, ip: "10.244.109.71", detail: "Request completed successfully." },
 ];
 
+// ── Merged task logs (drawing + async tasks) ──
 const mockTaskLogs = [
-  { submitTime: "2026-03-03 10:19:16", endTime: "2026-03-03 10:42:37", cost: "1401 秒", enterprise: "极光科技", platform: "Suno", type: "生成歌词", taskId: "13b57429c9714eb7ab078f5622490531", status: "失败", progress: "-", detail: "读取响应超时，请检查网络连接后重试" },
-  { submitTime: "2026-03-03 09:55:02", endTime: "2026-03-03 10:01:45", cost: "403 秒", enterprise: "蓝海智能", platform: "Suno", type: "生成音乐", taskId: "a4c82e13f0b347d9ac1562ef83720104", status: "成功", progress: "100%", detail: "生成完成" },
-  { submitTime: "2026-03-03 09:30:11", endTime: "2026-03-03 09:55:34", cost: "1523 秒", enterprise: "云启数字", platform: "Suno", type: "生成歌词", taskId: "7f3d9c21b0e54a8d913047cf25816b93", status: "失败", progress: "-", detail: "服务暂时不可用" },
-  { submitTime: "2026-03-03 09:10:44", endTime: "2026-03-03 09:16:22", cost: "338 秒", enterprise: "蓝海智能", platform: "Suno", type: "风格转换", taskId: "b8e51f62d3c04719a270583c946d17f5", status: "成功", progress: "100%", detail: "转换完成" },
-  { submitTime: "2026-03-03 08:48:30", endTime: "2026-03-03 09:10:05", cost: "1295 秒", enterprise: "极光科技", platform: "Suno", type: "生成歌词", taskId: "c6a703e89d1b42f0b58349a71c24fe62", status: "失败", progress: "-", detail: "读取响应超时，请检查网络连接后重试" },
+  { submitTime: "2026-03-03 10:19:16", endTime: "2026-03-03 10:42:37", cost: "1401 秒", enterprise: "极光科技", platform: "Suno", type: "生成歌词", taskId: "13b57429c9714eb7ab078f5622490531", execStatus: "失败", progress: "-", detail: "读取响应超时，请检查网络连接后重试" },
+  { submitTime: "2026-03-03 09:55:02", endTime: "2026-03-03 10:01:45", cost: "403 秒", enterprise: "蓝海智能", platform: "Suno", type: "生成音乐", taskId: "a4c82e13f0b347d9ac1562ef83720104", execStatus: "已完成", progress: "100%", detail: "生成完成" },
+  { submitTime: "2026-03-03 09:30:11", endTime: "2026-03-03 09:55:34", cost: "1523 秒", enterprise: "云启数字", platform: "Suno", type: "生成歌词", taskId: "7f3d9c21b0e54a8d913047cf25816b93", execStatus: "失败", progress: "-", detail: "服务暂时不可用" },
+  { submitTime: "2026-03-03 09:10:44", endTime: "2026-03-03 09:16:22", cost: "338 秒", enterprise: "蓝海智能", platform: "Suno", type: "风格转换", taskId: "b8e51f62d3c04719a270583c946d17f5", execStatus: "已完成", progress: "100%", detail: "转换完成" },
+  { submitTime: "2026-03-03 08:48:30", endTime: "2026-03-03 09:10:05", cost: "1295 秒", enterprise: "极光科技", platform: "Suno", type: "生成歌词", taskId: "c6a703e89d1b42f0b58349a71c24fe62", execStatus: "失败", progress: "-", detail: "读取响应超时，请检查网络连接后重试" },
+  { submitTime: "2026-03-03 08:20:05", endTime: "2026-03-03 08:22:14", cost: "129 秒", enterprise: "蓝海智能", platform: "Midjourney", type: "文生图", taskId: "d1e4f9a02b3c47e8b912765c034fd821", execStatus: "已完成", progress: "100%", detail: "图像生成完成，分辨率 1024×1024" },
+  { submitTime: "2026-03-03 08:05:33", endTime: "-", cost: "进行中", enterprise: "云启数字", platform: "Stable Diffusion", type: "图生图", taskId: "e2f5g8h01c4d57f9c023876d145ge932", execStatus: "进行中", progress: "47%", detail: "正在渲染第 3/6 步" },
+  { submitTime: "2026-03-03 07:55:12", endTime: "2026-03-03 08:01:48", cost: "396 秒", enterprise: "极光科技", platform: "Midjourney", type: "图像变体", taskId: "f3g6h9i12d5e68a0d134987e256hf043", execStatus: "已完成", progress: "100%", detail: "四宫格变体生成完成" },
+];
+
+// ── Audit logs (admin-level operations) ──
+const mockAuditLogs = [
+  { time: "2026-03-03 11:30:05", enterprise: "极光科技", operator: "超级管理员 · 130****0001", opType: "企业审核", content: "审核通过企业「极光科技」实名认证", result: "成功", ip: "192.168.1.10" },
+  { time: "2026-03-03 11:15:22", enterprise: "蓝海智能", operator: "运营专员 · 131****0002", opType: "账户充值", content: "为企业「蓝海智能」充值 ¥5,000.00", result: "成功", ip: "192.168.1.11" },
+  { time: "2026-03-03 10:58:44", enterprise: "-", operator: "超级管理员 · 130****0001", opType: "登录", content: "管理员登录后台", result: "成功", ip: "192.168.1.10" },
+  { time: "2026-03-03 10:40:17", enterprise: "云启数字", operator: "运营专员 · 132****0003", opType: "用户封禁", content: "封禁用户「139****9999」，原因：违规使用", result: "成功", ip: "192.168.1.12" },
+  { time: "2026-03-03 10:22:09", enterprise: "极光科技", operator: "运营专员 · 131****0002", opType: "令牌操作", content: "批量删除企业「极光科技」过期 API Key（共 3 条）", result: "成功", ip: "192.168.1.11" },
+  { time: "2026-03-03 10:05:33", enterprise: "-", operator: "超级管理员 · 130****0001", opType: "设置变更", content: "修改平台全局限速阈值为 1000 RPM", result: "成功", ip: "192.168.1.10" },
+  { time: "2026-03-03 09:47:01", enterprise: "蓝海智能", operator: "运营专员 · 132****0003", opType: "企业审核", content: "拒绝企业「蓝海智能」变更申请，原因：材料不全", result: "成功", ip: "192.168.1.12" },
+  { time: "2026-03-03 09:30:18", enterprise: "-", operator: "运营专员 · 131****0002", opType: "登录", content: "登录失败：密码错误（第 1 次）", result: "失败", ip: "192.168.1.11" },
 ];
 
 const apiKeyColors: Record<string, string> = {
@@ -99,6 +118,53 @@ const apiKeyColors: Record<string, string> = {
 };
 function getApiKeyColor(key: string) {
   return apiKeyColors[key] ?? "bg-gray-600 text-white";
+}
+
+function getChannelStyle(channel: string) {
+  if (channel === "OpenAI") return "bg-emerald-50 text-emerald-700 border border-emerald-200";
+  if (channel === "Anthropic") return "bg-amber-50 text-amber-700 border border-amber-200";
+  if (channel === "Azure") return "bg-sky-50 text-sky-700 border border-sky-200";
+  return "bg-muted text-muted-foreground border border-border";
+}
+
+// ── Execution status badge ──
+function ExecStatusBadge({ status }: { status: string }) {
+  if (status === "进行中") return (
+    <div className="flex items-center gap-1.5">
+      <span className="w-2 h-2 rounded-full bg-yellow-400 shrink-0 animate-pulse" />
+      <span className="text-yellow-600 text-xs">进行中</span>
+    </div>
+  );
+  if (status === "已完成") return (
+    <div className="flex items-center gap-1.5">
+      <span className="w-2 h-2 rounded-full bg-green-500 shrink-0" />
+      <span className="text-green-600 text-xs">已完成</span>
+    </div>
+  );
+  return (
+    <div className="flex items-center gap-1.5">
+      <span className="w-2 h-2 rounded-full bg-red-500 shrink-0" />
+      <span className="text-red-500 text-xs">失败</span>
+    </div>
+  );
+}
+
+// ── Audit type badge ──
+function AuditTypeBadge({ type }: { type: string }) {
+  const styles: Record<string, string> = {
+    "登录": "bg-blue-50 text-blue-700 border border-blue-200",
+    "令牌操作": "bg-purple-50 text-purple-700 border border-purple-200",
+    "设置变更": "bg-gray-100 text-gray-600 border border-border",
+    "密码重置": "bg-amber-50 text-amber-700 border border-amber-200",
+    "企业审核": "bg-teal-50 text-teal-700 border border-teal-200",
+    "账户充值": "bg-green-50 text-green-700 border border-green-200",
+    "用户封禁": "bg-red-50 text-red-700 border border-red-200",
+  };
+  return (
+    <span className={cn("text-xs px-1.5 py-0.5 rounded whitespace-nowrap", styles[type] ?? "bg-muted text-muted-foreground border border-border")}>
+      {type}
+    </span>
+  );
 }
 
 function PaginationFooter({
@@ -111,11 +177,9 @@ function PaginationFooter({
   const start = (page - 1) * pageSize + 1;
   const end = Math.min(page * pageSize, total);
   const [jumpVal, setJumpVal] = useState("");
-
   const pages = Array.from({ length: totalPages }, (_, i) => i + 1).filter(
     p => p === 1 || p === totalPages || Math.abs(p - page) <= 2
   );
-
   return (
     <div className="flex items-center justify-between px-4 py-3 border-t border-border text-sm text-muted-foreground flex-wrap gap-2">
       <span>共 {total} 条记录&nbsp;&nbsp;第 {start}-{end} 条</span>
@@ -154,26 +218,16 @@ function PaginationFooter({
   );
 }
 
-// ── Channel badge color mapping ──
-function getChannelStyle(channel: string) {
-  if (channel === "OpenAI") return "bg-emerald-50 text-emerald-700 border border-emerald-200";
-  if (channel === "Anthropic") return "bg-amber-50 text-amber-700 border border-amber-200";
-  if (channel === "Azure") return "bg-sky-50 text-sky-700 border border-sky-200";
-  return "bg-muted text-muted-foreground border border-border";
-}
-
-// ── Tab 1: 使用日志（管理端视角：固定显示企业列）──
-function UsageLogsTab() {
+// ── Tab 1: 调用日志 ──
+function CallLogsTab() {
   const navigate = useNavigate();
   const [expanded, setExpanded] = useState(false);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
 
-  // Supabase data for cascading filters
   const [enterprises, setEnterprises] = useState<Enterprise[]>([]);
   const [organizations, setOrganizations] = useState<Organization[]>([]);
 
-  // Filters
   const [filterEnterpriseId, setFilterEnterpriseId] = useState("");
   const [filterOrgId, setFilterOrgId] = useState("");
   const [filterCreator, setFilterCreator] = useState("");
@@ -189,7 +243,6 @@ function UsageLogsTab() {
       .then(({ data }) => { if (data) setOrganizations(data as Organization[]); });
   }, []);
 
-  // Cascade: filter orgs by selected enterprise
   const availableOrgs = filterEnterpriseId
     ? organizations.filter(o => o.enterprise_id === filterEnterpriseId)
     : organizations;
@@ -198,17 +251,11 @@ function UsageLogsTab() {
   const allModels = Array.from(new Set(mockUsageLogs.map(r => r.model)));
 
   const handleReset = () => {
-    setFilterEnterpriseId("");
-    setFilterOrgId("");
-    setFilterCreator("");
-    setFilterModel("all");
-    setFilterType("all");
-    setFilterGroup("all");
-    setFilterApiKey("");
+    setFilterEnterpriseId(""); setFilterOrgId(""); setFilterCreator("");
+    setFilterModel("all"); setFilterType("all"); setFilterGroup("all"); setFilterApiKey("");
     setPage(1);
   };
 
-  // Find enterprise name from supabase list for mock-data matching by name
   const selectedEnterpriseName = enterprises.find(e => e.id === filterEnterpriseId)?.name ?? "";
   const selectedOrgName = organizations.find(o => o.id === filterOrgId)?.name ?? "";
 
@@ -228,85 +275,45 @@ function UsageLogsTab() {
 
   return (
     <div className="space-y-4">
-      {/* Filter bar */}
       <div className="border-l-4 border-l-primary/60 bg-card border border-border rounded-xl p-4 space-y-3">
-        {/* Row 1 — Dimension filters */}
         <div className="flex flex-wrap items-center gap-2">
-          {/* 时间 */}
           <div className="flex items-center gap-1 border border-border rounded-md px-3 h-9 text-sm text-foreground bg-background">
             <span>2026-03-03 00:00:00</span>
             <span className="mx-1 text-muted-foreground">→</span>
             <span>2026-03-03 23:59:59</span>
             <Calendar className="w-4 h-4 ml-2 text-muted-foreground" />
           </div>
-          {/* 所属企业 */}
-          <FilterCombobox
-            items={enterprises}
-            value={filterEnterpriseId}
-            onChange={v => { setFilterEnterpriseId(v); setFilterOrgId(""); setPage(1); }}
-            placeholder="所属企业（下拉搜索）"
-            emptyText="未找到企业"
-          />
-          {/* 所属组织 — cascades */}
-          <FilterCombobox
-            items={availableOrgs}
-            value={filterOrgId}
-            onChange={v => { setFilterOrgId(v); setPage(1); }}
-            placeholder="所属组织（下拉搜索）"
-            emptyText={filterEnterpriseId ? "该企业暂无组织" : "未找到组织"}
-          />
-          {/* 创建人手机 */}
-          <Input
-            className="h-9 w-44 text-sm"
-            placeholder="创建人手机 / 用户名"
-            value={filterCreator}
-            onChange={e => { setFilterCreator(e.target.value); setPage(1); }}
-          />
-          {/* 模型 */}
+          <FilterCombobox items={enterprises} value={filterEnterpriseId} onChange={v => { setFilterEnterpriseId(v); setFilterOrgId(""); setPage(1); }} placeholder="所属企业（下拉搜索）" emptyText="未找到企业" />
+          <FilterCombobox items={availableOrgs} value={filterOrgId} onChange={v => { setFilterOrgId(v); setPage(1); }} placeholder="所属组织（下拉搜索）" emptyText={filterEnterpriseId ? "该企业暂无组织" : "未找到组织"} />
+          <Input className="h-9 w-44 text-sm" placeholder="创建人手机 / 用户名" value={filterCreator} onChange={e => { setFilterCreator(e.target.value); setPage(1); }} />
           <Select value={filterModel} onValueChange={v => { setFilterModel(v); setPage(1); }}>
-            <SelectTrigger className="h-9 w-44 text-sm">
-              <SelectValue placeholder="模型名称" />
-            </SelectTrigger>
+            <SelectTrigger className="h-9 w-44 text-sm"><SelectValue placeholder="模型名称" /></SelectTrigger>
             <SelectContent>
               <SelectItem value="all">全部模型</SelectItem>
               {allModels.map(m => <SelectItem key={m} value={m}>{m}</SelectItem>)}
             </SelectContent>
           </Select>
-          {/* 类型 */}
           <Select value={filterType} onValueChange={v => { setFilterType(v); setPage(1); }}>
-            <SelectTrigger className="h-9 w-32 text-sm">
-              <SelectValue placeholder="类型" />
-            </SelectTrigger>
+            <SelectTrigger className="h-9 w-40 text-sm"><SelectValue placeholder="类型" /></SelectTrigger>
             <SelectContent>
               <SelectItem value="all">全部类型</SelectItem>
-              <SelectItem value="成功">成功</SelectItem>
-              <SelectItem value="错误">错误</SelectItem>
+              <SelectItem value="消费">消费（成功）</SelectItem>
+              <SelectItem value="错误">错误（失败）</SelectItem>
             </SelectContent>
           </Select>
-          {/* 重置 */}
           <Button size="sm" variant="outline" className="h-9 gap-1.5" onClick={handleReset}>
-            <X className="w-3.5 h-3.5" />
-            重置
+            <X className="w-3.5 h-3.5" />重置
           </Button>
-          {/* 展开 */}
           <Button size="sm" variant="ghost" className="h-9 gap-1 text-muted-foreground" onClick={() => setExpanded(v => !v)}>
             展开 {expanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
           </Button>
         </div>
 
-        {/* Expanded row */}
         {expanded && (
           <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-border">
-            <Input
-              className="h-9 w-44 text-sm"
-              placeholder="APIKey 名称"
-              value={filterApiKey}
-              onChange={e => { setFilterApiKey(e.target.value); setPage(1); }}
-            />
+            <Input className="h-9 w-44 text-sm" placeholder="APIKey 名称" value={filterApiKey} onChange={e => { setFilterApiKey(e.target.value); setPage(1); }} />
             <Select value={filterGroup} onValueChange={v => { setFilterGroup(v); setPage(1); }}>
-              <SelectTrigger className="h-9 w-36 text-sm">
-                <SelectValue placeholder="分组" />
-              </SelectTrigger>
+              <SelectTrigger className="h-9 w-36 text-sm"><SelectValue placeholder="分组" /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">全部分组</SelectItem>
                 {allGroups.map(g => <SelectItem key={g} value={g}>{g}</SelectItem>)}
@@ -349,21 +356,6 @@ function UsageLogsTab() {
                       </Select>
                     </th>
                   );
-                  if (h === "类型") return (
-                    <th key={h} className="px-3 py-2.5 text-left text-xs font-medium text-muted-foreground whitespace-nowrap">
-                      <Select value={filterType} onValueChange={v => { setFilterType(v); setPage(1); }}>
-                        <SelectTrigger className="h-auto w-auto border-0 bg-transparent p-0 shadow-none focus:ring-0 gap-0.5 [&>svg]:hidden">
-                          <span className={cn("text-xs font-medium", filterType !== "all" ? "text-primary" : "text-muted-foreground")}>类型</span>
-                          <ChevronDown className="w-3 h-3 text-muted-foreground" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="all">全部</SelectItem>
-                          <SelectItem value="成功">成功</SelectItem>
-                          <SelectItem value="错误">错误</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </th>
-                  );
                   return <th key={h} className="px-3 py-2.5 text-left text-xs font-medium text-muted-foreground whitespace-nowrap">{h}</th>;
                 })}
               </tr>
@@ -374,28 +366,16 @@ function UsageLogsTab() {
                   <td className="px-3 py-2.5 text-xs text-muted-foreground whitespace-nowrap font-mono">{row.time}</td>
                   <td className="px-3 py-2.5 text-xs text-foreground whitespace-nowrap font-medium">{row.enterprise}</td>
                   <td className="px-3 py-2.5">
-                    <button
-                      className={`text-xs px-2 py-0.5 rounded cursor-pointer hover:opacity-80 transition-opacity ${getApiKeyColor(row.apiKey)}`}
-                      onClick={() => navigate(`/admin/tokens?key=${row.apiKey}`)}
-                      title="跳转至令牌管理"
-                    >
-                      {row.apiKey}
-                    </button>
+                    <button className={`text-xs px-2 py-0.5 rounded cursor-pointer hover:opacity-80 transition-opacity ${getApiKeyColor(row.apiKey)}`} onClick={() => navigate(`/admin/tokens?key=${row.apiKey}`)} title="跳转至令牌管理">{row.apiKey}</button>
                   </td>
                   <td className="px-3 py-2.5">
-                    <button
-                      className="text-xs text-primary hover:underline whitespace-nowrap cursor-pointer"
-                      onClick={() => navigate(`/admin/enterprises?org=${encodeURIComponent(row.org)}`)}
-                      title="跳转至企业管理"
-                    >
-                      {row.org}
-                    </button>
+                    <button className="text-xs text-primary hover:underline whitespace-nowrap cursor-pointer" onClick={() => navigate(`/admin/enterprises?org=${encodeURIComponent(row.org)}`)} title="跳转至企业管理">{row.org}</button>
                   </td>
                   <td className="px-3 py-2.5 text-xs text-foreground">{row.group}</td>
                   <td className="px-3 py-2.5">
                     {row.type === "错误"
-                      ? <span className="bg-red-100 text-red-600 border border-red-200 text-xs px-1.5 py-0.5 rounded">错误</span>
-                      : <span className="bg-green-100 text-green-600 border border-green-200 text-xs px-1.5 py-0.5 rounded">成功</span>
+                      ? <span className="bg-red-100 text-red-600 border border-red-200 text-xs px-1.5 py-0.5 rounded">错误（失败）</span>
+                      : <span className="bg-green-100 text-green-600 border border-green-200 text-xs px-1.5 py-0.5 rounded">消费（成功）</span>
                     }
                   </td>
                   <td className="px-3 py-2.5">
@@ -428,100 +408,79 @@ function UsageLogsTab() {
   );
 }
 
-// ── Tab 2: 绘图日志 ──
-function DrawingLogsTab() {
-  return (
-    <div className="space-y-4">
-      <div className="bg-card border border-border rounded-xl p-4">
-        <div className="flex flex-wrap items-center gap-3">
-          <div className="flex items-center gap-2">
-            <span className="text-sm text-muted-foreground whitespace-nowrap">提交时间</span>
-            <div className="flex items-center gap-1 border border-border rounded-md px-3 h-9 text-sm text-foreground bg-background min-w-[280px]">
-              <span>2026-03-03 00:00:00</span>
-              <span className="mx-1 text-muted-foreground">→</span>
-              <span>2026-03-03 23:59:59</span>
-              <Calendar className="w-4 h-4 ml-2 text-muted-foreground" />
-            </div>
-          </div>
-          <div className="flex items-center gap-2">
-            <span className="text-sm text-muted-foreground whitespace-nowrap">企业</span>
-            <Input className="h-9 w-36 text-sm" placeholder="请输入企业名称" />
-          </div>
-          <div className="flex items-center gap-2">
-            <span className="text-sm text-muted-foreground whitespace-nowrap">任务ID</span>
-            <Input className="h-9 w-52 text-sm" placeholder="请输入任务ID" />
-          </div>
-          <Button size="sm" className="h-9">搜索</Button>
-          <Button size="sm" variant="outline" className="h-9">重置</Button>
-        </div>
-      </div>
-      <div className="bg-card border border-border rounded-xl overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-border bg-muted/40">
-                {["提交时间", "企业", "花费时间", "类型", "任务ID", "提交结果", "任务状态", "进度", "结果图片", "Prompt", "PromptEn", "失败原因"].map(h => (
-                  <th key={h} className="px-3 py-2.5 text-left text-xs font-medium text-muted-foreground whitespace-nowrap">{h}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              <tr>
-                <td colSpan={12} className="py-20 text-center">
-                  <div className="flex flex-col items-center gap-3 text-muted-foreground">
-                    <div className="w-12 h-12 rounded-full bg-muted flex items-center justify-center">
-                      <HelpCircle className="w-7 h-7 text-muted-foreground/50" />
-                    </div>
-                    <span className="text-sm">暂无数据</span>
-                  </div>
-                </td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-        <PaginationFooter total={0} page={1} pageSize={10} onPageChange={() => {}} onPageSizeChange={() => {}} />
-      </div>
-    </div>
-  );
-}
-
-// ── Tab 3: 任务日志 ──
+// ── Tab 2: 任务日志（合并绘图+任务，管理端） ──
 function TaskLogsTab() {
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
-  const paginated = mockTaskLogs.slice((page - 1) * pageSize, page * pageSize);
+  const [enterprises, setEnterprises] = useState<Enterprise[]>([]);
+  const [organizations, setOrganizations] = useState<Organization[]>([]);
+  const [filterEnterpriseId, setFilterEnterpriseId] = useState("");
+  const [filterOrgId, setFilterOrgId] = useState("");
+  const [filterTaskId, setFilterTaskId] = useState("");
+  const [filterExecStatus, setFilterExecStatus] = useState("all");
+  const [selectedTask, setSelectedTask] = useState<typeof mockTaskLogs[0] | null>(null);
+
+  useEffect(() => {
+    supabase.from("enterprises").select("id, name").order("name")
+      .then(({ data }) => { if (data) setEnterprises(data as Enterprise[]); });
+    supabase.from("organizations").select("id, name, enterprise_id").order("name")
+      .then(({ data }) => { if (data) setOrganizations(data as Organization[]); });
+  }, []);
+
+  const availableOrgs = filterEnterpriseId
+    ? organizations.filter(o => o.enterprise_id === filterEnterpriseId)
+    : organizations;
+
+  const selectedEnterpriseName = enterprises.find(e => e.id === filterEnterpriseId)?.name ?? "";
+
+  const filtered = mockTaskLogs.filter(r => {
+    if (filterEnterpriseId && selectedEnterpriseName && r.enterprise !== selectedEnterpriseName) return false;
+    if (filterTaskId.trim() && !r.taskId.toLowerCase().includes(filterTaskId.toLowerCase())) return false;
+    if (filterExecStatus !== "all" && r.execStatus !== filterExecStatus) return false;
+    return true;
+  });
+
+  const paginated = filtered.slice((page - 1) * pageSize, page * pageSize);
+
+  const handleReset = () => {
+    setFilterEnterpriseId(""); setFilterOrgId("");
+    setFilterTaskId(""); setFilterExecStatus("all"); setPage(1);
+  };
 
   return (
     <div className="space-y-4">
-      <div className="bg-card border border-border rounded-xl p-4">
-        <div className="flex flex-wrap items-center gap-3">
-          <div className="flex items-center gap-2">
-            <span className="text-sm text-muted-foreground whitespace-nowrap">提交时间</span>
-            <div className="flex items-center gap-1 border border-border rounded-md px-3 h-9 text-sm text-foreground bg-background min-w-[280px]">
-              <span>2026-03-03 00:00:00</span>
-              <span className="mx-1 text-muted-foreground">→</span>
-              <span>2026-03-03 23:59:59</span>
-              <Calendar className="w-4 h-4 ml-2 text-muted-foreground" />
-            </div>
+      <div className="border-l-4 border-l-primary/60 bg-card border border-border rounded-xl p-4">
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="flex items-center gap-1 border border-border rounded-md px-3 h-9 text-sm text-foreground bg-background">
+            <span>2026-03-03 00:00:00</span>
+            <span className="mx-1 text-muted-foreground">→</span>
+            <span>2026-03-03 23:59:59</span>
+            <Calendar className="w-4 h-4 ml-2 text-muted-foreground" />
           </div>
-          <div className="flex items-center gap-2">
-            <span className="text-sm text-muted-foreground whitespace-nowrap">企业</span>
-            <Input className="h-9 w-36 text-sm" placeholder="请输入企业名称" />
-          </div>
-          <div className="flex items-center gap-2">
-            <span className="text-sm text-muted-foreground whitespace-nowrap">任务ID</span>
-            <Input className="h-9 w-52 text-sm" placeholder="请输入任务ID" />
-          </div>
-          <Button size="sm" className="h-9">搜索</Button>
-          <Button size="sm" variant="outline" className="h-9">重置</Button>
+          <FilterCombobox items={enterprises} value={filterEnterpriseId} onChange={v => { setFilterEnterpriseId(v); setFilterOrgId(""); setPage(1); }} placeholder="所属企业（下拉搜索）" emptyText="未找到企业" />
+          <FilterCombobox items={availableOrgs} value={filterOrgId} onChange={v => { setFilterOrgId(v); setPage(1); }} placeholder="所属组织（下拉搜索）" emptyText={filterEnterpriseId ? "该企业暂无组织" : "未找到组织"} />
+          <Input className="h-9 w-48 text-sm" placeholder="任务ID" value={filterTaskId} onChange={e => { setFilterTaskId(e.target.value); setPage(1); }} />
+          <Select value={filterExecStatus} onValueChange={v => { setFilterExecStatus(v); setPage(1); }}>
+            <SelectTrigger className="h-9 w-36 text-sm"><SelectValue placeholder="执行状态" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">全部状态</SelectItem>
+              <SelectItem value="进行中">进行中</SelectItem>
+              <SelectItem value="已完成">已完成</SelectItem>
+              <SelectItem value="失败">失败</SelectItem>
+            </SelectContent>
+          </Select>
+          <Button size="sm" variant="outline" className="h-9 gap-1.5" onClick={handleReset}>
+            <X className="w-3.5 h-3.5" />重置
+          </Button>
         </div>
       </div>
+
       <div className="bg-card border border-border rounded-xl overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-border bg-muted/40">
-                {["提交时间", "结束时间", "花费时间", "企业", "平台", "类型", "任务ID", "任务状态", "进度", "详情"].map(h => (
+                {["提交时间", "结束时间", "花费时间", "所属企业", "平台", "类型", "任务ID", "执行状态", "进度", "详情"].map(h => (
                   <th key={h} className="px-3 py-2.5 text-left text-xs font-medium text-muted-foreground whitespace-nowrap">{h}</th>
                 ))}
               </tr>
@@ -541,12 +500,17 @@ function TaskLogsTab() {
                   <td className="px-3 py-2.5">
                     <span className="bg-pink-100 text-pink-700 border border-pink-200 text-xs px-1.5 py-0.5 rounded">{row.type}</span>
                   </td>
-                  <td className="px-3 py-2.5 text-xs text-muted-foreground font-mono max-w-[140px] truncate">{row.taskId}</td>
                   <td className="px-3 py-2.5">
-                    {row.status === "失败"
-                      ? <div className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-red-500 shrink-0" /><span className="text-red-500 text-xs">失败</span></div>
-                      : <div className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-green-500 shrink-0" /><span className="text-green-500 text-xs">成功</span></div>
-                    }
+                    <button
+                      className="text-xs text-primary hover:text-primary/80 font-mono underline underline-offset-2 cursor-pointer max-w-[130px] truncate block"
+                      onClick={() => setSelectedTask(row)}
+                      title="查看任务详情"
+                    >
+                      {row.taskId.slice(0, 16)}…
+                    </button>
+                  </td>
+                  <td className="px-3 py-2.5">
+                    <ExecStatusBadge status={row.execStatus} />
                   </td>
                   <td className="px-3 py-2.5 text-xs text-muted-foreground">{row.progress}</td>
                   <td className="px-3 py-2.5 text-xs text-muted-foreground max-w-[180px] truncate">{row.detail}</td>
@@ -555,7 +519,157 @@ function TaskLogsTab() {
             </tbody>
           </table>
         </div>
-        <PaginationFooter total={mockTaskLogs.length} page={page} pageSize={pageSize} onPageChange={setPage} onPageSizeChange={setPageSize} />
+        <PaginationFooter total={filtered.length} page={page} pageSize={pageSize} onPageChange={setPage} onPageSizeChange={setPageSize} />
+      </div>
+
+      {/* Task detail dialog */}
+      <Dialog open={!!selectedTask} onOpenChange={open => { if (!open) setSelectedTask(null); }}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="text-base">任务详情</DialogTitle>
+          </DialogHeader>
+          {selectedTask && (
+            <div className="space-y-3 text-sm">
+              <div className="grid grid-cols-3 gap-y-2.5 gap-x-4">
+                <span className="text-muted-foreground">任务 ID</span>
+                <span className="col-span-2 font-mono text-xs break-all text-foreground">{selectedTask.taskId}</span>
+                <span className="text-muted-foreground">所属企业</span>
+                <span className="col-span-2 font-medium text-foreground">{selectedTask.enterprise}</span>
+                <span className="text-muted-foreground">平台</span>
+                <span className="col-span-2">
+                  <span className="bg-green-100 text-green-700 border border-green-200 text-xs px-1.5 py-0.5 rounded">{selectedTask.platform}</span>
+                </span>
+                <span className="text-muted-foreground">类型</span>
+                <span className="col-span-2">
+                  <span className="bg-pink-100 text-pink-700 border border-pink-200 text-xs px-1.5 py-0.5 rounded">{selectedTask.type}</span>
+                </span>
+                <span className="text-muted-foreground">执行状态</span>
+                <span className="col-span-2"><ExecStatusBadge status={selectedTask.execStatus} /></span>
+                <span className="text-muted-foreground">进度</span>
+                <span className="col-span-2 text-foreground">{selectedTask.progress}</span>
+                <span className="text-muted-foreground">提交时间</span>
+                <span className="col-span-2 font-mono text-xs text-foreground">{selectedTask.submitTime}</span>
+                <span className="text-muted-foreground">结束时间</span>
+                <span className="col-span-2 font-mono text-xs text-foreground">{selectedTask.endTime}</span>
+                <span className="text-muted-foreground">耗时</span>
+                <span className="col-span-2 text-foreground">{selectedTask.cost}</span>
+              </div>
+              <div className="border-t border-border pt-3">
+                <p className="text-muted-foreground mb-1">执行结果</p>
+                <p className="text-foreground text-sm bg-muted/40 rounded-md px-3 py-2">{selectedTask.detail}</p>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
+// ── Tab 3: 审计日志（管理端） ──
+function AuditLogsTab() {
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
+  const [enterprises, setEnterprises] = useState<Enterprise[]>([]);
+  const [organizations, setOrganizations] = useState<Organization[]>([]);
+  const [filterEnterpriseId, setFilterEnterpriseId] = useState("");
+  const [filterOrgId, setFilterOrgId] = useState("");
+  const [filterOperator, setFilterOperator] = useState("");
+  const [filterOpType, setFilterOpType] = useState("all");
+
+  useEffect(() => {
+    supabase.from("enterprises").select("id, name").order("name")
+      .then(({ data }) => { if (data) setEnterprises(data as Enterprise[]); });
+    supabase.from("organizations").select("id, name, enterprise_id").order("name")
+      .then(({ data }) => { if (data) setOrganizations(data as Organization[]); });
+  }, []);
+
+  const availableOrgs = filterEnterpriseId
+    ? organizations.filter(o => o.enterprise_id === filterEnterpriseId)
+    : organizations;
+
+  const selectedEnterpriseName = enterprises.find(e => e.id === filterEnterpriseId)?.name ?? "";
+
+  const filtered = mockAuditLogs.filter(r => {
+    if (filterEnterpriseId && selectedEnterpriseName && r.enterprise !== selectedEnterpriseName && r.enterprise !== "-") return false;
+    if (filterOperator.trim() && !r.operator.toLowerCase().includes(filterOperator.toLowerCase())) return false;
+    if (filterOpType !== "all" && r.opType !== filterOpType) return false;
+    return true;
+  });
+
+  const paginated = filtered.slice((page - 1) * pageSize, page * pageSize);
+
+  const handleReset = () => {
+    setFilterEnterpriseId(""); setFilterOrgId("");
+    setFilterOperator(""); setFilterOpType("all"); setPage(1);
+  };
+
+  return (
+    <div className="space-y-4">
+      <div className="border-l-4 border-l-primary/60 bg-card border border-border rounded-xl p-4">
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="flex items-center gap-1 border border-border rounded-md px-3 h-9 text-sm text-foreground bg-background">
+            <span>2026-03-03 00:00:00</span>
+            <span className="mx-1 text-muted-foreground">→</span>
+            <span>2026-03-03 23:59:59</span>
+            <Calendar className="w-4 h-4 ml-2 text-muted-foreground" />
+          </div>
+          <FilterCombobox items={enterprises} value={filterEnterpriseId} onChange={v => { setFilterEnterpriseId(v); setFilterOrgId(""); setPage(1); }} placeholder="所属企业（下拉搜索）" emptyText="未找到企业" />
+          <FilterCombobox items={availableOrgs} value={filterOrgId} onChange={v => { setFilterOrgId(v); setPage(1); }} placeholder="所属组织（下拉搜索）" emptyText={filterEnterpriseId ? "该企业暂无组织" : "未找到组织"} />
+          <Input className="h-9 w-44 text-sm" placeholder="操作人 / 手机号" value={filterOperator} onChange={e => { setFilterOperator(e.target.value); setPage(1); }} />
+          <Select value={filterOpType} onValueChange={v => { setFilterOpType(v); setPage(1); }}>
+            <SelectTrigger className="h-9 w-40 text-sm"><SelectValue placeholder="操作类型" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">全部类型</SelectItem>
+              <SelectItem value="登录">登录</SelectItem>
+              <SelectItem value="企业审核">企业审核</SelectItem>
+              <SelectItem value="账户充值">账户充值</SelectItem>
+              <SelectItem value="用户封禁">用户封禁</SelectItem>
+              <SelectItem value="令牌操作">令牌操作</SelectItem>
+              <SelectItem value="设置变更">设置变更</SelectItem>
+            </SelectContent>
+          </Select>
+          <Button size="sm" variant="outline" className="h-9 gap-1.5" onClick={handleReset}>
+            <X className="w-3.5 h-3.5" />重置
+          </Button>
+        </div>
+      </div>
+
+      <div className="bg-card border border-border rounded-xl overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-border bg-muted/40">
+                {["时间", "所属企业", "操作人", "操作类型", "操作内容", "操作结果", "IP 地址"].map(h => (
+                  <th key={h} className="px-3 py-2.5 text-left text-xs font-medium text-muted-foreground whitespace-nowrap">{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {paginated.map((row, i) => (
+                <tr key={i} className="border-b border-border last:border-0 hover:bg-muted/30 transition-colors">
+                  <td className="px-3 py-2.5 text-xs text-muted-foreground whitespace-nowrap font-mono">{row.time}</td>
+                  <td className="px-3 py-2.5 text-xs text-foreground whitespace-nowrap font-medium">{row.enterprise}</td>
+                  <td className="px-3 py-2.5 text-xs text-foreground whitespace-nowrap">{row.operator}</td>
+                  <td className="px-3 py-2.5">
+                    <AuditTypeBadge type={row.opType} />
+                  </td>
+                  <td className="px-3 py-2.5 text-xs text-foreground max-w-[240px] truncate">{row.content}</td>
+                  <td className="px-3 py-2.5">
+                    {row.result === "成功"
+                      ? <span className="bg-green-100 text-green-600 border border-green-200 text-xs px-1.5 py-0.5 rounded">成功</span>
+                      : <span className="bg-red-100 text-red-600 border border-red-200 text-xs px-1.5 py-0.5 rounded">失败</span>
+                    }
+                  </td>
+                  <td className="px-3 py-2.5">
+                    <span className="bg-orange-100 text-orange-700 text-xs px-1.5 py-0.5 rounded">{row.ip}</span>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        <PaginationFooter total={filtered.length} page={page} pageSize={pageSize} onPageChange={setPage} onPageSizeChange={setPageSize} />
       </div>
     </div>
   );
@@ -565,25 +679,25 @@ export default function AdminCallLogs() {
   return (
     <div className="p-6 space-y-4">
       <div>
-        <h1 className="text-2xl font-bold text-foreground">使用日志</h1>
-        <p className="text-muted-foreground mt-1 text-sm">查看全平台 API 调用详情与任务执行记录</p>
+        <h1 className="text-2xl font-bold text-foreground">调用日志</h1>
+        <p className="text-muted-foreground mt-1 text-sm">查看全平台 API 调用详情、任务执行记录与审计轨迹</p>
       </div>
 
-      <Tabs defaultValue="usage">
+      <Tabs defaultValue="call">
         <TabsList className="gap-1 h-auto p-1">
-          <TabsTrigger value="usage" className="gap-1.5 text-sm px-4 py-2">
-            <BarChart2 className="w-4 h-4" />使用日志
-          </TabsTrigger>
-          <TabsTrigger value="drawing" className="gap-1.5 text-sm px-4 py-2">
-            <Palette className="w-4 h-4" />绘图日志
+          <TabsTrigger value="call" className="gap-1.5 text-sm px-4 py-2">
+            <Activity className="w-4 h-4" />调用日志
           </TabsTrigger>
           <TabsTrigger value="task" className="gap-1.5 text-sm px-4 py-2">
             <ClipboardList className="w-4 h-4" />任务日志
           </TabsTrigger>
+          <TabsTrigger value="audit" className="gap-1.5 text-sm px-4 py-2">
+            <Shield className="w-4 h-4" />审计日志
+          </TabsTrigger>
         </TabsList>
-        <TabsContent value="usage" className="mt-4"><UsageLogsTab /></TabsContent>
-        <TabsContent value="drawing" className="mt-4"><DrawingLogsTab /></TabsContent>
+        <TabsContent value="call" className="mt-4"><CallLogsTab /></TabsContent>
         <TabsContent value="task" className="mt-4"><TaskLogsTab /></TabsContent>
+        <TabsContent value="audit" className="mt-4"><AuditLogsTab /></TabsContent>
       </Tabs>
     </div>
   );
