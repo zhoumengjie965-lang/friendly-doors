@@ -324,6 +324,9 @@ function CallLogsTab({ role, globalOrg, globalMember }: {
                   {isEnterpriseAdmin && (
                     <td className="px-3 py-2.5 text-xs text-foreground whitespace-nowrap">{row.org}</td>
                   )}
+                  {isEnterpriseAdmin && (
+                    <td className="px-3 py-2.5 text-xs text-foreground whitespace-nowrap">{row.member}</td>
+                  )}
                   {isOrgAdmin && (
                     <td className="px-3 py-2.5 text-xs text-foreground whitespace-nowrap">{row.member}</td>
                   )}
