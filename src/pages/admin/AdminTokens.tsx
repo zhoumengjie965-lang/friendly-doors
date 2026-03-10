@@ -545,7 +545,9 @@ export default function AdminTokens() {
     setSearchName("");
     setSearchKey("");
     setFilterEnterpriseId("");
+    setFilterOrgId("");
     setFilterCreator("");
+    setFilterStatus("all");
     setExcludeInternal(false);
     setPage(1);
   };
