@@ -275,7 +275,7 @@ export default function AdminResourceStats() {
                     {/* 空间标识 */}
                     <TableCell>
                       {isInternal(row.name) ? (
-                        <Badge variant="outline" className="text-amber-600 border-amber-400/60 bg-amber-50/40 dark:bg-amber-900/20 text-xs">
+                        <Badge variant="outline" className="text-[hsl(38,92%,40%)] border-[hsl(38,92%,70%)]/60 bg-[hsl(38,92%,95%)]/40 dark:bg-[hsl(38,50%,20%)]/20 text-xs">
                           <Building2 className="h-3 w-3 mr-1" />
                           内部自用
                         </Badge>
