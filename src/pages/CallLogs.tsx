@@ -42,14 +42,14 @@ const mockUsageLogs = [
 
 // ── Merged task logs (drawing + async tasks) ──
 const mockTaskLogs = [
-  { submitTime: "2026-03-03 10:19:16", endTime: "2026-03-03 10:42:37", cost: "1401 秒", platform: "Suno", type: "生成歌词", org: "技术部", member: "张三", taskId: "13b57429c9714eb7ab078f5622490531", execStatus: "失败", progress: "-", detail: "读取响应超时，请检查网络连接后重试" },
-  { submitTime: "2026-03-03 09:55:02", endTime: "2026-03-03 10:01:45", cost: "403 秒", platform: "Suno", type: "生成音乐", org: "产品部", member: "李四", taskId: "a4c82e13f0b347d9ac1562ef83720104", execStatus: "已完成", progress: "100%", detail: "生成完成" },
-  { submitTime: "2026-03-03 09:30:11", endTime: "2026-03-03 09:55:34", cost: "1523 秒", platform: "Suno", type: "生成歌词", org: "研发部", member: "王五", taskId: "7f3d9c21b0e54a8d913047cf25816b93", execStatus: "失败", progress: "-", detail: "服务暂时不可用" },
-  { submitTime: "2026-03-03 09:10:44", endTime: "2026-03-03 09:16:22", cost: "338 秒", platform: "Suno", type: "风格转换", org: "技术部", member: "张三", taskId: "b8e51f62d3c04719a270583c946d17f5", execStatus: "已完成", progress: "100%", detail: "转换完成" },
-  { submitTime: "2026-03-03 08:48:30", endTime: "2026-03-03 09:10:05", cost: "1295 秒", platform: "Suno", type: "生成歌词", org: "财务部", member: "周八", taskId: "c6a703e89d1b42f0b58349a71c24fe62", execStatus: "失败", progress: "-", detail: "读取响应超时，请检查网络连接后重试" },
-  { submitTime: "2026-03-03 08:20:05", endTime: "2026-03-03 08:22:14", cost: "129 秒", platform: "Midjourney", type: "文生图", org: "产品部", member: "赵六", taskId: "d1e4f9a02b3c47e8b912765c034fd821", execStatus: "已完成", progress: "100%", detail: "图像生成完成，分辨率 1024×1024" },
-  { submitTime: "2026-03-03 08:05:33", endTime: "-", cost: "进行中", platform: "Stable Diffusion", type: "图生图", org: "研发部", member: "陈七", taskId: "e2f5g8h01c4d57f9c023876d145ge932", execStatus: "进行中", progress: "47%", detail: "正在渲染第 3/6 步" },
-  { submitTime: "2026-03-03 07:55:12", endTime: "2026-03-03 08:01:48", cost: "396 秒", platform: "Midjourney", type: "图像变体", org: "技术部", member: "张三", taskId: "f3g6h9i12d5e68a0d134987e256hf043", execStatus: "已完成", progress: "100%", detail: "四宫格变体生成完成" },
+  { submitTime: "2026-03-03 10:19:16", cost: "1401 秒", model: "Suno v3", type: "生成歌词", org: "技术部", member: "张三", taskId: "13b57429c9714eb7ab078f5622490531", execStatus: "失败", progress: "-", detail: "读取响应超时，请检查网络连接后重试" },
+  { submitTime: "2026-03-03 09:55:02", cost: "403 秒", model: "Suno v3", type: "生成音乐", org: "产品部", member: "李四", taskId: "a4c82e13f0b347d9ac1562ef83720104", execStatus: "已完成", progress: "100%", detail: "生成完成" },
+  { submitTime: "2026-03-03 09:30:11", cost: "1523 秒", model: "Suno v3", type: "生成歌词", org: "研发部", member: "王五", taskId: "7f3d9c21b0e54a8d913047cf25816b93", execStatus: "失败", progress: "-", detail: "服务暂时不可用" },
+  { submitTime: "2026-03-03 09:10:44", cost: "338 秒", model: "Suno v4", type: "风格转换", org: "技术部", member: "张三", taskId: "b8e51f62d3c04719a270583c946d17f5", execStatus: "已完成", progress: "100%", detail: "转换完成" },
+  { submitTime: "2026-03-03 08:48:30", cost: "1295 秒", model: "Suno v3", type: "生成歌词", org: "财务部", member: "周八", taskId: "c6a703e89d1b42f0b58349a71c24fe62", execStatus: "失败", progress: "-", detail: "读取响应超时，请检查网络连接后重试" },
+  { submitTime: "2026-03-03 08:20:05", cost: "129 秒", model: "Midjourney v6", type: "文生图", org: "产品部", member: "赵六", taskId: "d1e4f9a02b3c47e8b912765c034fd821", execStatus: "已完成", progress: "100%", detail: "图像生成完成，分辨率 1024×1024" },
+  { submitTime: "2026-03-03 08:05:33", cost: "进行中", model: "Stable Diffusion XL", type: "图生图", org: "研发部", member: "陈七", taskId: "e2f5g8h01c4d57f9c023876d145ge932", execStatus: "进行中", progress: "47%", detail: "正在渲染第 3/6 步" },
+  { submitTime: "2026-03-03 07:55:12", cost: "396 秒", model: "Midjourney v6", type: "图像变体", org: "技术部", member: "张三", taskId: "f3g6h9i12d5e68a0d134987e256hf043", execStatus: "已完成", progress: "100%", detail: "四宫格变体生成完成" },
 ];
 
 // ── Audit logs ──
