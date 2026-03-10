@@ -365,6 +365,7 @@ export default function AdminTokens() {
   const navigate = useNavigate();
   const [keys, setKeys] = useState<ApiKey[]>([]);
   const [enterprises, setEnterprises] = useState<Enterprise[]>([]);
+  const [organizations, setOrganizations] = useState<Organization[]>([]);
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
@@ -373,9 +374,11 @@ export default function AdminTokens() {
   const [searchName, setSearchName] = useState("");
   const [searchKey, setSearchKey] = useState("");
 
-  // God-view filters
+  // Filters
   const [filterEnterpriseId, setFilterEnterpriseId] = useState("");
+  const [filterOrgId, setFilterOrgId] = useState("");
   const [filterCreator, setFilterCreator] = useState("");
+  const [filterStatus, setFilterStatus] = useState("all");
 
   // Internal filter
   const [excludeInternal, setExcludeInternal] = useState(false);
