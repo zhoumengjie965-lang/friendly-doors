@@ -224,7 +224,6 @@ function CallLogsTab({ globalEnterpriseId, globalOrgId, globalCreator, enterpris
   organizations: Organization[];
 }) {
   const navigate = useNavigate();
-  const [expanded, setExpanded] = useState(false);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
   const [filterModel, setFilterModel] = useState("all");
