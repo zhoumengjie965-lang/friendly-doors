@@ -254,18 +254,6 @@ function CallLogsTab({ role, globalOrg, globalMember }: {
             <span className="text-sm text-muted-foreground whitespace-nowrap">APIKey</span>
             <Input className="h-9 w-44 text-sm" placeholder="请输入APIKey名称" />
           </div>
-          {/* 类型 */}
-          <div className="flex items-center gap-2">
-            <span className="text-sm text-muted-foreground whitespace-nowrap">类型</span>
-            <Select value={filterType} onValueChange={v => { setFilterType(v); setPage(1); }}>
-              <SelectTrigger className="h-9 w-36 text-sm"><SelectValue placeholder="全部类型" /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">全部类型</SelectItem>
-                <SelectItem value="消费">消费（成功）</SelectItem>
-                <SelectItem value="错误">错误（失败）</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
           <Button size="sm" className="h-9">搜索</Button>
           <Button size="sm" variant="outline" className="h-9 gap-1" onClick={handleReset}>
             <X className="w-3.5 h-3.5" />重置
