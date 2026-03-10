@@ -1,30 +1,30 @@
 import { useState } from "react";
-import { cn } from "@/lib/utils";
+import { useNavigate } from "react-router-dom";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   RefreshCw, Settings, ChevronDown, ChevronUp, BarChart2, Palette, ClipboardList,
-  HelpCircle, Calendar
+  HelpCircle, Calendar, Search
 } from "lucide-react";
 import {
   Pagination, PaginationContent, PaginationItem, PaginationLink,
   PaginationNext, PaginationPrevious
 } from "@/components/ui/pagination";
 
-// ── Mock data (admin view: includes enterprise column) ──
+// ── Mock data (admin view: includes enterprise + channel columns) ──
 const mockUsageLogs = [
-  { time: "2026-03-03 11:15:44", enterprise: "极光科技", apiKey: "test", group: "default", org: "技术部", type: "错误", model: "mock-error", duration: "0s", streaming: "非流", input: 0, output: 0, cost: 0, ip: "10.244.109.64", detail: "Incorrect API key provided." },
-  { time: "2026-03-03 11:14:22", enterprise: "蓝海智能", apiKey: "prod", group: "default", org: "产品部", type: "成功", model: "gpt-4o", duration: "1.2s", streaming: "流式", input: 156, output: 312, cost: 0.003, ip: "10.244.109.65", detail: "Request completed successfully." },
-  { time: "2026-03-03 11:13:01", enterprise: "极光科技", apiKey: "test", group: "dev", org: "技术部", type: "错误", model: "mock-error", duration: "0s", streaming: "非流", input: 0, output: 0, cost: 0, ip: "10.244.109.66", detail: "Rate limit exceeded." },
-  { time: "2026-03-03 11:12:55", enterprise: "云启数字", apiKey: "prod", group: "default", org: "产品部", type: "成功", model: "claude-3-5-sonnet", duration: "2.3s", streaming: "流式", input: 240, output: 480, cost: 0.008, ip: "10.244.109.67", detail: "Request completed successfully." },
-  { time: "2026-03-03 11:11:33", enterprise: "蓝海智能", apiKey: "dev-key", group: "dev", org: "研发部", type: "成功", model: "gpt-4o-mini", duration: "0.8s", streaming: "非流", input: 88, output: 120, cost: 0.001, ip: "10.244.109.68", detail: "Request completed successfully." },
-  { time: "2026-03-03 11:10:14", enterprise: "极光科技", apiKey: "test", group: "default", org: "技术部", type: "错误", model: "mock-error", duration: "0s", streaming: "非流", input: 0, output: 0, cost: 0, ip: "10.244.109.64", detail: "Incorrect API key provided." },
-  { time: "2026-03-03 11:09:02", enterprise: "云启数字", apiKey: "prod", group: "finance", org: "财务部", type: "成功", model: "gpt-4o", duration: "1.8s", streaming: "流式", input: 320, output: 640, cost: 0.012, ip: "10.244.109.69", detail: "Request completed successfully." },
-  { time: "2026-03-03 11:08:47", enterprise: "蓝海智能", apiKey: "dev-key", group: "dev", org: "研发部", type: "成功", model: "claude-3-haiku", duration: "0.5s", streaming: "非流", input: 64, output: 96, cost: 0.001, ip: "10.244.109.70", detail: "Request completed successfully." },
-  { time: "2026-03-03 11:07:30", enterprise: "极光科技", apiKey: "test", group: "default", org: "技术部", type: "错误", model: "mock-error", duration: "0s", streaming: "非流", input: 0, output: 0, cost: 0, ip: "10.244.109.64", detail: "Incorrect API key provided." },
-  { time: "2026-03-03 11:06:15", enterprise: "云启数字", apiKey: "prod", group: "default", org: "产品部", type: "成功", model: "gpt-4o", duration: "1.5s", streaming: "流式", input: 200, output: 400, cost: 0.007, ip: "10.244.109.71", detail: "Request completed successfully." },
+  { time: "2026-03-03 11:15:44", enterprise: "极光科技", apiKey: "test", group: "default", org: "技术部", type: "错误", model: "mock-error", channel: "Azure", duration: "0s", streaming: "非流", input: 0, output: 0, cost: 0, ip: "10.244.109.64", detail: "Incorrect API key provided." },
+  { time: "2026-03-03 11:14:22", enterprise: "蓝海智能", apiKey: "prod", group: "default", org: "产品部", type: "成功", model: "gpt-4o", channel: "OpenAI", duration: "1.2s", streaming: "流式", input: 156, output: 312, cost: 0.003, ip: "10.244.109.65", detail: "Request completed successfully." },
+  { time: "2026-03-03 11:13:01", enterprise: "极光科技", apiKey: "test", group: "dev", org: "技术部", type: "错误", model: "mock-error", channel: "Azure", duration: "0s", streaming: "非流", input: 0, output: 0, cost: 0, ip: "10.244.109.66", detail: "Rate limit exceeded." },
+  { time: "2026-03-03 11:12:55", enterprise: "云启数字", apiKey: "prod", group: "default", org: "产品部", type: "成功", model: "claude-3-5-sonnet", channel: "Anthropic", duration: "2.3s", streaming: "流式", input: 240, output: 480, cost: 0.008, ip: "10.244.109.67", detail: "Request completed successfully." },
+  { time: "2026-03-03 11:11:33", enterprise: "蓝海智能", apiKey: "dev-key", group: "dev", org: "研发部", type: "成功", model: "gpt-4o-mini", channel: "OpenAI", duration: "0.8s", streaming: "非流", input: 88, output: 120, cost: 0.001, ip: "10.244.109.68", detail: "Request completed successfully." },
+  { time: "2026-03-03 11:10:14", enterprise: "极光科技", apiKey: "test", group: "default", org: "技术部", type: "错误", model: "mock-error", channel: "Azure", duration: "0s", streaming: "非流", input: 0, output: 0, cost: 0, ip: "10.244.109.64", detail: "Incorrect API key provided." },
+  { time: "2026-03-03 11:09:02", enterprise: "云启数字", apiKey: "prod", group: "finance", org: "财务部", type: "成功", model: "gpt-4o", channel: "OpenAI", duration: "1.8s", streaming: "流式", input: 320, output: 640, cost: 0.012, ip: "10.244.109.69", detail: "Request completed successfully." },
+  { time: "2026-03-03 11:08:47", enterprise: "蓝海智能", apiKey: "dev-key", group: "dev", org: "研发部", type: "成功", model: "claude-3-haiku", channel: "Anthropic", duration: "0.5s", streaming: "非流", input: 64, output: 96, cost: 0.001, ip: "10.244.109.70", detail: "Request completed successfully." },
+  { time: "2026-03-03 11:07:30", enterprise: "极光科技", apiKey: "test", group: "default", org: "技术部", type: "错误", model: "mock-error", channel: "Azure", duration: "0s", streaming: "非流", input: 0, output: 0, cost: 0, ip: "10.244.109.64", detail: "Incorrect API key provided." },
+  { time: "2026-03-03 11:06:15", enterprise: "云启数字", apiKey: "prod", group: "default", org: "产品部", type: "成功", model: "gpt-4o", channel: "OpenAI", duration: "1.5s", streaming: "流式", input: 200, output: 400, cost: 0.007, ip: "10.244.109.71", detail: "Request completed successfully." },
 ];
 
 const mockTaskLogs = [
@@ -97,27 +97,35 @@ function PaginationFooter({
   );
 }
 
+// ── Channel badge color mapping ──
+function getChannelStyle(channel: string) {
+  if (channel === "OpenAI") return "bg-emerald-50 text-emerald-700 border border-emerald-200";
+  if (channel === "Anthropic") return "bg-amber-50 text-amber-700 border border-amber-200";
+  if (channel === "Azure") return "bg-sky-50 text-sky-700 border border-sky-200";
+  return "bg-muted text-muted-foreground border border-border";
+}
+
 // ── Tab 1: 使用日志（管理端视角：固定显示企业列）──
 function UsageLogsTab() {
+  const navigate = useNavigate();
   const [expanded, setExpanded] = useState(false);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
   const [filterGroup, setFilterGroup] = useState("all");
   const [filterType, setFilterType] = useState("all");
-  const [filterEnterprise, setFilterEnterprise] = useState("all");
+  const [enterpriseSearch, setEnterpriseSearch] = useState("");
 
   const allGroups = Array.from(new Set(mockUsageLogs.map(r => r.group)));
-  const allEnterprises = Array.from(new Set(mockUsageLogs.map(r => r.enterprise)));
 
   const filtered = mockUsageLogs.filter(r => {
     if (filterGroup !== "all" && r.group !== filterGroup) return false;
     if (filterType !== "all" && r.type !== filterType) return false;
-    if (filterEnterprise !== "all" && r.enterprise !== filterEnterprise) return false;
+    if (enterpriseSearch.trim() && !r.enterprise.includes(enterpriseSearch.trim())) return false;
     return true;
   });
 
   const paginated = filtered.slice((page - 1) * pageSize, page * pageSize);
-  const headers = ["时间", "企业", "APIKey", "组织", "分组", "类型", "模型", "用时/首字", "输入", "输出", "花费", "IP", "详情"];
+  const headers = ["时间", "所属企业", "APIKey", "组织", "分组", "类型", "模型", "上游渠道", "用时/首字", "输入", "输出", "花费", "IP", "详情"];
 
   return (
     <div className="space-y-4">
@@ -134,20 +142,22 @@ function UsageLogsTab() {
           </div>
           <div className="flex items-center gap-2">
             <span className="text-sm text-muted-foreground whitespace-nowrap">企业</span>
-            <Select value={filterEnterprise} onValueChange={v => { setFilterEnterprise(v); setPage(1); }}>
-              <SelectTrigger className="h-9 w-36 text-sm"><SelectValue placeholder="全部" /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">全部</SelectItem>
-                {allEnterprises.map(e => <SelectItem key={e} value={e}>{e}</SelectItem>)}
-              </SelectContent>
-            </Select>
+            <div className="relative">
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground pointer-events-none" />
+              <Input
+                className="h-9 w-44 text-sm pl-7"
+                placeholder="搜索企业名称"
+                value={enterpriseSearch}
+                onChange={e => { setEnterpriseSearch(e.target.value); setPage(1); }}
+              />
+            </div>
           </div>
           <div className="flex items-center gap-2">
             <span className="text-sm text-muted-foreground whitespace-nowrap">APIKey</span>
             <Input className="h-9 w-44 text-sm" placeholder="请输入APIKey名称" />
           </div>
           <Button size="sm" className="h-9">搜索</Button>
-          <Button size="sm" variant="outline" className="h-9" onClick={() => { setFilterGroup("all"); setFilterType("all"); setFilterEnterprise("all"); }}>重置</Button>
+          <Button size="sm" variant="outline" className="h-9" onClick={() => { setFilterGroup("all"); setFilterType("all"); setEnterpriseSearch(""); setPage(1); }}>重置</Button>
           <Button size="sm" variant="ghost" className="h-9 gap-1 text-muted-foreground" onClick={() => setExpanded(v => !v)}>
             展开 {expanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
           </Button>
@@ -223,9 +233,23 @@ function UsageLogsTab() {
                   <td className="px-3 py-2.5 text-xs text-muted-foreground whitespace-nowrap font-mono">{row.time}</td>
                   <td className="px-3 py-2.5 text-xs text-foreground whitespace-nowrap font-medium">{row.enterprise}</td>
                   <td className="px-3 py-2.5">
-                    <span className={`text-xs px-2 py-0.5 rounded ${getApiKeyColor(row.apiKey)}`}>{row.apiKey}</span>
+                    <button
+                      className={`text-xs px-2 py-0.5 rounded cursor-pointer hover:opacity-80 transition-opacity ${getApiKeyColor(row.apiKey)}`}
+                      onClick={() => navigate(`/admin/tokens?key=${row.apiKey}`)}
+                      title="跳转至令牌管理"
+                    >
+                      {row.apiKey}
+                    </button>
                   </td>
-                  <td className="px-3 py-2.5 text-xs text-foreground whitespace-nowrap">{row.org}</td>
+                  <td className="px-3 py-2.5">
+                    <button
+                      className="text-xs text-primary hover:underline whitespace-nowrap cursor-pointer"
+                      onClick={() => navigate(`/admin/enterprises?org=${encodeURIComponent(row.org)}`)}
+                      title="跳转至企业管理"
+                    >
+                      {row.org}
+                    </button>
+                  </td>
                   <td className="px-3 py-2.5 text-xs text-foreground">{row.group}</td>
                   <td className="px-3 py-2.5">
                     {row.type === "错误"
@@ -235,6 +259,9 @@ function UsageLogsTab() {
                   </td>
                   <td className="px-3 py-2.5">
                     <span className="border border-purple-200 text-purple-700 bg-purple-50 text-xs px-1.5 py-0.5 rounded">{row.model}</span>
+                  </td>
+                  <td className="px-3 py-2.5">
+                    <span className={`text-xs px-1.5 py-0.5 rounded ${getChannelStyle(row.channel)}`}>{row.channel}</span>
                   </td>
                   <td className="px-3 py-2.5">
                     <div className="flex items-center gap-1">
