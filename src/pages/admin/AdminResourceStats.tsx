@@ -216,7 +216,7 @@ export default function AdminResourceStats() {
                 const rowBg = isLowRate
                   ? "bg-destructive/5"
                   : isZeroAmount
-                  ? "bg-amber-50/30 dark:bg-amber-900/10"
+                  ? "bg-warning/5"
                   : "";
 
                 return (
