@@ -662,17 +662,29 @@ export default function AdminCallLogs() {
 
   return (
     <div className="p-6 space-y-4">
-      {/* Header row with global context filters pinned top-right */}
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-foreground">调用日志</h1>
-          <p className="text-muted-foreground mt-1 text-sm">查看全平台 API 调用详情、任务执行记录与审计轨迹</p>
-        </div>
+      {/* Header row — title only */}
+      <div>
+        <h1 className="text-2xl font-bold text-foreground">调用日志</h1>
+        <p className="text-muted-foreground mt-1 text-sm">查看全平台 API 调用详情、任务执行记录与审计轨迹</p>
+      </div>
 
-        {/* Global dimension filters — highest priority, shared across all tabs */}
-        <div className="flex items-center gap-2 flex-wrap justify-end">
-          <div className="flex items-center gap-1.5 bg-muted/40 border border-border rounded-lg px-3 py-2">
-            <Building2 className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
+      <Tabs defaultValue="call">
+        {/* Tab row: tabs on left, global dimension filters on right — same line */}
+        <div className="flex items-center justify-between gap-3">
+          <TabsList className="gap-1 h-auto p-1">
+            <TabsTrigger value="call" className="gap-1.5 text-sm px-4 py-2">
+              <Activity className="w-4 h-4" />调用日志
+            </TabsTrigger>
+            <TabsTrigger value="task" className="gap-1.5 text-sm px-4 py-2">
+              <ClipboardList className="w-4 h-4" />任务日志
+            </TabsTrigger>
+            <TabsTrigger value="audit" className="gap-1.5 text-sm px-4 py-2">
+              <Shield className="w-4 h-4" />审计日志
+            </TabsTrigger>
+          </TabsList>
+
+          {/* Global context selectors — inline with tabs */}
+          <div className="flex items-center gap-2">
             <FilterCombobox
               items={enterprises}
               value={globalEnterpriseId}
@@ -703,20 +715,6 @@ export default function AdminCallLogs() {
             )}
           </div>
         </div>
-      </div>
-
-      <Tabs defaultValue="call">
-        <TabsList className="gap-1 h-auto p-1">
-          <TabsTrigger value="call" className="gap-1.5 text-sm px-4 py-2">
-            <Activity className="w-4 h-4" />调用日志
-          </TabsTrigger>
-          <TabsTrigger value="task" className="gap-1.5 text-sm px-4 py-2">
-            <ClipboardList className="w-4 h-4" />任务日志
-          </TabsTrigger>
-          <TabsTrigger value="audit" className="gap-1.5 text-sm px-4 py-2">
-            <Shield className="w-4 h-4" />审计日志
-          </TabsTrigger>
-        </TabsList>
         <TabsContent value="call" className="mt-4">
           <CallLogsTab
             globalEnterpriseId={globalEnterpriseId}

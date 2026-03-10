@@ -743,9 +743,12 @@ export default function CallLogs({ enterprise, role, currentOrg, orgList = [] }:
             <TabsTrigger value="task" className="gap-1.5 text-sm px-4 py-2">
               <ClipboardList className="w-4 h-4" />任务日志
             </TabsTrigger>
-            <TabsTrigger value="audit" className="gap-1.5 text-sm px-4 py-2">
-              <Shield className="w-4 h-4" />审计日志
-            </TabsTrigger>
+            {/* 审计日志仅企业管理员可见 */}
+            {isEnterpriseAdmin && (
+              <TabsTrigger value="audit" className="gap-1.5 text-sm px-4 py-2">
+                <Shield className="w-4 h-4" />审计日志
+              </TabsTrigger>
+            )}
           </TabsList>
 
           {/* Context selectors — inline with tabs on the right */}
