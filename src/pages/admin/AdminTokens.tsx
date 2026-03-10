@@ -8,9 +8,13 @@ import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
+import {
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
+} from "@/components/ui/dialog";
 import {
   Pagination, PaginationContent, PaginationItem, PaginationLink,
   PaginationNext, PaginationPrevious,
@@ -385,6 +389,20 @@ export default function AdminTokens() {
   // Enterprise name cache
   const [enterpriseNames, setEnterpriseNames] = useState<Record<string, string>>({});
 
+  // Create dialog
+  const [createOpen, setCreateOpen] = useState(false);
+  const [createLoading, setCreateLoading] = useState(false);
+  const [createForm, setCreateForm] = useState({
+    name: "",
+    enterprise_id: "",
+    group_name: "",
+    total_quota: "",
+    expires_at: "",
+    allowed_models: "",
+    ip_whitelist: "",
+    phone: "",
+  });
+
   const fetchKeys = useCallback(async () => {
     setLoading(true);
     const { data, error } = await supabase
@@ -510,6 +528,37 @@ export default function AdminTokens() {
     setPage(1);
   };
 
+  const handleCreate = async () => {
+    if (!createForm.name.trim() || !createForm.enterprise_id || !createForm.phone.trim()) {
+      toast({ title: "请填写必填项：令牌名称、所属企业、创建人手机号", variant: "destructive" });
+      return;
+    }
+    setCreateLoading(true);
+    const { error } = await supabase.rpc("create_api_key" as any, {
+      p_name: createForm.name.trim(),
+      p_enterprise_id: createForm.enterprise_id,
+      p_phone: createForm.phone.trim(),
+      p_group_name: createForm.group_name.trim() || null,
+      p_total_quota: createForm.total_quota ? Number(createForm.total_quota) : null,
+      p_expires_at: createForm.expires_at || null,
+      p_allowed_models: createForm.allowed_models
+        ? createForm.allowed_models.split(",").map(s => s.trim()).filter(Boolean)
+        : null,
+      p_ip_whitelist: createForm.ip_whitelist
+        ? createForm.ip_whitelist.split("\n").map(s => s.trim()).filter(Boolean)
+        : null,
+    });
+    setCreateLoading(false);
+    if (error) {
+      toast({ title: "创建失败", description: error.message, variant: "destructive" });
+    } else {
+      toast({ title: "令牌创建成功" });
+      setCreateOpen(false);
+      setCreateForm({ name: "", enterprise_id: "", group_name: "", total_quota: "", expires_at: "", allowed_models: "", ip_whitelist: "", phone: "" });
+      fetchKeys();
+    }
+  };
+
   const drawerEnterpriseName = drawerKey
     ? (enterpriseNames[drawerKey.enterprise_id] || drawerKey.enterprise_id.slice(0, 8))
     : "";
@@ -517,6 +566,103 @@ export default function AdminTokens() {
   return (
     <TooltipProvider>
       <div className="p-6 space-y-4 overflow-y-auto">
+        {/* Create Token Dialog */}
+        <Dialog open={createOpen} onOpenChange={setCreateOpen}>
+          <DialogContent className="sm:max-w-[520px]">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <Plus className="w-4 h-4 text-primary" />
+                添加令牌
+              </DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4 py-2 text-sm">
+              <div className="grid grid-cols-2 gap-3">
+                <div className="col-span-2">
+                  <Label className="text-xs text-muted-foreground mb-1 block">令牌名称 <span className="text-destructive">*</span></Label>
+                  <Input
+                    placeholder="输入令牌名称"
+                    value={createForm.name}
+                    onChange={e => setCreateForm(f => ({ ...f, name: e.target.value }))}
+                  />
+                </div>
+                <div className="col-span-2">
+                  <Label className="text-xs text-muted-foreground mb-1 block">所属企业 <span className="text-destructive">*</span></Label>
+                  <Select
+                    value={createForm.enterprise_id}
+                    onValueChange={v => setCreateForm(f => ({ ...f, enterprise_id: v }))}
+                  >
+                    <SelectTrigger className="h-9">
+                      <SelectValue placeholder="选择企业" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {enterprises.map(e => (
+                        <SelectItem key={e.id} value={e.id}>{e.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="col-span-2">
+                  <Label className="text-xs text-muted-foreground mb-1 block">创建人手机号 <span className="text-destructive">*</span></Label>
+                  <Input
+                    placeholder="输入手机号"
+                    value={createForm.phone}
+                    onChange={e => setCreateForm(f => ({ ...f, phone: e.target.value }))}
+                  />
+                </div>
+                <div>
+                  <Label className="text-xs text-muted-foreground mb-1 block">分组（可选）</Label>
+                  <Input
+                    placeholder="如 default"
+                    value={createForm.group_name}
+                    onChange={e => setCreateForm(f => ({ ...f, group_name: e.target.value }))}
+                  />
+                </div>
+                <div>
+                  <Label className="text-xs text-muted-foreground mb-1 block">额度上限（可选，元）</Label>
+                  <Input
+                    type="number"
+                    placeholder="留空=不限"
+                    value={createForm.total_quota}
+                    onChange={e => setCreateForm(f => ({ ...f, total_quota: e.target.value }))}
+                  />
+                </div>
+                <div className="col-span-2">
+                  <Label className="text-xs text-muted-foreground mb-1 block">过期时间（可选）</Label>
+                  <Input
+                    type="datetime-local"
+                    value={createForm.expires_at}
+                    onChange={e => setCreateForm(f => ({ ...f, expires_at: e.target.value }))}
+                  />
+                </div>
+                <div className="col-span-2">
+                  <Label className="text-xs text-muted-foreground mb-1 block">可用模型（英文逗号分隔，留空=全部）</Label>
+                  <Input
+                    placeholder="如 gpt-4o, claude-3-5-sonnet"
+                    value={createForm.allowed_models}
+                    onChange={e => setCreateForm(f => ({ ...f, allowed_models: e.target.value }))}
+                  />
+                </div>
+                <div className="col-span-2">
+                  <Label className="text-xs text-muted-foreground mb-1 block">IP 白名单（每行一个，留空=不限）</Label>
+                  <Textarea
+                    rows={2}
+                    placeholder={"192.168.1.1\n10.0.0.0/8"}
+                    value={createForm.ip_whitelist}
+                    onChange={e => setCreateForm(f => ({ ...f, ip_whitelist: e.target.value }))}
+                    className="text-xs font-mono resize-none"
+                  />
+                </div>
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setCreateOpen(false)}>取消</Button>
+              <Button onClick={handleCreate} disabled={createLoading}>
+                {createLoading ? "创建中…" : "确认创建"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
         {/* Header */}
         <div className="flex items-center justify-between">
           <h1 className="text-xl font-semibold text-foreground">令牌管理</h1>
@@ -545,7 +691,7 @@ export default function AdminTokens() {
 
           {/* Row 2 — Action + name/key search */}
           <div className="flex flex-wrap items-center gap-2">
-            <Button size="sm" className="h-9 gap-1.5" disabled>
+            <Button size="sm" className="h-9 gap-1.5" onClick={() => setCreateOpen(true)}>
               <Plus className="w-3.5 h-3.5" />
               添加令牌
             </Button>
