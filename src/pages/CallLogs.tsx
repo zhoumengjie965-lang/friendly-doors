@@ -228,7 +228,7 @@ function CallLogsTab({ role, globalOrg, globalMember }: {
 
   const baseHeaders = ["时间", "APIKey", "分组", "类型", "模型", "用时/首字", "输入", "输出", "花费", "详情"];
   const headers = isEnterpriseAdmin
-    ? ["时间", "APIKey", "组织", "分组", "类型", "模型", "用时/首字", "输入", "输出", "花费", "详情"]
+    ? ["时间", "APIKey", "组织", "成员", "分组", "类型", "模型", "用时/首字", "输入", "输出", "花费", "详情"]
     : isOrgAdmin
     ? ["时间", "APIKey", "成员", "分组", "类型", "模型", "用时/首字", "输入", "输出", "花费", "详情"]
     : baseHeaders;
@@ -323,6 +323,9 @@ function CallLogsTab({ role, globalOrg, globalMember }: {
                   </td>
                   {isEnterpriseAdmin && (
                     <td className="px-3 py-2.5 text-xs text-foreground whitespace-nowrap">{row.org}</td>
+                  )}
+                  {isEnterpriseAdmin && (
+                    <td className="px-3 py-2.5 text-xs text-foreground whitespace-nowrap">{row.member}</td>
                   )}
                   {isOrgAdmin && (
                     <td className="px-3 py-2.5 text-xs text-foreground whitespace-nowrap">{row.member}</td>
