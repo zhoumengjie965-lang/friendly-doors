@@ -223,11 +223,11 @@ function CallLogsTab({ role, globalOrg, globalMember }: {
 
   const paginated = filtered.slice((page - 1) * pageSize, page * pageSize);
 
-  const baseHeaders = ["时间", "APIKey", "分组", "类型", "模型", "用时/首字", "输入", "输出", "花费", "IP", "详情"];
+  const baseHeaders = ["时间", "APIKey", "分组", "类型", "模型", "用时/首字", "输入", "输出", "花费", "详情"];
   const headers = isEnterpriseAdmin
-    ? ["时间", "APIKey", "组织", "分组", "类型", "模型", "用时/首字", "输入", "输出", "花费", "IP", "详情"]
+    ? ["时间", "APIKey", "组织", "分组", "类型", "模型", "用时/首字", "输入", "输出", "花费", "详情"]
     : isOrgAdmin
-    ? ["时间", "APIKey", "成员", "分组", "类型", "模型", "用时/首字", "输入", "输出", "花费", "IP", "详情"]
+    ? ["时间", "APIKey", "成员", "分组", "类型", "模型", "用时/首字", "输入", "输出", "花费", "详情"]
     : baseHeaders;
 
   const handleReset = () => {

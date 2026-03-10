@@ -255,7 +255,7 @@ function CallLogsTab({ globalEnterpriseId, globalOrgId, globalCreator, enterpris
   });
 
   const paginated = filtered.slice((page - 1) * pageSize, page * pageSize);
-  const headers = ["时间", "所属企业", "APIKey", "组织", "分组", "类型", "模型", "上游渠道", "用时/首字", "输入", "输出", "花费", "IP", "详情"];
+  const headers = ["时间", "所属企业", "APIKey", "组织", "分组", "类型", "模型", "上游渠道", "用时/首字", "输入", "输出", "花费", "详情"];
 
   return (
     <div className="space-y-4">
