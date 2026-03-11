@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { getCurrentPhone } from "@/lib/auth";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -9,6 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetFooter } from "@/components/ui/sheet";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import {
@@ -39,6 +40,35 @@ function maskPhone(phone: string) {
   return phone.replace(/(\d{3})\d{4}(\d{4})/, "$1****$2");
 }
 
+type AddMode = "single" | "bulk";
+
+interface ParsedMember {
+  name: string;
+  phone: string;
+  valid: boolean;
+  reason?: string;
+}
+
+function parseBulkText(text: string): ParsedMember[] {
+  return text
+    .split("\n")
+    .map(line => line.trim())
+    .filter(line => line.length > 0)
+    .map(line => {
+      const parts = line.split(/[\s,，]+/).filter(p => p.length > 0);
+      if (parts.length < 2) {
+        return { name: line, phone: "", valid: false, reason: "格式错误，请用空格或逗号分隔姓名和手机号" };
+      }
+      const name = parts[0];
+      const phone = parts[1];
+      const phoneValid = /^1[3-9]\d{9}$/.test(phone);
+      if (!phoneValid) {
+        return { name, phone, valid: false, reason: "手机号格式错误" };
+      }
+      return { name, phone, valid: true };
+    });
+}
+
 export default function OrgGovernance({ enterprise, role }: Props) {
   const [orgs, setOrgs] = useState<Organization[]>([]);
   const [selectedOrgId, setSelectedOrgId] = useState<string>("");
@@ -50,10 +80,14 @@ export default function OrgGovernance({ enterprise, role }: Props) {
   const [editRole, setEditRole] = useState("member");
   const [editLimit, setEditLimit] = useState("2000");
   const [showAdd, setShowAdd] = useState(false);
+  const [addMode, setAddMode] = useState<AddMode>("single");
   const [addPhone, setAddPhone] = useState("");
   const [addName, setAddName] = useState("");
   const [addRole, setAddRole] = useState("member");
   const [addLimit, setAddLimit] = useState("2000");
+  const [bulkText, setBulkText] = useState("");
+  const [bulkRole, setBulkRole] = useState("member");
+  const [bulkLimit, setBulkLimit] = useState("2000");
   const [saving, setSaving] = useState(false);
   const { toast } = useToast();
   const phone = getCurrentPhone();
@@ -169,53 +203,82 @@ export default function OrgGovernance({ enterprise, role }: Props) {
     toast({ title: "成员已移除" });
   }
 
-  async function addMember() {
-    if (!addPhone.trim()) { toast({ title: "请输入手机号", variant: "destructive" }); return; }
-    if (!addName.trim()) { toast({ title: "请输入成员姓名", variant: "destructive" }); return; }
-    setSaving(true);
+  const bulkParsed = useMemo(() => parseBulkText(bulkText), [bulkText]);
 
+  function resetAddDialog() {
+    setAddPhone(""); setAddName(""); setAddRole("member"); setAddLimit("2000");
+    setBulkText(""); setBulkRole("member"); setBulkLimit("2000");
+    setAddMode("single");
+  }
+
+  async function processSingleMember(memberPhone: string, memberName: string, memberRole: string, memberLimit: string) {
     const { data: existing } = await supabase
       .from("members")
       .select("id, organization_id")
       .eq("enterprise_id", enterprise.id)
-      .eq("user_phone", addPhone.trim())
+      .eq("user_phone", memberPhone)
       .maybeSingle();
 
     if (existing) {
       if (existing.organization_id === selectedOrgId) {
-        toast({ title: "该成员已在本组织中", variant: "destructive" });
-        setSaving(false);
-        return;
+        return { skipped: true };
       }
       await supabase.from("members").insert({
         enterprise_id: enterprise.id,
         organization_id: selectedOrgId,
-        user_phone: addPhone.trim(),
-        role: addRole,
-        daily_limit: Number(addLimit),
+        user_phone: memberPhone,
+        role: memberRole,
+        daily_limit: Number(memberLimit),
         status: "active",
       });
-      toast({ title: "成员已添加" });
     } else {
       await supabase.from("invitations").insert({
         enterprise_id: enterprise.id,
         organization_id: selectedOrgId,
         inviter_phone: phone ?? "",
-        invitee_phone: addPhone.trim(),
-        invited_role: addRole,
+        invitee_phone: memberPhone,
+        invited_role: memberRole,
       });
-      toast({ title: "邀请已发送", description: "对方接受邀请后将出现在成员列表" });
     }
-
-    // Upsert name if provided
-    if (addName.trim()) {
+    if (memberName.trim()) {
       await supabase.from("users")
-        .upsert({ phone: addPhone.trim(), name: addName.trim() }, { onConflict: "phone" });
+        .upsert({ phone: memberPhone, name: memberName.trim() }, { onConflict: "phone" });
     }
+    return { skipped: false };
+  }
 
+  async function addMember() {
+    if (!addPhone.trim()) { toast({ title: "请输入手机号", variant: "destructive" }); return; }
+    if (!addName.trim()) { toast({ title: "请输入成员姓名", variant: "destructive" }); return; }
+    setSaving(true);
+    const result = await processSingleMember(addPhone.trim(), addName.trim(), addRole, addLimit);
+    if (result.skipped) {
+      toast({ title: "该成员已在本组织中", variant: "destructive" });
+      setSaving(false);
+      return;
+    }
+    toast({ title: "添加成功" });
     setSaving(false);
     setShowAdd(false);
-    setAddPhone(""); setAddName(""); setAddRole("member"); setAddLimit("2000");
+    resetAddDialog();
+    fetchMembers();
+  }
+
+  async function addBulkMembers() {
+    if (bulkParsed.length === 0) { toast({ title: "请输入成员信息", variant: "destructive" }); return; }
+    if (bulkParsed.some(m => !m.valid)) { toast({ title: "批量导入中有格式错误，请修正后再提交", variant: "destructive" }); return; }
+    setSaving(true);
+    let added = 0;
+    for (const m of bulkParsed) {
+      if (m.valid) {
+        const result = await processSingleMember(m.phone, m.name, bulkRole, bulkLimit);
+        if (!result.skipped) added++;
+      }
+    }
+    toast({ title: `批量添加完成`, description: `共处理 ${added} 位成员` });
+    setSaving(false);
+    setShowAdd(false);
+    resetAddDialog();
     fetchMembers();
   }
 
@@ -486,57 +549,123 @@ export default function OrgGovernance({ enterprise, role }: Props) {
       </Sheet>
 
       {/* Add Member Dialog */}
-      <Dialog open={showAdd} onOpenChange={setShowAdd}>
-        <DialogContent className="sm:max-w-md">
+      <Dialog open={showAdd} onOpenChange={(open) => { setShowAdd(open); if (!open) resetAddDialog(); }}>
+        <DialogContent className="sm:max-w-lg">
           <DialogHeader>
-            <DialogTitle>添加成员</DialogTitle>
+            <div className="flex items-center justify-between">
+              <DialogTitle>添加成员</DialogTitle>
+              <div className="flex rounded-md border border-input overflow-hidden text-xs mr-6">
+                <button
+                  type="button"
+                  onClick={() => setAddMode("single")}
+                  className={`px-3 py-1 transition-colors ${addMode === "single" ? "bg-primary text-primary-foreground" : "bg-background text-muted-foreground hover:bg-muted"}`}
+                >
+                  单个添加
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setAddMode("bulk")}
+                  className={`px-3 py-1 transition-colors border-l border-input ${addMode === "bulk" ? "bg-primary text-primary-foreground" : "bg-background text-muted-foreground hover:bg-muted"}`}
+                >
+                  批量导入
+                </button>
+              </div>
+            </div>
           </DialogHeader>
+
           <div className="space-y-4 py-2">
-            <div className="space-y-2">
-              <Label htmlFor="add-phone">手机号</Label>
-              <Input
-                id="add-phone"
-                placeholder="请输入手机号"
-                value={addPhone}
-                onChange={(e) => setAddPhone(e.target.value)}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="add-name">成员姓名 <span className="text-destructive">*</span></Label>
-              <Input
-                id="add-name"
-                placeholder="请输入姓名"
-                value={addName}
-                onChange={(e) => setAddName(e.target.value)}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>指定角色</Label>
-              <RadioGroup value={addRole} onValueChange={setAddRole} className="flex gap-6">
-                <div className="flex items-center gap-2">
-                  <RadioGroupItem value="member" id="a-member" />
-                  <Label htmlFor="a-member" className="font-normal cursor-pointer">普通成员</Label>
+            {addMode === "single" ? (
+              <>
+                <div className="grid grid-cols-3 gap-2">
+                  <Input
+                    placeholder="手机号"
+                    value={addPhone}
+                    onChange={(e) => setAddPhone(e.target.value)}
+                  />
+                  <Input
+                    placeholder="姓名（必填）"
+                    value={addName}
+                    onChange={(e) => setAddName(e.target.value)}
+                  />
+                  <Select value={addRole} onValueChange={setAddRole}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="member">普通成员</SelectItem>
+                      <SelectItem value="org_admin">组织管理员</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
-                <div className="flex items-center gap-2">
-                  <RadioGroupItem value="org_admin" id="a-admin" />
-                  <Label htmlFor="a-admin" className="font-normal cursor-pointer">组织管理员</Label>
+                <div className="space-y-2">
+                  <Label htmlFor="add-limit">单日上限（元）</Label>
+                  <Input
+                    id="add-limit"
+                    type="number"
+                    value={addLimit}
+                    onChange={(e) => setAddLimit(e.target.value)}
+                    placeholder="2000"
+                  />
                 </div>
-              </RadioGroup>
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="add-limit">单日上限（元）</Label>
-              <Input
-                id="add-limit"
-                type="number"
-                value={addLimit}
-                onChange={(e) => setAddLimit(e.target.value)}
-                placeholder="2000"
-              />
-            </div>
+              </>
+            ) : (
+              <>
+                <Textarea
+                  placeholder={"每行一人，格式：姓名 手机号\n例如：\n张三 13800000001\n李四,13900000002"}
+                  value={bulkText}
+                  onChange={(e) => setBulkText(e.target.value)}
+                  className="min-h-[100px] font-mono text-sm"
+                />
+                <p className="text-xs text-muted-foreground">支持空格或逗号分隔姓名和手机号，每行一人</p>
+                <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-2 flex-1">
+                    <span className="text-xs text-muted-foreground shrink-0">统一角色</span>
+                    <Select value={bulkRole} onValueChange={setBulkRole}>
+                      <SelectTrigger className="h-8 text-xs">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="member">普通成员</SelectItem>
+                        <SelectItem value="org_admin">组织管理员</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="flex items-center gap-2 flex-1">
+                    <span className="text-xs text-muted-foreground shrink-0">单日上限</span>
+                    <Input
+                      type="number"
+                      className="h-8 text-xs"
+                      value={bulkLimit}
+                      onChange={(e) => setBulkLimit(e.target.value)}
+                      placeholder="2000"
+                    />
+                  </div>
+                </div>
+                {bulkParsed.length > 0 && (
+                  <div className="rounded-md border border-border bg-muted/30 p-2 space-y-1 max-h-36 overflow-y-auto">
+                    {bulkParsed.map((m, i) => (
+                      <div key={i} className="flex items-center justify-between text-xs gap-2">
+                        <span className="font-medium truncate">{m.name}</span>
+                        <span className="text-muted-foreground shrink-0">{m.phone || "—"}</span>
+                        <span className={m.valid ? "text-green-600 shrink-0" : "text-destructive shrink-0"}>
+                          {m.valid ? "✓ 正确" : `✗ ${m.reason}`}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </>
+            )}
           </div>
+
           <DialogFooter className="gap-2">
-            <Button variant="outline" onClick={() => setShowAdd(false)}>取消</Button>
-            <Button onClick={addMember} disabled={saving}>{saving ? "添加中…" : "添加"}</Button>
+            <Button variant="outline" onClick={() => { setShowAdd(false); resetAddDialog(); }}>取消</Button>
+            <Button
+              onClick={addMode === "single" ? addMember : addBulkMembers}
+              disabled={saving}
+            >
+              {saving ? "添加中…" : "添加"}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
