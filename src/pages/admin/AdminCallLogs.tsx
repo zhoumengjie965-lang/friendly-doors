@@ -806,6 +806,7 @@ export default function AdminCallLogs() {
           <TaskLogsTab
             globalEnterpriseId={globalEnterpriseId}
             globalOrgId={globalOrgId}
+            globalMember={globalMember}
             enterprises={enterprises}
             organizations={organizations}
           />
