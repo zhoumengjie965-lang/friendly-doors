@@ -114,7 +114,10 @@ const runningStatusColors: Record<RunningStatus, string> = {
 export default function ApiKeys({ enterprise, role }: Props) {
   const { toast } = useToast();
   const phone = getCurrentPhone();
-  const canSeeOrgTab = role === "admin" || role === "org_admin";
+
+  // Preview role — defaults to actual role; drives all UI logic
+  const [previewRole, setPreviewRole] = useState(role);
+  const canSeeOrgTab = previewRole === "admin" || previewRole === "org_admin";
 
   const [myKeys, setMyKeys] = useState<ApiKey[]>([]);
   const [orgKeys, setOrgKeys] = useState<ApiKey[]>([]);
@@ -123,6 +126,11 @@ export default function ApiKeys({ enterprise, role }: Props) {
   // Multi-org switching
   const [organizations, setOrganizations] = useState<{ id: string; name: string }[]>([]);
   const [selectedOrgId, setSelectedOrgId] = useState<string | null>(null);
+
+  // Org-tab member filter
+  const [orgMembers, setOrgMembers] = useState<{ phone: string; name: string | null }[]>([]);
+  const [memberFilter, setMemberFilter] = useState<string>("all");
+  const [orgNameFilter, setOrgNameFilter] = useState<string>("all");
 
   // Search state
   const [nameSearch, setNameSearch] = useState("");
