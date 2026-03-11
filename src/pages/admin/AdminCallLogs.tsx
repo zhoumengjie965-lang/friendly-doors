@@ -436,10 +436,12 @@ function TaskLogsTab({ globalEnterpriseId, globalOrgId, globalMember, enterprise
 
   const selectedEnterpriseName = enterprises.find(e => e.id === globalEnterpriseId)?.name ?? "";
   const selectedOrgName = organizations.find(o => o.id === globalOrgId)?.name ?? "";
+  const selectedMemberName = mockMembers.find(m => m.id === globalMember)?.name ?? "";
 
   const filtered = mockTaskLogs.filter(r => {
     if (globalEnterpriseId && selectedEnterpriseName && r.enterprise !== selectedEnterpriseName) return false;
     if (globalOrgId && selectedOrgName && r.org !== selectedOrgName) return false;
+    if (globalMember && selectedMemberName && r.member !== selectedMemberName) return false;
     if (filterTaskId.trim() && !r.taskId.toLowerCase().includes(filterTaskId.toLowerCase())) return false;
     if (filterModel.trim() && !r.model.toLowerCase().includes(filterModel.toLowerCase())) return false;
     if (filterType !== "all" && r.type !== filterType) return false;
@@ -455,7 +457,7 @@ function TaskLogsTab({ globalEnterpriseId, globalOrgId, globalMember, enterprise
     setFilterExecStatus("all"); setFilterChannel("all"); setPage(1);
   };
 
-  const taskHeaders = ["提交时间", "花费时间", "模型", "渠道", "类型", "任务ID", "执行状态", "进度", "详情"];
+  const taskHeaders = ["提交时间", "花费时间", "企业", "组织", "成员", "模型", "渠道", "类型", "任务ID", "执行状态", "进度", "详情"];
 
   return (
     <div className="space-y-4">
