@@ -203,53 +203,82 @@ export default function OrgGovernance({ enterprise, role }: Props) {
     toast({ title: "成员已移除" });
   }
 
-  async function addMember() {
-    if (!addPhone.trim()) { toast({ title: "请输入手机号", variant: "destructive" }); return; }
-    if (!addName.trim()) { toast({ title: "请输入成员姓名", variant: "destructive" }); return; }
-    setSaving(true);
+  const bulkParsed = useMemo(() => parseBulkText(bulkText), [bulkText]);
 
+  function resetAddDialog() {
+    setAddPhone(""); setAddName(""); setAddRole("member"); setAddLimit("2000");
+    setBulkText(""); setBulkRole("member"); setBulkLimit("2000");
+    setAddMode("single");
+  }
+
+  async function processSingleMember(memberPhone: string, memberName: string, memberRole: string, memberLimit: string) {
     const { data: existing } = await supabase
       .from("members")
       .select("id, organization_id")
       .eq("enterprise_id", enterprise.id)
-      .eq("user_phone", addPhone.trim())
+      .eq("user_phone", memberPhone)
       .maybeSingle();
 
     if (existing) {
       if (existing.organization_id === selectedOrgId) {
-        toast({ title: "该成员已在本组织中", variant: "destructive" });
-        setSaving(false);
-        return;
+        return { skipped: true };
       }
       await supabase.from("members").insert({
         enterprise_id: enterprise.id,
         organization_id: selectedOrgId,
-        user_phone: addPhone.trim(),
-        role: addRole,
-        daily_limit: Number(addLimit),
+        user_phone: memberPhone,
+        role: memberRole,
+        daily_limit: Number(memberLimit),
         status: "active",
       });
-      toast({ title: "成员已添加" });
     } else {
       await supabase.from("invitations").insert({
         enterprise_id: enterprise.id,
         organization_id: selectedOrgId,
         inviter_phone: phone ?? "",
-        invitee_phone: addPhone.trim(),
-        invited_role: addRole,
+        invitee_phone: memberPhone,
+        invited_role: memberRole,
       });
-      toast({ title: "邀请已发送", description: "对方接受邀请后将出现在成员列表" });
     }
-
-    // Upsert name if provided
-    if (addName.trim()) {
+    if (memberName.trim()) {
       await supabase.from("users")
-        .upsert({ phone: addPhone.trim(), name: addName.trim() }, { onConflict: "phone" });
+        .upsert({ phone: memberPhone, name: memberName.trim() }, { onConflict: "phone" });
     }
+    return { skipped: false };
+  }
 
+  async function addMember() {
+    if (!addPhone.trim()) { toast({ title: "请输入手机号", variant: "destructive" }); return; }
+    if (!addName.trim()) { toast({ title: "请输入成员姓名", variant: "destructive" }); return; }
+    setSaving(true);
+    const result = await processSingleMember(addPhone.trim(), addName.trim(), addRole, addLimit);
+    if (result.skipped) {
+      toast({ title: "该成员已在本组织中", variant: "destructive" });
+      setSaving(false);
+      return;
+    }
+    toast({ title: "添加成功" });
     setSaving(false);
     setShowAdd(false);
-    setAddPhone(""); setAddName(""); setAddRole("member"); setAddLimit("2000");
+    resetAddDialog();
+    fetchMembers();
+  }
+
+  async function addBulkMembers() {
+    if (bulkParsed.length === 0) { toast({ title: "请输入成员信息", variant: "destructive" }); return; }
+    if (bulkParsed.some(m => !m.valid)) { toast({ title: "批量导入中有格式错误，请修正后再提交", variant: "destructive" }); return; }
+    setSaving(true);
+    let added = 0;
+    for (const m of bulkParsed) {
+      if (m.valid) {
+        const result = await processSingleMember(m.phone, m.name, bulkRole, bulkLimit);
+        if (!result.skipped) added++;
+      }
+    }
+    toast({ title: `批量添加完成`, description: `共处理 ${added} 位成员` });
+    setSaving(false);
+    setShowAdd(false);
+    resetAddDialog();
     fetchMembers();
   }
 
