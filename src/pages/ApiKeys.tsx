@@ -757,6 +757,8 @@ export default function ApiKeys({ enterprise, role }: Props) {
           <KeyTable
             keys={myKeys}
             filterFn={(keys) => filterKeys(keys, false)}
+            showCreator={canSeeOrgTab}
+            showOrg={previewRole === "admin"}
             page={myPage}
             setPage={setMyPage}
           />
