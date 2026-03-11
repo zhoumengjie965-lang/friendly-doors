@@ -613,7 +613,7 @@ function AuditLogsTab({ globalOrg, globalMember }: {
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-border bg-muted/40">
-                {["时间", "操作人", "操作类型", "操作内容", "操作结果", "IP 地址"].map(h => (
+                {["时间", "操作人", "组织", "操作类型", "操作内容", "操作结果"].map(h => (
                   <th key={h} className="px-3 py-2.5 text-left text-xs font-medium text-muted-foreground whitespace-nowrap">{h}</th>
                 ))}
               </tr>
@@ -623,6 +623,7 @@ function AuditLogsTab({ globalOrg, globalMember }: {
                 <tr key={i} className="border-b border-border last:border-0 hover:bg-muted/30 transition-colors">
                   <td className="px-3 py-2.5 text-xs text-muted-foreground whitespace-nowrap font-mono">{row.time}</td>
                   <td className="px-3 py-2.5 text-xs text-foreground whitespace-nowrap">{row.operator}</td>
+                  <td className="px-3 py-2.5 text-xs text-foreground whitespace-nowrap">{row.org}</td>
                   <td className="px-3 py-2.5">
                     <AuditTypeBadge type={row.opType} />
                   </td>
@@ -632,9 +633,6 @@ function AuditLogsTab({ globalOrg, globalMember }: {
                       ? <span className="bg-green-100 text-green-600 border border-green-200 text-xs px-1.5 py-0.5 rounded">成功</span>
                       : <span className="bg-red-100 text-red-600 border border-red-200 text-xs px-1.5 py-0.5 rounded">失败</span>
                     }
-                  </td>
-                  <td className="px-3 py-2.5">
-                    <span className="bg-orange-100 text-orange-700 text-xs px-1.5 py-0.5 rounded">{row.ip}</span>
                   </td>
                 </tr>
               ))}
