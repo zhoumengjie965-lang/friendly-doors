@@ -493,7 +493,15 @@ export default function ApiKeys({ enterprise, role }: Props) {
                     </TableCell>
                     {/* 已消耗/预算上限 */}
                     <TableCell>{formatQuota(k.used_quota, k.total_quota)}</TableCell>
-                    {/* 创建者（仅组织Tab） */}
+                    {/* 组织（仅企业管理员视角） */}
+                    {showOrg && (
+                      <TableCell>
+                        <span className="text-sm text-muted-foreground">
+                          {organizations.find(o => o.id === k.organization_id)?.name ?? "—"}
+                        </span>
+                      </TableCell>
+                    )}
+                    {/* 成员（仅组织Tab） */}
                     {showCreator && (
                       <TableCell>
                         <span className="text-sm text-muted-foreground">{userNames[k.creator_phone] || k.creator_phone}</span>
