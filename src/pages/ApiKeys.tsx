@@ -238,10 +238,14 @@ export default function ApiKeys({ enterprise, role }: Props) {
       .order("created_at", { ascending: true });
     if (data && data.length > 0) {
       setOrganizations(data);
-      setSelectedOrgId(data[0].id);
-      fetchOrgKeys(data[0].id);
+      if (role === "admin") {
+        fetchOrgKeys(null);
+      } else {
+        setSelectedOrgId(data[0].id);
+        fetchOrgKeys(data[0].id);
+      }
     }
-  }, [canSeeOrgTab, enterprise.id]);
+  }, [canSeeOrgTab, enterprise.id, role]);
 
   useEffect(() => {
     fetchMyKeys();
@@ -650,7 +654,7 @@ export default function ApiKeys({ enterprise, role }: Props) {
               组织 API Key
             </button>
           </div>
-          {organizations.length > 0 && (
+          {previewRole === "org_admin" && organizations.length > 0 && (
             <div className="flex items-center gap-1.5">
               <Building2 className="w-4 h-4 text-muted-foreground" />
               <Select
