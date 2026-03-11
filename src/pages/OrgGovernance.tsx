@@ -40,6 +40,35 @@ function maskPhone(phone: string) {
   return phone.replace(/(\d{3})\d{4}(\d{4})/, "$1****$2");
 }
 
+type AddMode = "single" | "bulk";
+
+interface ParsedMember {
+  name: string;
+  phone: string;
+  valid: boolean;
+  reason?: string;
+}
+
+function parseBulkText(text: string): ParsedMember[] {
+  return text
+    .split("\n")
+    .map(line => line.trim())
+    .filter(line => line.length > 0)
+    .map(line => {
+      const parts = line.split(/[\s,，]+/).filter(p => p.length > 0);
+      if (parts.length < 2) {
+        return { name: line, phone: "", valid: false, reason: "格式错误，请用空格或逗号分隔姓名和手机号" };
+      }
+      const name = parts[0];
+      const phone = parts[1];
+      const phoneValid = /^1[3-9]\d{9}$/.test(phone);
+      if (!phoneValid) {
+        return { name, phone, valid: false, reason: "手机号格式错误" };
+      }
+      return { name, phone, valid: true };
+    });
+}
+
 export default function OrgGovernance({ enterprise, role }: Props) {
   const [orgs, setOrgs] = useState<Organization[]>([]);
   const [selectedOrgId, setSelectedOrgId] = useState<string>("");
