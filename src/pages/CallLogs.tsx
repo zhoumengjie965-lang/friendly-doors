@@ -603,6 +603,7 @@ function AuditLogsTab({ globalOrg, globalMember }: {
               </SelectContent>
             </Select>
           </div>
+          <Button size="sm" className="h-9">搜索</Button>
           <Button size="sm" variant="outline" className="h-9" onClick={handleReset}>重置</Button>
         </div>
       </div>
