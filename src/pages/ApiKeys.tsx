@@ -672,39 +672,35 @@ export default function ApiKeys({ enterprise, role }: Props) {
               </Select>
             </div>
           )}
-          {/* 组织 Tab 专属筛选器 — 紧随其后同一行 */}
-          {activeTab === "org" && (
-            <>
-              {/* 企业管理员才显示所属组织筛选 */}
-              {previewRole === "admin" && (
-                <Select value={orgNameFilter} onValueChange={setOrgNameFilter}>
-                  <SelectTrigger className="h-9 w-36 border-border shadow-sm text-sm">
-                    <SelectValue placeholder="所属组织" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">所属组织：全部</SelectItem>
-                    {organizations.map(org => (
-                      <SelectItem key={org.id} value={org.id}>{org.name}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              )}
-              {/* 成员筛选（组织管理员 & 企业管理员均显示） */}
-              <Select value={memberFilter} onValueChange={setMemberFilter}>
-                <SelectTrigger className="h-9 w-40 border-border shadow-sm text-sm">
-                  <SelectValue placeholder="所属成员" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">所属成员：全部</SelectItem>
-                  {orgMembers.map(m => (
-                    <SelectItem key={m.phone} value={m.phone}>
-                      {m.name ? `${m.name} (${m.phone})` : m.phone}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </>
+          {/* 筛选器 — 始终显示在行2同一行 */}
+          {/* 企业管理员才显示所属组织筛选 */}
+          {previewRole === "admin" && (
+            <Select value={orgNameFilter} onValueChange={setOrgNameFilter}>
+              <SelectTrigger className="h-9 w-36 border-border shadow-sm text-sm">
+                <SelectValue placeholder="所属组织" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">所属组织：全部</SelectItem>
+                {organizations.map(org => (
+                  <SelectItem key={org.id} value={org.id}>{org.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           )}
+          {/* 成员筛选（组织管理员 & 企业管理员均显示） */}
+          <Select value={memberFilter} onValueChange={setMemberFilter}>
+            <SelectTrigger className="h-9 w-40 border-border shadow-sm text-sm">
+              <SelectValue placeholder="所属成员" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">所属成员：全部</SelectItem>
+              {orgMembers.map(m => (
+                <SelectItem key={m.phone} value={m.phone}>
+                  {m.name ? `${m.name} (${m.phone})` : m.phone}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
       )}
 
