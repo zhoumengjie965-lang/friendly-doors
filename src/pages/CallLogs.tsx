@@ -803,6 +803,7 @@ export default function CallLogs({ enterprise, role, currentOrg, orgList = [] }:
         </TabsContent>
         <TabsContent value="task" className="mt-4">
           <TaskLogsTab
+            role={viewRole}
             globalOrg={activeOrgName}
             globalMember={globalMember}
           />
