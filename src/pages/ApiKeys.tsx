@@ -766,6 +766,7 @@ export default function ApiKeys({ enterprise, role }: Props) {
             keys={orgKeys}
             filterFn={(keys) => filterKeys(keys, true)}
             showCreator
+            showOrg={previewRole === "admin"}
             page={orgPage}
             setPage={setOrgPage}
           />
