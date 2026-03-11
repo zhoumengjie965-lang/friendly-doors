@@ -101,14 +101,14 @@ const mockTaskLogs = [
 ];
 
 const mockAuditLogs = [
-  { time: "2026-03-03 11:30:05", enterprise: "极光科技", operator: "超级管理员 · 130****0001", opType: "企业审核", content: "审核通过企业「极光科技」实名认证", result: "成功", ip: "192.168.1.10" },
-  { time: "2026-03-03 11:15:22", enterprise: "蓝海智能", operator: "运营专员 · 131****0002", opType: "账户充值", content: "为企业「蓝海智能」充值 ¥5,000.00", result: "成功", ip: "192.168.1.11" },
-  { time: "2026-03-03 10:58:44", enterprise: "-", operator: "超级管理员 · 130****0001", opType: "登录", content: "管理员登录后台", result: "成功", ip: "192.168.1.10" },
-  { time: "2026-03-03 10:40:17", enterprise: "云启数字", operator: "运营专员 · 132****0003", opType: "用户封禁", content: "封禁用户「139****9999」，原因：违规使用", result: "成功", ip: "192.168.1.12" },
-  { time: "2026-03-03 10:22:09", enterprise: "极光科技", operator: "运营专员 · 131****0002", opType: "令牌操作", content: "批量删除企业「极光科技」过期 API Key（共 3 条）", result: "成功", ip: "192.168.1.11" },
-  { time: "2026-03-03 10:05:33", enterprise: "-", operator: "超级管理员 · 130****0001", opType: "设置变更", content: "修改平台全局限速阈值为 1000 RPM", result: "成功", ip: "192.168.1.10" },
-  { time: "2026-03-03 09:47:01", enterprise: "蓝海智能", operator: "运营专员 · 132****0003", opType: "企业审核", content: "拒绝企业「蓝海智能」变更申请，原因：材料不全", result: "成功", ip: "192.168.1.12" },
-  { time: "2026-03-03 09:30:18", enterprise: "-", operator: "运营专员 · 131****0002", opType: "登录", content: "登录失败：密码错误（第 1 次）", result: "失败", ip: "192.168.1.11" },
+  { time: "2026-03-03 11:30:05", enterprise: "极光科技", operator: "超级管理员 · 130****0001", org: "技术部", opType: "企业审核", content: "审核通过企业「极光科技」实名认证", result: "成功" },
+  { time: "2026-03-03 11:15:22", enterprise: "蓝海智能", operator: "运营专员 · 131****0002", org: "产品部", opType: "账户充值", content: "为企业「蓝海智能」充值 ¥5,000.00", result: "成功" },
+  { time: "2026-03-03 10:58:44", enterprise: "-", operator: "超级管理员 · 130****0001", org: "-", opType: "登录", content: "管理员登录后台", result: "成功" },
+  { time: "2026-03-03 10:40:17", enterprise: "云启数字", operator: "运营专员 · 132****0003", org: "市场部", opType: "用户封禁", content: "封禁用户「139****9999」，原因：违规使用", result: "成功" },
+  { time: "2026-03-03 10:22:09", enterprise: "极光科技", operator: "运营专员 · 131****0002", org: "研发部", opType: "令牌操作", content: "批量删除企业「极光科技」过期 API Key（共 3 条）", result: "成功" },
+  { time: "2026-03-03 10:05:33", enterprise: "-", operator: "超级管理员 · 130****0001", org: "-", opType: "设置变更", content: "修改平台全局限速阈值为 1000 RPM", result: "成功" },
+  { time: "2026-03-03 09:47:01", enterprise: "蓝海智能", operator: "运营专员 · 132****0003", org: "产品部", opType: "企业审核", content: "拒绝企业「蓝海智能」变更申请，原因：材料不全", result: "成功" },
+  { time: "2026-03-03 09:30:18", enterprise: "-", operator: "运营专员 · 131****0002", org: "-", opType: "登录", content: "登录失败：密码错误（第 1 次）", result: "失败" },
 ];
 
 const mockMembers: Member[] = [
