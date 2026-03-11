@@ -625,9 +625,9 @@ export default function ApiKeys({ enterprise, role }: Props) {
         </div>
       </div>
 
-      {/* 行2：胶囊切换器 + 全局组织选择器（同一行）— 仅管理员角色显示 */}
+      {/* 行2：胶囊切换器 + 全局组织选择器 + 组织Tab专属筛选器（同一行）— 仅管理员角色显示 */}
       {canSeeOrgTab && (
-        <div className="flex items-center gap-3 mb-4">
+        <div className="flex items-center gap-3 mb-4 flex-wrap">
           <div className="flex items-center bg-muted rounded-lg p-1 h-9">
             <button
               onClick={() => setActiveTab("my")}
@@ -671,6 +671,39 @@ export default function ApiKeys({ enterprise, role }: Props) {
                 </SelectContent>
               </Select>
             </div>
+          )}
+          {/* 组织 Tab 专属筛选器 — 紧随其后同一行 */}
+          {activeTab === "org" && (
+            <>
+              {/* 企业管理员才显示所属组织筛选 */}
+              {previewRole === "admin" && (
+                <Select value={orgNameFilter} onValueChange={setOrgNameFilter}>
+                  <SelectTrigger className="h-9 w-36 border-border shadow-sm text-sm">
+                    <SelectValue placeholder="所属组织" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">所属组织：全部</SelectItem>
+                    {organizations.map(org => (
+                      <SelectItem key={org.id} value={org.id}>{org.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
+              {/* 成员筛选（组织管理员 & 企业管理员均显示） */}
+              <Select value={memberFilter} onValueChange={setMemberFilter}>
+                <SelectTrigger className="h-9 w-40 border-border shadow-sm text-sm">
+                  <SelectValue placeholder="所属成员" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">所属成员：全部</SelectItem>
+                  {orgMembers.map(m => (
+                    <SelectItem key={m.phone} value={m.phone}>
+                      {m.name ? `${m.name} (${m.phone})` : m.phone}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </>
           )}
         </div>
       )}
