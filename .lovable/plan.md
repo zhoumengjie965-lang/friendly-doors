@@ -1,28 +1,71 @@
 
-## Admin Task Logs — Add Enterprise/Org/Member columns + fix column order
+## Two focused layout tweaks — `src/pages/admin/AdminUsers.tsx` only
 
-The uploaded image shows the old layout (with 结束时间 and 所属企业 as a separate column, 平台 badge). The user wants the **admin task logs** table updated to match this exact column order and include enterprise/org/member.
+### Change 1: Basic info — 2×2 grid (lines 394–447)
 
-### What's currently in the code
-- `taskHeaders = ["提交时间", "花费时间", "模型", "渠道", "类型", "任务ID", "执行状态", "进度", "详情"]`
-- Mock data has `enterprise`, `org` but no `member` field
-- Table body renders 9 cells matching those 9 headers — no enterprise/org/member cells
+Currently 4 rows stacked vertically with `space-y-4`. Redesign as a **2×2 grid** — left column: 用户名 + 账号状态, right column: 手机号 + 密码重置.
 
-### Changes to `src/pages/admin/AdminCallLogs.tsx`
+```tsx
+<div className="grid grid-cols-2 gap-x-4 gap-y-3">
+  {/* 用户名 — top-left */}
+  <div className="flex items-center justify-between">
+    <div>
+      <Label className="text-xs text-muted-foreground">用户名</Label>
+      <p className="text-sm mt-0.5">{drawerUser.name || "—"}</p>
+    </div>
+    <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground" onClick={...}>
+      <Copy className="w-3.5 h-3.5" />
+    </Button>
+  </div>
 
-**1. Mock data** — add `member` field to each `mockTaskLogs` row (e.g., "张三", "李四", "王五")
+  {/* 手机号 — top-right */}
+  <div className="flex items-center justify-between">
+    <div>
+      <Label className="text-xs text-muted-foreground">手机号</Label>
+      <p className="text-sm mt-0.5 font-medium tabular-nums">{drawerUser.phone}</p>
+    </div>
+    <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground" onClick={...}>
+      <Copy className="w-3.5 h-3.5" />
+    </Button>
+  </div>
 
-**2. TaskLogsTab — accept `globalMember` prop** and use it for filtering (currently the function signature doesn't have `globalMember`)
+  {/* 账号状态 — bottom-left */}
+  <div className="flex items-center justify-between">
+    <div>
+      <Label className="text-xs text-muted-foreground">账号状态</Label>
+      <p className="text-sm mt-0.5">...</p>
+    </div>
+    <Switch ... />
+  </div>
 
-**3. Headers** — update to:
+  {/* 密码重置 — bottom-right */}
+  <div className="flex items-center justify-between">
+    <div>
+      <Label className="text-xs text-muted-foreground">密码重置</Label>
+      <p className="text-xs text-muted-foreground mt-0.5">强制用户下次登录时重置密码</p>
+    </div>
+    <Button size="sm" variant="outline" ...>重置密码</Button>
+  </div>
+</div>
 ```
-["提交时间", "花费时间", "企业", "组织", "成员", "模型", "渠道", "类型", "任务ID", "执行状态", "进度", "详情"]
+
+### Change 2: Personal space — label outside card, tighter padding (lines 459–486)
+
+Move "个人空间" text **above** the card border, reduce internal padding from `p-4 space-y-3` to `p-3 space-y-2`:
+
+```tsx
+{/* 个人空间 */}
+<div>
+  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1.5">个人空间</p>
+  <div className="bg-blue-50/50 border border-blue-100 rounded-lg p-3 space-y-2">
+    <div className="flex items-center justify-between">
+      <span className="text-sm text-muted-foreground">当前余额</span>
+      <span className="font-semibold tabular-nums">¥{...}</span>
+    </div>
+    {/* balance edit input + 保存 button + disclaimer — unchanged */}
+  </div>
+</div>
 ```
 
-**4. Table body** — add 3 new cells after 花费时间 for 企业、组织、成员, matching the new header order
-
-**5. Filter logic** — add `globalMember` filtering (by member name, same as CallLogsTab pattern)
-
-**6. The main component** — ensure `globalMember` is passed to `TaskLogsTab` (check the render call at the bottom)
-
-That's the full scope — one file, targeted changes.
+### Files changed
+- `src/pages/admin/AdminUsers.tsx` — lines 394–486 only
