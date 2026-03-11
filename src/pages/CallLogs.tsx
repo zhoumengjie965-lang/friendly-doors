@@ -358,10 +358,13 @@ function CallLogsTab({ role, globalOrg, globalMember }: {
 }
 
 // ── Tab 2: 任务日志 ──
-function TaskLogsTab({ globalOrg, globalMember }: {
+function TaskLogsTab({ role, globalOrg, globalMember }: {
+  role: string;
   globalOrg: string;
   globalMember: string;
 }) {
+  const isEnterpriseAdmin = role === "enterprise_admin";
+  const isOrgAdmin = role === "org_admin";
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
   const [filterTaskId, setFilterTaskId] = useState("");
@@ -392,7 +395,11 @@ function TaskLogsTab({ globalOrg, globalMember }: {
     setPage(1);
   };
 
-  const taskHeaders = ["提交时间", "花费时间", "模型", "类型", "任务ID", "执行状态", "进度", "详情"];
+  const taskHeaders = isEnterpriseAdmin
+    ? ["提交时间", "花费时间", "组织", "成员", "模型", "类型", "任务ID", "执行状态", "进度", "详情"]
+    : isOrgAdmin
+    ? ["提交时间", "花费时间", "成员", "模型", "类型", "任务ID", "执行状态", "进度", "详情"]
+    : ["提交时间", "花费时间", "模型", "类型", "任务ID", "执行状态", "进度", "详情"];
 
   return (
     <div className="space-y-4">
@@ -468,6 +475,8 @@ function TaskLogsTab({ globalOrg, globalMember }: {
                   <td className="px-3 py-2.5">
                     <span className="bg-red-50 text-red-500 border border-red-200 text-xs px-1.5 py-0.5 rounded">{row.cost}</span>
                   </td>
+                  {isEnterpriseAdmin && <td className="px-3 py-2.5 text-xs text-foreground whitespace-nowrap">{row.org}</td>}
+                  {(isEnterpriseAdmin || isOrgAdmin) && <td className="px-3 py-2.5 text-xs text-foreground whitespace-nowrap">{row.member}</td>}
                   <td className="px-3 py-2.5">
                     <span className="bg-green-100 text-green-700 border border-green-200 text-xs px-1.5 py-0.5 rounded">{row.model}</span>
                   </td>
@@ -794,6 +803,7 @@ export default function CallLogs({ enterprise, role, currentOrg, orgList = [] }:
         </TabsContent>
         <TabsContent value="task" className="mt-4">
           <TaskLogsTab
+            role={viewRole}
             globalOrg={activeOrgName}
             globalMember={globalMember}
           />
