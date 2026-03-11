@@ -381,14 +381,14 @@ export default function ApiKeys({ enterprise, role }: Props) {
     return keys.slice(start, start + PAGE_SIZE);
   };
 
-  const KeyTable = ({ keys, showCreator, page, setPage, filterFn }: {
-    keys: ApiKey[]; showCreator?: boolean; page: number; setPage: (p: number) => void;
+  const KeyTable = ({ keys, showCreator, showOrg, page, setPage, filterFn }: {
+    keys: ApiKey[]; showCreator?: boolean; showOrg?: boolean; page: number; setPage: (p: number) => void;
     filterFn?: (keys: ApiKey[]) => ApiKey[];
   }) => {
     const filtered = filterFn ? filterFn(keys) : filterKeys(keys);
     const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
     const paged = paginate(filtered, page);
-    const colSpan = showCreator ? 11 : 10;
+    const colSpan = 10 + (showCreator ? 1 : 0) + (showOrg ? 1 : 0);
 
     return (
       <div>
@@ -431,7 +431,8 @@ export default function ApiKeys({ enterprise, role }: Props) {
                   </div>
                 </TableHead>
                 <TableHead className="font-medium">已消耗/预算上限</TableHead>
-                {showCreator && <TableHead className="font-medium">创建者</TableHead>}
+                {showOrg && <TableHead className="font-medium">组织</TableHead>}
+                {showCreator && <TableHead className="font-medium">成员</TableHead>}
                 <TableHead className="font-medium">
                   <div className="flex items-center gap-1">
                     分组
@@ -492,7 +493,15 @@ export default function ApiKeys({ enterprise, role }: Props) {
                     </TableCell>
                     {/* 已消耗/预算上限 */}
                     <TableCell>{formatQuota(k.used_quota, k.total_quota)}</TableCell>
-                    {/* 创建者（仅组织Tab） */}
+                    {/* 组织（仅企业管理员视角） */}
+                    {showOrg && (
+                      <TableCell>
+                        <span className="text-sm text-muted-foreground">
+                          {organizations.find(o => o.id === k.organization_id)?.name ?? "—"}
+                        </span>
+                      </TableCell>
+                    )}
+                    {/* 成员（仅组织Tab） */}
                     {showCreator && (
                       <TableCell>
                         <span className="text-sm text-muted-foreground">{userNames[k.creator_phone] || k.creator_phone}</span>
@@ -616,9 +625,9 @@ export default function ApiKeys({ enterprise, role }: Props) {
         </div>
       </div>
 
-      {/* 行2：胶囊切换器 + 全局组织选择器（同一行）— 仅管理员角色显示 */}
+      {/* 行2：胶囊切换器 + 全局组织选择器 + 组织Tab专属筛选器（同一行）— 仅管理员角色显示 */}
       {canSeeOrgTab && (
-        <div className="flex items-center gap-3 mb-4">
+        <div className="flex items-center gap-3 mb-4 flex-wrap">
           <div className="flex items-center bg-muted rounded-lg p-1 h-9">
             <button
               onClick={() => setActiveTab("my")}
@@ -663,34 +672,17 @@ export default function ApiKeys({ enterprise, role }: Props) {
               </Select>
             </div>
           )}
-        </div>
-      )}
-
-      {/* 行3：创建按钮 + 归属提示（左） + [组织/成员筛选] + 搜索栏+刷新（右） */}
-      <div className="flex items-center justify-between mb-5">
-        <div className="flex items-center gap-3">
-          <Button onClick={openCreate} className="gap-2 h-9">
-            <Plus className="w-4 h-4" />创建 API Key
-          </Button>
-          <span className="text-xs text-muted-foreground">
-            提示：Key 将归属于{" "}
-            <span className="font-medium text-foreground">
-              {selectedOrgId
-                ? organizations.find(o => o.id === selectedOrgId)?.name ?? "当前组织"
-                : "个人空间"}
-            </span>
-          </span>
-          {/* 组织 Tab 专属筛选器 */}
-          {canSeeOrgTab && activeTab === "org" && (
+          {/* 组织 Tab 专属筛选器 — 紧随其后同一行 */}
+          {activeTab === "org" && (
             <>
-              {/* 企业管理员才显示组织筛选（组织管理员行2已锁定组织） */}
+              {/* 企业管理员才显示所属组织筛选 */}
               {previewRole === "admin" && (
                 <Select value={orgNameFilter} onValueChange={setOrgNameFilter}>
                   <SelectTrigger className="h-9 w-36 border-border shadow-sm text-sm">
-                    <SelectValue placeholder="组织：全部" />
+                    <SelectValue placeholder="所属组织" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="all">组织：全部</SelectItem>
+                    <SelectItem value="all">所属组织：全部</SelectItem>
                     {organizations.map(org => (
                       <SelectItem key={org.id} value={org.id}>{org.name}</SelectItem>
                     ))}
@@ -699,11 +691,11 @@ export default function ApiKeys({ enterprise, role }: Props) {
               )}
               {/* 成员筛选（组织管理员 & 企业管理员均显示） */}
               <Select value={memberFilter} onValueChange={setMemberFilter}>
-                <SelectTrigger className="h-9 w-36 border-border shadow-sm text-sm">
-                  <SelectValue placeholder="成员：全部" />
+                <SelectTrigger className="h-9 w-40 border-border shadow-sm text-sm">
+                  <SelectValue placeholder="所属成员" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">成员：全部</SelectItem>
+                  <SelectItem value="all">所属成员：全部</SelectItem>
                   {orgMembers.map(m => (
                     <SelectItem key={m.phone} value={m.phone}>
                       {m.name ? `${m.name} (${m.phone})` : m.phone}
@@ -713,6 +705,15 @@ export default function ApiKeys({ enterprise, role }: Props) {
               </Select>
             </>
           )}
+        </div>
+      )}
+
+      {/* 行3：创建按钮 + 搜索栏+刷新（右） */}
+      <div className="flex items-center justify-between mb-5">
+        <div className="flex items-center gap-3">
+          <Button onClick={openCreate} className="gap-2 h-9">
+            <Plus className="w-4 h-4" />创建 API Key
+          </Button>
         </div>
         <div className="flex items-center gap-2">
           {/* 名称 label + 输入框 */}
@@ -765,6 +766,7 @@ export default function ApiKeys({ enterprise, role }: Props) {
             keys={orgKeys}
             filterFn={(keys) => filterKeys(keys, true)}
             showCreator
+            showOrg={previewRole === "admin"}
             page={orgPage}
             setPage={setOrgPage}
           />

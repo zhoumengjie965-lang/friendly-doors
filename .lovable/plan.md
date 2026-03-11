@@ -1,85 +1,71 @@
 
-## Three changes to `src/pages/ApiKeys.tsx`
+## Two focused layout tweaks — `src/pages/admin/AdminUsers.tsx` only
 
-### What the user wants
-1. **Remove the "提示: Key 将归属于 XXX" hint in member view** — it should only show for admin views, or ideally only when on the org tab (makes no sense for a plain member)
-2. **Move org/member filter selects to row 2** (same line as the "我的 key / 组织 key" tab switcher), not row 3
-3. **Add "成员" column to org table for org_admin view; add "组织" + "成员" columns for admin view**
+### Change 1: Basic info — 2×2 grid (lines 394–447)
 
-### Current state
-- Row 3 left side: `创建按钮` + `提示: Key 将归属于...` + `[组织筛选][成员筛选]` (conditional on org tab)
-- `KeyTable` has `showCreator` prop controlling one extra column; org/member columns don't exist yet
-- `KeyTable` is a closure inside the component — it reads `previewRole` from outer scope but doesn't receive it as a prop
+Currently 4 rows stacked vertically with `space-y-4`. Redesign as a **2×2 grid** — left column: 用户名 + 账号状态, right column: 手机号 + 密码重置.
 
-### Change 1 — Remove hint for member view (lines 675–682)
-Wrap the hint span in `{canSeeOrgTab && ...}` — members never see it.
-
-### Change 2 — Move org/member filter selects to row 2 (lines 619–716)
-Currently the selects are inside row 3 `<div className="flex items-center justify-between mb-5">` after the create button. Move them to row 2 (the `canSeeOrgTab` block, lines 620–667), appended **after** the org selector, but only when `activeTab === "org"`:
-
-```
-Row 2: [我的 API Key] [组织 API Key]  |  [Building2 组织选择]  |  [所属组织 ▼] [所属成员 ▼]
-                                          (always shown)          (only when tab=org)
-```
-
-The Select labels from image-133 are "所属组织" and "所属成员".
-
-Remove the conditional block from row 3 entirely.
-
-### Change 3 — Add 成员/组织 columns to KeyTable (lines 384–582)
-`KeyTable` needs to know `previewRole` to decide which extra columns to show. Since it's a closure, it already has access to outer `previewRole`. 
-
-Current `showCreator` prop already adds a "创建者" column. We need to extend this:
-- **org_admin view + org tab**: show "成员" column (creator's name/phone) — effectively the same data as `showCreator` but labeled "成员"
-- **admin view + org tab**: show "组织" column (org name lookup) + "成员" column
-
-Plan:
-- Keep `showCreator` prop but rename the column header dynamically based on `previewRole`
-- Add `showOrg` prop to `KeyTable` — when true, add an "组织" column before "成员"
-- Need `organizations` array (already in scope as closure) to do org name lookup: `organizations.find(o => o.id === k.organization_id)?.name ?? "—"`
-
-**KeyTable signature change:**
-```ts
-const KeyTable = ({ keys, showCreator, showOrg, page, setPage, filterFn }: {
-  ...showOrg?: boolean;
-})
-```
-
-**Usage:**
 ```tsx
-{canSeeOrgTab && activeTab === "org" && (
-  <KeyTable
-    keys={orgKeys}
-    filterFn={...}
-    showCreator   // always show member col in org tab
-    showOrg={previewRole === "admin"}  // only for enterprise admin
-    page={orgPage}
-    setPage={setOrgPage}
-  />
-)}
+<div className="grid grid-cols-2 gap-x-4 gap-y-3">
+  {/* 用户名 — top-left */}
+  <div className="flex items-center justify-between">
+    <div>
+      <Label className="text-xs text-muted-foreground">用户名</Label>
+      <p className="text-sm mt-0.5">{drawerUser.name || "—"}</p>
+    </div>
+    <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground" onClick={...}>
+      <Copy className="w-3.5 h-3.5" />
+    </Button>
+  </div>
+
+  {/* 手机号 — top-right */}
+  <div className="flex items-center justify-between">
+    <div>
+      <Label className="text-xs text-muted-foreground">手机号</Label>
+      <p className="text-sm mt-0.5 font-medium tabular-nums">{drawerUser.phone}</p>
+    </div>
+    <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground" onClick={...}>
+      <Copy className="w-3.5 h-3.5" />
+    </Button>
+  </div>
+
+  {/* 账号状态 — bottom-left */}
+  <div className="flex items-center justify-between">
+    <div>
+      <Label className="text-xs text-muted-foreground">账号状态</Label>
+      <p className="text-sm mt-0.5">...</p>
+    </div>
+    <Switch ... />
+  </div>
+
+  {/* 密码重置 — bottom-right */}
+  <div className="flex items-center justify-between">
+    <div>
+      <Label className="text-xs text-muted-foreground">密码重置</Label>
+      <p className="text-xs text-muted-foreground mt-0.5">强制用户下次登录时重置密码</p>
+    </div>
+    <Button size="sm" variant="outline" ...>重置密码</Button>
+  </div>
+</div>
 ```
 
-**colSpan update**: currently `showCreator ? 11 : 10` → becomes `10 + (showCreator ? 1 : 0) + (showOrg ? 1 : 0)`
+### Change 2: Personal space — label outside card, tighter padding (lines 459–486)
 
-**Column header**: rename `showCreator` column from "创建者" to "成员" (line 434)
+Move "个人空间" text **above** the card border, reduce internal padding from `p-4 space-y-3` to `p-3 space-y-2`:
 
-**Column body** (org column before member column):
 ```tsx
-{showOrg && (
-  <TableCell>
-    <span className="text-sm text-muted-foreground">
-      {organizations.find(o => o.id === k.organization_id)?.name ?? "—"}
-    </span>
-  </TableCell>
-)}
-{showCreator && (
-  <TableCell>
-    <span className="text-sm text-muted-foreground">
-      {userNames[k.creator_phone] || k.creator_phone}
-    </span>
-  </TableCell>
-)}
+{/* 个人空间 */}
+<div>
+  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1.5">个人空间</p>
+  <div className="bg-blue-50/50 border border-blue-100 rounded-lg p-3 space-y-2">
+    <div className="flex items-center justify-between">
+      <span className="text-sm text-muted-foreground">当前余额</span>
+      <span className="font-semibold tabular-nums">¥{...}</span>
+    </div>
+    {/* balance edit input + 保存 button + disclaimer — unchanged */}
+  </div>
+</div>
 ```
 
 ### Files changed
-- `src/pages/ApiKeys.tsx` only — lines ~434, ~496–500, ~620–716, ~675–682, ~763–770
+- `src/pages/admin/AdminUsers.tsx` — lines 394–486 only
