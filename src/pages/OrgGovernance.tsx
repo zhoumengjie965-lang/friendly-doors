@@ -549,57 +549,123 @@ export default function OrgGovernance({ enterprise, role }: Props) {
       </Sheet>
 
       {/* Add Member Dialog */}
-      <Dialog open={showAdd} onOpenChange={setShowAdd}>
-        <DialogContent className="sm:max-w-md">
+      <Dialog open={showAdd} onOpenChange={(open) => { setShowAdd(open); if (!open) resetAddDialog(); }}>
+        <DialogContent className="sm:max-w-lg">
           <DialogHeader>
-            <DialogTitle>添加成员</DialogTitle>
+            <div className="flex items-center justify-between">
+              <DialogTitle>添加成员</DialogTitle>
+              <div className="flex rounded-md border border-input overflow-hidden text-xs mr-6">
+                <button
+                  type="button"
+                  onClick={() => setAddMode("single")}
+                  className={`px-3 py-1 transition-colors ${addMode === "single" ? "bg-primary text-primary-foreground" : "bg-background text-muted-foreground hover:bg-muted"}`}
+                >
+                  单个添加
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setAddMode("bulk")}
+                  className={`px-3 py-1 transition-colors border-l border-input ${addMode === "bulk" ? "bg-primary text-primary-foreground" : "bg-background text-muted-foreground hover:bg-muted"}`}
+                >
+                  批量导入
+                </button>
+              </div>
+            </div>
           </DialogHeader>
+
           <div className="space-y-4 py-2">
-            <div className="space-y-2">
-              <Label htmlFor="add-phone">手机号</Label>
-              <Input
-                id="add-phone"
-                placeholder="请输入手机号"
-                value={addPhone}
-                onChange={(e) => setAddPhone(e.target.value)}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="add-name">成员姓名 <span className="text-destructive">*</span></Label>
-              <Input
-                id="add-name"
-                placeholder="请输入姓名"
-                value={addName}
-                onChange={(e) => setAddName(e.target.value)}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>指定角色</Label>
-              <RadioGroup value={addRole} onValueChange={setAddRole} className="flex gap-6">
-                <div className="flex items-center gap-2">
-                  <RadioGroupItem value="member" id="a-member" />
-                  <Label htmlFor="a-member" className="font-normal cursor-pointer">普通成员</Label>
+            {addMode === "single" ? (
+              <>
+                <div className="grid grid-cols-3 gap-2">
+                  <Input
+                    placeholder="手机号"
+                    value={addPhone}
+                    onChange={(e) => setAddPhone(e.target.value)}
+                  />
+                  <Input
+                    placeholder="姓名（必填）"
+                    value={addName}
+                    onChange={(e) => setAddName(e.target.value)}
+                  />
+                  <Select value={addRole} onValueChange={setAddRole}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="member">普通成员</SelectItem>
+                      <SelectItem value="org_admin">组织管理员</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
-                <div className="flex items-center gap-2">
-                  <RadioGroupItem value="org_admin" id="a-admin" />
-                  <Label htmlFor="a-admin" className="font-normal cursor-pointer">组织管理员</Label>
+                <div className="space-y-2">
+                  <Label htmlFor="add-limit">单日上限（元）</Label>
+                  <Input
+                    id="add-limit"
+                    type="number"
+                    value={addLimit}
+                    onChange={(e) => setAddLimit(e.target.value)}
+                    placeholder="2000"
+                  />
                 </div>
-              </RadioGroup>
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="add-limit">单日上限（元）</Label>
-              <Input
-                id="add-limit"
-                type="number"
-                value={addLimit}
-                onChange={(e) => setAddLimit(e.target.value)}
-                placeholder="2000"
-              />
-            </div>
+              </>
+            ) : (
+              <>
+                <Textarea
+                  placeholder={"每行一人，格式：姓名 手机号\n例如：\n张三 13800000001\n李四,13900000002"}
+                  value={bulkText}
+                  onChange={(e) => setBulkText(e.target.value)}
+                  className="min-h-[100px] font-mono text-sm"
+                />
+                <p className="text-xs text-muted-foreground">支持空格或逗号分隔姓名和手机号，每行一人</p>
+                <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-2 flex-1">
+                    <span className="text-xs text-muted-foreground shrink-0">统一角色</span>
+                    <Select value={bulkRole} onValueChange={setBulkRole}>
+                      <SelectTrigger className="h-8 text-xs">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="member">普通成员</SelectItem>
+                        <SelectItem value="org_admin">组织管理员</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="flex items-center gap-2 flex-1">
+                    <span className="text-xs text-muted-foreground shrink-0">单日上限</span>
+                    <Input
+                      type="number"
+                      className="h-8 text-xs"
+                      value={bulkLimit}
+                      onChange={(e) => setBulkLimit(e.target.value)}
+                      placeholder="2000"
+                    />
+                  </div>
+                </div>
+                {bulkParsed.length > 0 && (
+                  <div className="rounded-md border border-border bg-muted/30 p-2 space-y-1 max-h-36 overflow-y-auto">
+                    {bulkParsed.map((m, i) => (
+                      <div key={i} className="flex items-center justify-between text-xs gap-2">
+                        <span className="font-medium truncate">{m.name}</span>
+                        <span className="text-muted-foreground shrink-0">{m.phone || "—"}</span>
+                        <span className={m.valid ? "text-green-600 shrink-0" : "text-destructive shrink-0"}>
+                          {m.valid ? "✓ 正确" : `✗ ${m.reason}`}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </>
+            )}
           </div>
+
           <DialogFooter className="gap-2">
-            <Button variant="outline" onClick={() => setShowAdd(false)}>取消</Button>
-            <Button onClick={addMember} disabled={saving}>{saving ? "添加中…" : "添加"}</Button>
+            <Button variant="outline" onClick={() => { setShowAdd(false); resetAddDialog(); }}>取消</Button>
+            <Button
+              onClick={addMode === "single" ? addMember : addBulkMembers}
+              disabled={saving}
+            >
+              {saving ? "添加中…" : "添加"}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
