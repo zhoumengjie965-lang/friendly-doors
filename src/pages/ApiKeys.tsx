@@ -362,14 +362,17 @@ export default function ApiKeys({ enterprise, role }: Props) {
     setFormExpires(format(d, "yyyy-MM-dd'T'HH:mm"));
   };
 
-  const filterKeys = (keys: ApiKey[]) => {
+  const filterKeys = (keys: ApiKey[], isOrgTab = false) => {
     return keys.filter(k => {
       const matchName = !nameSearch || k.name.toLowerCase().includes(nameSearch.toLowerCase());
       const matchApiKey = !apiKeySearch || k.key_value.toLowerCase().includes(apiKeySearch.toLowerCase());
       const matchStatus = statusFilter === "all" || k.status === statusFilter;
       const matchRunning = runningStatusFilter === "all" || getRunningStatus(k).label === runningStatusFilter;
       const matchGroup = groupFilter === "all" || (groupFilter === "__none__" ? !k.group_name : k.group_name === groupFilter);
-      return matchName && matchApiKey && matchStatus && matchRunning && matchGroup;
+      // Org-tab specific filters
+      const matchMember = !isOrgTab || memberFilter === "all" || k.creator_phone === memberFilter;
+      const matchOrgName = !isOrgTab || orgNameFilter === "all" || k.organization_id === orgNameFilter;
+      return matchName && matchApiKey && matchStatus && matchRunning && matchGroup && matchMember && matchOrgName;
     });
   };
 
