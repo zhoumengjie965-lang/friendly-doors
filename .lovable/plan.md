@@ -1,71 +1,42 @@
 
-## Two focused layout tweaks — `src/pages/admin/AdminUsers.tsx` only
+## What needs to change
 
-### Change 1: Basic info — 2×2 grid (lines 394–447)
+The "添加成员" dialog in `OrgGovernance.tsx` (lines 488–542) is currently single-mode only: phone + name + role + daily limit in a plain form. The user wants it to match the enterprise admin pattern from `CreateOrgDialog.tsx` — a toggle between **单个添加** and **批量导入** modes.
 
-Currently 4 rows stacked vertically with `space-y-4`. Redesign as a **2×2 grid** — left column: 用户名 + 账号状态, right column: 手机号 + 密码重置.
+### Reference pattern (CreateOrgDialog)
+- A segmented toggle (`单个添加 | 批量导入`) in the dialog header area
+- **Single mode**: phone input + name input + role select (inline 3-col grid)
+- **Bulk mode**: Textarea (one per line: `姓名 手机号`) + unified role select + live parse preview
+- `parseBulkText()` utility for validation
 
-```tsx
-<div className="grid grid-cols-2 gap-x-4 gap-y-3">
-  {/* 用户名 — top-left */}
-  <div className="flex items-center justify-between">
-    <div>
-      <Label className="text-xs text-muted-foreground">用户名</Label>
-      <p className="text-sm mt-0.5">{drawerUser.name || "—"}</p>
-    </div>
-    <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground" onClick={...}>
-      <Copy className="w-3.5 h-3.5" />
-    </Button>
-  </div>
+### Key difference for OrgGovernance
+- CreateOrgDialog shows role options including "企业管理员" — OrgGovernance's add dialog should only show "普通成员" and "组织管理员" (no enterprise admin option)
+- OrgGovernance single mode also has a `单日上限` field — keep it in single mode, add a unified `单日上限` field for bulk mode too
+- The `addMember()` function needs to handle both modes
 
-  {/* 手机号 — top-right */}
-  <div className="flex items-center justify-between">
-    <div>
-      <Label className="text-xs text-muted-foreground">手机号</Label>
-      <p className="text-sm mt-0.5 font-medium tabular-nums">{drawerUser.phone}</p>
-    </div>
-    <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground" onClick={...}>
-      <Copy className="w-3.5 h-3.5" />
-    </Button>
-  </div>
+### Changes to `src/pages/OrgGovernance.tsx`
 
-  {/* 账号状态 — bottom-left */}
-  <div className="flex items-center justify-between">
-    <div>
-      <Label className="text-xs text-muted-foreground">账号状态</Label>
-      <p className="text-sm mt-0.5">...</p>
-    </div>
-    <Switch ... />
-  </div>
+**1. New state variables** (around line 52–57):
+- `addMode: "single" | "bulk"` defaulting to `"single"`
+- `bulkText: string` for the textarea
+- `bulkRole: "member" | "org_admin"` defaulting to `"member"`
+- `bulkLimit: string` defaulting to `"2000"`
 
-  {/* 密码重置 — bottom-right */}
-  <div className="flex items-center justify-between">
-    <div>
-      <Label className="text-xs text-muted-foreground">密码重置</Label>
-      <p className="text-xs text-muted-foreground mt-0.5">强制用户下次登录时重置密码</p>
-    </div>
-    <Button size="sm" variant="outline" ...>重置密码</Button>
-  </div>
-</div>
+**2. `parseBulkText` utility** — copy/paste from CreateOrgDialog (same logic), strip the "admin" role option
+
+**3. `addBulkMembers()` function** — loops through parsed entries, calls the same `supabase` logic as single `addMember()` per row, then closes dialog and refreshes
+
+**4. Reset logic** — when dialog closes, reset `addMode`, `bulkText`, `bulkRole`, `bulkLimit` alongside existing resets
+
+**5. Dialog JSX** (lines 488–542) — replace the static form with:
+```
+Dialog header: 添加成员
+  ├── Mode toggle: [单个添加] [批量导入]
+  ├── Single mode (addMode === "single"):
+  │   phone / name / role / daily limit (same fields as before)
+  └── Bulk mode (addMode === "bulk"):
+      textarea + parse preview + unified role select + unified daily limit input
+Footer: 取消 | 添加
 ```
 
-### Change 2: Personal space — label outside card, tighter padding (lines 459–486)
-
-Move "个人空间" text **above** the card border, reduce internal padding from `p-4 space-y-3` to `p-3 space-y-2`:
-
-```tsx
-{/* 个人空间 */}
-<div>
-  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1.5">个人空间</p>
-  <div className="bg-blue-50/50 border border-blue-100 rounded-lg p-3 space-y-2">
-    <div className="flex items-center justify-between">
-      <span className="text-sm text-muted-foreground">当前余额</span>
-      <span className="font-semibold tabular-nums">¥{...}</span>
-    </div>
-    {/* balance edit input + 保存 button + disclaimer — unchanged */}
-  </div>
-</div>
-```
-
-### Files changed
-- `src/pages/admin/AdminUsers.tsx` — lines 394–486 only
+**One file changed**: `src/pages/OrgGovernance.tsx`
