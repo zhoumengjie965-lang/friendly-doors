@@ -381,14 +381,14 @@ export default function ApiKeys({ enterprise, role }: Props) {
     return keys.slice(start, start + PAGE_SIZE);
   };
 
-  const KeyTable = ({ keys, showCreator, page, setPage, filterFn }: {
-    keys: ApiKey[]; showCreator?: boolean; page: number; setPage: (p: number) => void;
+  const KeyTable = ({ keys, showCreator, showOrg, page, setPage, filterFn }: {
+    keys: ApiKey[]; showCreator?: boolean; showOrg?: boolean; page: number; setPage: (p: number) => void;
     filterFn?: (keys: ApiKey[]) => ApiKey[];
   }) => {
     const filtered = filterFn ? filterFn(keys) : filterKeys(keys);
     const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
     const paged = paginate(filtered, page);
-    const colSpan = showCreator ? 11 : 10;
+    const colSpan = 10 + (showCreator ? 1 : 0) + (showOrg ? 1 : 0);
 
     return (
       <div>
