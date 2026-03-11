@@ -395,7 +395,11 @@ function TaskLogsTab({ role, globalOrg, globalMember }: {
     setPage(1);
   };
 
-  const taskHeaders = ["提交时间", "花费时间", "模型", "类型", "任务ID", "执行状态", "进度", "详情"];
+  const taskHeaders = isEnterpriseAdmin
+    ? ["提交时间", "花费时间", "组织", "成员", "模型", "类型", "任务ID", "执行状态", "进度", "详情"]
+    : isOrgAdmin
+    ? ["提交时间", "花费时间", "成员", "模型", "类型", "任务ID", "执行状态", "进度", "详情"]
+    : ["提交时间", "花费时间", "模型", "类型", "任务ID", "执行状态", "进度", "详情"];
 
   return (
     <div className="space-y-4">
