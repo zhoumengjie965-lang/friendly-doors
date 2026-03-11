@@ -358,10 +358,13 @@ function CallLogsTab({ role, globalOrg, globalMember }: {
 }
 
 // ── Tab 2: 任务日志 ──
-function TaskLogsTab({ globalOrg, globalMember }: {
+function TaskLogsTab({ role, globalOrg, globalMember }: {
+  role: string;
   globalOrg: string;
   globalMember: string;
 }) {
+  const isEnterpriseAdmin = role === "enterprise_admin";
+  const isOrgAdmin = role === "org_admin";
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
   const [filterTaskId, setFilterTaskId] = useState("");
