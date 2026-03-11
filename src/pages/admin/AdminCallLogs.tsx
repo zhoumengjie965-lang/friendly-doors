@@ -415,9 +415,10 @@ function CallLogsTab({ globalEnterpriseId, globalOrgId, globalMember, enterprise
 }
 
 // ── Tab 2: 任务日志 ──
-function TaskLogsTab({ globalEnterpriseId, globalOrgId, enterprises, organizations }: {
+function TaskLogsTab({ globalEnterpriseId, globalOrgId, globalMember, enterprises, organizations }: {
   globalEnterpriseId: string;
   globalOrgId: string;
+  globalMember: string;
   enterprises: Enterprise[];
   organizations: Organization[];
 }) {
