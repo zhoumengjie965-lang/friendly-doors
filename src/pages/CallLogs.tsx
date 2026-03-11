@@ -475,6 +475,8 @@ function TaskLogsTab({ role, globalOrg, globalMember }: {
                   <td className="px-3 py-2.5">
                     <span className="bg-red-50 text-red-500 border border-red-200 text-xs px-1.5 py-0.5 rounded">{row.cost}</span>
                   </td>
+                  {isEnterpriseAdmin && <td className="px-3 py-2.5 text-xs text-foreground whitespace-nowrap">{row.org}</td>}
+                  {(isEnterpriseAdmin || isOrgAdmin) && <td className="px-3 py-2.5 text-xs text-foreground whitespace-nowrap">{row.member}</td>}
                   <td className="px-3 py-2.5">
                     <span className="bg-green-100 text-green-700 border border-green-200 text-xs px-1.5 py-0.5 rounded">{row.model}</span>
                   </td>
