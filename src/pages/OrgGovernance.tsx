@@ -80,10 +80,14 @@ export default function OrgGovernance({ enterprise, role }: Props) {
   const [editRole, setEditRole] = useState("member");
   const [editLimit, setEditLimit] = useState("2000");
   const [showAdd, setShowAdd] = useState(false);
+  const [addMode, setAddMode] = useState<AddMode>("single");
   const [addPhone, setAddPhone] = useState("");
   const [addName, setAddName] = useState("");
   const [addRole, setAddRole] = useState("member");
   const [addLimit, setAddLimit] = useState("2000");
+  const [bulkText, setBulkText] = useState("");
+  const [bulkRole, setBulkRole] = useState("member");
+  const [bulkLimit, setBulkLimit] = useState("2000");
   const [saving, setSaving] = useState(false);
   const { toast } = useToast();
   const phone = getCurrentPhone();
