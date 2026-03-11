@@ -1,71 +1,38 @@
 
-## Two focused layout tweaks — `src/pages/admin/AdminUsers.tsx` only
+## Root cause
 
-### Change 1: Basic info — 2×2 grid (lines 394–447)
+The previous implementation wrapped the 所属组织/所属成员 filter selects in `{activeTab === "org" && (` (lines 676–707). On page load the default tab is "我的 API Key", so the filters are invisible — the page looks identical to before. The user never saw the change because they'd have to click "组织 API Key" first.
 
-Currently 4 rows stacked vertically with `space-y-4`. Redesign as a **2×2 grid** — left column: 用户名 + 账号状态, right column: 手机号 + 密码重置.
+## What to fix in `src/pages/ApiKeys.tsx`
 
-```tsx
-<div className="grid grid-cols-2 gap-x-4 gap-y-3">
-  {/* 用户名 — top-left */}
-  <div className="flex items-center justify-between">
-    <div>
-      <Label className="text-xs text-muted-foreground">用户名</Label>
-      <p className="text-sm mt-0.5">{drawerUser.name || "—"}</p>
-    </div>
-    <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground" onClick={...}>
-      <Copy className="w-3.5 h-3.5" />
-    </Button>
-  </div>
+### Change 1 — Always show filter selects on row 2 (lines 675–707)
 
-  {/* 手机号 — top-right */}
-  <div className="flex items-center justify-between">
-    <div>
-      <Label className="text-xs text-muted-foreground">手机号</Label>
-      <p className="text-sm mt-0.5 font-medium tabular-nums">{drawerUser.phone}</p>
-    </div>
-    <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground" onClick={...}>
-      <Copy className="w-3.5 h-3.5" />
-    </Button>
-  </div>
+Remove the `{activeTab === "org" && (` wrapper and its closing `)}`. The selects will always be visible in row 2 when `canSeeOrgTab` is true. They'll work correctly on the org tab (filtered via `filterKeys`) and simply have no visual effect on the my-tab (which ignores `isOrgTab` filters).
 
-  {/* 账号状态 — bottom-left */}
-  <div className="flex items-center justify-between">
-    <div>
-      <Label className="text-xs text-muted-foreground">账号状态</Label>
-      <p className="text-sm mt-0.5">...</p>
-    </div>
-    <Switch ... />
-  </div>
-
-  {/* 密码重置 — bottom-right */}
-  <div className="flex items-center justify-between">
-    <div>
-      <Label className="text-xs text-muted-foreground">密码重置</Label>
-      <p className="text-xs text-muted-foreground mt-0.5">强制用户下次登录时重置密码</p>
-    </div>
-    <Button size="sm" variant="outline" ...>重置密码</Button>
-  </div>
-</div>
+Before:
+```
+{activeTab === "org" && (
+  <>
+    {previewRole === "admin" && <所属组织 Select />}
+    <所属成员 Select />
+  </>
+)}
 ```
 
-### Change 2: Personal space — label outside card, tighter padding (lines 459–486)
-
-Move "个人空间" text **above** the card border, reduce internal padding from `p-4 space-y-3` to `p-3 space-y-2`:
-
-```tsx
-{/* 个人空间 */}
-<div>
-  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1.5">个人空间</p>
-  <div className="bg-blue-50/50 border border-blue-100 rounded-lg p-3 space-y-2">
-    <div className="flex items-center justify-between">
-      <span className="text-sm text-muted-foreground">当前余额</span>
-      <span className="font-semibold tabular-nums">¥{...}</span>
-    </div>
-    {/* balance edit input + 保存 button + disclaimer — unchanged */}
-  </div>
-</div>
+After:
+```
+{previewRole === "admin" && <所属组织 Select />}
+<所属成员 Select />
 ```
 
-### Files changed
-- `src/pages/admin/AdminUsers.tsx` — lines 394–486 only
+This makes the filter selects immediately visible on the same row as the tab switcher without needing to click the org tab first — exactly "位置在我的key/组织keytab同一行".
+
+### That's the only change needed
+
+Everything else is already implemented and working:
+- 普通成员 view hides row 2 entirely (canSeeOrgTab = false) ✓
+- 成员 column shows in org table for org_admin ✓  
+- 组织 + 成员 columns show in org table for admin ✓
+- Hint text already removed from row 3 ✓
+
+**File changed**: `src/pages/ApiKeys.tsx` — lines 675–707 only (remove 2 wrapper lines)
