@@ -209,6 +209,23 @@ export default function ApiKeys({ enterprise, role }: Props) {
         }
       }
     }
+    // Fetch members for this org for the member filter
+    if (targetOrgId) {
+      const { data: members } = await supabase
+        .from("members")
+        .select("user_phone, users(name)")
+        .eq("organization_id", targetOrgId)
+        .eq("status", "active");
+      if (members) {
+        setOrgMembers(members.map((m: any) => ({
+          phone: m.user_phone,
+          name: m.users?.name ?? null,
+        })));
+      }
+    } else {
+      setOrgMembers([]);
+    }
+    setMemberFilter("all");
   }, [canSeeOrgTab, enterprise.id, selectedOrgId]);
 
   const fetchOrganizations = useCallback(async () => {
