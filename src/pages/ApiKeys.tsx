@@ -238,10 +238,14 @@ export default function ApiKeys({ enterprise, role }: Props) {
       .order("created_at", { ascending: true });
     if (data && data.length > 0) {
       setOrganizations(data);
-      setSelectedOrgId(data[0].id);
-      fetchOrgKeys(data[0].id);
+      if (role === "admin") {
+        fetchOrgKeys(null);
+      } else {
+        setSelectedOrgId(data[0].id);
+        fetchOrgKeys(data[0].id);
+      }
     }
-  }, [canSeeOrgTab, enterprise.id]);
+  }, [canSeeOrgTab, enterprise.id, role]);
 
   useEffect(() => {
     fetchMyKeys();
