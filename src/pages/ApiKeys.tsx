@@ -708,53 +708,12 @@ export default function ApiKeys({ enterprise, role }: Props) {
         </div>
       )}
 
-      {/* 行3：创建按钮 + 归属提示（左） + [组织/成员筛选] + 搜索栏+刷新（右） */}
+      {/* 行3：创建按钮 + 搜索栏+刷新（右） */}
       <div className="flex items-center justify-between mb-5">
         <div className="flex items-center gap-3">
           <Button onClick={openCreate} className="gap-2 h-9">
             <Plus className="w-4 h-4" />创建 API Key
           </Button>
-          <span className="text-xs text-muted-foreground">
-            提示：Key 将归属于{" "}
-            <span className="font-medium text-foreground">
-              {selectedOrgId
-                ? organizations.find(o => o.id === selectedOrgId)?.name ?? "当前组织"
-                : "个人空间"}
-            </span>
-          </span>
-          {/* 组织 Tab 专属筛选器 */}
-          {canSeeOrgTab && activeTab === "org" && (
-            <>
-              {/* 企业管理员才显示组织筛选（组织管理员行2已锁定组织） */}
-              {previewRole === "admin" && (
-                <Select value={orgNameFilter} onValueChange={setOrgNameFilter}>
-                  <SelectTrigger className="h-9 w-36 border-border shadow-sm text-sm">
-                    <SelectValue placeholder="组织：全部" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">组织：全部</SelectItem>
-                    {organizations.map(org => (
-                      <SelectItem key={org.id} value={org.id}>{org.name}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              )}
-              {/* 成员筛选（组织管理员 & 企业管理员均显示） */}
-              <Select value={memberFilter} onValueChange={setMemberFilter}>
-                <SelectTrigger className="h-9 w-36 border-border shadow-sm text-sm">
-                  <SelectValue placeholder="成员：全部" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">成员：全部</SelectItem>
-                  {orgMembers.map(m => (
-                    <SelectItem key={m.phone} value={m.phone}>
-                      {m.name ? `${m.name} (${m.phone})` : m.phone}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </>
-          )}
         </div>
         <div className="flex items-center gap-2">
           {/* 名称 label + 输入框 */}
