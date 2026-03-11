@@ -668,6 +668,7 @@ function AuditLogsTab({ globalEnterpriseId, globalMember, enterprises }: {
               <SelectItem value="设置变更">设置变更</SelectItem>
             </SelectContent>
           </Select>
+          <Button size="sm" className="h-9">搜索</Button>
           <Button size="sm" variant="outline" className="h-9" onClick={handleReset}>重置</Button>
         </div>
       </div>
