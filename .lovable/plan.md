@@ -1,71 +1,44 @@
 
-## Two focused layout tweaks — `src/pages/admin/AdminUsers.tsx` only
+## Audit Logs — Remove IP, Add 组织 column
 
-### Change 1: Basic info — 2×2 grid (lines 394–447)
+### Current state
+**Client (`CallLogs.tsx`):**
+- `mockAuditLogs` already has `org` field on each row ✓
+- Headers: `["时间", "操作人", "操作类型", "操作内容", "操作结果", "IP 地址"]`
+- Table body renders 6 cells — no `org` cell, but has `ip` cell
+- The images show a blank red-boxed column (left) = missing org, and IP column (right) = to be removed
 
-Currently 4 rows stacked vertically with `space-y-4`. Redesign as a **2×2 grid** — left column: 用户名 + 账号状态, right column: 手机号 + 密码重置.
+**Admin (`AdminCallLogs.tsx`):**
+- `mockAuditLogs` has `enterprise` but NO `org` field
+- Headers: `["时间", "所属企业", "操作人", "操作类型", "操作内容", "操作结果", "IP 地址"]`
+- Table body renders 7 cells — no `org` cell, but has `ip` cell
 
-```tsx
-<div className="grid grid-cols-2 gap-x-4 gap-y-3">
-  {/* 用户名 — top-left */}
-  <div className="flex items-center justify-between">
-    <div>
-      <Label className="text-xs text-muted-foreground">用户名</Label>
-      <p className="text-sm mt-0.5">{drawerUser.name || "—"}</p>
-    </div>
-    <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground" onClick={...}>
-      <Copy className="w-3.5 h-3.5" />
-    </Button>
-  </div>
+### Changes
 
-  {/* 手机号 — top-right */}
-  <div className="flex items-center justify-between">
-    <div>
-      <Label className="text-xs text-muted-foreground">手机号</Label>
-      <p className="text-sm mt-0.5 font-medium tabular-nums">{drawerUser.phone}</p>
-    </div>
-    <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground" onClick={...}>
-      <Copy className="w-3.5 h-3.5" />
-    </Button>
-  </div>
+#### 1. `CallLogs.tsx` — Client AuditLogsTab (lines 556–654)
 
-  {/* 账号状态 — bottom-left */}
-  <div className="flex items-center justify-between">
-    <div>
-      <Label className="text-xs text-muted-foreground">账号状态</Label>
-      <p className="text-sm mt-0.5">...</p>
-    </div>
-    <Switch ... />
-  </div>
-
-  {/* 密码重置 — bottom-right */}
-  <div className="flex items-center justify-between">
-    <div>
-      <Label className="text-xs text-muted-foreground">密码重置</Label>
-      <p className="text-xs text-muted-foreground mt-0.5">强制用户下次登录时重置密码</p>
-    </div>
-    <Button size="sm" variant="outline" ...>重置密码</Button>
-  </div>
-</div>
+**Headers** — swap IP for 组织, inserted after 操作人:
+```
+["时间", "操作人", "组织", "操作类型", "操作内容", "操作结果"]
 ```
 
-### Change 2: Personal space — label outside card, tighter padding (lines 459–486)
+**Table body** — add `{row.org}` cell after operator cell; remove IP cell.
 
-Move "个人空间" text **above** the card border, reduce internal padding from `p-4 space-y-3` to `p-3 space-y-2`:
+#### 2. `AdminCallLogs.tsx` — Admin mock data + AuditLogsTab (lines 103–112, 620–713)
 
-```tsx
-{/* 个人空间 */}
-<div>
-  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1.5">个人空间</p>
-  <div className="bg-blue-50/50 border border-blue-100 rounded-lg p-3 space-y-2">
-    <div className="flex items-center justify-between">
-      <span className="text-sm text-muted-foreground">当前余额</span>
-      <span className="font-semibold tabular-nums">¥{...}</span>
-    </div>
-    {/* balance edit input + 保存 button + disclaimer — unchanged */}
-  </div>
-</div>
+**Mock data** — add `org` field to each `mockAuditLogs` row:
+- 极光科技 rows → org: "技术部" / "研发部"
+- 蓝海智能 rows → org: "产品部"
+- 云启数字 rows → org: "市场部"
+- "-" enterprise rows → org: "-"
+
+**Headers** — swap IP for 组织, inserted after 操作人:
 ```
+["时间", "所属企业", "操作人", "组织", "操作类型", "操作内容", "操作结果"]
+```
+
+**Table body** — add `{row.org}` cell after operator cell; remove IP cell.
 
 ### Files changed
-- `src/pages/admin/AdminUsers.tsx` — lines 394–486 only
+- `src/pages/CallLogs.tsx` — mock data unchanged (already has org), AuditLogsTab headers + body
+- `src/pages/admin/AdminCallLogs.tsx` — add `org` to mockAuditLogs, AuditLogsTab headers + body
