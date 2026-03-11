@@ -431,7 +431,8 @@ export default function ApiKeys({ enterprise, role }: Props) {
                   </div>
                 </TableHead>
                 <TableHead className="font-medium">已消耗/预算上限</TableHead>
-                {showCreator && <TableHead className="font-medium">创建者</TableHead>}
+                {showOrg && <TableHead className="font-medium">组织</TableHead>}
+                {showCreator && <TableHead className="font-medium">成员</TableHead>}
                 <TableHead className="font-medium">
                   <div className="flex items-center gap-1">
                     分组
