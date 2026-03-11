@@ -593,23 +593,43 @@ export default function ApiKeys({ enterprise, role }: Props) {
 
   return (
     <div>
-      {/* 行1：标题 */}
-      <h1 className="text-xl font-bold text-foreground mb-3">API Key 管理</h1>
-
-      {/* 行2：胶囊切换器 + 全局组织选择器（同一行） */}
-      <div className="flex items-center gap-3 mb-4">
+      {/* 行1：标题 + 右侧角色视角切换 */}
+      <div className="flex items-center justify-between mb-3">
+        <h1 className="text-xl font-bold text-foreground">API Key 管理</h1>
         <div className="flex items-center bg-muted rounded-lg p-1 h-9">
-          <button
-            onClick={() => setActiveTab("my")}
-            className={`px-3 h-full rounded-md text-sm font-medium transition-all ${
-              activeTab === "my"
-                ? "bg-background shadow-sm text-foreground"
-                : "text-muted-foreground hover:text-foreground"
-            }`}
-          >
-            我的 API Key
-          </button>
-          {canSeeOrgTab && (
+          {(["member", "org_admin", "admin"] as const).map(r => (
+            <button
+              key={r}
+              onClick={() => {
+                setPreviewRole(r);
+                if (r === "member") setActiveTab("my");
+              }}
+              className={`px-3 h-full rounded-md text-xs font-medium transition-all ${
+                previewRole === r
+                  ? "bg-background shadow-sm text-foreground"
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              {r === "member" ? "普通成员" : r === "org_admin" ? "组织管理员" : "企业管理员"}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* 行2：胶囊切换器 + 全局组织选择器（同一行）— 仅管理员角色显示 */}
+      {canSeeOrgTab && (
+        <div className="flex items-center gap-3 mb-4">
+          <div className="flex items-center bg-muted rounded-lg p-1 h-9">
+            <button
+              onClick={() => setActiveTab("my")}
+              className={`px-3 h-full rounded-md text-sm font-medium transition-all ${
+                activeTab === "my"
+                  ? "bg-background shadow-sm text-foreground"
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              我的 API Key
+            </button>
             <button
               onClick={() => { setActiveTab("org"); if (selectedOrgId) fetchOrgKeys(); }}
               className={`px-3 h-full rounded-md text-sm font-medium transition-all ${
@@ -620,32 +640,33 @@ export default function ApiKeys({ enterprise, role }: Props) {
             >
               组织 API Key
             </button>
+          </div>
+          {organizations.length > 0 && (
+            <div className="flex items-center gap-1.5">
+              <Building2 className="w-4 h-4 text-muted-foreground" />
+              <Select
+                value={selectedOrgId ?? ""}
+                onValueChange={(val) => {
+                  setSelectedOrgId(val);
+                  setOrgNameFilter("all");
+                  fetchOrgKeys(val);
+                }}
+              >
+                <SelectTrigger className="h-9 w-44 border-border shadow-sm font-medium">
+                  <SelectValue placeholder="选择组织..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {organizations.map(org => (
+                    <SelectItem key={org.id} value={org.id}>{org.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
           )}
         </div>
-        {canSeeOrgTab && organizations.length > 0 && (
-          <div className="flex items-center gap-1.5">
-            <Building2 className="w-4 h-4 text-muted-foreground" />
-            <Select
-              value={selectedOrgId ?? ""}
-              onValueChange={(val) => {
-                setSelectedOrgId(val);
-                fetchOrgKeys(val);
-              }}
-            >
-              <SelectTrigger className="h-9 w-44 border-border shadow-sm font-medium">
-                <SelectValue placeholder="选择组织..." />
-              </SelectTrigger>
-              <SelectContent>
-                {organizations.map(org => (
-                  <SelectItem key={org.id} value={org.id}>{org.name}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-        )}
-      </div>
+      )}
 
-      {/* 行3：创建按钮 + 归属提示（左） + 搜索栏+刷新（右） */}
+      {/* 行3：创建按钮 + 归属提示（左） + [组织/成员筛选] + 搜索栏+刷新（右） */}
       <div className="flex items-center justify-between mb-5">
         <div className="flex items-center gap-3">
           <Button onClick={openCreate} className="gap-2 h-9">
@@ -659,6 +680,39 @@ export default function ApiKeys({ enterprise, role }: Props) {
                 : "个人空间"}
             </span>
           </span>
+          {/* 组织 Tab 专属筛选器 */}
+          {canSeeOrgTab && activeTab === "org" && (
+            <>
+              {/* 企业管理员才显示组织筛选（组织管理员行2已锁定组织） */}
+              {previewRole === "admin" && (
+                <Select value={orgNameFilter} onValueChange={setOrgNameFilter}>
+                  <SelectTrigger className="h-9 w-36 border-border shadow-sm text-sm">
+                    <SelectValue placeholder="组织：全部" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">组织：全部</SelectItem>
+                    {organizations.map(org => (
+                      <SelectItem key={org.id} value={org.id}>{org.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
+              {/* 成员筛选（组织管理员 & 企业管理员均显示） */}
+              <Select value={memberFilter} onValueChange={setMemberFilter}>
+                <SelectTrigger className="h-9 w-36 border-border shadow-sm text-sm">
+                  <SelectValue placeholder="成员：全部" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">成员：全部</SelectItem>
+                  {orgMembers.map(m => (
+                    <SelectItem key={m.phone} value={m.phone}>
+                      {m.name ? `${m.name} (${m.phone})` : m.phone}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </>
+          )}
         </div>
         <div className="flex items-center gap-2">
           {/* 名称 label + 输入框 */}
@@ -701,7 +755,7 @@ export default function ApiKeys({ enterprise, role }: Props) {
         {activeTab === "my" && (
           <KeyTable
             keys={myKeys}
-            filterFn={filterKeys}
+            filterFn={(keys) => filterKeys(keys, false)}
             page={myPage}
             setPage={setMyPage}
           />
@@ -709,13 +763,14 @@ export default function ApiKeys({ enterprise, role }: Props) {
         {canSeeOrgTab && activeTab === "org" && (
           <KeyTable
             keys={orgKeys}
-            filterFn={filterKeys}
+            filterFn={(keys) => filterKeys(keys, true)}
             showCreator
             page={orgPage}
             setPage={setOrgPage}
           />
         )}
       </div>
+
 
       {/* Create / Edit Sheet */}
       <Sheet open={sheetOpen} onOpenChange={setSheetOpen}>
