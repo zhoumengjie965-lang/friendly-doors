@@ -104,23 +104,20 @@ function formatQuota(used: number, total: number | null) {
   );
 }
 
-type RunningStatus = "正常" | "预算不足" | "已过期" | "异常";
+type MergedStatus = "正常" | "预算不足" | "已过期" | "禁用";
 
-function getRunningStatus(k: ApiKey): { label: RunningStatus; tooltip?: string } {
-  if (k.expires_at && new Date(k.expires_at) < new Date()) {
-    return { label: "已过期", tooltip: "Key 已过期" };
-  }
-  if (k.total_quota !== null && k.used_quota >= k.total_quota) {
-    return { label: "预算不足", tooltip: "Key 预算不足" };
-  }
-  return { label: "正常" };
+function getMergedStatus(k: ApiKey): MergedStatus {
+  if (k.status === "disabled") return "禁用";
+  if (k.expires_at && new Date(k.expires_at) < new Date()) return "已过期";
+  if (k.total_quota !== null && k.used_quota >= k.total_quota) return "预算不足";
+  return "正常";
 }
 
-const runningStatusColors: Record<RunningStatus, string> = {
-  "正常": "bg-green-100 text-green-700 border-green-200",
-  "预算不足": "bg-orange-100 text-orange-700 border-orange-200",
-  "已过期": "bg-gray-100 text-gray-500 border-gray-200",
-  "异常": "bg-red-100 text-red-700 border-red-200",
+const mergedStatusConfig: Record<MergedStatus, { dot: string; badge: string; label: string }> = {
+  "正常":    { dot: "bg-green-500",  badge: "bg-green-50 text-green-700 border-green-200",   label: "正常" },
+  "预算不足":{ dot: "bg-orange-500", badge: "bg-orange-50 text-orange-700 border-orange-200",label: "预算不足" },
+  "已过期":  { dot: "bg-gray-400",   badge: "bg-gray-100 text-gray-500 border-gray-200",     label: "已过期" },
+  "禁用":    { dot: "bg-gray-300",   badge: "bg-gray-100 text-gray-400 border-gray-200",     label: "禁用" },
 };
 
 
