@@ -321,10 +321,10 @@ export default function OrgManagement({ enterprise, role }: Props) {
       {/* Edit Name Dialog */}
       <Dialog open={!!editOrg} onOpenChange={(o) => { if (!o) setEditOrg(null); }}>
         <DialogContent className="sm:max-w-sm">
-          <DialogHeader><DialogTitle>编辑组织名称</DialogTitle></DialogHeader>
+          <DialogHeader><DialogTitle>编辑部门名称</DialogTitle></DialogHeader>
           <div className="space-y-4 py-2">
             <div className="space-y-2">
-              <Label>组织名称</Label>
+              <Label>部门名称</Label>
               <Input value={editName} onChange={e => setEditName(e.target.value)} />
             </div>
             <div className="flex gap-3">
