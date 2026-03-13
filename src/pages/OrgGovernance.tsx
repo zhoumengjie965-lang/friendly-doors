@@ -411,8 +411,8 @@ export default function OrgGovernance({ enterprise, role }: Props) {
                 {/* B. 实时消耗 */}
                 <div className="rounded-xl border bg-card p-5 space-y-4">
                   <div className="flex items-center gap-2">
-                    <div className="w-7 h-7 rounded-lg bg-orange-500/10 flex items-center justify-center">
-                      <TrendingUp className="w-4 h-4 text-orange-500" />
+                    <div className="w-7 h-7 rounded-lg bg-destructive/10 flex items-center justify-center">
+                      <TrendingUp className="w-4 h-4 text-destructive" />
                     </div>
                     <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">实时消耗</p>
                   </div>
