@@ -119,6 +119,7 @@ export default function AdminEnterpriseDetail() {
   const [orgs, setOrgs] = useState<Org[]>([]);
   const [members, setMembers] = useState<Member[]>([]);
   const [selectedOrgId, setSelectedOrgId] = useState<string | null>(null);
+  const [orgRightTab, setOrgRightTab] = useState<"members" | "sub-orgs">("members");
   const [loading, setLoading] = useState(true);
 
   // Recharge dialog
