@@ -94,12 +94,12 @@ export default function OrgManagement({ enterprise, role }: Props) {
   const handleDelete = async () => {
     if (!deleteOrg) return;
     if (deleteOrg.name === "默认组织") {
-      toast({ title: "无法删除默认组织", variant: "destructive" });
+      toast({ title: "无法删除默认部门", variant: "destructive" });
       setDeleteOrg(null);
       return;
     }
     await supabase.from("organizations").delete().eq("id", deleteOrg.id);
-    toast({ title: "已删除组织" });
+    toast({ title: "已删除部门" });
     setDeleteOrg(null);
     load();
   };
