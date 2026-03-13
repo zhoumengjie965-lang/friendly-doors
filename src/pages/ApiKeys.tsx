@@ -843,7 +843,7 @@ export default function ApiKeys({ enterprise, role }: Props) {
       {/* 行3：创建按钮 + 搜索栏+刷新（右） */}
       <div className="flex items-center justify-between mb-5">
         <div className="flex items-center gap-3">
-          {/* org_admin 在组织 Tab 下：显示配置 & 高级权限按钮；其他情况显示创建按钮 */}
+          {/* org_admin 在组织 Tab 下：显示配置 & 高级权限按钮；prod tab 显示创建按钮；其他情况显示创建按钮 */}
           {previewRole === "org_admin" && activeTab === "org" ? (
             <>
               <Button
@@ -872,6 +872,10 @@ export default function ApiKeys({ enterprise, role }: Props) {
                 <ShieldCheck className="w-4 h-4" />成员高级权限
               </Button>
             </>
+          ) : previewRole === "org_admin" && activeTab === "prod" ? (
+            <Button onClick={openCreateProd} className="gap-2 h-9 bg-primary text-primary-foreground hover:bg-primary/90">
+              <Plus className="w-4 h-4" />创建 API Key
+            </Button>
           ) : previewRole === "admin" && activeTab === "org" ? null : (
             <Button onClick={openCreate} className="gap-2 h-9">
               <Plus className="w-4 h-4" />创建 API Key
