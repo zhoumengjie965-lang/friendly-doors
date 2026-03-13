@@ -100,6 +100,16 @@ export default function OrgGovernance({ enterprise, role }: Props) {
   const [bulkRole, setBulkRole] = useState("member");
   const [bulkLimit, setBulkLimit] = useState("2000");
   const [saving, setSaving] = useState(false);
+
+  // Sub-department tab state
+  const [activeTab, setActiveTab] = useState<"members" | "sub-orgs">("members");
+  const [subOrgs, setSubOrgs] = useState<SubOrg[]>(MOCK_SUB_ORGS);
+  const [showCreateSubOrg, setShowCreateSubOrg] = useState(false);
+  const [subOrgName, setSubOrgName] = useState("");
+  const [subOrgBudget, setSubOrgBudget] = useState("");
+  const [subOrgAdminName, setSubOrgAdminName] = useState("");
+  const [subOrgAdminPhone, setSubOrgAdminPhone] = useState("");
+
   const { toast } = useToast();
   const phone = getCurrentPhone();
 
