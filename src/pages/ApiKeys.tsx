@@ -73,6 +73,15 @@ const MODELS = [
 
 const PAGE_SIZE = 10;
 
+// Mock members for UI preview (used as fallback when no real members exist)
+const MOCK_MEMBERS = [
+  { phone: "13800138001", name: "张伟" },
+  { phone: "13912345678", name: "李晓梅" },
+  { phone: "18611223344", name: "王建国" },
+  { phone: "15955667788", name: null },
+  { phone: "13700000001", name: "陈思思" },
+];
+
 function maskKey(key: string, show: boolean) {
   if (show) return key;
   if (key.length <= 8) return key;
@@ -133,7 +142,7 @@ export default function ApiKeys({ enterprise, role }: Props) {
   const [selectedOrgId, setSelectedOrgId] = useState<string | null>(null);
 
   // Org-tab member filter
-  const [orgMembers, setOrgMembers] = useState<{ phone: string; name: string | null }[]>([]);
+  const [orgMembers, setOrgMembers] = useState<{ phone: string; name: string | null }[]>(MOCK_MEMBERS);
   const [memberFilter, setMemberFilter] = useState<string>("all");
   const [orgNameFilter, setOrgNameFilter] = useState<string>("all");
 
@@ -242,11 +251,13 @@ export default function ApiKeys({ enterprise, role }: Props) {
         .select("user_phone, users(name)")
         .eq("organization_id", targetOrgId)
         .eq("status", "active");
-      if (members) {
+      if (members && members.length > 0) {
         setOrgMembers(members.map((m: any) => ({
           phone: m.user_phone,
           name: m.users?.name ?? null,
         })));
+      } else {
+        setOrgMembers(MOCK_MEMBERS);
       }
     } else if (role === "admin") {
       const { data: members } = await supabase
@@ -254,12 +265,13 @@ export default function ApiKeys({ enterprise, role }: Props) {
         .select("user_phone, users(name)")
         .eq("enterprise_id", enterprise.id)
         .eq("status", "active");
-      setOrgMembers(members?.map((m: any) => ({
+      const mapped = members?.map((m: any) => ({
         phone: m.user_phone,
         name: m.users?.name ?? null,
-      })) ?? []);
+      })) ?? [];
+      setOrgMembers(mapped.length > 0 ? mapped : MOCK_MEMBERS);
     } else {
-      setOrgMembers([]);
+      setOrgMembers(MOCK_MEMBERS);
     }
     setMemberFilter("all");
   }, [canSeeOrgTab, enterprise.id, selectedOrgId]);
