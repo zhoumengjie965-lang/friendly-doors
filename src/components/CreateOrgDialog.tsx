@@ -180,8 +180,8 @@ export default function CreateOrgDialog({ open, onOpenChange, enterpriseId, exis
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
-          <DialogTitle>创建组织</DialogTitle>
-          <DialogDescription>填写以下信息创建新的组织单元</DialogDescription>
+          <DialogTitle>创建部门</DialogTitle>
+          <DialogDescription>填写以下信息创建新的部门</DialogDescription>
         </DialogHeader>
 
         <div className="space-y-5 py-2">
