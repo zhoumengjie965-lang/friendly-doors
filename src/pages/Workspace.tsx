@@ -509,12 +509,10 @@ export default function Workspace() {
           <div className="flex-1 p-6 bg-background overflow-auto">
             {location.pathname === "/workspace/enterprise/info" ? (
               <EnterpriseInfo enterprise={enterprise} role={role} />
-            ) : location.pathname === "/workspace/enterprise/orgs" ? (
-              <OrgManagement enterprise={enterprise} role={role} />
             ) : location.pathname === "/workspace/enterprise/balance" ? (
               <AccountBalance enterprise={enterprise} role={role} />
-            ) : location.pathname === "/workspace/org/governance" ? (
-              <OrgGovernance enterprise={enterprise} role={role} />
+            ) : location.pathname.startsWith("/workspace/dept") ? (
+              <DeptManagement enterprise={enterprise} role={role} />
             ) : location.pathname === "/workspace/keys" ? (
               <ApiKeys enterprise={enterprise} role={role} />
             ) : location.pathname === "/workspace/stats" ? (
