@@ -747,16 +747,14 @@ function OrgView({ enterprise, role, orgId, orgs, onOrgUpdated }: {
           <h1 className="text-2xl font-bold text-foreground">{selectedOrg?.name ?? "部门管理"}</h1>
           <p className="text-muted-foreground text-sm mt-0.5">管理部门成员与预算</p>
         </div>
-        {hasChildren && (
-          <div className="flex items-center gap-2">
-            <Button variant="outline" size="sm" onClick={() => { setMemberDailyLimit(""); setShowBudgetDialog(true); }} className="gap-1.5">
-              <Sliders className="w-3.5 h-3.5" />部门批量分配
-            </Button>
-            <Button size="sm" onClick={() => setShowCreateSubOrg(true)} className="gap-1.5">
-              <Plus className="w-3.5 h-3.5" />创建子部门
-            </Button>
-          </div>
-        )}
+        <div className="flex items-center gap-2">
+          <Button variant="outline" size="sm" onClick={() => { setSubOrgTotalPackage(""); setShowSubOrgBudgetDialog(true); }} className="gap-1.5">
+            <Sliders className="w-3.5 h-3.5" />子部门批量分配
+          </Button>
+          <Button size="sm" onClick={() => setShowCreateSubOrg(true)} className="gap-1.5">
+            <Plus className="w-3.5 h-3.5" />创建子部门
+          </Button>
+        </div>
       </div>
 
       {/* 3 overview cards */}
