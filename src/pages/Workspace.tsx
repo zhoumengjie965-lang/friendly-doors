@@ -4,9 +4,8 @@ import { getCurrentPhone, getUserEnterprises, clearCurrentPhone, createEnterpris
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import WorkspaceSidebar from "@/components/WorkspaceSidebar";
 import EnterpriseInfo from "@/pages/EnterpriseInfo";
-import OrgManagement from "@/pages/OrgManagement";
 import AccountBalance from "@/pages/AccountBalance";
-import OrgGovernance from "@/pages/OrgGovernance";
+import DeptManagement from "@/pages/DeptManagement";
 import Profile from "@/pages/Profile";
 import ApiKeys from "@/pages/ApiKeys";
 import ResourceStats from "@/pages/ResourceStats";
