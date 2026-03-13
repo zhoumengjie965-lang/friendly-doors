@@ -940,6 +940,21 @@ export default function ApiKeys({ enterprise, role }: Props) {
             setPage={setOrgPage}
           />
         )}
+        {previewRole === "org_admin" && activeTab === "prod" && (
+          <>
+            <KeyTable
+              keys={prodKeys}
+              filterFn={(keys) => filterKeys(keys, false)}
+              showCreator={false}
+              showOrg={false}
+              page={prodPage}
+              setPage={setProdPage}
+            />
+            <p className="text-xs text-muted-foreground mt-4 text-center">
+              生产环境专用 Key，未来将支持基于终端用户的精细化限流与审计统计。
+            </p>
+          </>
+        )}
       </div>
 
 
