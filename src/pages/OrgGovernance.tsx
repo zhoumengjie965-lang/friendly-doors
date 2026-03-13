@@ -521,7 +521,7 @@ export default function OrgGovernance({ enterprise, role }: Props) {
               <RadioGroup value={editRole} onValueChange={setEditRole} className="flex gap-6">
                 <div className="flex items-center gap-2">
                   <RadioGroupItem value="org_admin" id="r-admin" />
-                  <Label htmlFor="r-admin" className="font-normal cursor-pointer">组织管理员</Label>
+                  <Label htmlFor="r-admin" className="font-normal cursor-pointer">部门管理员</Label>
                 </div>
                 <div className="flex items-center gap-2">
                   <RadioGroupItem value="member" id="r-member" />
