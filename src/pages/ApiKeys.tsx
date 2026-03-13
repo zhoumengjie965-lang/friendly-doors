@@ -517,7 +517,7 @@ export default function ApiKeys({ enterprise, role }: Props) {
     const filtered = filterFn ? filterFn(keys) : filterKeys(keys);
     const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
     const paged = paginate(filtered, page);
-    const colSpan = 10 + (showCreator ? 1 : 0) + (showOrg ? 1 : 0);
+    const colSpan = 9 + (showCreator ? 1 : 0) + (showOrg ? 1 : 0);
 
     return (
       <div>
@@ -526,35 +526,20 @@ export default function ApiKeys({ enterprise, role }: Props) {
             <TableHeader>
               <TableRow className="bg-muted/40">
                 <TableHead className="font-medium">名称</TableHead>
-                {/* 管理状态 */}
+                {/* 状态（合并管理状态+运行状态） */}
                 <TableHead className="font-medium">
                   <div className="flex items-center gap-1">
-                    管理状态
+                    状态
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
                         <button className="hover:bg-muted rounded p-0.5"><ChevronDown className="w-3 h-3" /></button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="start">
                         <DropdownMenuCheckboxItem checked={statusFilter === "all"} onCheckedChange={() => setStatusFilter("all")}>全部</DropdownMenuCheckboxItem>
-                        <DropdownMenuCheckboxItem checked={statusFilter === "active"} onCheckedChange={() => setStatusFilter("active")}>启用</DropdownMenuCheckboxItem>
-                        <DropdownMenuCheckboxItem checked={statusFilter === "disabled"} onCheckedChange={() => setStatusFilter("disabled")}>禁用</DropdownMenuCheckboxItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  </div>
-                </TableHead>
-                {/* 运行状态 */}
-                <TableHead className="font-medium">
-                  <div className="flex items-center gap-1">
-                    运行状态
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <button className="hover:bg-muted rounded p-0.5"><ChevronDown className="w-3 h-3" /></button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="start">
-                        <DropdownMenuCheckboxItem checked={runningStatusFilter === "all"} onCheckedChange={() => setRunningStatusFilter("all")}>全部</DropdownMenuCheckboxItem>
-                        <DropdownMenuCheckboxItem checked={runningStatusFilter === "正常"} onCheckedChange={() => setRunningStatusFilter("正常")}>正常</DropdownMenuCheckboxItem>
-                        <DropdownMenuCheckboxItem checked={runningStatusFilter === "预算不足"} onCheckedChange={() => setRunningStatusFilter("预算不足")}>预算不足</DropdownMenuCheckboxItem>
-                        <DropdownMenuCheckboxItem checked={runningStatusFilter === "已过期"} onCheckedChange={() => setRunningStatusFilter("已过期")}>已过期</DropdownMenuCheckboxItem>
+                        <DropdownMenuCheckboxItem checked={statusFilter === "正常"} onCheckedChange={() => setStatusFilter("正常")}>正常</DropdownMenuCheckboxItem>
+                        <DropdownMenuCheckboxItem checked={statusFilter === "预算不足"} onCheckedChange={() => setStatusFilter("预算不足")}>预算不足</DropdownMenuCheckboxItem>
+                        <DropdownMenuCheckboxItem checked={statusFilter === "已过期"} onCheckedChange={() => setStatusFilter("已过期")}>已过期</DropdownMenuCheckboxItem>
+                        <DropdownMenuCheckboxItem checked={statusFilter === "禁用"} onCheckedChange={() => setStatusFilter("禁用")}>禁用</DropdownMenuCheckboxItem>
                       </DropdownMenuContent>
                     </DropdownMenu>
                   </div>
