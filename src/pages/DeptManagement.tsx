@@ -607,145 +607,29 @@ function OrgView({ enterprise, role, orgId, orgs, onOrgUpdated }: {
   const [subOrgName, setSubOrgName] = useState("");
   const [subOrgBudget, setSubOrgBudget] = useState("");
   const [showBudgetDialog, setShowBudgetDialog] = useState(false);
-  const [budgetDialogMode, setBudgetDialogMode] = useState<"members" | "sub-orgs">("members");
-  const [totalPackage, setTotalPackage] = useState("");
+  const [budgetDialogMode, setBudgetDialogMode] = useState<"members">("members");
   const [memberDailyLimit, setMemberDailyLimit] = useState("");
   const [distributing, setDistributing] = useState(false);
   const [statsFlashKey, setStatsFlashKey] = useState(0);
   // Transfer member state
   const [transferMember, setTransferMember] = useState<Member | null>(null);
-  const tabCardRef = useRef<HTMLDivElement>(null);
+  const cardRef = useRef<HTMLDivElement>(null);
   const { toast } = useToast();
   const phone = getCurrentPhone();
 
   const selectedOrg = orgs.find(o => o.id === orgId);
   const budget = selectedOrg?.monthly_budget ?? 0;
   const consumed = selectedOrg?.current_month_budget ?? 0;
-  const usageRate = budget > 0 ? Math.round((consumed / budget) * 100) : 0;
 
-  useEffect(() => { fetchMembers(); }, [orgId]);
+  // Children count from the recursive tree (orgs with parent_id === orgId)
+  const childCount = orgs.filter(o => o.parent_id === orgId).length;
+  const hasChildren = childCount > 0;
 
-  async function fetchMembers() {
-    setLoading(true);
-    const [{ data: membersData }, { data: invData }] = await Promise.all([
-      supabase.from("members").select("*").eq("organization_id", orgId),
-      supabase.from("invitations").select("*").eq("organization_id", orgId).eq("status", "pending").gt("expires_at", new Date().toISOString()).not("invitee_phone", "is", null),
-    ]);
-    const mList = (membersData as Member[]) ?? [];
-    const iList = (invData as PendingInvite[]) ?? [];
-    setMembers(mList);
-    setPendingInvites(iList);
-    const phones = [...mList.map(m => m.user_phone), ...iList.filter(i => i.invitee_phone).map(i => i.invitee_phone!)];
-    if (phones.length > 0) {
-      const { data: usersData } = await supabase.from("users").select("phone, name").in("phone", phones);
-      if (usersData) {
-        const map: Record<string, string | null> = {};
-        usersData.forEach((u: { phone: string; name?: string | null }) => { map[u.phone] = u.name ?? null; });
-        setMemberNames(map);
-      }
-    }
-    setLoading(false);
-  }
-
-  async function revokeInvite(inviteId: string) {
-    await supabase.from("invitations").delete().eq("id", inviteId);
-    fetchMembers();
-    toast({ title: "已取消添加" });
-  }
-
-  function openEdit(m: Member) { setEditMember(m); setEditRole(m.role); setEditLimit(String(m.daily_limit ?? 2000)); }
-
-  async function saveMember() {
-    if (!editMember) return;
-    if (editRole !== "org_admin" && editMember.role === "org_admin") {
-      if (members.filter(m => m.role === "org_admin").length <= 1) {
-        toast({ title: "至少保留 1 名部门管理员", variant: "destructive" }); return;
-      }
-    }
-    setSaving(true);
-    await supabase.from("members").update({ role: editRole, daily_limit: Number(editLimit) }).eq("id", editMember.id);
-    setSaving(false); setEditMember(null); fetchMembers();
-    toast({ title: "已保存" });
-  }
-
-  async function toggleMemberStatus(m: Member) {
-    const newStatus = m.status === "active" ? "disabled" : "active";
-    await supabase.from("members").update({ status: newStatus }).eq("id", m.id);
-    fetchMembers();
-  }
-
-  async function removeMember(m: Member) {
-    await supabase.from("members").delete().eq("id", m.id);
-    fetchMembers();
-    toast({ title: "成员已移除" });
-  }
-
-  async function handleTransfer(targetOrgId: string) {
-    if (!transferMember) return;
-    await supabase.from("members").update({ organization_id: targetOrgId } as any).eq("id", transferMember.id);
-    toast({ title: "转移成功", description: `成员已转移到「${orgs.find(o => o.id === targetOrgId)?.name}」` });
-    setTransferMember(null);
-    fetchMembers();
-  }
-
-  const bulkParsed = useMemo(() => parseBulkText(bulkText), [bulkText]);
-
-  function resetAddDialog() {
-    setAddPhone(""); setAddName(""); setAddRole("member"); setAddLimit("2000");
-    setBulkText(""); setBulkRole("member"); setBulkLimit("2000"); setAddMode("single");
-  }
-
-  async function processSingleMember(memberPhone: string, memberName: string, memberRole: string, memberLimit: string) {
-    const { data: existing } = await supabase.from("members").select("id, organization_id").eq("enterprise_id", enterprise.id).eq("user_phone", memberPhone).maybeSingle();
-    if (existing) {
-      if (existing.organization_id === orgId) return { skipped: true };
-      await supabase.from("members").insert({ enterprise_id: enterprise.id, organization_id: orgId, user_phone: memberPhone, role: memberRole, daily_limit: Number(memberLimit), status: "active" });
-    } else {
-      await supabase.from("invitations").insert({ enterprise_id: enterprise.id, organization_id: orgId, inviter_phone: phone ?? "", invitee_phone: memberPhone, invited_role: memberRole });
-    }
-    if (memberName.trim()) await supabase.from("users").upsert({ phone: memberPhone, name: memberName.trim() }, { onConflict: "phone" });
-    return { skipped: false };
-  }
-
-  async function addMember() {
-    if (!addPhone.trim()) { toast({ title: "请输入手机号", variant: "destructive" }); return; }
-    if (!addName.trim()) { toast({ title: "请输入成员姓名", variant: "destructive" }); return; }
-    setSaving(true);
-    const result = await processSingleMember(addPhone.trim(), addName.trim(), addRole, addLimit);
-    if (result.skipped) { toast({ title: "该成员已在本部门中", variant: "destructive" }); setSaving(false); return; }
-    toast({ title: "添加成功" });
-    setSaving(false); setShowAdd(false); resetAddDialog(); fetchMembers();
-  }
-
-  async function addBulkMembers() {
-    if (bulkParsed.length === 0) { toast({ title: "请输入成员信息", variant: "destructive" }); return; }
-    if (bulkParsed.some(m => !m.valid)) { toast({ title: "批量导入中有格式错误，请修正后再提交", variant: "destructive" }); return; }
-    setSaving(true);
-    let added = 0;
-    for (const m of bulkParsed) { if (m.valid) { const r = await processSingleMember(m.phone, m.name, bulkRole, bulkLimit); if (!r.skipped) added++; } }
-    toast({ title: `批量添加完成`, description: `共处理 ${added} 位成员` });
-    setSaving(false); setShowAdd(false); resetAddDialog(); fetchMembers();
-  }
-
-  const roleLabel = (r: string) => r === "org_admin" ? "部门管理员" : "普通成员";
-  const statusBadge = (s: string) =>
-    s === "active"
-      ? <Badge variant="outline" style={{color:"hsl(142,70%,40%)",borderColor:"hsl(142,70%,75%)",background:"hsl(142,70%,97%)"}}>正常</Badge>
-      : <Badge variant="outline" className="text-muted-foreground border-border">禁用</Badge>;
-  const pendingBadge = <Badge variant="outline" className="w-fit" style={{color:"hsl(32,95%,44%)",borderColor:"hsl(32,95%,72%)",background:"hsl(32,95%,97%)"}}>待激活</Badge>;
-
-  function navigateTo(tab: "members" | "sub-orgs") {
-    setActiveTab(tab);
-    setTimeout(() => tabCardRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 50);
-  }
-
-  const subOrgAllocated = subOrgs.reduce((s, o) => s + (o.monthlyBudget ?? 0), 0);
   const memberAllocated = members.reduce((s, m) => s + (m.daily_limit ?? 2000) * 30, 0);
-  const totalAllocated = subOrgAllocated + memberAllocated;
+  const totalAllocated = memberAllocated;
   const remaining = budget > 0 ? budget - totalAllocated : null;
   const allocatedPct = budget > 0 ? Math.min(100, Math.round((totalAllocated / budget) * 100)) : null;
-  const subConsumed = subOrgs.reduce((s, o) => s + o.consumed, 0);
-  const totalConsumed = consumed + subConsumed;
+  const totalConsumed = consumed;
   const available = budget > 0 ? budget - totalConsumed : null;
   const execRate = budget > 0 ? Math.min(100, Math.round((totalConsumed / budget) * 100)) : 0;
   const execOverWarning = execRate >= 90;
