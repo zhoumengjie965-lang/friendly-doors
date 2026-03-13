@@ -904,35 +904,39 @@ export default function ApiKeys({ enterprise, role }: Props) {
                   <Input placeholder="请输入名称" value={formName} onChange={e => setFormName(e.target.value)} />
                 </div>
                 {/* 分组 */}
-                <div className="grid grid-cols-[100px_1fr] items-center gap-3">
-                  <Label className="text-right text-muted-foreground text-sm">分组</Label>
-                  <Input placeholder="不填则使用默认分组" value={formGroup} onChange={e => setFormGroup(e.target.value)} />
-                </div>
+                {!(previewRole === "member" && editingKey) && (
+                  <div className="grid grid-cols-[100px_1fr] items-center gap-3">
+                    <Label className="text-right text-muted-foreground text-sm">分组</Label>
+                    <Input placeholder="不填则使用默认分组" value={formGroup} onChange={e => setFormGroup(e.target.value)} />
+                  </div>
+                )}
                 {/* 过期时间 */}
-                <div className="grid grid-cols-[100px_1fr] items-start gap-3">
-                  <Label className="text-right text-muted-foreground text-sm pt-2.5">
-                    <span className="text-destructive mr-0.5">*</span>过期时间
-                  </Label>
-                  <div>
-                    <Input type="datetime-local" value={formExpires} onChange={e => setFormExpires(e.target.value)} />
-                    <div className="flex gap-2 mt-2 flex-wrap">
-                      {[
-                        { label: "永不过期", offset: null },
-                        { label: "一个月", offset: 30 * 24 * 60 * 60 * 1000 },
-                        { label: "一天", offset: 24 * 60 * 60 * 1000 },
-                        { label: "一小时", offset: 60 * 60 * 1000 },
-                      ].map(({ label, offset }) => (
-                        <button
-                          key={label}
-                          onClick={() => setQuickExpiry(offset)}
-                          className="px-3 py-1 text-xs rounded-full border border-border hover:border-primary hover:text-primary hover:bg-primary/5 transition-colors"
-                        >
-                          {label}
-                        </button>
-                      ))}
+                {!(previewRole === "member" && editingKey) && (
+                  <div className="grid grid-cols-[100px_1fr] items-start gap-3">
+                    <Label className="text-right text-muted-foreground text-sm pt-2.5">
+                      <span className="text-destructive mr-0.5">*</span>过期时间
+                    </Label>
+                    <div>
+                      <Input type="datetime-local" value={formExpires} onChange={e => setFormExpires(e.target.value)} />
+                      <div className="flex gap-2 mt-2 flex-wrap">
+                        {[
+                          { label: "永不过期", offset: null },
+                          { label: "一个月", offset: 30 * 24 * 60 * 60 * 1000 },
+                          { label: "一天", offset: 24 * 60 * 60 * 1000 },
+                          { label: "一小时", offset: 60 * 60 * 1000 },
+                        ].map(({ label, offset }) => (
+                          <button
+                            key={label}
+                            onClick={() => setQuickExpiry(offset)}
+                            className="px-3 py-1 text-xs rounded-full border border-border hover:border-primary hover:text-primary hover:bg-primary/5 transition-colors"
+                          >
+                            {label}
+                          </button>
+                        ))}
+                      </div>
                     </div>
                   </div>
-                </div>
+                )}
               </div>
             </div>
 
