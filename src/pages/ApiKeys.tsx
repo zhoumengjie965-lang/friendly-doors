@@ -778,7 +778,6 @@ export default function ApiKeys({ enterprise, role }: Props) {
           {previewRole === "org_admin" && activeTab === "org" ? (
             <>
               <Button
-                variant="outline"
                 className="gap-2 h-9"
                 onClick={() => {
                   // 打开前将已保存的值回填到 state
@@ -795,7 +794,6 @@ export default function ApiKeys({ enterprise, role }: Props) {
                 <Settings className="w-4 h-4" />配置 API Key
               </Button>
               <Button
-                variant="outline"
                 className="gap-2 h-9"
                 onClick={() => {
                   setPendingAdvanced(new Set(advancedMembers));
