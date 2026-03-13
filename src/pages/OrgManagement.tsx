@@ -179,7 +179,7 @@ export default function OrgManagement({ enterprise, role }: Props) {
       {/* Table */}
       <div className="bg-card border border-border rounded-xl overflow-hidden">
         <div className="px-6 py-4 border-b border-border">
-          <h2 className="font-semibold text-foreground">组织列表</h2>
+          <h2 className="font-semibold text-foreground">部门列表</h2>
         </div>
         {loading ? (
           <div className="flex items-center justify-center py-16">
@@ -188,8 +188,8 @@ export default function OrgManagement({ enterprise, role }: Props) {
         ) : orgs.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-16 text-muted-foreground">
             <Building2 className="w-12 h-12 mb-3 opacity-30" />
-            <p className="text-sm">暂无组织</p>
-            {isAdmin && <Button variant="outline" className="mt-4 gap-2" onClick={() => setCreateOpen(true)}><Plus className="w-4 h-4" />创建第一个组织</Button>}
+            <p className="text-sm">暂无部门</p>
+            {isAdmin && <Button variant="outline" className="mt-4 gap-2" onClick={() => setCreateOpen(true)}><Plus className="w-4 h-4" />创建第一个部门</Button>}
           </div>
         ) : (
           <div className="overflow-x-auto">
