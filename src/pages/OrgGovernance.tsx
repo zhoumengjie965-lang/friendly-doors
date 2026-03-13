@@ -449,8 +449,8 @@ export default function OrgGovernance({ enterprise, role }: Props) {
                 {/* C. 组织资产 */}
                 <div className="rounded-xl border bg-card p-5 space-y-4">
                   <div className="flex items-center gap-2">
-                    <div className="w-7 h-7 rounded-lg bg-violet-500/10 flex items-center justify-center">
-                      <BarChart3 className="w-4 h-4 text-violet-500" />
+                    <div className="w-7 h-7 rounded-lg bg-secondary flex items-center justify-center">
+                      <BarChart3 className="w-4 h-4 text-secondary-foreground" />
                     </div>
                     <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">组织资产</p>
                   </div>
