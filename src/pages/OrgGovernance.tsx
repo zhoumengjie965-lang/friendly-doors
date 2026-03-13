@@ -176,7 +176,7 @@ export default function OrgGovernance({ enterprise, role }: Props) {
     if (editRole !== "org_admin" && editMember.role === "org_admin") {
       const adminCount = members.filter((m) => m.role === "org_admin").length;
       if (adminCount <= 1) {
-        toast({ title: "至少保留 1 名组织管理员", variant: "destructive" });
+        toast({ title: "至少保留 1 名部门管理员", variant: "destructive" });
         return;
       }
     }
