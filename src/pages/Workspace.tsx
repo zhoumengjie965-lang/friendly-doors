@@ -527,7 +527,7 @@ export default function Workspace() {
                   .map(e => e.org!)}
               />
             ) : location.pathname === "/workspace/profile" ? (
-              <Profile enterprise={enterprise} currentOrg={currentOrg} role={role} />
+              <Profile />
             ) : (
               <>
                 <div className="mb-8">
