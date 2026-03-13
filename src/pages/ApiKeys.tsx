@@ -330,6 +330,20 @@ export default function ApiKeys({ enterprise, role }: Props) {
     }
   };
 
+  const openCreateProd = () => {
+    setEditingKey(null);
+    setFormName("");
+    setFormGroup("生产通道");
+    setFormExpires("");
+    setFormQuota("");
+    setFormUnlimited(true);
+    setFormModels([]);
+    setFormIpWhitelist("");
+    setFormBudgetType("monthly");
+    setCreatingProd(true);
+    setSheetOpen(true);
+  };
+
   const openEdit = (k: ApiKey) => {
     setEditingKey(k);
     setFormName(k.name);
