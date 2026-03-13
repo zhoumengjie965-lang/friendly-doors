@@ -406,6 +406,29 @@ export default function ApiKeys({ enterprise, role }: Props) {
     setFormExpires(format(d, "yyyy-MM-dd'T'HH:mm"));
   };
 
+  const setQuickExpiryOrgConfig = (offset: number | null) => {
+    if (offset === null) { setOrgConfigExpires(""); return; }
+    const d = new Date(Date.now() + offset);
+    setOrgConfigExpires(format(d, "yyyy-MM-dd'T'HH:mm"));
+  };
+
+  const saveOrgConfig = () => {
+    orgConfigSaved.current = {
+      group: orgConfigGroup,
+      expires: orgConfigExpires,
+      quota: orgConfigQuota,
+      unlimited: orgConfigUnlimited,
+      models: [...orgConfigModels],
+      ipWhitelist: orgConfigIpWhitelist,
+    };
+    setOrgConfigOpen(false);
+  };
+
+  const saveAdvancedPerms = () => {
+    setAdvancedMembers(new Set(pendingAdvanced));
+    setAdvancedPermOpen(false);
+  };
+
   const filterKeys = (keys: ApiKey[], isOrgTab = false) => {
     return keys.filter(k => {
       const matchName = !nameSearch || k.name.toLowerCase().includes(nameSearch.toLowerCase());
