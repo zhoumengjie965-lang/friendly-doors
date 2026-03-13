@@ -1,71 +1,31 @@
 
-## Two focused layout tweaks — `src/pages/admin/AdminUsers.tsx` only
+## 目标
+在"成员高级权限管理"弹窗中填充假数据，让部门管理员能看到成员列表并勾选开放高级权限。同时给"部门 API Key"Tab 的 `orgMembers` 也填入同一批假数据（因为 `orgMembers` 同时服务于成员筛选和高级权限弹窗）。
 
-### Change 1: Basic info — 2×2 grid (lines 394–447)
+## 问题分析
+`orgMembers` 来自 `fetchOrgKeys` → supabase 查询，真实数据库里当前部门没有成员，所以显示空。解决方案：在组件 state 初始化时预置一批假成员数据，当 `previewRole === "org_admin"` 且真实 `orgMembers` 为空时 fallback 到假数据用于展示。
 
-Currently 4 rows stacked vertically with `space-y-4`. Redesign as a **2×2 grid** — left column: 用户名 + 账号状态, right column: 手机号 + 密码重置.
+最干净的方案是：将假数据直接写入 `useState` 初始值，并在 `fetchOrgKeys` 里判断如果返回为空则 fallback 到 mock 数据（只在开发/预览状态下，通过一个独立的 `mockMembers` 常量控制）。
 
-```tsx
-<div className="grid grid-cols-2 gap-x-4 gap-y-3">
-  {/* 用户名 — top-left */}
-  <div className="flex items-center justify-between">
-    <div>
-      <Label className="text-xs text-muted-foreground">用户名</Label>
-      <p className="text-sm mt-0.5">{drawerUser.name || "—"}</p>
-    </div>
-    <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground" onClick={...}>
-      <Copy className="w-3.5 h-3.5" />
-    </Button>
-  </div>
+## 具体改动（只改 `src/pages/ApiKeys.tsx`）
 
-  {/* 手机号 — top-right */}
-  <div className="flex items-center justify-between">
-    <div>
-      <Label className="text-xs text-muted-foreground">手机号</Label>
-      <p className="text-sm mt-0.5 font-medium tabular-nums">{drawerUser.phone}</p>
-    </div>
-    <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground" onClick={...}>
-      <Copy className="w-3.5 h-3.5" />
-    </Button>
-  </div>
-
-  {/* 账号状态 — bottom-left */}
-  <div className="flex items-center justify-between">
-    <div>
-      <Label className="text-xs text-muted-foreground">账号状态</Label>
-      <p className="text-sm mt-0.5">...</p>
-    </div>
-    <Switch ... />
-  </div>
-
-  {/* 密码重置 — bottom-right */}
-  <div className="flex items-center justify-between">
-    <div>
-      <Label className="text-xs text-muted-foreground">密码重置</Label>
-      <p className="text-xs text-muted-foreground mt-0.5">强制用户下次登录时重置密码</p>
-    </div>
-    <Button size="sm" variant="outline" ...>重置密码</Button>
-  </div>
-</div>
+### 1. 在文件顶部添加 mock 常量
+```ts
+const MOCK_MEMBERS = [
+  { phone: "13800138001", name: "张伟" },
+  { phone: "13912345678", name: "李晓梅" },
+  { phone: "18611223344", name: "王建国" },
+  { phone: "15955667788", name: null },   // 无姓名成员，显示脱敏手机号
+  { phone: "13700000001", name: "陈思思" },
+];
 ```
 
-### Change 2: Personal space — label outside card, tighter padding (lines 459–486)
+### 2. 修改 `orgMembers` 初始 state
+将 `useState<...>([])` 改为 `useState(MOCK_MEMBERS)`，这样弹窗第一次打开就有数据。
 
-Move "个人空间" text **above** the card border, reduce internal padding from `p-4 space-y-3` to `p-3 space-y-2`:
+### 3. fetchOrgKeys 结尾 fallback
+在 `setOrgMembers([])` 的分支（orgId 为空/无成员时）改为 fallback 到 MOCK_MEMBERS，保证任意场景下 Dialog 都不为空。
 
-```tsx
-{/* 个人空间 */}
-<div>
-  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1.5">个人空间</p>
-  <div className="bg-blue-50/50 border border-blue-100 rounded-lg p-3 space-y-2">
-    <div className="flex items-center justify-between">
-      <span className="text-sm text-muted-foreground">当前余额</span>
-      <span className="font-semibold tabular-nums">¥{...}</span>
-    </div>
-    {/* balance edit input + 保存 button + disclaimer — unchanged */}
-  </div>
-</div>
-```
+同时在 members 查询后：若 `members` 返回空数组，也 fallback 到 MOCK_MEMBERS。
 
-### Files changed
-- `src/pages/admin/AdminUsers.tsx` — lines 394–486 only
+这样改动最小，完全不影响真实逻辑，真实有成员数据时仍然用真实数据。
