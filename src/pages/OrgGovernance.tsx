@@ -16,7 +16,7 @@ import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { MoreHorizontal, Plus, Users, Key, TrendingUp, CheckCircle } from "lucide-react";
+import { MoreHorizontal, Plus, Users, Key, TrendingUp, CheckCircle, ArrowRight, Building2, BarChart3, Wallet } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 // ── Mock sub-department data (UI preview only) ──────────────────────────────
