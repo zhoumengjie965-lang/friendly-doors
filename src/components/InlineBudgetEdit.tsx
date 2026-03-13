@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Pencil } from "lucide-react";
+import { SlidersHorizontal } from "lucide-react";
 
 interface Props {
   value: number;
@@ -36,16 +36,16 @@ export default function InlineBudgetEdit({ value, label, unit, emptyLabel, onSav
   };
 
   return (
-    <div className="flex items-center gap-1.5 group">
+    <div className="flex items-center gap-2">
       <span className="tabular-nums text-sm">{displayVal}</span>
       <Popover open={open} onOpenChange={handleOpen}>
         <PopoverTrigger asChild>
           <Button
             variant="ghost"
             size="icon"
-            className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-foreground"
+            className="h-6 w-6 text-muted-foreground hover:text-foreground shrink-0"
           >
-            <Pencil className="w-3 h-3" />
+            <SlidersHorizontal className="w-3.5 h-3.5" />
           </Button>
         </PopoverTrigger>
         <PopoverContent className="w-64 p-3" align="start" side="bottom">
@@ -77,3 +77,4 @@ export default function InlineBudgetEdit({ value, label, unit, emptyLabel, onSav
     </div>
   );
 }
+
