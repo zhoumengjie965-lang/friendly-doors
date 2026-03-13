@@ -104,23 +104,20 @@ function formatQuota(used: number, total: number | null) {
   );
 }
 
-type RunningStatus = "正常" | "预算不足" | "已过期" | "异常";
+type MergedStatus = "正常" | "预算不足" | "已过期" | "禁用";
 
-function getRunningStatus(k: ApiKey): { label: RunningStatus; tooltip?: string } {
-  if (k.expires_at && new Date(k.expires_at) < new Date()) {
-    return { label: "已过期", tooltip: "Key 已过期" };
-  }
-  if (k.total_quota !== null && k.used_quota >= k.total_quota) {
-    return { label: "预算不足", tooltip: "Key 预算不足" };
-  }
-  return { label: "正常" };
+function getMergedStatus(k: ApiKey): MergedStatus {
+  if (k.status === "disabled") return "禁用";
+  if (k.expires_at && new Date(k.expires_at) < new Date()) return "已过期";
+  if (k.total_quota !== null && k.used_quota >= k.total_quota) return "预算不足";
+  return "正常";
 }
 
-const runningStatusColors: Record<RunningStatus, string> = {
-  "正常": "bg-green-100 text-green-700 border-green-200",
-  "预算不足": "bg-orange-100 text-orange-700 border-orange-200",
-  "已过期": "bg-gray-100 text-gray-500 border-gray-200",
-  "异常": "bg-red-100 text-red-700 border-red-200",
+const mergedStatusConfig: Record<MergedStatus, { dot: string; badge: string; label: string }> = {
+  "正常":    { dot: "bg-green-500",  badge: "bg-green-50 text-green-700 border-green-200",   label: "正常" },
+  "预算不足":{ dot: "bg-orange-500", badge: "bg-orange-50 text-orange-700 border-orange-200",label: "预算不足" },
+  "已过期":  { dot: "bg-gray-400",   badge: "bg-gray-100 text-gray-500 border-gray-200",     label: "已过期" },
+  "禁用":    { dot: "bg-gray-300",   badge: "bg-gray-100 text-gray-400 border-gray-200",     label: "禁用" },
 };
 
 
@@ -150,7 +147,6 @@ export default function ApiKeys({ enterprise, role }: Props) {
   const [nameSearch, setNameSearch] = useState("");
   const [apiKeySearch, setApiKeySearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
-  const [runningStatusFilter, setRunningStatusFilter] = useState<string>("all");
   const [groupFilter, setGroupFilter] = useState<string>("all");
 
   // Pagination
@@ -498,13 +494,13 @@ export default function ApiKeys({ enterprise, role }: Props) {
     return keys.filter(k => {
       const matchName = !nameSearch || k.name.toLowerCase().includes(nameSearch.toLowerCase());
       const matchApiKey = !apiKeySearch || k.key_value.toLowerCase().includes(apiKeySearch.toLowerCase());
-      const matchStatus = statusFilter === "all" || k.status === statusFilter;
-      const matchRunning = runningStatusFilter === "all" || getRunningStatus(k).label === runningStatusFilter;
+      const mergedSt = getMergedStatus(k);
+      const matchStatus = statusFilter === "all" || mergedSt === statusFilter;
       const matchGroup = groupFilter === "all" || (groupFilter === "__none__" ? !k.group_name : k.group_name === groupFilter);
       // Org-tab specific filters
       const matchMember = !isOrgTab || memberFilter === "all" || k.creator_phone === memberFilter;
       const matchOrgName = !isOrgTab || orgNameFilter === "all" || k.organization_id === orgNameFilter;
-      return matchName && matchApiKey && matchStatus && matchRunning && matchGroup && matchMember && matchOrgName;
+      return matchName && matchApiKey && matchStatus && matchGroup && matchMember && matchOrgName;
     });
   };
 
@@ -520,7 +516,7 @@ export default function ApiKeys({ enterprise, role }: Props) {
     const filtered = filterFn ? filterFn(keys) : filterKeys(keys);
     const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
     const paged = paginate(filtered, page);
-    const colSpan = 10 + (showCreator ? 1 : 0) + (showOrg ? 1 : 0);
+    const colSpan = 9 + (showCreator ? 1 : 0) + (showOrg ? 1 : 0);
 
     return (
       <div>
@@ -529,35 +525,20 @@ export default function ApiKeys({ enterprise, role }: Props) {
             <TableHeader>
               <TableRow className="bg-muted/40">
                 <TableHead className="font-medium">名称</TableHead>
-                {/* 管理状态 */}
+                {/* 状态（合并管理状态+运行状态） */}
                 <TableHead className="font-medium">
                   <div className="flex items-center gap-1">
-                    管理状态
+                    状态
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
                         <button className="hover:bg-muted rounded p-0.5"><ChevronDown className="w-3 h-3" /></button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="start">
                         <DropdownMenuCheckboxItem checked={statusFilter === "all"} onCheckedChange={() => setStatusFilter("all")}>全部</DropdownMenuCheckboxItem>
-                        <DropdownMenuCheckboxItem checked={statusFilter === "active"} onCheckedChange={() => setStatusFilter("active")}>启用</DropdownMenuCheckboxItem>
-                        <DropdownMenuCheckboxItem checked={statusFilter === "disabled"} onCheckedChange={() => setStatusFilter("disabled")}>禁用</DropdownMenuCheckboxItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  </div>
-                </TableHead>
-                {/* 运行状态 */}
-                <TableHead className="font-medium">
-                  <div className="flex items-center gap-1">
-                    运行状态
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <button className="hover:bg-muted rounded p-0.5"><ChevronDown className="w-3 h-3" /></button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="start">
-                        <DropdownMenuCheckboxItem checked={runningStatusFilter === "all"} onCheckedChange={() => setRunningStatusFilter("all")}>全部</DropdownMenuCheckboxItem>
-                        <DropdownMenuCheckboxItem checked={runningStatusFilter === "正常"} onCheckedChange={() => setRunningStatusFilter("正常")}>正常</DropdownMenuCheckboxItem>
-                        <DropdownMenuCheckboxItem checked={runningStatusFilter === "预算不足"} onCheckedChange={() => setRunningStatusFilter("预算不足")}>预算不足</DropdownMenuCheckboxItem>
-                        <DropdownMenuCheckboxItem checked={runningStatusFilter === "已过期"} onCheckedChange={() => setRunningStatusFilter("已过期")}>已过期</DropdownMenuCheckboxItem>
+                        <DropdownMenuCheckboxItem checked={statusFilter === "正常"} onCheckedChange={() => setStatusFilter("正常")}>正常</DropdownMenuCheckboxItem>
+                        <DropdownMenuCheckboxItem checked={statusFilter === "预算不足"} onCheckedChange={() => setStatusFilter("预算不足")}>预算不足</DropdownMenuCheckboxItem>
+                        <DropdownMenuCheckboxItem checked={statusFilter === "已过期"} onCheckedChange={() => setStatusFilter("已过期")}>已过期</DropdownMenuCheckboxItem>
+                        <DropdownMenuCheckboxItem checked={statusFilter === "禁用"} onCheckedChange={() => setStatusFilter("禁用")}>禁用</DropdownMenuCheckboxItem>
                       </DropdownMenuContent>
                     </DropdownMenu>
                   </div>
@@ -597,31 +578,17 @@ export default function ApiKeys({ enterprise, role }: Props) {
                   </TableCell>
                 </TableRow>
               ) : paged.map(k => {
-                const rs = getRunningStatus(k);
+                const ms = getMergedStatus(k);
+                const msCfg = mergedStatusConfig[ms];
                 return (
                   <TableRow key={k.id} className="hover:bg-muted/30">
                     <TableCell className="font-medium text-foreground">{k.name}</TableCell>
-                    {/* 管理状态 */}
+                    {/* 状态（合并） */}
                     <TableCell>
-                      <div className="flex items-center gap-1.5">
-                        <div className={`w-2 h-2 rounded-full ${k.status === "active" ? "bg-green-500" : "bg-gray-400"}`} />
-                        <span className="text-sm">{k.status === "active" ? "启用" : "禁用"}</span>
-                      </div>
-                    </TableCell>
-                    {/* 运行状态 */}
-                    <TableCell>
-                      <TooltipProvider>
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <span className={`inline-flex items-center px-2 py-0.5 rounded-full border text-xs font-medium cursor-default ${runningStatusColors[rs.label]}`}>
-                              {rs.label}
-                            </span>
-                          </TooltipTrigger>
-                          {rs.tooltip && (
-                            <TooltipContent><p>{rs.tooltip}</p></TooltipContent>
-                          )}
-                        </Tooltip>
-                      </TooltipProvider>
+                      <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full border text-xs font-medium ${msCfg.badge}`}>
+                        <span className={`w-1.5 h-1.5 rounded-full ${msCfg.dot}`} />
+                        {ms}
+                      </span>
                     </TableCell>
                     {/* 已消耗/预算上限 */}
                     <TableCell>{formatQuota(k.used_quota, k.total_quota)}</TableCell>
@@ -728,7 +695,6 @@ export default function ApiKeys({ enterprise, role }: Props) {
     setNameSearch("");
     setApiKeySearch("");
     setStatusFilter("all");
-    setRunningStatusFilter("all");
     setGroupFilter("all");
   };
 
