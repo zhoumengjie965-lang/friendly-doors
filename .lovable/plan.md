@@ -1,108 +1,71 @@
 
-## 需求分析
+## Two focused layout tweaks — `src/pages/admin/AdminUsers.tsx` only
 
-**第一步**：在组织管理员视角的「组织 API Key」Tab 下：
-- 移除「创建 API Key」按钮
-- 增加「配置 API Key」按钮，点击后弹出包含图1所有配置项（分组、过期时间、预算设置、访问限制）的 Sheet，顶部有提示语，保存后作为该组织成员新建 Key 的默认模板（存于前端 state，无需数据库，因为目前没有专门的 org_defaults 表）
+### Change 1: Basic info — 2×2 grid (lines 394–447)
 
-**第二步**：「配置 API Key」按钮右侧增加「成员高级权限」按钮，点击弹出 Dialog，展示本部门成员列表，勾选的成员新建 Key 时走 Sheet 完整表单，未勾选的走简约 Dialog。
+Currently 4 rows stacked vertically with `space-y-4`. Redesign as a **2×2 grid** — left column: 用户名 + 账号状态, right column: 手机号 + 密码重置.
 
-## 当前代码结构分析
+```tsx
+<div className="grid grid-cols-2 gap-x-4 gap-y-3">
+  {/* 用户名 — top-left */}
+  <div className="flex items-center justify-between">
+    <div>
+      <Label className="text-xs text-muted-foreground">用户名</Label>
+      <p className="text-sm mt-0.5">{drawerUser.name || "—"}</p>
+    </div>
+    <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground" onClick={...}>
+      <Copy className="w-3.5 h-3.5" />
+    </Button>
+  </div>
 
-- 行 721-762：「行3」—— 创建按钮 + 搜索栏，始终显示
-- 行 259-269：`openCreate()` — 根据 `previewRole === "member"` 分支到 Dialog 或 Sheet
-- 行 264-268：成员走 simpleDialogOpen，管理员走 sheetOpen
+  {/* 手机号 — top-right */}
+  <div className="flex items-center justify-between">
+    <div>
+      <Label className="text-xs text-muted-foreground">手机号</Label>
+      <p className="text-sm mt-0.5 font-medium tabular-nums">{drawerUser.phone}</p>
+    </div>
+    <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground" onClick={...}>
+      <Copy className="w-3.5 h-3.5" />
+    </Button>
+  </div>
 
-**关键逻辑**：
-- `previewRole === "org_admin"` 且 `activeTab === "org"` 时，按钮区变化
-- 「配置 API Key」的默认模板配置存入 `orgDefaultConfig` state
-- 「成员高级权限」列表通过已有的 `orgMembers` state（成员数据来自 `fetchOrgKeys` 内部的成员查询）
-- 勾选了高级权限的成员，其 phone 存入 `advancedMembers: Set<string>`；`openCreate()` 时判断 `phone in advancedMembers` 决定走 Sheet 还是 Dialog
+  {/* 账号状态 — bottom-left */}
+  <div className="flex items-center justify-between">
+    <div>
+      <Label className="text-xs text-muted-foreground">账号状态</Label>
+      <p className="text-sm mt-0.5">...</p>
+    </div>
+    <Switch ... />
+  </div>
 
-## 修改方案（仅修改 `src/pages/ApiKeys.tsx`）
-
-### 新增 State（约 166 行后）
-
-```ts
-// Org default config for org_admin
-const [orgConfigOpen, setOrgConfigOpen] = useState(false);
-const [orgConfigGroup, setOrgConfigGroup] = useState("");
-const [orgConfigExpires, setOrgConfigExpires] = useState("");
-const [orgConfigQuota, setOrgConfigQuota] = useState("");
-const [orgConfigUnlimited, setOrgConfigUnlimited] = useState(true);
-const [orgConfigModels, setOrgConfigModels] = useState<string[]>([]);
-const [orgConfigIpWhitelist, setOrgConfigIpWhitelist] = useState("");
-
-// Advanced member permissions
-const [advancedPermOpen, setAdvancedPermOpen] = useState(false);
-const [advancedMembers, setAdvancedMembers] = useState<Set<string>>(new Set());
+  {/* 密码重置 — bottom-right */}
+  <div className="flex items-center justify-between">
+    <div>
+      <Label className="text-xs text-muted-foreground">密码重置</Label>
+      <p className="text-xs text-muted-foreground mt-0.5">强制用户下次登录时重置密码</p>
+    </div>
+    <Button size="sm" variant="outline" ...>重置密码</Button>
+  </div>
+</div>
 ```
 
-### 修改 `openCreate()`
+### Change 2: Personal space — label outside card, tighter padding (lines 459–486)
 
-当 `previewRole === "member"` 时，检查当前用户 `phone` 是否在 `advancedMembers` 中：
-- 在 → `setSheetOpen(true)`（并预填 orgDefaultConfig 的默认值）
-- 不在 → `setSimpleDialogOpen(true)`
+Move "个人空间" text **above** the card border, reduce internal padding from `p-4 space-y-3` to `p-3 space-y-2`:
 
-### 修改行 3 的按钮区（行 721-727）
-
-条件渲染：
-```
-if (previewRole === "org_admin" && activeTab === "org"):
-  显示「配置 API Key」按钮 + 「成员高级权限」按钮（不显示「创建 API Key」）
-else:
-  显示原来的「创建 API Key」按钮
-```
-
-### 新增「配置 API Key」Sheet
-
-复用现有 Sheet 结构（不含名称字段），包含：
-- 顶部说明文字：「该规则适用于所有组织内成员的新建 key 属性」
-- 分组输入框
-- 过期时间（含快捷按钮）
-- 预算设置（预算上限 + 无限预算 Switch）
-- 访问限制（模型限制 + IP 白名单）
-- 底部取消/保存按钮
-
-### 新增「成员高级权限」Dialog
-
-```
-Dialog (max-w-md):
-  - 标题：成员高级权限管理
-  - 说明：被勾选的成员在新建 Key 时将显示完整配置表单
-  - 成员列表（来自 orgMembers state）：
-    每行：Checkbox + 姓名 + 脱敏手机号
-  - 底部：取消 / 保存
+```tsx
+{/* 个人空间 */}
+<div>
+  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1.5">个人空间</p>
+  <div className="bg-blue-50/50 border border-blue-100 rounded-lg p-3 space-y-2">
+    <div className="flex items-center justify-between">
+      <span className="text-sm text-muted-foreground">当前余额</span>
+      <span className="font-semibold tabular-nums">¥{...}</span>
+    </div>
+    {/* balance edit input + 保存 button + disclaimer — unchanged */}
+  </div>
+</div>
 ```
 
-### 修改 `openCreate()` 中 member 分支
-
-```ts
-if (previewRole === "member") {
-  // 先用 org 默认配置预填表单
-  setFormGroup(orgConfigGroup);
-  setFormExpires(orgConfigExpires);
-  setFormQuota(orgConfigQuota);
-  setFormUnlimited(orgConfigUnlimited);
-  setFormModels([...orgConfigModels]);
-  setFormIpWhitelist(orgConfigIpWhitelist);
-  // 判断是否有高级权限
-  if (phone && advancedMembers.has(phone)) {
-    setSheetOpen(true);
-  } else {
-    setSimpleDialogOpen(true);
-  }
-}
-```
-
-## 文件改动汇总
-
-**文件**：`src/pages/ApiKeys.tsx`
-- 新增 ~10 行 state
-- 修改 `openCreate()` ~8 行
-- 修改行 3 按钮区 ~10 行（条件渲染）
-- 新增「配置 API Key」Sheet ~80 行（复用现有 Sheet 结构去掉名称栏）
-- 新增「成员高级权限」Dialog ~40 行
-- 新增 Checkbox 导入
-
-**总改动**：约 150 行
+### Files changed
+- `src/pages/admin/AdminUsers.tsx` — lines 394–486 only
