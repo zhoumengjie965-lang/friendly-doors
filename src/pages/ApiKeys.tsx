@@ -73,6 +73,15 @@ const MODELS = [
 
 const PAGE_SIZE = 10;
 
+// Mock members for UI preview (used as fallback when no real members exist)
+const MOCK_MEMBERS = [
+  { phone: "13800138001", name: "张伟" },
+  { phone: "13912345678", name: "李晓梅" },
+  { phone: "18611223344", name: "王建国" },
+  { phone: "15955667788", name: null },
+  { phone: "13700000001", name: "陈思思" },
+];
+
 function maskKey(key: string, show: boolean) {
   if (show) return key;
   if (key.length <= 8) return key;
