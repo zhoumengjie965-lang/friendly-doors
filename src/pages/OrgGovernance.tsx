@@ -732,10 +732,7 @@ export default function OrgGovernance({ enterprise, role }: Props) {
                               <DropdownMenuSeparator />
                               <DropdownMenuItem
                                 className="text-destructive focus:text-destructive"
-                                onClick={() => {
-                                  setSubOrgs(prev => prev.filter(x => x.id !== s.id));
-                                  toast({ title: "子部门已删除" });
-                                }}
+                                onClick={() => setDeleteTarget(s)}
                               >
                                 删除子部门
                               </DropdownMenuItem>
