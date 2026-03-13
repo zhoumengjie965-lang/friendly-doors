@@ -330,7 +330,7 @@ export default function AccountBalance({ enterprise, role }: Props) {
           <h2 className="font-semibold text-foreground">充值记录</h2>
           <div className="flex items-center gap-2">
             <Button
-              variant="outline"
+              variant="default"
               size="sm"
               className="h-8 text-sm"
               onClick={() => {
