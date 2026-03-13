@@ -242,6 +242,16 @@ export default function ApiKeys({ enterprise, role }: Props) {
           name: m.users?.name ?? null,
         })));
       }
+    } else if (role === "admin") {
+      const { data: members } = await supabase
+        .from("members")
+        .select("user_phone, users(name)")
+        .eq("enterprise_id", enterprise.id)
+        .eq("status", "active");
+      setOrgMembers(members?.map((m: any) => ({
+        phone: m.user_phone,
+        name: m.users?.name ?? null,
+      })) ?? []);
     } else {
       setOrgMembers([]);
     }
