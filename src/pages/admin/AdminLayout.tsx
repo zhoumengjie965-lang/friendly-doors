@@ -36,7 +36,6 @@ const NAV_GROUPS = [
   {
     label: "控制台",
     items: [
-      { label: "数据总览", icon: LayoutDashboard, path: "dashboard" },
       { label: "资源统计", icon: BarChart3, path: "resource-stats" },
       { label: "调用日志", icon: FileText, path: "call-logs" },
       { label: "令牌管理", icon: KeyRound, path: "tokens" },

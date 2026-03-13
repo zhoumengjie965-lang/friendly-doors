@@ -200,7 +200,7 @@ export default function AdminEnterprises() {
       e.enterprise_code.includes(search)
   );
 
-  const COLS = "grid-cols-[2fr_1.5fr_1fr_1.2fr_1fr_88px]";
+  const COLS = "grid-cols-[2fr_1.5fr_1fr_1.2fr_1fr_100px_88px]";
 
   return (
     <div className="p-6 space-y-5">
