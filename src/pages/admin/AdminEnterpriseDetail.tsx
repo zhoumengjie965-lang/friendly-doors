@@ -220,6 +220,19 @@ export default function AdminEnterpriseDetail() {
 
   useEffect(() => { fetchAll(); }, [id]);
 
+  // Auto-switch tab when selected org changes
+  useEffect(() => {
+    const currentOrgMembers = members.filter((m) => m.organization_id === selectedOrgId);
+    const currentSubOrgs = orgs.filter((o) => o.id !== selectedOrgId);
+    const currentHasMembers = currentOrgMembers.length > 0;
+    const currentHasSubOrgs = currentSubOrgs.length > 0;
+    if (!currentHasMembers && currentHasSubOrgs) {
+      setOrgRightTab("sub-orgs");
+    } else {
+      setOrgRightTab("members");
+    }
+  }, [selectedOrgId, members, orgs]);
+
   const handleRecharge = async () => {
     const amount = parseFloat(rechargeAmount);
     if (isNaN(amount) || amount <= 0) {
