@@ -251,11 +251,13 @@ export default function ApiKeys({ enterprise, role }: Props) {
         .select("user_phone, users(name)")
         .eq("organization_id", targetOrgId)
         .eq("status", "active");
-      if (members) {
+      if (members && members.length > 0) {
         setOrgMembers(members.map((m: any) => ({
           phone: m.user_phone,
           name: m.users?.name ?? null,
         })));
+      } else {
+        setOrgMembers(MOCK_MEMBERS);
       }
     } else if (role === "admin") {
       const { data: members } = await supabase
@@ -263,12 +265,13 @@ export default function ApiKeys({ enterprise, role }: Props) {
         .select("user_phone, users(name)")
         .eq("enterprise_id", enterprise.id)
         .eq("status", "active");
-      setOrgMembers(members?.map((m: any) => ({
+      const mapped = members?.map((m: any) => ({
         phone: m.user_phone,
         name: m.users?.name ?? null,
-      })) ?? []);
+      })) ?? [];
+      setOrgMembers(mapped.length > 0 ? mapped : MOCK_MEMBERS);
     } else {
-      setOrgMembers([]);
+      setOrgMembers(MOCK_MEMBERS);
     }
     setMemberFilter("all");
   }, [canSeeOrgTab, enterprise.id, selectedOrgId]);
