@@ -737,9 +737,18 @@ export default function OrgGovernance({ enterprise, role }: Props) {
                           </div>
                         </TableCell>
                         <TableCell className="tabular-nums">{s.memberCount}</TableCell>
-                        <TableCell className="tabular-nums">
-                          {s.monthlyBudget ? `¥${s.monthlyBudget.toLocaleString()}` : <span className="text-muted-foreground">不限</span>}
-                        </TableCell>
+                         <TableCell className="tabular-nums">
+                           <InlineBudgetEdit
+                             value={s.monthlyBudget ?? 0}
+                             label="本月预算上限"
+                             unit="元/月"
+                             emptyLabel="不限"
+                             onSave={(val) => {
+                               setSubOrgs(prev => prev.map(x => x.id === s.id ? { ...x, monthlyBudget: val === 0 ? null : val } : x));
+                               toast({ title: "预算上限已更新", description: val === 0 ? "已设为不限" : `¥${val.toLocaleString()}/月` });
+                             }}
+                           />
+                         </TableCell>
                         <TableCell className={`tabular-nums font-medium ${overBudget ? "text-destructive" : ""}`}>
                           ¥{s.consumed.toLocaleString()}
                         </TableCell>
