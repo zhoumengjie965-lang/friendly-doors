@@ -911,8 +911,18 @@ export default function ApiKeys({ enterprise, role }: Props) {
                 {/* 分组 */}
                 {!(previewRole === "member" && editingKey) && (
                   <div className="grid grid-cols-[100px_1fr] items-center gap-3">
-                    <Label className="text-right text-muted-foreground text-sm">分组</Label>
-                    <Input placeholder="不填则使用默认分组" value={formGroup} onChange={e => setFormGroup(e.target.value)} />
+                    <Label className="text-right text-muted-foreground text-sm">
+                      <span className="text-destructive mr-0.5">*</span>分组
+                    </Label>
+                    <Select value={formGroup} onValueChange={setFormGroup}>
+                      <SelectTrigger className="h-10">
+                        <SelectValue placeholder="请选择分组" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="官方价格">官方价格</SelectItem>
+                        <SelectItem value="生产通道">生产通道</SelectItem>
+                      </SelectContent>
+                    </Select>
                   </div>
                 )}
                 {/* 过期时间 */}
@@ -985,41 +995,49 @@ export default function ApiKeys({ enterprise, role }: Props) {
                 <div className="grid grid-cols-[100px_1fr] items-start gap-3">
                   <Label className="text-right text-muted-foreground text-sm pt-2.5">模型限制列表</Label>
                   <div>
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <button className="flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm hover:bg-muted/40 transition-colors">
-                          <span className="text-muted-foreground truncate">
-                            {formModels.length === 0 ? "留空则支持所有模型" : `已选 ${formModels.length} 个模型`}
-                          </span>
-                          <ChevronDown className="w-4 h-4 opacity-50 shrink-0 ml-2" />
-                        </button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent className="w-64" align="start">
-                        {MODELS.map(m => (
-                          <DropdownMenuCheckboxItem
-                            key={m}
-                            checked={formModels.includes(m)}
-                            onCheckedChange={checked => {
-                              if (checked) setFormModels(prev => [...prev, m]);
-                              else setFormModels(prev => prev.filter(x => x !== m));
-                            }}
-                          >
-                            {m}
-                          </DropdownMenuCheckboxItem>
-                        ))}
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                    {formModels.length > 0 && (
-                      <div className="flex flex-wrap gap-1.5 mt-2">
-                        {formModels.map(m => (
-                          <span key={m} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-primary/10 text-primary text-xs">
-                            {m}
-                            <button onClick={() => setFormModels(prev => prev.filter(x => x !== m))} className="hover:text-destructive">
-                              <X className="w-3 h-3" />
-                            </button>
-                          </span>
-                        ))}
+                    {formGroup === "生产通道" ? (
+                      <div className="flex h-10 w-full items-center rounded-md border border-input bg-muted/40 px-3 py-2 text-sm cursor-not-allowed">
+                        <span className="text-muted-foreground">仅支持分组对应模型列表</span>
                       </div>
+                    ) : (
+                      <>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <button className="flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm hover:bg-muted/40 transition-colors">
+                              <span className="text-muted-foreground truncate">
+                                {formModels.length === 0 ? "留空则支持所有模型" : `已选 ${formModels.length} 个模型`}
+                              </span>
+                              <ChevronDown className="w-4 h-4 opacity-50 shrink-0 ml-2" />
+                            </button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent className="w-64" align="start">
+                            {MODELS.map(m => (
+                              <DropdownMenuCheckboxItem
+                                key={m}
+                                checked={formModels.includes(m)}
+                                onCheckedChange={checked => {
+                                  if (checked) setFormModels(prev => [...prev, m]);
+                                  else setFormModels(prev => prev.filter(x => x !== m));
+                                }}
+                              >
+                                {m}
+                              </DropdownMenuCheckboxItem>
+                            ))}
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                        {formModels.length > 0 && (
+                          <div className="flex flex-wrap gap-1.5 mt-2">
+                            {formModels.map(m => (
+                              <span key={m} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-primary/10 text-primary text-xs">
+                                {m}
+                                <button onClick={() => setFormModels(prev => prev.filter(x => x !== m))} className="hover:text-destructive">
+                                  <X className="w-3 h-3" />
+                                </button>
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                      </>
                     )}
                   </div>
                 </div>
@@ -1042,7 +1060,7 @@ export default function ApiKeys({ enterprise, role }: Props) {
           {/* 底部固定按钮 */}
           <div className="shrink-0 px-6 py-4 border-t border-border flex justify-end gap-3 bg-background">
             <Button variant="outline" className="w-24" onClick={() => setSheetOpen(false)} disabled={saving}>取消</Button>
-            <Button className="w-24" onClick={handleSave} disabled={saving || !formName.trim()}>
+            <Button className="w-24" onClick={handleSave} disabled={saving || !formName.trim() || (previewRole !== "member" && !formGroup)}>
               {saving ? "保存中..." : "确定"}
             </Button>
           </div>
