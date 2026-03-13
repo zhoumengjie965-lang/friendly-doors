@@ -911,8 +911,18 @@ export default function ApiKeys({ enterprise, role }: Props) {
                 {/* 分组 */}
                 {!(previewRole === "member" && editingKey) && (
                   <div className="grid grid-cols-[100px_1fr] items-center gap-3">
-                    <Label className="text-right text-muted-foreground text-sm">分组</Label>
-                    <Input placeholder="不填则使用默认分组" value={formGroup} onChange={e => setFormGroup(e.target.value)} />
+                    <Label className="text-right text-muted-foreground text-sm">
+                      <span className="text-destructive mr-0.5">*</span>分组
+                    </Label>
+                    <Select value={formGroup} onValueChange={setFormGroup}>
+                      <SelectTrigger className="h-10">
+                        <SelectValue placeholder="请选择分组" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="官方价格">官方价格</SelectItem>
+                        <SelectItem value="生产通道">生产通道</SelectItem>
+                      </SelectContent>
+                    </Select>
                   </div>
                 )}
                 {/* 过期时间 */}
