@@ -269,25 +269,25 @@ export default function OrgManagement({ enterprise, role }: Props) {
                           </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end" className="w-44">
-                          <DropdownMenuItem onClick={() => { setEditOrg(org); setEditName(org.name); }} className="gap-2">
-                            <Pencil className="w-3.5 h-3.5" /> 编辑组织名称
-                          </DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => { setSetAdminOrg(org); setNewAdminPhone(org.admin_phone || "__none__"); }} className="gap-2">
-                            <UserCog className="w-3.5 h-3.5" /> 设置管理员
-                          </DropdownMenuItem>
-                          {isAdmin && (
-                            <>
-                              <DropdownMenuSeparator />
-                              <DropdownMenuItem onClick={() => toggleStatus(org)} className="gap-2">
-                                <Power className="w-3.5 h-3.5" />
-                                {org.status === "active" ? "禁用组织" : "启用组织"}
-                              </DropdownMenuItem>
-                              <DropdownMenuItem
-                                onClick={() => setDeleteOrg(org)}
-                                className="gap-2 text-destructive focus:text-destructive"
-                                disabled={org.name === "默认组织"}>
-                                <Trash2 className="w-3.5 h-3.5" /> 删除组织
-                              </DropdownMenuItem>
+                           <DropdownMenuItem onClick={() => { setEditOrg(org); setEditName(org.name); }} className="gap-2">
+                             <Pencil className="w-3.5 h-3.5" /> 编辑部门名称
+                           </DropdownMenuItem>
+                           <DropdownMenuItem onClick={() => { setSetAdminOrg(org); setNewAdminPhone(org.admin_phone || "__none__"); }} className="gap-2">
+                             <UserCog className="w-3.5 h-3.5" /> 设置管理员
+                           </DropdownMenuItem>
+                           {isAdmin && (
+                             <>
+                               <DropdownMenuSeparator />
+                               <DropdownMenuItem onClick={() => toggleStatus(org)} className="gap-2">
+                                 <Power className="w-3.5 h-3.5" />
+                                 {org.status === "active" ? "禁用部门" : "启用部门"}
+                               </DropdownMenuItem>
+                               <DropdownMenuItem
+                                 onClick={() => setDeleteOrg(org)}
+                                 className="gap-2 text-destructive focus:text-destructive"
+                                 disabled={org.name === "默认组织"}>
+                                 <Trash2 className="w-3.5 h-3.5" /> 删除部门
+                               </DropdownMenuItem>
                             </>
                           )}
                         </DropdownMenuContent>
