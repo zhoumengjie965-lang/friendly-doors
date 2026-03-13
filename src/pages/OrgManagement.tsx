@@ -197,6 +197,22 @@ export default function OrgManagement({ enterprise, role }: Props) {
         <div className="px-6 py-4 border-b border-border">
           <h2 className="font-semibold text-foreground">部门列表</h2>
         </div>
+        {/* Zero-budget alert */}
+        {!loading && orgs.some(o => o.monthly_budget == null || o.monthly_budget === 0) && (
+          <div className="px-6 pt-4">
+            <Alert>
+              <AlertTriangle className="w-4 h-4" />
+              <AlertDescription className="flex items-center justify-between">
+                <span>存在未分配预算的部门，建议为所有部门配置月度预算上限。</span>
+                {isAdmin && (
+                  <button className="text-primary text-xs underline ml-2 shrink-0" onClick={() => setShowBudgetDialog(true)}>
+                    立即均分
+                  </button>
+                )}
+              </AlertDescription>
+            </Alert>
+          </div>
+        )}
         {loading ? (
           <div className="flex items-center justify-center py-16">
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
