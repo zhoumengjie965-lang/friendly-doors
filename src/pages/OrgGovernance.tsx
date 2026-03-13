@@ -673,20 +673,20 @@ export default function OrgGovernance({ enterprise, role }: Props) {
             {activeTab === "sub-orgs" && (
             <CardContent className="p-0 pt-0">
               {/* Zero-budget alert */}
-              {subOrgs.some(s => !s.monthlyBudget || s.monthlyBudget === 0) && (
+              {subOrgs.filter(s => !s.monthlyBudget || s.monthlyBudget === 0).length > 0 && (
                 <div className="px-4 pt-3">
                   <div className="flex items-center justify-between gap-3 rounded-lg border border-orange-300 bg-orange-50 dark:border-orange-500/40 dark:bg-orange-500/10 px-4 py-3">
                     <div className="flex items-center gap-2.5">
                       <AlertTriangle className="w-4 h-4 text-orange-500 shrink-0" />
                       <span className="text-sm font-medium text-orange-800 dark:text-orange-300">
-                        存在未分配预算的子部门，新部门需要分配预算后方可使用。
+                        检测到 {subOrgs.filter(s => !s.monthlyBudget || s.monthlyBudget === 0).length} 个子部门未配置预算
                       </span>
                     </div>
                     <button
                       className="shrink-0 text-xs font-semibold text-orange-600 dark:text-orange-400 underline underline-offset-2 hover:text-orange-700 dark:hover:text-orange-300 transition-colors"
-                      onClick={() => setShowBudgetDialog(true)}
+                      onClick={() => { setBudgetDialogMode("sub-orgs"); setTotalPackage(""); setShowBudgetDialog(true); }}
                     >
-                      立即均分
+                      点击一键配置
                     </button>
                   </div>
                 </div>
