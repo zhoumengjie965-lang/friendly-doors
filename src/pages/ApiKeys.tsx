@@ -614,7 +614,7 @@ export default function ApiKeys({ enterprise, role }: Props) {
                     </TableCell>
                     <TableCell>
                       <div className="flex items-center justify-center gap-1">
-                        {!(previewRole === "admin" && k.creator_phone !== phone) && (
+                        {!(previewRole === "admin" && activeTab === "org") && (
                           <button
                             onClick={() => openEdit(k)}
                             className="p-1.5 rounded hover:bg-primary/10 text-primary transition-colors"
