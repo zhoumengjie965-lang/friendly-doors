@@ -940,7 +940,8 @@ export default function ApiKeys({ enterprise, role }: Props) {
               </div>
             </div>
 
-            {/* 预算设置 */}
+            {/* 预算设置 — 普通成员编辑时隐藏 */}
+            {!(previewRole === "member" && editingKey) && (
             <div>
               <h3 className="text-sm font-semibold text-foreground mb-4 pb-2 border-b border-border">预算设置</h3>
               <div className="space-y-3">
@@ -968,8 +969,10 @@ export default function ApiKeys({ enterprise, role }: Props) {
                 </div>
               </div>
             </div>
+            )}
 
-            {/* 访问限制 */}
+            {/* 访问限制 — 普通成员编辑时隐藏 */}
+            {!(previewRole === "member" && editingKey) && (
             <div>
               <h3 className="text-sm font-semibold text-foreground mb-4 pb-2 border-b border-border">访问限制</h3>
               <div className="space-y-3">
