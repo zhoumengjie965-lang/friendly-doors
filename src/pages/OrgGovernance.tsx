@@ -296,8 +296,8 @@ export default function OrgGovernance({ enterprise, role }: Props) {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-foreground">组织治理</h1>
-          <p className="text-muted-foreground text-sm mt-0.5">管理组织成员与预算</p>
+          <h1 className="text-2xl font-bold text-foreground">部门管理</h1>
+          <p className="text-muted-foreground text-sm mt-0.5">管理部门成员与预算</p>
         </div>
         {orgs.length > 1 && (
           <Select value={selectedOrgId} onValueChange={setSelectedOrgId}>
