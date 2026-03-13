@@ -370,7 +370,7 @@ export default function OrgGovernance({ enterprise, role }: Props) {
                 </div>
                 <div className="flex items-center gap-2">
                   <CheckCircle className="w-4 h-4 text-muted-foreground" />
-                  <span className="text-sm text-muted-foreground">组织状态</span>
+                  <span className="text-sm text-muted-foreground">部门状态</span>
                   <span className="ml-auto">
                     {selectedOrg?.status === "active"
                       ? <span className="text-sm font-medium flex items-center gap-1" style={{color:"hsl(142,70%,40%)"}}><span className="w-1.5 h-1.5 rounded-full inline-block" style={{background:"hsl(142,70%,45%)"}} />正常</span>
