@@ -764,7 +764,7 @@ export default function ApiKeys({ enterprise, role }: Props) {
                 <SelectValue placeholder="所属组织" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">所属组织：全部</SelectItem>
+                <SelectItem value="all">所属部门：全部</SelectItem>
                 {organizations.map(org => (
                   <SelectItem key={org.id} value={org.id}>{org.name}</SelectItem>
                 ))}
