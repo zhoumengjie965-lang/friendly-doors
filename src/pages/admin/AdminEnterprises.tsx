@@ -200,7 +200,7 @@ export default function AdminEnterprises() {
       e.enterprise_code.includes(search)
   );
 
-  const COLS = "grid-cols-[2fr_1.5fr_1fr_1.2fr_1fr_88px]";
+  const COLS = "grid-cols-[2fr_1.5fr_1fr_1.2fr_1fr_100px_88px]";
 
   return (
     <div className="p-6 space-y-5">
@@ -230,6 +230,7 @@ export default function AdminEnterprises() {
           <span>认证状态</span>
           <span>余额 / 历史消耗</span>
           <span>组织 / 成员</span>
+          <span>注册时间</span>
           <span>操作</span>
         </div>
 
@@ -271,6 +272,11 @@ export default function AdminEnterprises() {
                 <div className="text-xs text-muted-foreground">
                   <span className="text-foreground font-medium">{e.org_count}</span> 组织 ·{" "}
                   <span className="text-foreground font-medium">{e.member_count}</span> 人
+                </div>
+
+                {/* 注册时间 */}
+                <div className="text-xs text-muted-foreground">
+                  {new Date(e.created_at).toLocaleDateString("zh-CN", { year: "numeric", month: "2-digit", day: "2-digit" })}
                 </div>
 
                 {/* 操作 */}

@@ -36,7 +36,6 @@ const NAV_GROUPS = [
   {
     label: "控制台",
     items: [
-      { label: "数据总览", icon: LayoutDashboard, path: "dashboard" },
       { label: "资源统计", icon: BarChart3, path: "resource-stats" },
       { label: "调用日志", icon: FileText, path: "call-logs" },
       { label: "令牌管理", icon: KeyRound, path: "tokens" },
@@ -152,7 +151,7 @@ export default function AdminLayout() {
       {/* Main */}
       <main className="flex-1 flex flex-col min-w-0">
         <Routes>
-          <Route index element={<Navigate to="dashboard" replace />} />
+          <Route index element={<Navigate to="resource-stats" replace />} />
           <Route path="dashboard" element={<AdminDashboard />} />
           <Route path="enterprises" element={<AdminEnterprises />} />
           <Route path="enterprises/:id" element={<AdminEnterpriseDetail />} />
@@ -166,7 +165,7 @@ export default function AdminLayout() {
           <Route path="resource-stats" element={<AdminResourceStats />} />
           <Route path="tokens" element={<AdminTokens />} />
           <Route path="stats" element={<AdminStats />} />
-          <Route path="*" element={<Navigate to="dashboard" replace />} />
+          <Route path="*" element={<Navigate to="resource-stats" replace />} />
         </Routes>
       </main>
     </div>
