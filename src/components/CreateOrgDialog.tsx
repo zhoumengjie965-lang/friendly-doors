@@ -161,7 +161,7 @@ export default function CreateOrgDialog({ open, onOpenChange, enterpriseId, exis
         }
       }
 
-      toast({ title: "创建成功", description: `组织「${orgName}」已创建` });
+      toast({ title: "创建成功", description: `部门「${orgName}」已创建` });
       setOrgName(""); setMonthlyBudget(""); setAdminPhone(""); setAdminName(""); setBulkText("");
       setOrgAdminPhone("__none__");
       setAddMode("single");
