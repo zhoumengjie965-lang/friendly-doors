@@ -817,11 +817,11 @@ export default function ApiKeys({ enterprise, role }: Props) {
                 <ShieldCheck className="w-4 h-4" />成员高级权限
               </Button>
             </>
-          ) : (
+          ) : previewRole !== "admin" ? (
             <Button onClick={openCreate} className="gap-2 h-9">
               <Plus className="w-4 h-4" />创建 API Key
             </Button>
-          )}
+          ) : null}
         </div>
         <div className="flex items-center gap-2">
           {/* 名称 label + 输入框 */}
