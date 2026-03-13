@@ -1264,7 +1264,7 @@ export default function ApiKeys({ enterprise, role }: Props) {
           </p>
           <div className="max-h-72 overflow-y-auto space-y-1 border border-border rounded-lg p-2">
             {orgMembers.length === 0 ? (
-              <p className="text-sm text-muted-foreground text-center py-6">该组织暂无成员</p>
+              <p className="text-sm text-muted-foreground text-center py-6">该部门暂无成员</p>
             ) : orgMembers.map(m => {
               const checked = pendingAdvanced.has(m.phone);
               const masked = m.phone.length >= 7
