@@ -338,7 +338,7 @@ export default function OrgManagement({ enterprise, role }: Props) {
       {/* Set Admin Dialog */}
       <Dialog open={!!setAdminOrg} onOpenChange={(o) => { if (!o) setSetAdminOrg(null); }}>
         <DialogContent className="sm:max-w-sm">
-          <DialogHeader><DialogTitle>设置组织管理员</DialogTitle></DialogHeader>
+          <DialogHeader><DialogTitle>设置部门管理员</DialogTitle></DialogHeader>
           <div className="space-y-4 py-2">
             <div className="space-y-2">
               <Label>选择管理员</Label>
