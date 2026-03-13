@@ -371,9 +371,9 @@ export default function OrgManagement({ enterprise, role }: Props) {
       <AlertDialog open={!!deleteOrg} onOpenChange={(o) => { if (!o) setDeleteOrg(null); }}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>确认删除组织</AlertDialogTitle>
+            <AlertDialogTitle>确认删除部门</AlertDialogTitle>
             <AlertDialogDescription>
-              将永久删除组织「{deleteOrg?.name}」。该操作不可撤销，组织内成员不会被删除，但将失去组织归属。
+              将永久删除部门「{deleteOrg?.name}」。该操作不可撤销，部门内成员不会被删除，但将失去部门归属。
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
