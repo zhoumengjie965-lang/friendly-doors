@@ -10,7 +10,7 @@ import { Label } from "@/components/ui/label";
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
-import { Wallet, TrendingUp, Activity, Ticket, Mail, MessageSquare, ChevronLeft, ChevronRight, Inbox } from "lucide-react";
+import { Wallet, TrendingUp, Activity, Ticket, Mail, MessageSquare, ChevronLeft, ChevronRight, Inbox, Download } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
 
@@ -328,7 +328,35 @@ export default function AccountBalance({ enterprise, role }: Props) {
       <div className="bg-card border border-border rounded-xl p-6 space-y-4">
         <div className="flex items-center justify-between gap-4 flex-wrap">
           <h2 className="font-semibold text-foreground">充值记录</h2>
-          <Select value={typeFilter} onValueChange={(v) => { setTypeFilter(v); setPage(1); }}>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-8 text-sm"
+              onClick={() => {
+                const headers = ["时间", "类型", "金额", "操作人", "备注"];
+                const rows = records.map(r => [
+                  new Date(r.created_at).toLocaleString("zh-CN"),
+                  r.type === "redeem_code" ? "兑换码充值" : "后台充值",
+                  `+¥${Number(r.amount).toFixed(2)}`,
+                  r.operator ?? "—",
+                  r.remark ?? "—",
+                ]);
+                const csv = [headers, ...rows].map(row => row.map(c => `"${c}"`).join(",")).join("\n");
+                const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8;" });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement("a");
+                a.href = url;
+                a.download = `充值记录_${enterprise.name}_${new Date().toISOString().slice(0,10)}.csv`;
+                a.click();
+                URL.revokeObjectURL(url);
+              }}
+              disabled={records.length === 0}
+            >
+              <Download className="w-3.5 h-3.5 mr-1" />
+              下载
+            </Button>
+            <Select value={typeFilter} onValueChange={(v) => { setTypeFilter(v); setPage(1); }}>
             <SelectTrigger className="w-36 h-8 text-sm">
               <SelectValue placeholder="筛选类型" />
             </SelectTrigger>
@@ -338,6 +366,7 @@ export default function AccountBalance({ enterprise, role }: Props) {
               <SelectItem value="manual">后台充值</SelectItem>
             </SelectContent>
           </Select>
+          </div>
         </div>
 
         <div className="rounded-lg border border-border overflow-hidden">
