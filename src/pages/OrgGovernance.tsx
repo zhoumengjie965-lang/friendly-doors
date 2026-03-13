@@ -113,7 +113,9 @@ export default function OrgGovernance({ enterprise, role }: Props) {
 
   // 一键配置预算 state
   const [showBudgetDialog, setShowBudgetDialog] = useState(false);
+  const [budgetDialogMode, setBudgetDialogMode] = useState<"members" | "sub-orgs">("sub-orgs");
   const [totalPackage, setTotalPackage] = useState("");
+  const [memberDailyLimit, setMemberDailyLimit] = useState("");
   const [distributing, setDistributing] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<SubOrg | null>(null);
   const [statsFlashKey, setStatsFlashKey] = useState(0);
