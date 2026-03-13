@@ -117,7 +117,7 @@ export default function CreateOrgDialog({ open, onOpenChange, enterpriseId, exis
 
   const handleCreate = async () => {
     if (!orgName.trim()) {
-      toast({ title: "请填写组织名称", variant: "destructive" });
+      toast({ title: "请填写部门名称", variant: "destructive" });
       return;
     }
 
