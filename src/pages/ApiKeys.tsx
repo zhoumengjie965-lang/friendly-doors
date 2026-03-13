@@ -754,20 +754,22 @@ export default function ApiKeys({ enterprise, role }: Props) {
               </SelectContent>
             </Select>
           )}
-          {/* 成员筛选（组织管理员 & 企业管理员均显示） */}
-          <Select value={memberFilter} onValueChange={setMemberFilter}>
-            <SelectTrigger className="h-9 w-40 border-border shadow-sm text-sm">
-              <SelectValue placeholder="所属成员" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">所属成员：全部</SelectItem>
-              {orgMembers.map(m => (
-                <SelectItem key={m.phone} value={m.phone}>
-                  {m.name ? `${m.name} (${m.phone})` : m.phone}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          {/* 成员筛选：仅在组织 Tab 下显示；org_admin 的"我的"Tab 不显示 */}
+          {(previewRole === "admin" || activeTab === "org") && (
+            <Select value={memberFilter} onValueChange={setMemberFilter}>
+              <SelectTrigger className="h-9 w-40 border-border shadow-sm text-sm">
+                <SelectValue placeholder="所属成员" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">所属成员：全部</SelectItem>
+                {orgMembers.map(m => (
+                  <SelectItem key={m.phone} value={m.phone}>
+                    {m.name ? `${m.name} (${m.phone})` : m.phone}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
         </div>
       )}
 
@@ -778,7 +780,6 @@ export default function ApiKeys({ enterprise, role }: Props) {
           {previewRole === "org_admin" && activeTab === "org" ? (
             <>
               <Button
-                variant="outline"
                 className="gap-2 h-9"
                 onClick={() => {
                   // 打开前将已保存的值回填到 state
@@ -795,7 +796,6 @@ export default function ApiKeys({ enterprise, role }: Props) {
                 <Settings className="w-4 h-4" />配置 API Key
               </Button>
               <Button
-                variant="outline"
                 className="gap-2 h-9"
                 onClick={() => {
                   setPendingAdvanced(new Set(advancedMembers));
