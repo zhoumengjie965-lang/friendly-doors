@@ -766,8 +766,8 @@ export default function ApiKeys({ enterprise, role }: Props) {
               </SelectContent>
             </Select>
           )}
-          {/* 成员筛选：仅在组织 Tab 下显示；org_admin 的"我的"Tab 不显示 */}
-          {(previewRole === "admin" || activeTab === "org") && (
+          {/* 成员筛选：仅在组织 Tab 下显示 */}
+          {activeTab === "org" && (
             <Select value={memberFilter} onValueChange={setMemberFilter}>
               <SelectTrigger className="h-9 w-40 border-border shadow-sm text-sm">
                 <SelectValue placeholder="所属成员" />
