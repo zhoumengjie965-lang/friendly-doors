@@ -317,7 +317,12 @@ export default function ApiKeys({ enterprise, role }: Props) {
     setFormQuota(k.total_quota !== null ? String(k.total_quota) : "");
     setFormModels(k.allowed_models || []);
     setFormIpWhitelist((k.ip_whitelist || []).join("\n"));
-    setSheetOpen(true);
+    // 普通成员编辑时用小弹窗（仅改名称）
+    if (previewRole === "member") {
+      setSimpleDialogOpen(true);
+    } else {
+      setSheetOpen(true);
+    }
   };
 
   const handleSave = async () => {
