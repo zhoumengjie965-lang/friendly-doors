@@ -1029,28 +1029,68 @@ export default function ApiKeys({ enterprise, role }: Props) {
             <div>
               <h3 className="text-sm font-semibold text-foreground mb-4 pb-2 border-b border-border">预算设置</h3>
               <div className="space-y-3">
-                {/* 预算上限 */}
-                <div className="grid grid-cols-[100px_1fr] items-center gap-3">
-                  <Label className="text-right text-muted-foreground text-sm">预算上限</Label>
-                  <div className="flex items-center gap-2">
-                    <span className="text-muted-foreground text-sm font-medium shrink-0">¥</span>
-                    <Input
-                      type="number"
-                      min="0"
-                      step="0.01"
-                      placeholder="0.00"
-                      value={formQuota}
-                      onChange={e => setFormQuota(e.target.value)}
-                      disabled={formUnlimited}
-                      className="flex-1"
-                    />
+                {/* Key 预算上限 — 生产 Key 创建时突出显示 */}
+                {creatingProd && (
+                  <div className="rounded-lg border border-primary/30 bg-primary/5 p-4 space-y-3">
+                    <div className="flex items-center gap-1.5 mb-1">
+                      <span className="text-sm font-bold text-foreground">Key 预算上限</span>
+                      <span className="text-destructive text-sm">*</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Select value={formBudgetType} onValueChange={(v) => setFormBudgetType(v as "monthly" | "daily")}>
+                        <SelectTrigger className="h-9 w-24 shrink-0">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="monthly">月度</SelectItem>
+                          <SelectItem value="daily">单日</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <span className="text-muted-foreground text-sm font-medium shrink-0">¥</span>
+                      <Input
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        placeholder="0.00"
+                        value={formQuota}
+                        onChange={e => setFormQuota(e.target.value)}
+                        disabled={formUnlimited}
+                        className="flex-1"
+                      />
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        <Switch checked={formUnlimited} onCheckedChange={setFormUnlimited} />
+                        <span className="text-xs text-muted-foreground">无限</span>
+                      </div>
+                    </div>
+                    <p className="text-xs text-primary/70">此预算直接占用本部门整体预算，不关联具体成员。</p>
                   </div>
-                </div>
+                )}
+                {/* 预算上限（非生产Key时正常显示） */}
+                {!creatingProd && (
+                  <div className="grid grid-cols-[100px_1fr] items-center gap-3">
+                    <Label className="text-right text-muted-foreground text-sm">预算上限</Label>
+                    <div className="flex items-center gap-2">
+                      <span className="text-muted-foreground text-sm font-medium shrink-0">¥</span>
+                      <Input
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        placeholder="0.00"
+                        value={formQuota}
+                        onChange={e => setFormQuota(e.target.value)}
+                        disabled={formUnlimited}
+                        className="flex-1"
+                      />
+                    </div>
+                  </div>
+                )}
                 {/* 无限额度 */}
-                <div className="grid grid-cols-[100px_1fr] items-center gap-3">
-                  <Label className="text-right text-muted-foreground text-sm">无限预算</Label>
-                  <Switch checked={formUnlimited} onCheckedChange={setFormUnlimited} />
-                </div>
+                {!creatingProd && (
+                  <div className="grid grid-cols-[100px_1fr] items-center gap-3">
+                    <Label className="text-right text-muted-foreground text-sm">无限预算</Label>
+                    <Switch checked={formUnlimited} onCheckedChange={setFormUnlimited} />
+                  </div>
+                )}
               </div>
             </div>
             )}
