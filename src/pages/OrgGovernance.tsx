@@ -391,7 +391,7 @@ export default function OrgGovernance({ enterprise, role }: Props) {
                   </div>
                   <div>
                     <p className="text-xs text-muted-foreground">本月总预算上限</p>
-                    <p className="text-3xl font-bold text-foreground mt-0.5 tabular-nums">
+                    <p key={statsFlashKey} className="text-3xl font-bold text-foreground mt-0.5 tabular-nums animate-in zoom-in-95 duration-300">
                       {budget > 0 ? `¥${budget.toLocaleString()}` : <span className="text-xl text-muted-foreground">未设置</span>}
                     </p>
                   </div>
