@@ -50,7 +50,7 @@ function parseBulkText(text: string): ParsedMember[] {
     });
 }
 
-const roleLabel = (r: string) => r === "admin" ? "企业管理员" : r === "org_admin" ? "组织管理员" : "普通成员";
+const roleLabel = (r: string) => r === "admin" ? "企业管理员" : r === "org_admin" ? "部门管理员" : "普通成员";
 
 export default function CreateOrgDialog({ open, onOpenChange, enterpriseId, existingMembers, onCreated }: Props) {
   const [orgName, setOrgName] = useState("");
@@ -117,7 +117,7 @@ export default function CreateOrgDialog({ open, onOpenChange, enterpriseId, exis
 
   const handleCreate = async () => {
     if (!orgName.trim()) {
-      toast({ title: "请填写组织名称", variant: "destructive" });
+      toast({ title: "请填写部门名称", variant: "destructive" });
       return;
     }
 
@@ -161,7 +161,7 @@ export default function CreateOrgDialog({ open, onOpenChange, enterpriseId, exis
         }
       }
 
-      toast({ title: "创建成功", description: `组织「${orgName}」已创建` });
+      toast({ title: "创建成功", description: `部门「${orgName}」已创建` });
       setOrgName(""); setMonthlyBudget(""); setAdminPhone(""); setAdminName(""); setBulkText("");
       setOrgAdminPhone("__none__");
       setAddMode("single");
@@ -180,14 +180,14 @@ export default function CreateOrgDialog({ open, onOpenChange, enterpriseId, exis
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
-          <DialogTitle>创建组织</DialogTitle>
-          <DialogDescription>填写以下信息创建新的组织单元</DialogDescription>
+          <DialogTitle>创建部门</DialogTitle>
+          <DialogDescription>填写以下信息创建新的部门</DialogDescription>
         </DialogHeader>
 
         <div className="space-y-5 py-2">
           <div className="space-y-2">
-            <Label>组织名称 <span className="text-destructive">*</span></Label>
-          <Input placeholder="请输入组织名称" value={orgName} onChange={e => setOrgName(e.target.value)} />
+            <Label>部门名称 <span className="text-destructive">*</span></Label>
+          <Input placeholder="请输入部门名称" value={orgName} onChange={e => setOrgName(e.target.value)} />
           </div>
 
           <div className="space-y-2">
@@ -202,7 +202,7 @@ export default function CreateOrgDialog({ open, onOpenChange, enterpriseId, exis
           </div>
 
           <div className="space-y-2">
-            <Label>设置组织管理员 <span className="text-muted-foreground text-xs">（可选）</span></Label>
+            <Label>设置部门管理员 <span className="text-muted-foreground text-xs">（可选）</span></Label>
             <Select value={orgAdminPhone} onValueChange={setOrgAdminPhone}>
               <SelectTrigger>
                 <SelectValue />
@@ -217,7 +217,7 @@ export default function CreateOrgDialog({ open, onOpenChange, enterpriseId, exis
                 ))}
               </SelectContent>
             </Select>
-            <p className="text-xs text-muted-foreground">不指定时该组织默认由企业管理员管理</p>
+            <p className="text-xs text-muted-foreground">不指定时该部门默认由企业管理员管理</p>
           </div>
 
           <div className="space-y-3">
@@ -260,7 +260,7 @@ export default function CreateOrgDialog({ open, onOpenChange, enterpriseId, exis
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="member">普通成员</SelectItem>
-                      <SelectItem value="org_admin">组织管理员</SelectItem>
+                      <SelectItem value="org_admin">部门管理员</SelectItem>
                       <SelectItem value="admin">企业管理员</SelectItem>
                     </SelectContent>
                   </Select>
@@ -290,8 +290,8 @@ export default function CreateOrgDialog({ open, onOpenChange, enterpriseId, exis
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="member">普通成员</SelectItem>
-                      <SelectItem value="org_admin">组织管理员</SelectItem>
-                      <SelectItem value="admin">企业管理员</SelectItem>
+                  <SelectItem value="org_admin">部门管理员</SelectItem>
+                       <SelectItem value="admin">企业管理员</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -317,7 +317,7 @@ export default function CreateOrgDialog({ open, onOpenChange, enterpriseId, exis
               取消
             </Button>
             <Button className="flex-1" onClick={handleCreate} disabled={loading}>
-              {loading ? "创建中..." : "创建组织"}
+              {loading ? "创建中..." : "创建部门"}
             </Button>
           </div>
         </div>

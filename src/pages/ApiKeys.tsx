@@ -513,7 +513,7 @@ export default function ApiKeys({ enterprise, role }: Props) {
                   </div>
                 </TableHead>
                 <TableHead className="font-medium">已消耗/预算上限</TableHead>
-                {showOrg && <TableHead className="font-medium">组织</TableHead>}
+                {showOrg && <TableHead className="font-medium">部门</TableHead>}
                 {showCreator && <TableHead className="font-medium">成员</TableHead>}
                 <TableHead className="font-medium">
                   <div className="flex items-center gap-1">
@@ -703,7 +703,7 @@ export default function ApiKeys({ enterprise, role }: Props) {
                   : "text-muted-foreground hover:text-foreground"
               }`}
             >
-              {r === "member" ? "普通成员" : r === "org_admin" ? "组织管理员" : "企业管理员"}
+              {r === "member" ? "普通成员" : r === "org_admin" ? "部门管理员" : "企业管理员"}
             </button>
           ))}
         </div>
@@ -731,7 +731,7 @@ export default function ApiKeys({ enterprise, role }: Props) {
                   : "text-muted-foreground hover:text-foreground"
               }`}
             >
-              {previewRole === "admin" ? "企业 API Key" : "组织 API Key"}
+              {previewRole === "admin" ? "企业 API Key" : "部门 API Key"}
             </button>
           </div>
           {previewRole === "org_admin" && organizations.length > 0 && (
@@ -746,7 +746,7 @@ export default function ApiKeys({ enterprise, role }: Props) {
                 }}
               >
                 <SelectTrigger className="h-9 w-44 border-border shadow-sm font-medium">
-                  <SelectValue placeholder="选择组织..." />
+                  <SelectValue placeholder="选择部门..." />
                 </SelectTrigger>
                 <SelectContent>
                   {organizations.map(org => (
@@ -764,7 +764,7 @@ export default function ApiKeys({ enterprise, role }: Props) {
                 <SelectValue placeholder="所属组织" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">所属组织：全部</SelectItem>
+                <SelectItem value="all">所属部门：全部</SelectItem>
                 {organizations.map(org => (
                   <SelectItem key={org.id} value={org.id}>{org.name}</SelectItem>
                 ))}
@@ -1125,7 +1125,7 @@ export default function ApiKeys({ enterprise, role }: Props) {
             {/* 提示语 */}
             <div className="flex items-start gap-2 rounded-lg bg-primary/5 border border-primary/20 px-4 py-3">
               <ShieldCheck className="w-4 h-4 text-primary shrink-0 mt-0.5" />
-              <p className="text-sm text-primary/80">该规则适用于所有组织内成员的新建 key 属性，成员新建 Key 时将以此为默认模板。</p>
+              <p className="text-sm text-primary/80">该规则适用于所有部门内成员的新建 key 属性，成员新建 Key 时将以此为默认模板。</p>
             </div>
 
             {/* 基本信息 */}
@@ -1264,7 +1264,7 @@ export default function ApiKeys({ enterprise, role }: Props) {
           </p>
           <div className="max-h-72 overflow-y-auto space-y-1 border border-border rounded-lg p-2">
             {orgMembers.length === 0 ? (
-              <p className="text-sm text-muted-foreground text-center py-6">该组织暂无成员</p>
+              <p className="text-sm text-muted-foreground text-center py-6">该部门暂无成员</p>
             ) : orgMembers.map(m => {
               const checked = pendingAdvanced.has(m.phone);
               const masked = m.phone.length >= 7

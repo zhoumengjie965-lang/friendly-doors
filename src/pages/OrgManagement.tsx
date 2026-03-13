@@ -94,12 +94,12 @@ export default function OrgManagement({ enterprise, role }: Props) {
   const handleDelete = async () => {
     if (!deleteOrg) return;
     if (deleteOrg.name === "默认组织") {
-      toast({ title: "无法删除默认组织", variant: "destructive" });
+      toast({ title: "无法删除默认部门", variant: "destructive" });
       setDeleteOrg(null);
       return;
     }
     await supabase.from("organizations").delete().eq("id", deleteOrg.id);
-    toast({ title: "已删除组织" });
+    toast({ title: "已删除部门" });
     setDeleteOrg(null);
     load();
   };
@@ -127,7 +127,7 @@ export default function OrgManagement({ enterprise, role }: Props) {
             .eq("user_phone", phone).eq("enterprise_id", enterprise.id);
         }
       }
-      toast({ title: "组织管理员已更新" });
+      toast({ title: "部门管理员已更新" });
       setSetAdminOrg(null);
       setNewAdminPhone("");
       load();
@@ -139,7 +139,7 @@ export default function OrgManagement({ enterprise, role }: Props) {
   };
 
   const stats = [
-    { label: "组织总数", value: String(orgCount), icon: Building2, color: "hsl(224,76%,48%)" },
+    { label: "部门总数", value: String(orgCount), icon: Building2, color: "hsl(224,76%,48%)" },
     { label: "企业成员", value: String(memberCount), icon: Users, color: "hsl(142,70%,45%)" },
     { label: "API Key", value: "—", icon: Key, color: "hsl(262,60%,58%)" },
   ];
@@ -149,13 +149,13 @@ export default function OrgManagement({ enterprise, role }: Props) {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-foreground">组织管理</h1>
-          <p className="text-muted-foreground mt-1 text-sm">管理企业下的组织单元及预算分配</p>
+          <h1 className="text-2xl font-bold text-foreground">部门治理</h1>
+          <p className="text-muted-foreground mt-1 text-sm">管理企业下的部门单元及预算分配</p>
         </div>
         {isAdmin && (
           <Button onClick={() => setCreateOpen(true)} className="gap-2">
             <Plus className="w-4 h-4" />
-            创建组织
+            创建部门
           </Button>
         )}
       </div>
@@ -179,7 +179,7 @@ export default function OrgManagement({ enterprise, role }: Props) {
       {/* Table */}
       <div className="bg-card border border-border rounded-xl overflow-hidden">
         <div className="px-6 py-4 border-b border-border">
-          <h2 className="font-semibold text-foreground">组织列表</h2>
+          <h2 className="font-semibold text-foreground">部门列表</h2>
         </div>
         {loading ? (
           <div className="flex items-center justify-center py-16">
@@ -188,16 +188,16 @@ export default function OrgManagement({ enterprise, role }: Props) {
         ) : orgs.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-16 text-muted-foreground">
             <Building2 className="w-12 h-12 mb-3 opacity-30" />
-            <p className="text-sm">暂无组织</p>
-            {isAdmin && <Button variant="outline" className="mt-4 gap-2" onClick={() => setCreateOpen(true)}><Plus className="w-4 h-4" />创建第一个组织</Button>}
+            <p className="text-sm">暂无部门</p>
+            {isAdmin && <Button variant="outline" className="mt-4 gap-2" onClick={() => setCreateOpen(true)}><Plus className="w-4 h-4" />创建第一个部门</Button>}
           </div>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-border bg-muted/30">
-                  <th className="text-left px-6 py-3 text-muted-foreground font-medium">组织名称</th>
-                  <th className="text-left px-6 py-3 text-muted-foreground font-medium">组织管理员</th>
+                  <th className="text-left px-6 py-3 text-muted-foreground font-medium">部门名称</th>
+                  <th className="text-left px-6 py-3 text-muted-foreground font-medium">部门管理员</th>
                   <th className="text-left px-6 py-3 text-muted-foreground font-medium">成员数</th>
                   <th className="text-left px-6 py-3 text-muted-foreground font-medium">本月预算上限</th>
                   <th className="text-left px-6 py-3 text-muted-foreground font-medium">本月消耗预算</th>
@@ -269,25 +269,25 @@ export default function OrgManagement({ enterprise, role }: Props) {
                           </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end" className="w-44">
-                          <DropdownMenuItem onClick={() => { setEditOrg(org); setEditName(org.name); }} className="gap-2">
-                            <Pencil className="w-3.5 h-3.5" /> 编辑组织名称
-                          </DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => { setSetAdminOrg(org); setNewAdminPhone(org.admin_phone || "__none__"); }} className="gap-2">
-                            <UserCog className="w-3.5 h-3.5" /> 设置管理员
-                          </DropdownMenuItem>
-                          {isAdmin && (
-                            <>
-                              <DropdownMenuSeparator />
-                              <DropdownMenuItem onClick={() => toggleStatus(org)} className="gap-2">
-                                <Power className="w-3.5 h-3.5" />
-                                {org.status === "active" ? "禁用组织" : "启用组织"}
-                              </DropdownMenuItem>
-                              <DropdownMenuItem
-                                onClick={() => setDeleteOrg(org)}
-                                className="gap-2 text-destructive focus:text-destructive"
-                                disabled={org.name === "默认组织"}>
-                                <Trash2 className="w-3.5 h-3.5" /> 删除组织
-                              </DropdownMenuItem>
+                           <DropdownMenuItem onClick={() => { setEditOrg(org); setEditName(org.name); }} className="gap-2">
+                             <Pencil className="w-3.5 h-3.5" /> 编辑部门名称
+                           </DropdownMenuItem>
+                           <DropdownMenuItem onClick={() => { setSetAdminOrg(org); setNewAdminPhone(org.admin_phone || "__none__"); }} className="gap-2">
+                             <UserCog className="w-3.5 h-3.5" /> 设置管理员
+                           </DropdownMenuItem>
+                           {isAdmin && (
+                             <>
+                               <DropdownMenuSeparator />
+                               <DropdownMenuItem onClick={() => toggleStatus(org)} className="gap-2">
+                                 <Power className="w-3.5 h-3.5" />
+                                 {org.status === "active" ? "禁用部门" : "启用部门"}
+                               </DropdownMenuItem>
+                               <DropdownMenuItem
+                                 onClick={() => setDeleteOrg(org)}
+                                 className="gap-2 text-destructive focus:text-destructive"
+                                 disabled={org.name === "默认组织"}>
+                                 <Trash2 className="w-3.5 h-3.5" /> 删除部门
+                               </DropdownMenuItem>
                             </>
                           )}
                         </DropdownMenuContent>
@@ -321,10 +321,10 @@ export default function OrgManagement({ enterprise, role }: Props) {
       {/* Edit Name Dialog */}
       <Dialog open={!!editOrg} onOpenChange={(o) => { if (!o) setEditOrg(null); }}>
         <DialogContent className="sm:max-w-sm">
-          <DialogHeader><DialogTitle>编辑组织名称</DialogTitle></DialogHeader>
+          <DialogHeader><DialogTitle>编辑部门名称</DialogTitle></DialogHeader>
           <div className="space-y-4 py-2">
             <div className="space-y-2">
-              <Label>组织名称</Label>
+              <Label>部门名称</Label>
               <Input value={editName} onChange={e => setEditName(e.target.value)} />
             </div>
             <div className="flex gap-3">
@@ -338,7 +338,7 @@ export default function OrgManagement({ enterprise, role }: Props) {
       {/* Set Admin Dialog */}
       <Dialog open={!!setAdminOrg} onOpenChange={(o) => { if (!o) setSetAdminOrg(null); }}>
         <DialogContent className="sm:max-w-sm">
-          <DialogHeader><DialogTitle>设置组织管理员</DialogTitle></DialogHeader>
+          <DialogHeader><DialogTitle>设置部门管理员</DialogTitle></DialogHeader>
           <div className="space-y-4 py-2">
             <div className="space-y-2">
               <Label>选择管理员</Label>
@@ -357,7 +357,7 @@ export default function OrgManagement({ enterprise, role }: Props) {
                   ))}
                 </SelectContent>
               </Select>
-              <p className="text-xs text-muted-foreground">不指定时，该组织默认由企业管理员管理</p>
+              <p className="text-xs text-muted-foreground">不指定时，该部门默认由企业管理员管理</p>
             </div>
             <div className="flex gap-3">
               <Button variant="outline" className="flex-1" onClick={() => setSetAdminOrg(null)}>取消</Button>
@@ -371,9 +371,9 @@ export default function OrgManagement({ enterprise, role }: Props) {
       <AlertDialog open={!!deleteOrg} onOpenChange={(o) => { if (!o) setDeleteOrg(null); }}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>确认删除组织</AlertDialogTitle>
+            <AlertDialogTitle>确认删除部门</AlertDialogTitle>
             <AlertDialogDescription>
-              将永久删除组织「{deleteOrg?.name}」。该操作不可撤销，组织内成员不会被删除，但将失去组织归属。
+              将永久删除部门「{deleteOrg?.name}」。该操作不可撤销，部门内成员不会被删除，但将失去部门归属。
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

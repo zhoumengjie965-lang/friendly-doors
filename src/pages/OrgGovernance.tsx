@@ -176,7 +176,7 @@ export default function OrgGovernance({ enterprise, role }: Props) {
     if (editRole !== "org_admin" && editMember.role === "org_admin") {
       const adminCount = members.filter((m) => m.role === "org_admin").length;
       if (adminCount <= 1) {
-        toast({ title: "至少保留 1 名组织管理员", variant: "destructive" });
+        toast({ title: "至少保留 1 名部门管理员", variant: "destructive" });
         return;
       }
     }
@@ -253,7 +253,7 @@ export default function OrgGovernance({ enterprise, role }: Props) {
     setSaving(true);
     const result = await processSingleMember(addPhone.trim(), addName.trim(), addRole, addLimit);
     if (result.skipped) {
-      toast({ title: "该成员已在本组织中", variant: "destructive" });
+      toast({ title: "该成员已在本部门中", variant: "destructive" });
       setSaving(false);
       return;
     }
@@ -282,7 +282,7 @@ export default function OrgGovernance({ enterprise, role }: Props) {
     fetchMembers();
   }
 
-  const roleLabel = (r: string) => r === "org_admin" ? "组织管理员" : "普通成员";
+  const roleLabel = (r: string) => r === "org_admin" ? "部门管理员" : "普通成员";
   const statusBadge = (s: string) =>
     s === "active"
       ? <Badge variant="outline" style={{color:"hsl(142,70%,40%)",borderColor:"hsl(142,70%,75%)",background:"hsl(142,70%,97%)"}}>正常</Badge>
@@ -296,13 +296,13 @@ export default function OrgGovernance({ enterprise, role }: Props) {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-foreground">组织治理</h1>
-          <p className="text-muted-foreground text-sm mt-0.5">管理组织成员与预算</p>
+          <h1 className="text-2xl font-bold text-foreground">部门管理</h1>
+          <p className="text-muted-foreground text-sm mt-0.5">管理部门成员与预算</p>
         </div>
         {orgs.length > 1 && (
           <Select value={selectedOrgId} onValueChange={setSelectedOrgId}>
             <SelectTrigger className="w-48">
-              <SelectValue placeholder="选择组织" />
+              <SelectValue placeholder="选择部门" />
             </SelectTrigger>
             <SelectContent>
               {orgs.map((o) => (
@@ -322,8 +322,8 @@ export default function OrgGovernance({ enterprise, role }: Props) {
         <Card>
           <CardContent className="flex flex-col items-center justify-center py-16 text-center">
             <Users className="w-12 h-12 text-muted-foreground mb-4" />
-            <p className="text-lg font-medium text-foreground">暂无组织</p>
-            <p className="text-sm text-muted-foreground mt-1">请先在企业管理中创建组织</p>
+            <p className="text-lg font-medium text-foreground">暂无部门</p>
+            <p className="text-sm text-muted-foreground mt-1">请先在企业管理中创建部门</p>
           </CardContent>
         </Card>
       ) : (
@@ -331,7 +331,7 @@ export default function OrgGovernance({ enterprise, role }: Props) {
           {/* Overview Card */}
           <Card>
             <CardHeader className="pb-3">
-              <CardTitle className="text-base font-semibold">组织数据总览</CardTitle>
+              <CardTitle className="text-base font-semibold">部门数据总览</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
@@ -370,7 +370,7 @@ export default function OrgGovernance({ enterprise, role }: Props) {
                 </div>
                 <div className="flex items-center gap-2">
                   <CheckCircle className="w-4 h-4 text-muted-foreground" />
-                  <span className="text-sm text-muted-foreground">组织状态</span>
+                  <span className="text-sm text-muted-foreground">部门状态</span>
                   <span className="ml-auto">
                     {selectedOrg?.status === "active"
                       ? <span className="text-sm font-medium flex items-center gap-1" style={{color:"hsl(142,70%,40%)"}}><span className="w-1.5 h-1.5 rounded-full inline-block" style={{background:"hsl(142,70%,45%)"}} />正常</span>
@@ -521,7 +521,7 @@ export default function OrgGovernance({ enterprise, role }: Props) {
               <RadioGroup value={editRole} onValueChange={setEditRole} className="flex gap-6">
                 <div className="flex items-center gap-2">
                   <RadioGroupItem value="org_admin" id="r-admin" />
-                  <Label htmlFor="r-admin" className="font-normal cursor-pointer">组织管理员</Label>
+                  <Label htmlFor="r-admin" className="font-normal cursor-pointer">部门管理员</Label>
                 </div>
                 <div className="flex items-center gap-2">
                   <RadioGroupItem value="member" id="r-member" />
@@ -538,7 +538,7 @@ export default function OrgGovernance({ enterprise, role }: Props) {
                 onChange={(e) => setEditLimit(e.target.value)}
                 placeholder="2000"
               />
-              <p className="text-xs text-muted-foreground">成员共享组织月预算，单日上限为个人每日最高消耗</p>
+              <p className="text-xs text-muted-foreground">成员共享部门月预算，单日上限为个人每日最高消耗</p>
             </div>
           </div>
           <SheetFooter className="mt-8 flex gap-2">
@@ -593,7 +593,7 @@ export default function OrgGovernance({ enterprise, role }: Props) {
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="member">普通成员</SelectItem>
-                      <SelectItem value="org_admin">组织管理员</SelectItem>
+                       <SelectItem value="org_admin">部门管理员</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -626,7 +626,7 @@ export default function OrgGovernance({ enterprise, role }: Props) {
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="member">普通成员</SelectItem>
-                        <SelectItem value="org_admin">组织管理员</SelectItem>
+                        <SelectItem value="org_admin">部门管理员</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>

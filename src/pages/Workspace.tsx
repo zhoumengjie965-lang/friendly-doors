@@ -224,7 +224,7 @@ export default function Workspace() {
                   </div>
                 </div>
                 <span className="text-xs px-2 py-1 rounded-full bg-primary/10 text-primary">
-                  {r === "admin" ? "管理员" : r === "org_admin" ? "组织管理员" : "成员"}
+                  {r === "admin" ? "管理员" : r === "org_admin" ? "部门管理员" : "成员"}
                 </span>
               </button>
             ))}
@@ -242,7 +242,7 @@ export default function Workspace() {
   ];
 
   // ── Role label helper ──
-  const roleLabel = (r: string) => r === "admin" ? "管理员" : r === "org_admin" ? "组织管理员" : "普通成员";
+  const roleLabel = (r: string) => r === "admin" ? "管理员" : r === "org_admin" ? "部门管理员" : "普通成员";
 
   // ── Identity description ──
   const identityDesc = enterprise
