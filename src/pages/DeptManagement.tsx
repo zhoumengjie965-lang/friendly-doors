@@ -602,6 +602,10 @@ function OrgView({ enterprise, role, orgId, orgs, onOrgUpdated }: {
   const [showBudgetDialog, setShowBudgetDialog] = useState(false);
   const [memberDailyLimit, setMemberDailyLimit] = useState("");
   const [distributing, setDistributing] = useState(false);
+  // Sub-org batch budget dialog
+  const [showSubOrgBudgetDialog, setShowSubOrgBudgetDialog] = useState(false);
+  const [subOrgTotalPackage, setSubOrgTotalPackage] = useState("");
+  const [subOrgDistributing, setSubOrgDistributing] = useState(false);
   const [statsFlashKey, setStatsFlashKey] = useState(0);
   const [transferMember, setTransferMember] = useState<Member | null>(null);
   const { toast } = useToast();
