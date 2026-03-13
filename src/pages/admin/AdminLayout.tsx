@@ -2,7 +2,6 @@ import { useEffect } from "react";
 import { Routes, Route, Navigate, useNavigate, useLocation, NavLink } from "react-router-dom";
 import { getAdminSession, adminLogout } from "@/lib/adminAuth";
 import {
-  LayoutDashboard,
   Building2,
   Users,
   Ticket,
@@ -23,7 +22,6 @@ import AdminEnterprises from "./AdminEnterprises";
 import AdminUsers from "./AdminUsers";
 import AdminBilling from "./AdminBilling";
 import AdminModels from "./AdminModels";
-import AdminStats from "./AdminStats";
 import AdminCallLogs from "./AdminCallLogs";
 import AdminChannels from "./AdminChannels";
 import AdminModelDeploy from "./AdminModelDeploy";
@@ -56,12 +54,6 @@ const NAV_GROUPS = [
       { label: "模型管理", icon: Cpu, path: "models" },
       { label: "模型部署", icon: Layers, path: "model-deploy" },
       { label: "系统设置", icon: Settings, path: "settings" },
-    ],
-  },
-  {
-    label: "系统",
-    items: [
-      { label: "全局统计", icon: BarChart3, path: "stats" },
     ],
   },
 ];
@@ -164,7 +156,6 @@ export default function AdminLayout() {
           <Route path="call-logs" element={<AdminCallLogs />} />
           <Route path="resource-stats" element={<AdminResourceStats />} />
           <Route path="tokens" element={<AdminTokens />} />
-          <Route path="stats" element={<AdminStats />} />
           <Route path="*" element={<Navigate to="resource-stats" replace />} />
         </Routes>
       </main>
