@@ -253,7 +253,7 @@ export default function OrgGovernance({ enterprise, role }: Props) {
     setSaving(true);
     const result = await processSingleMember(addPhone.trim(), addName.trim(), addRole, addLimit);
     if (result.skipped) {
-      toast({ title: "该成员已在本组织中", variant: "destructive" });
+      toast({ title: "该成员已在本部门中", variant: "destructive" });
       setSaving(false);
       return;
     }
