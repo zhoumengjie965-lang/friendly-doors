@@ -515,13 +515,18 @@ export default function OrgGovernance({ enterprise, role }: Props) {
                   ))}
                 </div>
                 {activeTab === "members" ? (
-                  <Button size="sm" onClick={() => setShowAdd(true)}>
-                    <Plus className="w-4 h-4 mr-1" />添加成员
-                  </Button>
+                  <div className="flex items-center gap-2">
+                    <Button size="sm" variant="outline" onClick={() => { setBudgetDialogMode("members"); setMemberDailyLimit(""); setShowBudgetDialog(true); }}>
+                      <Sliders className="w-4 h-4 mr-1" />成员批量分配
+                    </Button>
+                    <Button size="sm" onClick={() => setShowAdd(true)}>
+                      <Plus className="w-4 h-4 mr-1" />添加成员
+                    </Button>
+                  </div>
                 ) : (
                   <div className="flex items-center gap-2">
-                    <Button size="sm" variant="outline" onClick={() => setShowBudgetDialog(true)}>
-                      <Sliders className="w-4 h-4 mr-1" />一键配置预算
+                    <Button size="sm" variant="outline" onClick={() => { setBudgetDialogMode("sub-orgs"); setTotalPackage(""); setShowBudgetDialog(true); }}>
+                      <Sliders className="w-4 h-4 mr-1" />部门批量分配
                     </Button>
                     <Button size="sm" onClick={() => setShowCreateSubOrg(true)}>
                       <Plus className="w-4 h-4 mr-1" />创建子部门
