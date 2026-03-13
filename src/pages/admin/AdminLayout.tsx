@@ -165,7 +165,7 @@ export default function AdminLayout() {
           <Route path="resource-stats" element={<AdminResourceStats />} />
           <Route path="tokens" element={<AdminTokens />} />
           <Route path="stats" element={<AdminStats />} />
-          <Route path="*" element={<Navigate to="dashboard" replace />} />
+          <Route path="*" element={<Navigate to="resource-stats" replace />} />
         </Routes>
       </main>
     </div>
