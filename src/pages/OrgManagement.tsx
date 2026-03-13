@@ -149,13 +149,13 @@ export default function OrgManagement({ enterprise, role }: Props) {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-foreground">组织管理</h1>
-          <p className="text-muted-foreground mt-1 text-sm">管理企业下的组织单元及预算分配</p>
+          <h1 className="text-2xl font-bold text-foreground">部门治理</h1>
+          <p className="text-muted-foreground mt-1 text-sm">管理企业下的部门单元及预算分配</p>
         </div>
         {isAdmin && (
           <Button onClick={() => setCreateOpen(true)} className="gap-2">
             <Plus className="w-4 h-4" />
-            创建组织
+            创建部门
           </Button>
         )}
       </div>
