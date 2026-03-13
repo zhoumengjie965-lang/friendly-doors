@@ -202,7 +202,7 @@ export default function CreateOrgDialog({ open, onOpenChange, enterpriseId, exis
           </div>
 
           <div className="space-y-2">
-            <Label>设置组织管理员 <span className="text-muted-foreground text-xs">（可选）</span></Label>
+            <Label>设置部门管理员 <span className="text-muted-foreground text-xs">（可选）</span></Label>
             <Select value={orgAdminPhone} onValueChange={setOrgAdminPhone}>
               <SelectTrigger>
                 <SelectValue />
