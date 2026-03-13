@@ -357,7 +357,7 @@ export default function OrgManagement({ enterprise, role }: Props) {
                   ))}
                 </SelectContent>
               </Select>
-              <p className="text-xs text-muted-foreground">不指定时，该组织默认由企业管理员管理</p>
+              <p className="text-xs text-muted-foreground">不指定时，该部门默认由企业管理员管理</p>
             </div>
             <div className="flex gap-3">
               <Button variant="outline" className="flex-1" onClick={() => setSetAdminOrg(null)}>取消</Button>
