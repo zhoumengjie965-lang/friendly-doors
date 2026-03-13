@@ -1125,7 +1125,7 @@ export default function ApiKeys({ enterprise, role }: Props) {
             {/* 提示语 */}
             <div className="flex items-start gap-2 rounded-lg bg-primary/5 border border-primary/20 px-4 py-3">
               <ShieldCheck className="w-4 h-4 text-primary shrink-0 mt-0.5" />
-              <p className="text-sm text-primary/80">该规则适用于所有组织内成员的新建 key 属性，成员新建 Key 时将以此为默认模板。</p>
+              <p className="text-sm text-primary/80">该规则适用于所有部门内成员的新建 key 属性，成员新建 Key 时将以此为默认模板。</p>
             </div>
 
             {/* 基本信息 */}
