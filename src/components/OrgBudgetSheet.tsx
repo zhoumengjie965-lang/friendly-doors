@@ -3,6 +3,8 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
+import { Separator } from "@/components/ui/separator";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { Wallet } from "lucide-react";
@@ -24,6 +26,8 @@ interface Props {
 export default function OrgBudgetSheet({ open, onOpenChange, org, onSaved }: Props) {
   const [monthlyBudget, setMonthlyBudget] = useState("");
   const [currentMonthBudget, setCurrentMonthBudget] = useState("");
+  const [warningThreshold, setWarningThreshold] = useState(80);
+  const [alertEnabled, setAlertEnabled] = useState(false);
   const [saving, setSaving] = useState(false);
   const { toast } = useToast();
 
@@ -31,6 +35,8 @@ export default function OrgBudgetSheet({ open, onOpenChange, org, onSaved }: Pro
     if (isOpen && org) {
       setMonthlyBudget(org.monthly_budget != null ? String(org.monthly_budget) : "");
       setCurrentMonthBudget(org.current_month_budget != null ? String(org.current_month_budget) : "");
+      setWarningThreshold(80);
+      setAlertEnabled(false);
     }
     onOpenChange(isOpen);
   };
@@ -59,7 +65,7 @@ export default function OrgBudgetSheet({ open, onOpenChange, org, onSaved }: Pro
 
   return (
     <Sheet open={open} onOpenChange={handleOpen}>
-      <SheetContent side="right" className="w-[380px] sm:w-[420px]">
+      <SheetContent side="right" className="w-[380px] sm:w-[420px] overflow-y-auto">
         <SheetHeader className="pb-6">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl flex items-center justify-center"
@@ -97,6 +103,42 @@ export default function OrgBudgetSheet({ open, onOpenChange, org, onSaved }: Pro
             />
             <p className="text-xs text-muted-foreground">仅本月生效，优先级高于默认月预算</p>
           </div>
+
+          <Separator />
+
+          {/* 预警与通知 */}
+          <div className="space-y-4">
+            <p className="text-sm font-semibold text-foreground">预警与通知</p>
+
+            <div className="space-y-2">
+              <Label className="text-sm font-medium">预警阈值</Label>
+              <div className="flex items-center gap-2">
+                <Input
+                  type="number"
+                  min="1"
+                  max="100"
+                  className="w-28"
+                  value={warningThreshold}
+                  onChange={(e) => setWarningThreshold(Number(e.target.value))}
+                />
+                <span className="text-sm text-muted-foreground">%</span>
+              </div>
+              <p className="text-xs text-muted-foreground">当月消耗达到预算的该比例时触发预警</p>
+            </div>
+
+            <div className="flex items-start justify-between gap-3">
+              <div className="space-y-0.5">
+                <Label className="text-sm font-medium cursor-pointer">开启紧急预警通知</Label>
+                <p className="text-xs text-muted-foreground">当消耗达到阈值时，将通过短信通知管理员</p>
+              </div>
+              <Switch
+                checked={alertEnabled}
+                onCheckedChange={setAlertEnabled}
+              />
+            </div>
+          </div>
+
+          <Separator />
 
           <div className="bg-muted/40 rounded-lg p-4 space-y-1">
             <p className="text-xs font-medium text-foreground">本月实际预算</p>
