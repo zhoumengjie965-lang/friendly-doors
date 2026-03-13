@@ -955,6 +955,36 @@ export default function ApiKeys({ enterprise, role }: Props) {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Simple create dialog for member role */}
+      <Dialog open={simpleDialogOpen} onOpenChange={open => { setSimpleDialogOpen(open); if (!open) setFormName(""); }}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>新增 API Key</DialogTitle>
+          </DialogHeader>
+          <div className="py-2">
+            <Label className="text-sm text-muted-foreground mb-1.5 block">
+              <span className="text-destructive mr-0.5">*</span>名称
+            </Label>
+            <Input
+              placeholder="请输入名称"
+              value={formName}
+              onChange={e => setFormName(e.target.value)}
+              onKeyDown={e => { if (e.key === "Enter" && formName.trim()) handleSave(); }}
+              autoFocus
+            />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => { setSimpleDialogOpen(false); setFormName(""); }} disabled={saving}>
+              取消
+            </Button>
+            <Button onClick={handleSave} disabled={saving || !formName.trim()}>
+              {saving ? "保存中..." : "确定"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
+
