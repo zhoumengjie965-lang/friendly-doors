@@ -345,6 +345,9 @@ export default function AdminEnterpriseDetail() {
   const certCfg = CERT_STATUS_CONFIG[certStatus] || CERT_STATUS_CONFIG.uncertified;
   const orgMembers = members.filter((m) => m.organization_id === selectedOrgId);
   const selectedOrg = orgs.find((o) => o.id === selectedOrgId);
+  const subOrgs = orgs.filter((o) => o.id !== selectedOrgId);
+  const hasMembers = orgMembers.length > 0;
+  const hasSubOrgs = subOrgs.length > 0;
 
   const summaryCards = [
     {
