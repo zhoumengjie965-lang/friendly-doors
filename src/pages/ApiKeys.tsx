@@ -771,6 +771,18 @@ export default function ApiKeys({ enterprise, role }: Props) {
             >
               {previewRole === "admin" ? "企业 API Key" : "部门 API Key"}
             </button>
+            {previewRole === "org_admin" && (
+              <button
+                onClick={() => { setActiveTab("prod"); fetchProdKeys(); }}
+                className={`px-3 h-full rounded-md text-sm font-medium transition-all ${
+                  activeTab === "prod"
+                    ? "bg-background shadow-sm text-foreground"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                生产 API Key
+              </button>
+            )}
           </div>
           {previewRole === "org_admin" && organizations.length > 0 && (
             <div className="flex items-center gap-1.5">
