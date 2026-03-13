@@ -646,6 +646,23 @@ export default function OrgGovernance({ enterprise, role }: Props) {
             {/* ── Tab: 下属子部门 ───────────────────────────────────────── */}
             {activeTab === "sub-orgs" && (
             <CardContent className="p-0 pt-0">
+              {/* Zero-budget alert */}
+              {subOrgs.some(s => !s.monthlyBudget || s.monthlyBudget === 0) && (
+                <div className="px-4 pt-3">
+                  <Alert>
+                    <AlertTriangle className="w-4 h-4" />
+                    <AlertDescription className="flex items-center justify-between">
+                      <span>存在未分配预算的子部门，新部门需要分配预算后方可使用。</span>
+                      <button
+                        className="text-primary text-xs underline ml-2 shrink-0"
+                        onClick={() => setShowBudgetDialog(true)}
+                      >
+                        立即均分
+                      </button>
+                    </AlertDescription>
+                  </Alert>
+                </div>
+              )}
               <Table>
                 <TableHeader>
                   <TableRow>
