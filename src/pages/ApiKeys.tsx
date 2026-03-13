@@ -703,7 +703,7 @@ export default function ApiKeys({ enterprise, role }: Props) {
                   : "text-muted-foreground hover:text-foreground"
               }`}
             >
-              {r === "member" ? "普通成员" : r === "org_admin" ? "组织管理员" : "企业管理员"}
+              {r === "member" ? "普通成员" : r === "org_admin" ? "部门管理员" : "企业管理员"}
             </button>
           ))}
         </div>
