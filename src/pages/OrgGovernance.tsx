@@ -484,7 +484,7 @@ export default function OrgGovernance({ enterprise, role }: Props) {
           })()}
 
           {/* Members + Sub-orgs Card */}
-          <Card>
+          <Card ref={tabCardRef}>
             <CardHeader className="pb-0">
               <div className="flex items-center justify-between">
                 {/* Tab switcher */}
