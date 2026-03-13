@@ -142,7 +142,7 @@ export default function ApiKeys({ enterprise, role }: Props) {
   const [selectedOrgId, setSelectedOrgId] = useState<string | null>(null);
 
   // Org-tab member filter
-  const [orgMembers, setOrgMembers] = useState<{ phone: string; name: string | null }[]>([]);
+  const [orgMembers, setOrgMembers] = useState<{ phone: string; name: string | null }[]>(MOCK_MEMBERS);
   const [memberFilter, setMemberFilter] = useState<string>("all");
   const [orgNameFilter, setOrgNameFilter] = useState<string>("all");
 
