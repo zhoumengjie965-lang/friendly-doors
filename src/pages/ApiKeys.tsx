@@ -774,9 +774,42 @@ export default function ApiKeys({ enterprise, role }: Props) {
       {/* 行3：创建按钮 + 搜索栏+刷新（右） */}
       <div className="flex items-center justify-between mb-5">
         <div className="flex items-center gap-3">
-          <Button onClick={openCreate} className="gap-2 h-9">
-            <Plus className="w-4 h-4" />创建 API Key
-          </Button>
+          {/* org_admin 在组织 Tab 下：显示配置 & 高级权限按钮；其他情况显示创建按钮 */}
+          {previewRole === "org_admin" && activeTab === "org" ? (
+            <>
+              <Button
+                variant="outline"
+                className="gap-2 h-9"
+                onClick={() => {
+                  // 打开前将已保存的值回填到 state
+                  const cfg = orgConfigSaved.current;
+                  setOrgConfigGroup(cfg.group);
+                  setOrgConfigExpires(cfg.expires);
+                  setOrgConfigQuota(cfg.quota);
+                  setOrgConfigUnlimited(cfg.unlimited);
+                  setOrgConfigModels([...cfg.models]);
+                  setOrgConfigIpWhitelist(cfg.ipWhitelist);
+                  setOrgConfigOpen(true);
+                }}
+              >
+                <Settings className="w-4 h-4" />配置 API Key
+              </Button>
+              <Button
+                variant="outline"
+                className="gap-2 h-9"
+                onClick={() => {
+                  setPendingAdvanced(new Set(advancedMembers));
+                  setAdvancedPermOpen(true);
+                }}
+              >
+                <ShieldCheck className="w-4 h-4" />成员高级权限
+              </Button>
+            </>
+          ) : (
+            <Button onClick={openCreate} className="gap-2 h-9">
+              <Plus className="w-4 h-4" />创建 API Key
+            </Button>
+          )}
         </div>
         <div className="flex items-center gap-2">
           {/* 名称 label + 输入框 */}
