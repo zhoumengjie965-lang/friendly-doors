@@ -116,6 +116,8 @@ export default function OrgGovernance({ enterprise, role }: Props) {
   const [budgetDialogMode, setBudgetDialogMode] = useState<"members" | "sub-orgs">("sub-orgs");
   const [totalPackage, setTotalPackage] = useState("");
   const [memberDailyLimit, setMemberDailyLimit] = useState("");
+  const [budgetAlertEnabled, setBudgetAlertEnabled] = useState(false);
+  const [budgetAlertThreshold, setBudgetAlertThreshold] = useState(80);
   const [distributing, setDistributing] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<SubOrg | null>(null);
   const [statsFlashKey, setStatsFlashKey] = useState(0);
