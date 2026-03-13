@@ -579,31 +579,17 @@ export default function ApiKeys({ enterprise, role }: Props) {
                   </TableCell>
                 </TableRow>
               ) : paged.map(k => {
-                const rs = getRunningStatus(k);
+                const ms = getMergedStatus(k);
+                const msCfg = mergedStatusConfig[ms];
                 return (
                   <TableRow key={k.id} className="hover:bg-muted/30">
                     <TableCell className="font-medium text-foreground">{k.name}</TableCell>
-                    {/* 管理状态 */}
+                    {/* 状态（合并） */}
                     <TableCell>
-                      <div className="flex items-center gap-1.5">
-                        <div className={`w-2 h-2 rounded-full ${k.status === "active" ? "bg-green-500" : "bg-gray-400"}`} />
-                        <span className="text-sm">{k.status === "active" ? "启用" : "禁用"}</span>
-                      </div>
-                    </TableCell>
-                    {/* 运行状态 */}
-                    <TableCell>
-                      <TooltipProvider>
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <span className={`inline-flex items-center px-2 py-0.5 rounded-full border text-xs font-medium cursor-default ${runningStatusColors[rs.label]}`}>
-                              {rs.label}
-                            </span>
-                          </TooltipTrigger>
-                          {rs.tooltip && (
-                            <TooltipContent><p>{rs.tooltip}</p></TooltipContent>
-                          )}
-                        </Tooltip>
-                      </TooltipProvider>
+                      <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full border text-xs font-medium ${msCfg.badge}`}>
+                        <span className={`w-1.5 h-1.5 rounded-full ${msCfg.dot}`} />
+                        {ms}
+                      </span>
                     </TableCell>
                     {/* 已消耗/预算上限 */}
                     <TableCell>{formatQuota(k.used_quota, k.total_quota)}</TableCell>
