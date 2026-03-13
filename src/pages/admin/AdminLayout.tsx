@@ -151,7 +151,7 @@ export default function AdminLayout() {
       {/* Main */}
       <main className="flex-1 flex flex-col min-w-0">
         <Routes>
-          <Route index element={<Navigate to="dashboard" replace />} />
+          <Route index element={<Navigate to="resource-stats" replace />} />
           <Route path="dashboard" element={<AdminDashboard />} />
           <Route path="enterprises" element={<AdminEnterprises />} />
           <Route path="enterprises/:id" element={<AdminEnterpriseDetail />} />
