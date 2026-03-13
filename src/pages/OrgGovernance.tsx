@@ -322,8 +322,8 @@ export default function OrgGovernance({ enterprise, role }: Props) {
         <Card>
           <CardContent className="flex flex-col items-center justify-center py-16 text-center">
             <Users className="w-12 h-12 text-muted-foreground mb-4" />
-            <p className="text-lg font-medium text-foreground">暂无组织</p>
-            <p className="text-sm text-muted-foreground mt-1">请先在企业管理中创建组织</p>
+            <p className="text-lg font-medium text-foreground">暂无部门</p>
+            <p className="text-sm text-muted-foreground mt-1">请先在企业管理中创建部门</p>
           </CardContent>
         </Card>
       ) : (
