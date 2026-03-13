@@ -187,7 +187,7 @@ export default function OrgManagement({ enterprise, role }: Props) {
                 <s.icon className="w-4 h-4" style={{ color: s.color }} />
               </div>
             </div>
-            <p className="text-2xl font-bold text-foreground">{s.value}</p>
+            <p key={statsFlashKey} className="text-2xl font-bold text-foreground animate-in zoom-in-95 duration-300">{s.value}</p>
           </div>
         ))}
       </div>
