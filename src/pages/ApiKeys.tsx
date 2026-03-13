@@ -264,6 +264,22 @@ export default function ApiKeys({ enterprise, role }: Props) {
     setMemberFilter("all");
   }, [canSeeOrgTab, enterprise.id, selectedOrgId]);
 
+  const fetchProdKeys = useCallback(async (orgId?: string | null) => {
+    if (!phone) return;
+    const targetOrgId = orgId !== undefined ? orgId : selectedOrgId;
+    let query = supabase
+      .from("api_keys" as any)
+      .select("*")
+      .eq("enterprise_id", enterprise.id)
+      .eq("creator_phone", phone)
+      .eq("group_name", "生产通道");
+    if (targetOrgId) {
+      query = query.eq("organization_id", targetOrgId);
+    }
+    const { data, error } = await query.order("created_at", { ascending: false });
+    if (!error && data) setProdKeys(data as unknown as ApiKey[]);
+  }, [phone, enterprise.id, selectedOrgId]);
+
   const fetchOrganizations = useCallback(async () => {
     if (!canSeeOrgTab) return;
     const { data } = await supabase
