@@ -602,6 +602,10 @@ function OrgView({ enterprise, role, orgId, orgs, onOrgUpdated }: {
   const [showBudgetDialog, setShowBudgetDialog] = useState(false);
   const [memberDailyLimit, setMemberDailyLimit] = useState("");
   const [distributing, setDistributing] = useState(false);
+  // Sub-org batch budget dialog
+  const [showSubOrgBudgetDialog, setShowSubOrgBudgetDialog] = useState(false);
+  const [subOrgTotalPackage, setSubOrgTotalPackage] = useState("");
+  const [subOrgDistributing, setSubOrgDistributing] = useState(false);
   const [statsFlashKey, setStatsFlashKey] = useState(0);
   const [transferMember, setTransferMember] = useState<Member | null>(null);
   const { toast } = useToast();
@@ -743,16 +747,14 @@ function OrgView({ enterprise, role, orgId, orgs, onOrgUpdated }: {
           <h1 className="text-2xl font-bold text-foreground">{selectedOrg?.name ?? "部门管理"}</h1>
           <p className="text-muted-foreground text-sm mt-0.5">管理部门成员与预算</p>
         </div>
-        {hasChildren && (
-          <div className="flex items-center gap-2">
-            <Button variant="outline" size="sm" onClick={() => { setMemberDailyLimit(""); setShowBudgetDialog(true); }} className="gap-1.5">
-              <Sliders className="w-3.5 h-3.5" />部门批量分配
-            </Button>
-            <Button size="sm" onClick={() => setShowCreateSubOrg(true)} className="gap-1.5">
-              <Plus className="w-3.5 h-3.5" />创建子部门
-            </Button>
-          </div>
-        )}
+        <div className="flex items-center gap-2">
+          <Button variant="outline" size="sm" onClick={() => { setSubOrgTotalPackage(""); setShowSubOrgBudgetDialog(true); }} className="gap-1.5">
+            <Sliders className="w-3.5 h-3.5" />子部门批量分配
+          </Button>
+          <Button size="sm" onClick={() => setShowCreateSubOrg(true)} className="gap-1.5">
+            <Plus className="w-3.5 h-3.5" />创建子部门
+          </Button>
+        </div>
       </div>
 
       {/* 3 overview cards */}
@@ -1117,6 +1119,60 @@ function OrgView({ enterprise, role, orgId, orgs, onOrgUpdated }: {
                     setDistributing(false); setShowBudgetDialog(false); setMemberDailyLimit("");
                   }}
                 >{distributing ? "分配中…" : "确认分配"}</Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+        );
+      })()}
+
+      {/* 子部门批量分配 Dialog */}
+      {(() => {
+        const childOrgs = orgs.filter(o => o.parent_id === orgId);
+        const n = childOrgs.length;
+        const pkg = Number(subOrgTotalPackage);
+        const perBudget = n > 0 && pkg > 0 ? Math.floor((pkg / n) * 100) / 100 : 0;
+        return (
+          <Dialog open={showSubOrgBudgetDialog} onOpenChange={(open) => { if (!open) setShowSubOrgBudgetDialog(false); }}>
+            <DialogContent className="sm:max-w-md">
+              <DialogHeader>
+                <DialogTitle>子部门批量分配</DialogTitle>
+                <DialogDescription>将总预算均分给当前部门下的所有子部门（月度预算）。</DialogDescription>
+              </DialogHeader>
+              <div className="space-y-4 py-2">
+                <div className="space-y-1.5">
+                  <Label>总预算包（元）</Label>
+                  <Input
+                    type="number"
+                    placeholder="如：100000"
+                    value={subOrgTotalPackage}
+                    onChange={(e) => setSubOrgTotalPackage(e.target.value)}
+                  />
+                </div>
+                {n === 0 ? (
+                  <div className="rounded-lg border border-muted bg-muted/30 p-3 text-sm text-muted-foreground text-center">
+                    当前部门暂无子部门
+                  </div>
+                ) : pkg > 0 ? (
+                  <div className="rounded-lg border border-primary/20 bg-primary/5 p-3 text-sm">
+                    共 <span className="font-semibold">{n}</span> 个子部门，每部门月预算 <span className="font-bold text-primary">¥{perBudget.toLocaleString()}</span>
+                  </div>
+                ) : null}
+              </div>
+              <DialogFooter className="gap-2">
+                <Button variant="outline" onClick={() => setShowSubOrgBudgetDialog(false)}>取消</Button>
+                <Button
+                  disabled={subOrgDistributing || n === 0 || pkg <= 0}
+                  onClick={async () => {
+                    setSubOrgDistributing(true);
+                    await Promise.all(childOrgs.map(o =>
+                      supabase.from("organizations").update({ monthly_budget: perBudget }).eq("id", o.id)
+                    ));
+                    toast({ title: `已为 ${n} 个子部门分配月度预算 ¥${perBudget.toLocaleString()} / 部门` });
+                    setSubOrgDistributing(false);
+                    setShowSubOrgBudgetDialog(false);
+                    onOrgUpdated();
+                  }}
+                >{subOrgDistributing ? "分配中…" : "确认均分"}</Button>
               </DialogFooter>
             </DialogContent>
           </Dialog>
