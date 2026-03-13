@@ -517,9 +517,14 @@ export default function OrgGovernance({ enterprise, role }: Props) {
                     <Plus className="w-4 h-4 mr-1" />添加成员
                   </Button>
                 ) : (
-                  <Button size="sm" onClick={() => setShowCreateSubOrg(true)}>
-                    <Plus className="w-4 h-4 mr-1" />创建子部门
-                  </Button>
+                  <div className="flex items-center gap-2">
+                    <Button size="sm" variant="outline" onClick={() => setShowBudgetDialog(true)}>
+                      <Sliders className="w-4 h-4 mr-1" />一键配置预算
+                    </Button>
+                    <Button size="sm" onClick={() => setShowCreateSubOrg(true)}>
+                      <Plus className="w-4 h-4 mr-1" />创建子部门
+                    </Button>
+                  </div>
                 )}
               </div>
             </CardHeader>
