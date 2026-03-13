@@ -127,7 +127,7 @@ export default function OrgManagement({ enterprise, role }: Props) {
             .eq("user_phone", phone).eq("enterprise_id", enterprise.id);
         }
       }
-      toast({ title: "组织管理员已更新" });
+      toast({ title: "部门管理员已更新" });
       setSetAdminOrg(null);
       setNewAdminPhone("");
       load();
