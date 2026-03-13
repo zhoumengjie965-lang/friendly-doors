@@ -1,5 +1,5 @@
 // 写操作全部通过 SECURITY DEFINER RPC 函数执行，RLS 写策略已移除
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { getCurrentPhone } from "@/lib/auth";
 import { useToast } from "@/hooks/use-toast";
