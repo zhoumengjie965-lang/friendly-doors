@@ -1070,6 +1070,195 @@ export default function ApiKeys({ enterprise, role }: Props) {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Org Config Sheet — org_admin sets default config for member keys */}
+      <Sheet open={orgConfigOpen} onOpenChange={setOrgConfigOpen}>
+        <SheetContent className="!w-[520px] !max-w-[520px] flex flex-col p-0 overflow-hidden">
+          <SheetHeader className="px-6 pt-6 pb-4 border-b border-border shrink-0">
+            <SheetTitle>配置 API Key 默认规则</SheetTitle>
+          </SheetHeader>
+
+          <div className="flex-1 overflow-y-auto px-6 py-5 space-y-6">
+            {/* 提示语 */}
+            <div className="flex items-start gap-2 rounded-lg bg-primary/5 border border-primary/20 px-4 py-3">
+              <ShieldCheck className="w-4 h-4 text-primary shrink-0 mt-0.5" />
+              <p className="text-sm text-primary/80">该规则适用于所有组织内成员的新建 key 属性，成员新建 Key 时将以此为默认模板。</p>
+            </div>
+
+            {/* 基本信息 */}
+            <div>
+              <h3 className="text-sm font-semibold text-foreground mb-4 pb-2 border-b border-border">基本信息</h3>
+              <div className="space-y-3">
+                {/* 分组 */}
+                <div className="grid grid-cols-[100px_1fr] items-center gap-3">
+                  <Label className="text-right text-muted-foreground text-sm">分组</Label>
+                  <Input placeholder="不填则使用默认分组" value={orgConfigGroup} onChange={e => setOrgConfigGroup(e.target.value)} />
+                </div>
+                {/* 过期时间 */}
+                <div className="grid grid-cols-[100px_1fr] items-start gap-3">
+                  <Label className="text-right text-muted-foreground text-sm pt-2.5">过期时间</Label>
+                  <div>
+                    <Input type="datetime-local" value={orgConfigExpires} onChange={e => setOrgConfigExpires(e.target.value)} />
+                    <div className="flex gap-2 mt-2 flex-wrap">
+                      {[
+                        { label: "永不过期", offset: null },
+                        { label: "一个月", offset: 30 * 24 * 60 * 60 * 1000 },
+                        { label: "一天", offset: 24 * 60 * 60 * 1000 },
+                        { label: "一小时", offset: 60 * 60 * 1000 },
+                      ].map(({ label, offset }) => (
+                        <button
+                          key={label}
+                          onClick={() => setQuickExpiryOrgConfig(offset)}
+                          className="px-3 py-1 text-xs rounded-full border border-border hover:border-primary hover:text-primary hover:bg-primary/5 transition-colors"
+                        >
+                          {label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* 预算设置 */}
+            <div>
+              <h3 className="text-sm font-semibold text-foreground mb-4 pb-2 border-b border-border">预算设置</h3>
+              <div className="space-y-3">
+                <div className="grid grid-cols-[100px_1fr] items-center gap-3">
+                  <Label className="text-right text-muted-foreground text-sm">预算上限</Label>
+                  <div className="flex items-center gap-2">
+                    <span className="text-muted-foreground text-sm font-medium shrink-0">¥</span>
+                    <Input
+                      type="number" min="0" step="0.01" placeholder="0.00"
+                      value={orgConfigQuota}
+                      onChange={e => setOrgConfigQuota(e.target.value)}
+                      disabled={orgConfigUnlimited}
+                      className="flex-1"
+                    />
+                  </div>
+                </div>
+                <div className="grid grid-cols-[100px_1fr] items-center gap-3">
+                  <Label className="text-right text-muted-foreground text-sm">无限预算</Label>
+                  <Switch checked={orgConfigUnlimited} onCheckedChange={setOrgConfigUnlimited} />
+                </div>
+              </div>
+            </div>
+
+            {/* 访问限制 */}
+            <div>
+              <h3 className="text-sm font-semibold text-foreground mb-4 pb-2 border-b border-border">访问限制</h3>
+              <div className="space-y-3">
+                <div className="grid grid-cols-[100px_1fr] items-start gap-3">
+                  <Label className="text-right text-muted-foreground text-sm pt-2.5">模型限制列表</Label>
+                  <div>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <button className="flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm hover:bg-muted/40 transition-colors">
+                          <span className="text-muted-foreground truncate">
+                            {orgConfigModels.length === 0 ? "留空则支持所有模型" : `已选 ${orgConfigModels.length} 个模型`}
+                          </span>
+                          <ChevronDown className="w-4 h-4 opacity-50 shrink-0 ml-2" />
+                        </button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent className="w-64" align="start">
+                        {MODELS.map(m => (
+                          <DropdownMenuCheckboxItem
+                            key={m}
+                            checked={orgConfigModels.includes(m)}
+                            onCheckedChange={checked => {
+                              if (checked) setOrgConfigModels(prev => [...prev, m]);
+                              else setOrgConfigModels(prev => prev.filter(x => x !== m));
+                            }}
+                          >
+                            {m}
+                          </DropdownMenuCheckboxItem>
+                        ))}
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                    {orgConfigModels.length > 0 && (
+                      <div className="flex flex-wrap gap-1.5 mt-2">
+                        {orgConfigModels.map(m => (
+                          <span key={m} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-primary/10 text-primary text-xs">
+                            {m}
+                            <button onClick={() => setOrgConfigModels(prev => prev.filter(x => x !== m))} className="hover:text-destructive">
+                              <X className="w-3 h-3" />
+                            </button>
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+                <div className="grid grid-cols-[100px_1fr] items-start gap-3">
+                  <Label className="text-right text-muted-foreground text-sm pt-2.5">IP 白名单</Label>
+                  <textarea
+                    placeholder={"一行一个 IP，留空不限制\n例如：\n192.168.1.1\n10.0.0.0/8"}
+                    value={orgConfigIpWhitelist}
+                    onChange={e => setOrgConfigIpWhitelist(e.target.value)}
+                    rows={4}
+                    className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm resize-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring placeholder:text-muted-foreground"
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="shrink-0 px-6 py-4 border-t border-border flex justify-end gap-3 bg-background">
+            <Button variant="outline" className="w-24" onClick={() => setOrgConfigOpen(false)}>取消</Button>
+            <Button className="w-24" onClick={saveOrgConfig}>确定</Button>
+          </div>
+        </SheetContent>
+      </Sheet>
+
+      {/* Advanced Member Permissions Dialog */}
+      <Dialog open={advancedPermOpen} onOpenChange={setAdvancedPermOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>成员高级权限管理</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground -mt-1">
+            被勾选的成员在新建 Key 时将显示完整配置表单（包含分组、预算、访问限制等高级选项）。
+          </p>
+          <div className="max-h-72 overflow-y-auto space-y-1 border border-border rounded-lg p-2">
+            {orgMembers.length === 0 ? (
+              <p className="text-sm text-muted-foreground text-center py-6">该组织暂无成员</p>
+            ) : orgMembers.map(m => {
+              const checked = pendingAdvanced.has(m.phone);
+              const masked = m.phone.length >= 7
+                ? m.phone.slice(0, 3) + "****" + m.phone.slice(-4)
+                : m.phone;
+              return (
+                <label
+                  key={m.phone}
+                  className="flex items-center gap-3 px-3 py-2 rounded-md hover:bg-muted/50 cursor-pointer"
+                >
+                  <Checkbox
+                    checked={checked}
+                    onCheckedChange={val => {
+                      setPendingAdvanced(prev => {
+                        const next = new Set(prev);
+                        if (val) next.add(m.phone); else next.delete(m.phone);
+                        return next;
+                      });
+                    }}
+                  />
+                  <div className="flex-1 min-w-0">
+                    {m.name && <span className="text-sm font-medium text-foreground mr-1.5">{m.name}</span>}
+                    <span className="text-xs text-muted-foreground">{masked}</span>
+                  </div>
+                  {checked && (
+                    <span className="text-xs px-1.5 py-0.5 rounded-full bg-primary/10 text-primary font-medium">高级</span>
+                  )}
+                </label>
+              );
+            })}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setAdvancedPermOpen(false)}>取消</Button>
+            <Button onClick={saveAdvancedPerms}>确定</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
