@@ -104,9 +104,14 @@ export default function OrgManagement({ enterprise, role }: Props) {
       setDeleteOrg(null);
       return;
     }
+    const recovered = deleteOrg.monthly_budget ?? 0;
     await supabase.from("organizations").delete().eq("id", deleteOrg.id);
-    toast({ title: "已删除部门" });
+    toast({
+      title: "已删除部门",
+      description: recovered > 0 ? `¥${recovered.toLocaleString()} 预算已回收至企业` : undefined,
+    });
     setDeleteOrg(null);
+    setStatsFlashKey(k => k + 1);
     load();
   };
 
