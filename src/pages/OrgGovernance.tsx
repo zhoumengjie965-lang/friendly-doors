@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetFooter } from "@/components/ui/sheet";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
@@ -18,6 +18,17 @@ import {
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { MoreHorizontal, Plus, Users, Key, TrendingUp, CheckCircle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+
+// ── Mock sub-department data (UI preview only) ──────────────────────────────
+interface SubOrg {
+  id: string; name: string; adminName: string; adminPhone: string;
+  memberCount: number; monthlyBudget: number | null; consumed: number; status: "active" | "disabled";
+}
+const MOCK_SUB_ORGS: SubOrg[] = [
+  { id: "s1", name: "华东销售组", adminName: "张伟",   adminPhone: "13800138001", memberCount: 8,  monthlyBudget: 5000, consumed: 1240, status: "active" },
+  { id: "s2", name: "技术支持组", adminName: "李晓梅", adminPhone: "13912345678", memberCount: 5,  monthlyBudget: 3000, consumed: 3100, status: "active" },
+  { id: "s3", name: "市场推广组", adminName: "王建国", adminPhone: "18611223344", memberCount: 12, monthlyBudget: 8000, consumed:  320, status: "active" },
+];
 
 interface Enterprise { id: string; name: string; }
 interface Organization {
