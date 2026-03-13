@@ -164,10 +164,15 @@ export default function OrgManagement({ enterprise, role }: Props) {
           <p className="text-muted-foreground mt-1 text-sm">管理企业下的部门单元及预算分配</p>
         </div>
         {isAdmin && (
-          <Button onClick={() => setCreateOpen(true)} className="gap-2">
-            <Plus className="w-4 h-4" />
-            创建部门
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button variant="outline" onClick={() => setShowBudgetDialog(true)} className="gap-2">
+              <Sliders className="w-4 h-4" />一键配置预算
+            </Button>
+            <Button onClick={() => setCreateOpen(true)} className="gap-2">
+              <Plus className="w-4 h-4" />
+              创建部门
+            </Button>
+          </div>
         )}
       </div>
 
