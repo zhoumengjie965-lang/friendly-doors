@@ -599,7 +599,16 @@ export default function OrgGovernance({ enterprise, role }: Props) {
                       <TableCell className="text-muted-foreground">—</TableCell>
                       <TableCell className="text-muted-foreground">—</TableCell>
                       <TableCell>
-                        {m.daily_limit != null ? `¥${m.daily_limit}` : "¥2000"}
+                        <InlineBudgetEdit
+                          value={m.daily_limit ?? 2000}
+                          label="单日上限"
+                          unit="元/天"
+                          onSave={async (val) => {
+                            await supabase.from("members").update({ daily_limit: val }).eq("id", m.id);
+                            setMembers(prev => prev.map(x => x.id === m.id ? { ...x, daily_limit: val } : x));
+                            toast({ title: "单日上限已更新", description: `¥${val}/天` });
+                          }}
+                        />
                       </TableCell>
                       <TableCell>{statusBadge(m.status ?? "active")}</TableCell>
                       <TableCell>
