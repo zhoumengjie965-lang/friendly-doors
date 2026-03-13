@@ -547,6 +547,97 @@ export default function OrgGovernance({ enterprise, role }: Props) {
                 </TableBody>
               </Table>
             </CardContent>
+            )}
+
+            {/* ── Tab: 下属子部门 ───────────────────────────────────────── */}
+            {activeTab === "sub-orgs" && (
+            <CardContent className="p-0 pt-0">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>部门名称</TableHead>
+                    <TableHead>管理员</TableHead>
+                    <TableHead>成员数</TableHead>
+                    <TableHead>本月预算上限</TableHead>
+                    <TableHead>本月消耗预算</TableHead>
+                    <TableHead>使用率</TableHead>
+                    <TableHead>状态</TableHead>
+                    <TableHead className="w-10"></TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {subOrgs.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={8} className="text-center text-muted-foreground py-10">
+                        暂无下属部门，点击「创建子部门」开始
+                      </TableCell>
+                    </TableRow>
+                  ) : subOrgs.map((s) => {
+                    const rate = s.monthlyBudget && s.monthlyBudget > 0 ? Math.min(100, Math.round(s.consumed / s.monthlyBudget * 100)) : 0;
+                    const overBudget = s.monthlyBudget && s.consumed >= s.monthlyBudget;
+                    return (
+                      <TableRow key={s.id}>
+                        <TableCell className="font-medium text-foreground">{s.name}</TableCell>
+                        <TableCell>
+                          <div className="flex flex-col gap-0.5">
+                            <span className="text-sm text-foreground">{s.adminName}</span>
+                            <span className="text-xs text-muted-foreground">{maskPhone(s.adminPhone)}</span>
+                          </div>
+                        </TableCell>
+                        <TableCell className="tabular-nums">{s.memberCount}</TableCell>
+                        <TableCell className="tabular-nums">
+                          {s.monthlyBudget ? `¥${s.monthlyBudget.toLocaleString()}` : <span className="text-muted-foreground">不限</span>}
+                        </TableCell>
+                        <TableCell className={`tabular-nums font-medium ${overBudget ? "text-destructive" : ""}`}>
+                          ¥{s.consumed.toLocaleString()}
+                        </TableCell>
+                        <TableCell>
+                          {s.monthlyBudget ? (
+                            <div className="flex items-center gap-2 min-w-[90px]">
+                              <Progress value={rate} className={`h-1.5 flex-1 ${overBudget ? "[&>div]:bg-destructive" : ""}`} />
+                              <span className={`text-xs tabular-nums ${overBudget ? "text-destructive" : "text-muted-foreground"}`}>{rate}%</span>
+                            </div>
+                          ) : <span className="text-xs text-muted-foreground">—</span>}
+                        </TableCell>
+                        <TableCell>
+                          {s.status === "active"
+                            ? <Badge variant="outline" style={{color:"hsl(142,70%,40%)",borderColor:"hsl(142,70%,75%)",background:"hsl(142,70%,97%)"}}>正常</Badge>
+                            : <Badge variant="outline" className="text-muted-foreground border-border">禁用</Badge>}
+                        </TableCell>
+                        <TableCell>
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button variant="ghost" size="icon" className="h-8 w-8">
+                                <MoreHorizontal className="w-4 h-4" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              <DropdownMenuItem onClick={() => toast({ title: "功能开发中" })}>编辑子部门</DropdownMenuItem>
+                              <DropdownMenuItem onClick={() =>
+                                setSubOrgs(prev => prev.map(x => x.id === s.id ? { ...x, status: x.status === "active" ? "disabled" : "active" } : x))
+                              }>
+                                {s.status === "active" ? "禁用子部门" : "启用子部门"}
+                              </DropdownMenuItem>
+                              <DropdownMenuSeparator />
+                              <DropdownMenuItem
+                                className="text-destructive focus:text-destructive"
+                                onClick={() => {
+                                  setSubOrgs(prev => prev.filter(x => x.id !== s.id));
+                                  toast({ title: "子部门已删除" });
+                                }}
+                              >
+                                删除子部门
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
+            </CardContent>
+            )}
           </Card>
         </>
       )}
