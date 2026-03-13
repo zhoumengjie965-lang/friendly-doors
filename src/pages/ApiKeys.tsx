@@ -13,6 +13,9 @@ import {
   Sheet, SheetContent, SheetHeader, SheetTitle,
 } from "@/components/ui/sheet";
 import {
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
+} from "@/components/ui/dialog";
+import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
 import {
@@ -149,6 +152,7 @@ export default function ApiKeys({ enterprise, role }: Props) {
 
   // Sheet state
   const [sheetOpen, setSheetOpen] = useState(false);
+  const [simpleDialogOpen, setSimpleDialogOpen] = useState(false);
   const [editingKey, setEditingKey] = useState<ApiKey | null>(null);
 
   // Form fields
@@ -257,7 +261,11 @@ export default function ApiKeys({ enterprise, role }: Props) {
     setFormName(""); setFormGroup(""); setFormExpires("");
     setFormQuota(""); setFormUnlimited(true);
     setFormModels([]); setFormIpWhitelist("");
-    setSheetOpen(true);
+    if (previewRole === "member") {
+      setSimpleDialogOpen(true);
+    } else {
+      setSheetOpen(true);
+    }
   };
 
   const openEdit = (k: ApiKey) => {
@@ -297,6 +305,7 @@ export default function ApiKeys({ enterprise, role }: Props) {
       } else {
         toast({ title: "更新成功" });
         setSheetOpen(false);
+        setSimpleDialogOpen(false);
         fetchMyKeys(); fetchOrgKeys();
       }
     } else {
@@ -310,6 +319,7 @@ export default function ApiKeys({ enterprise, role }: Props) {
       } else {
         toast({ title: "创建成功" });
         setSheetOpen(false);
+        setSimpleDialogOpen(false);
         fetchMyKeys(); fetchOrgKeys();
       }
     }
@@ -945,6 +955,36 @@ export default function ApiKeys({ enterprise, role }: Props) {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Simple create dialog for member role */}
+      <Dialog open={simpleDialogOpen} onOpenChange={open => { setSimpleDialogOpen(open); if (!open) setFormName(""); }}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>新增 API Key</DialogTitle>
+          </DialogHeader>
+          <div className="py-2">
+            <Label className="text-sm text-muted-foreground mb-1.5 block">
+              <span className="text-destructive mr-0.5">*</span>名称
+            </Label>
+            <Input
+              placeholder="请输入名称"
+              value={formName}
+              onChange={e => setFormName(e.target.value)}
+              onKeyDown={e => { if (e.key === "Enter" && formName.trim()) handleSave(); }}
+              autoFocus
+            />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => { setSimpleDialogOpen(false); setFormName(""); }} disabled={saving}>
+              取消
+            </Button>
+            <Button onClick={handleSave} disabled={saving || !formName.trim()}>
+              {saving ? "保存中..." : "确定"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
+
