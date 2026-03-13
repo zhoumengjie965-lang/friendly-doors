@@ -402,17 +402,42 @@ export default function OrgGovernance({ enterprise, role }: Props) {
             </CardContent>
           </Card>
 
-          {/* Members Card */}
+          {/* Members + Sub-orgs Card */}
           <Card>
-            <CardHeader className="pb-3">
+            <CardHeader className="pb-0">
               <div className="flex items-center justify-between">
-                <CardTitle className="text-base font-semibold">成员管理</CardTitle>
-                <Button size="sm" onClick={() => setShowAdd(true)}>
-                  <Plus className="w-4 h-4 mr-1" />添加成员
-                </Button>
+                {/* Tab switcher */}
+                <div className="flex gap-0 border-b border-transparent">
+                  {(["members", "sub-orgs"] as const).map((tab) => (
+                    <button
+                      key={tab}
+                      type="button"
+                      onClick={() => setActiveTab(tab)}
+                      className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+                        activeTab === tab
+                          ? "border-primary text-primary"
+                          : "border-transparent text-muted-foreground hover:text-foreground"
+                      }`}
+                    >
+                      {tab === "members" ? "直属成员" : "下属子部门"}
+                    </button>
+                  ))}
+                </div>
+                {activeTab === "members" ? (
+                  <Button size="sm" onClick={() => setShowAdd(true)}>
+                    <Plus className="w-4 h-4 mr-1" />添加成员
+                  </Button>
+                ) : (
+                  <Button size="sm" onClick={() => setShowCreateSubOrg(true)}>
+                    <Plus className="w-4 h-4 mr-1" />创建子部门
+                  </Button>
+                )}
               </div>
             </CardHeader>
-            <CardContent className="p-0">
+
+            {/* ── Tab: 直属成员 ─────────────────────────────────────────── */}
+            {activeTab === "members" && (
+            <CardContent className="p-0 pt-0">
               <Table>
                 <TableHeader>
                   <TableRow>
