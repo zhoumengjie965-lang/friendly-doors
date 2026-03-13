@@ -12,11 +12,12 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle
 } from "@/components/ui/alert-dialog";
 import {
-  Dialog, DialogContent, DialogHeader, DialogTitle
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Building2, Users, Key, Plus, SlidersHorizontal, Pencil, UserCog, Power, Trash2, ChevronDown } from "lucide-react";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Building2, Users, Key, Plus, SlidersHorizontal, Pencil, UserCog, Power, Trash2, ChevronDown, Sliders, AlertTriangle } from "lucide-react";
 import CreateOrgDialog from "@/components/CreateOrgDialog";
 import OrgBudgetSheet from "@/components/OrgBudgetSheet";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
