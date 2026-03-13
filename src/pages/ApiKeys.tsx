@@ -125,6 +125,7 @@ export default function ApiKeys({ enterprise, role }: Props) {
 
   const [myKeys, setMyKeys] = useState<ApiKey[]>([]);
   const [orgKeys, setOrgKeys] = useState<ApiKey[]>([]);
+  const [prodKeys, setProdKeys] = useState<ApiKey[]>([]);
   const [loading, setLoading] = useState(false);
 
   // Multi-org switching
@@ -146,6 +147,11 @@ export default function ApiKeys({ enterprise, role }: Props) {
   // Pagination
   const [myPage, setMyPage] = useState(1);
   const [orgPage, setOrgPage] = useState(1);
+  const [prodPage, setProdPage] = useState(1);
+
+  // Production tab state
+  const [creatingProd, setCreatingProd] = useState(false);
+  const [formBudgetType, setFormBudgetType] = useState<"monthly" | "daily">("monthly");
 
   // Visibility per key
   const [visibleKeys, setVisibleKeys] = useState<Set<string>>(new Set());
@@ -258,6 +264,22 @@ export default function ApiKeys({ enterprise, role }: Props) {
     setMemberFilter("all");
   }, [canSeeOrgTab, enterprise.id, selectedOrgId]);
 
+  const fetchProdKeys = useCallback(async (orgId?: string | null) => {
+    if (!phone) return;
+    const targetOrgId = orgId !== undefined ? orgId : selectedOrgId;
+    let query = supabase
+      .from("api_keys" as any)
+      .select("*")
+      .eq("enterprise_id", enterprise.id)
+      .eq("creator_phone", phone)
+      .eq("group_name", "生产通道");
+    if (targetOrgId) {
+      query = query.eq("organization_id", targetOrgId);
+    }
+    const { data, error } = await query.order("created_at", { ascending: false });
+    if (!error && data) setProdKeys(data as unknown as ApiKey[]);
+  }, [phone, enterprise.id, selectedOrgId]);
+
   const fetchOrganizations = useCallback(async () => {
     if (!canSeeOrgTab) return;
     const { data } = await supabase
@@ -308,6 +330,20 @@ export default function ApiKeys({ enterprise, role }: Props) {
     }
   };
 
+  const openCreateProd = () => {
+    setEditingKey(null);
+    setFormName("");
+    setFormGroup("生产通道");
+    setFormExpires("");
+    setFormQuota("");
+    setFormUnlimited(true);
+    setFormModels([]);
+    setFormIpWhitelist("");
+    setFormBudgetType("monthly");
+    setCreatingProd(true);
+    setSheetOpen(true);
+  };
+
   const openEdit = (k: ApiKey) => {
     setEditingKey(k);
     setFormName(k.name);
@@ -352,6 +388,7 @@ export default function ApiKeys({ enterprise, role }: Props) {
         setSheetOpen(false);
         setSimpleDialogOpen(false);
         fetchMyKeys(); fetchOrgKeys();
+        if (creatingProd) { fetchProdKeys(); setCreatingProd(false); }
       }
     } else {
       const { error } = await supabase.rpc("create_api_key" as any, {
@@ -366,6 +403,7 @@ export default function ApiKeys({ enterprise, role }: Props) {
         setSheetOpen(false);
         setSimpleDialogOpen(false);
         fetchMyKeys(); fetchOrgKeys();
+        if (creatingProd) { fetchProdKeys(); setCreatingProd(false); }
       }
     }
     setSaving(false);
@@ -733,6 +771,18 @@ export default function ApiKeys({ enterprise, role }: Props) {
             >
               {previewRole === "admin" ? "企业 API Key" : "部门 API Key"}
             </button>
+            {previewRole === "org_admin" && (
+              <button
+                onClick={() => { setActiveTab("prod"); fetchProdKeys(); }}
+                className={`px-3 h-full rounded-md text-sm font-medium transition-all ${
+                  activeTab === "prod"
+                    ? "bg-background shadow-sm text-foreground"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                生产 API Key
+              </button>
+            )}
           </div>
           {previewRole === "org_admin" && organizations.length > 0 && (
             <div className="flex items-center gap-1.5">
@@ -793,7 +843,7 @@ export default function ApiKeys({ enterprise, role }: Props) {
       {/* 行3：创建按钮 + 搜索栏+刷新（右） */}
       <div className="flex items-center justify-between mb-5">
         <div className="flex items-center gap-3">
-          {/* org_admin 在组织 Tab 下：显示配置 & 高级权限按钮；其他情况显示创建按钮 */}
+          {/* org_admin 在组织 Tab 下：显示配置 & 高级权限按钮；prod tab 显示创建按钮；其他情况显示创建按钮 */}
           {previewRole === "org_admin" && activeTab === "org" ? (
             <>
               <Button
@@ -822,6 +872,10 @@ export default function ApiKeys({ enterprise, role }: Props) {
                 <ShieldCheck className="w-4 h-4" />成员高级权限
               </Button>
             </>
+          ) : previewRole === "org_admin" && activeTab === "prod" ? (
+            <Button onClick={openCreateProd} className="gap-2 h-9 bg-primary text-primary-foreground hover:bg-primary/90">
+              <Plus className="w-4 h-4" />创建 API Key
+            </Button>
           ) : previewRole === "admin" && activeTab === "org" ? null : (
             <Button onClick={openCreate} className="gap-2 h-9">
               <Plus className="w-4 h-4" />创建 API Key
@@ -855,7 +909,7 @@ export default function ApiKeys({ enterprise, role }: Props) {
           <Button variant="outline" className="h-9 px-3" onClick={handleReset}>重置</Button>
           {/* 刷新图标 */}
           <button
-            onClick={() => { if (activeTab === "my") fetchMyKeys(); else fetchOrgKeys(); }}
+            onClick={() => { if (activeTab === "my") fetchMyKeys(); else if (activeTab === "prod") fetchProdKeys(); else fetchOrgKeys(); }}
             className="h-9 w-9 flex items-center justify-center rounded-md border border-border hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
             title="刷新"
           >
@@ -886,11 +940,26 @@ export default function ApiKeys({ enterprise, role }: Props) {
             setPage={setOrgPage}
           />
         )}
+        {previewRole === "org_admin" && activeTab === "prod" && (
+          <>
+            <KeyTable
+              keys={prodKeys}
+              filterFn={(keys) => filterKeys(keys, false)}
+              showCreator={false}
+              showOrg={false}
+              page={prodPage}
+              setPage={setProdPage}
+            />
+            <p className="text-xs text-muted-foreground mt-4 text-center">
+              生产环境专用 Key，未来将支持基于终端用户的精细化限流与审计统计。
+            </p>
+          </>
+        )}
       </div>
 
 
       {/* Create / Edit Sheet */}
-      <Sheet open={sheetOpen} onOpenChange={setSheetOpen}>
+      <Sheet open={sheetOpen} onOpenChange={(open) => { setSheetOpen(open); if (!open) setCreatingProd(false); }}>
         <SheetContent className="!w-[520px] !max-w-[520px] flex flex-col p-0 overflow-hidden">
           <SheetHeader className="px-6 pt-6 pb-4 border-b border-border shrink-0">
             <SheetTitle>{editingKey ? "编辑 API Key" : "新增 API Keys"}</SheetTitle>
@@ -960,28 +1029,68 @@ export default function ApiKeys({ enterprise, role }: Props) {
             <div>
               <h3 className="text-sm font-semibold text-foreground mb-4 pb-2 border-b border-border">预算设置</h3>
               <div className="space-y-3">
-                {/* 预算上限 */}
-                <div className="grid grid-cols-[100px_1fr] items-center gap-3">
-                  <Label className="text-right text-muted-foreground text-sm">预算上限</Label>
-                  <div className="flex items-center gap-2">
-                    <span className="text-muted-foreground text-sm font-medium shrink-0">¥</span>
-                    <Input
-                      type="number"
-                      min="0"
-                      step="0.01"
-                      placeholder="0.00"
-                      value={formQuota}
-                      onChange={e => setFormQuota(e.target.value)}
-                      disabled={formUnlimited}
-                      className="flex-1"
-                    />
+                {/* Key 预算上限 — 生产 Key 创建时突出显示 */}
+                {creatingProd && (
+                  <div className="rounded-lg border border-primary/30 bg-primary/5 p-4 space-y-3">
+                    <div className="flex items-center gap-1.5 mb-1">
+                      <span className="text-sm font-bold text-foreground">Key 预算上限</span>
+                      <span className="text-destructive text-sm">*</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Select value={formBudgetType} onValueChange={(v) => setFormBudgetType(v as "monthly" | "daily")}>
+                        <SelectTrigger className="h-9 w-24 shrink-0">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="monthly">月度</SelectItem>
+                          <SelectItem value="daily">单日</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <span className="text-muted-foreground text-sm font-medium shrink-0">¥</span>
+                      <Input
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        placeholder="0.00"
+                        value={formQuota}
+                        onChange={e => setFormQuota(e.target.value)}
+                        disabled={formUnlimited}
+                        className="flex-1"
+                      />
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        <Switch checked={formUnlimited} onCheckedChange={setFormUnlimited} />
+                        <span className="text-xs text-muted-foreground">无限</span>
+                      </div>
+                    </div>
+                    <p className="text-xs text-primary/70">此预算直接占用本部门整体预算，不关联具体成员。</p>
                   </div>
-                </div>
+                )}
+                {/* 预算上限（非生产Key时正常显示） */}
+                {!creatingProd && (
+                  <div className="grid grid-cols-[100px_1fr] items-center gap-3">
+                    <Label className="text-right text-muted-foreground text-sm">预算上限</Label>
+                    <div className="flex items-center gap-2">
+                      <span className="text-muted-foreground text-sm font-medium shrink-0">¥</span>
+                      <Input
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        placeholder="0.00"
+                        value={formQuota}
+                        onChange={e => setFormQuota(e.target.value)}
+                        disabled={formUnlimited}
+                        className="flex-1"
+                      />
+                    </div>
+                  </div>
+                )}
                 {/* 无限额度 */}
-                <div className="grid grid-cols-[100px_1fr] items-center gap-3">
-                  <Label className="text-right text-muted-foreground text-sm">无限预算</Label>
-                  <Switch checked={formUnlimited} onCheckedChange={setFormUnlimited} />
-                </div>
+                {!creatingProd && (
+                  <div className="grid grid-cols-[100px_1fr] items-center gap-3">
+                    <Label className="text-right text-muted-foreground text-sm">无限预算</Label>
+                    <Switch checked={formUnlimited} onCheckedChange={setFormUnlimited} />
+                  </div>
+                )}
               </div>
             </div>
             )}
