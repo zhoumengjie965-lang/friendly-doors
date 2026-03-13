@@ -731,7 +731,7 @@ export default function ApiKeys({ enterprise, role }: Props) {
                   : "text-muted-foreground hover:text-foreground"
               }`}
             >
-              组织 API Key
+              {previewRole === "admin" ? "企业 API Key" : "组织 API Key"}
             </button>
           </div>
           {previewRole === "org_admin" && organizations.length > 0 && (
