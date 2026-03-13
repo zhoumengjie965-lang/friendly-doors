@@ -230,6 +230,7 @@ export default function AdminEnterprises() {
           <span>认证状态</span>
           <span>余额 / 历史消耗</span>
           <span>组织 / 成员</span>
+          <span>注册时间</span>
           <span>操作</span>
         </div>
 
