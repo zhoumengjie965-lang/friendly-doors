@@ -352,6 +352,7 @@ export type Database = {
           id: string
           monthly_budget: number | null
           name: string
+          parent_id: string | null
           status: string
         }
         Insert: {
@@ -362,6 +363,7 @@ export type Database = {
           id?: string
           monthly_budget?: number | null
           name: string
+          parent_id?: string | null
           status?: string
         }
         Update: {
@@ -372,6 +374,7 @@ export type Database = {
           id?: string
           monthly_budget?: number | null
           name?: string
+          parent_id?: string | null
           status?: string
         }
         Relationships: [
@@ -380,6 +383,13 @@ export type Database = {
             columns: ["enterprise_id"]
             isOneToOne: false
             referencedRelation: "enterprises"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "organizations_parent_id_fkey"
+            columns: ["parent_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
             referencedColumns: ["id"]
           },
         ]
