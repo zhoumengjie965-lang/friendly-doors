@@ -806,6 +806,80 @@ export default function OrgGovernance({ enterprise, role }: Props) {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Create Sub-org Dialog */}
+      <Dialog open={showCreateSubOrg} onOpenChange={(open) => {
+        setShowCreateSubOrg(open);
+        if (!open) { setSubOrgName(""); setSubOrgBudget(""); setSubOrgAdminName(""); setSubOrgAdminPhone(""); }
+      }}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>创建子部门</DialogTitle>
+            <DialogDescription>在当前部门下创建下属子部门，子部门共享月度预算限制。</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="space-y-1.5">
+              <Label htmlFor="sub-name">子部门名称 <span className="text-destructive">*</span></Label>
+              <Input
+                id="sub-name"
+                placeholder="如：华东销售组"
+                value={subOrgName}
+                onChange={(e) => setSubOrgName(e.target.value)}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="sub-budget">本月预算上限（元）</Label>
+              <Input
+                id="sub-budget"
+                type="number"
+                placeholder="留空表示不限制"
+                value={subOrgBudget}
+                onChange={(e) => setSubOrgBudget(e.target.value)}
+              />
+              <p className="text-xs text-muted-foreground">子部门的月度消耗不超过此限额</p>
+            </div>
+            <div className="space-y-1.5">
+              <Label>设置部门管理员（可选）</Label>
+              <div className="grid grid-cols-2 gap-2">
+                <Input
+                  placeholder="姓名"
+                  value={subOrgAdminName}
+                  onChange={(e) => setSubOrgAdminName(e.target.value)}
+                />
+                <Input
+                  placeholder="手机号"
+                  value={subOrgAdminPhone}
+                  onChange={(e) => setSubOrgAdminPhone(e.target.value)}
+                />
+              </div>
+            </div>
+          </div>
+          <DialogFooter className="gap-2">
+            <Button variant="outline" onClick={() => setShowCreateSubOrg(false)}>取消</Button>
+            <Button
+              onClick={() => {
+                if (!subOrgName.trim()) { toast({ title: "请输入子部门名称", variant: "destructive" }); return; }
+                const newSub: SubOrg = {
+                  id: `s${Date.now()}`,
+                  name: subOrgName.trim(),
+                  adminName: subOrgAdminName.trim() || "—",
+                  adminPhone: subOrgAdminPhone.trim() || "00000000000",
+                  memberCount: 0,
+                  monthlyBudget: subOrgBudget ? Number(subOrgBudget) : null,
+                  consumed: 0,
+                  status: "active",
+                };
+                setSubOrgs(prev => [...prev, newSub]);
+                setShowCreateSubOrg(false);
+                setSubOrgName(""); setSubOrgBudget(""); setSubOrgAdminName(""); setSubOrgAdminPhone("");
+                toast({ title: "子部门创建成功", description: newSub.name });
+              }}
+            >
+              创建
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
