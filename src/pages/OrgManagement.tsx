@@ -139,7 +139,7 @@ export default function OrgManagement({ enterprise, role }: Props) {
   };
 
   const stats = [
-    { label: "组织总数", value: String(orgCount), icon: Building2, color: "hsl(224,76%,48%)" },
+    { label: "部门总数", value: String(orgCount), icon: Building2, color: "hsl(224,76%,48%)" },
     { label: "企业成员", value: String(memberCount), icon: Users, color: "hsl(142,70%,45%)" },
     { label: "API Key", value: "—", icon: Key, color: "hsl(262,60%,58%)" },
   ];
