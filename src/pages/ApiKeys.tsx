@@ -317,7 +317,12 @@ export default function ApiKeys({ enterprise, role }: Props) {
     setFormQuota(k.total_quota !== null ? String(k.total_quota) : "");
     setFormModels(k.allowed_models || []);
     setFormIpWhitelist((k.ip_whitelist || []).join("\n"));
-    setSheetOpen(true);
+    // 普通成员编辑时用小弹窗（仅改名称）
+    if (previewRole === "member") {
+      setSimpleDialogOpen(true);
+    } else {
+      setSheetOpen(true);
+    }
   };
 
   const handleSave = async () => {
@@ -1066,7 +1071,7 @@ export default function ApiKeys({ enterprise, role }: Props) {
       <Dialog open={simpleDialogOpen} onOpenChange={open => { setSimpleDialogOpen(open); if (!open) setFormName(""); }}>
         <DialogContent className="max-w-sm">
           <DialogHeader>
-            <DialogTitle>新增 API Key</DialogTitle>
+            <DialogTitle>{editingKey ? "编辑 API Key 名称" : "新增 API Key"}</DialogTitle>
           </DialogHeader>
           <div className="py-2">
             <Label className="text-sm text-muted-foreground mb-1.5 block">
