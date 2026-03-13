@@ -1,71 +1,98 @@
 
-## Two focused layout tweaks — `src/pages/admin/AdminUsers.tsx` only
+## 目标
 
-### Change 1: Basic info — 2×2 grid (lines 394–447)
+在 `src/components/OrgBudgetSheet.tsx` 的「当前月预算覆盖」输入框下方，新增「预警与通知」区块。
 
-Currently 4 rows stacked vertically with `space-y-4`. Redesign as a **2×2 grid** — left column: 用户名 + 账号状态, right column: 手机号 + 密码重置.
+---
+
+## 涉及文件
+
+只修改一个文件：**`src/components/OrgBudgetSheet.tsx`**
+
+---
+
+## 修改内容
+
+### 新增 State
+
+```ts
+const [warningThreshold, setWarningThreshold] = useState(80);
+const [alertEnabled, setAlertEnabled] = useState(false);
+```
+
+初始化时（`handleOpen`）设为默认值：`warningThreshold = 80`，`alertEnabled = false`。
+
+---
+
+### 新增 UI 区块（插入在「当前月预算覆盖」`div` 之后，「本月实际预算」预览框之前）
 
 ```tsx
-<div className="grid grid-cols-2 gap-x-4 gap-y-3">
-  {/* 用户名 — top-left */}
-  <div className="flex items-center justify-between">
-    <div>
-      <Label className="text-xs text-muted-foreground">用户名</Label>
-      <p className="text-sm mt-0.5">{drawerUser.name || "—"}</p>
+{/* 分割线 */}
+<Separator />
+
+{/* 预警与通知 */}
+<div className="space-y-4">
+  <p className="text-sm font-semibold text-foreground">预警与通知</p>
+
+  {/* 预警阈值 */}
+  <div className="space-y-2">
+    <Label className="text-sm font-medium">预警阈值</Label>
+    <div className="flex items-center gap-2">
+      <Input
+        type="number"
+        min="1"
+        max="100"
+        className="w-28"
+        value={warningThreshold}
+        onChange={(e) => setWarningThreshold(Number(e.target.value))}
+      />
+      <span className="text-sm text-muted-foreground">%</span>
     </div>
-    <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground" onClick={...}>
-      <Copy className="w-3.5 h-3.5" />
-    </Button>
+    <p className="text-xs text-muted-foreground">当月消耗达到预算的该比例时触发预警</p>
   </div>
 
-  {/* 手机号 — top-right */}
-  <div className="flex items-center justify-between">
-    <div>
-      <Label className="text-xs text-muted-foreground">手机号</Label>
-      <p className="text-sm mt-0.5 font-medium tabular-nums">{drawerUser.phone}</p>
+  {/* 开启紧急预警通知 */}
+  <div className="flex items-start justify-between gap-3">
+    <div className="space-y-0.5">
+      <Label className="text-sm font-medium cursor-pointer">开启紧急预警通知</Label>
+      <p className="text-xs text-muted-foreground">当消耗达到阈值时，将通过短信通知管理员</p>
     </div>
-    <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground" onClick={...}>
-      <Copy className="w-3.5 h-3.5" />
-    </Button>
-  </div>
-
-  {/* 账号状态 — bottom-left */}
-  <div className="flex items-center justify-between">
-    <div>
-      <Label className="text-xs text-muted-foreground">账号状态</Label>
-      <p className="text-sm mt-0.5">...</p>
-    </div>
-    <Switch ... />
-  </div>
-
-  {/* 密码重置 — bottom-right */}
-  <div className="flex items-center justify-between">
-    <div>
-      <Label className="text-xs text-muted-foreground">密码重置</Label>
-      <p className="text-xs text-muted-foreground mt-0.5">强制用户下次登录时重置密码</p>
-    </div>
-    <Button size="sm" variant="outline" ...>重置密码</Button>
+    <Switch
+      checked={alertEnabled}
+      onCheckedChange={setAlertEnabled}
+    />
   </div>
 </div>
 ```
 
-### Change 2: Personal space — label outside card, tighter padding (lines 459–486)
+---
 
-Move "个人空间" text **above** the card border, reduce internal padding from `p-4 space-y-3` to `p-3 space-y-2`:
+### 新增 import
 
 ```tsx
-{/* 个人空间 */}
-<div>
-  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1.5">个人空间</p>
-  <div className="bg-blue-50/50 border border-blue-100 rounded-lg p-3 space-y-2">
-    <div className="flex items-center justify-between">
-      <span className="text-sm text-muted-foreground">当前余额</span>
-      <span className="font-semibold tabular-nums">¥{...}</span>
-    </div>
-    {/* balance edit input + 保存 button + disclaimer — unchanged */}
-  </div>
-</div>
+import { Switch } from "@/components/ui/switch";
+import { Separator } from "@/components/ui/separator";
 ```
 
-### Files changed
-- `src/pages/admin/AdminUsers.tsx` — lines 394–486 only
+---
+
+### 保存逻辑
+
+`handleSave` 中将 `warningThreshold` 和 `alertEnabled` 打印到 console 或传入 `onSaved` 回调中（字段在数据库未建列，暂为 UI-only，但保存时可安全忽略这两个字段，等后续 DB 迁移后再持久化）。
+
+---
+
+## 最终区块顺序（Sheet 内从上到下）
+
+```text
+默认月预算（元/月）
+当前月预算覆盖（元）
+─────────────────────
+预警与通知
+  └── 预警阈值  [数字框] %
+  └── 开启紧急预警通知  [Switch]
+       微文本：当消耗达到阈值时，将通过短信通知管理员
+─────────────────────
+本月实际预算（预览卡片）
+[取消]  [保存设置]
+```
