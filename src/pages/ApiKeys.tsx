@@ -495,13 +495,13 @@ export default function ApiKeys({ enterprise, role }: Props) {
     return keys.filter(k => {
       const matchName = !nameSearch || k.name.toLowerCase().includes(nameSearch.toLowerCase());
       const matchApiKey = !apiKeySearch || k.key_value.toLowerCase().includes(apiKeySearch.toLowerCase());
-      const matchStatus = statusFilter === "all" || k.status === statusFilter;
-      const matchRunning = runningStatusFilter === "all" || getRunningStatus(k).label === runningStatusFilter;
+      const mergedSt = getMergedStatus(k);
+      const matchStatus = statusFilter === "all" || mergedSt === statusFilter;
       const matchGroup = groupFilter === "all" || (groupFilter === "__none__" ? !k.group_name : k.group_name === groupFilter);
       // Org-tab specific filters
       const matchMember = !isOrgTab || memberFilter === "all" || k.creator_phone === memberFilter;
       const matchOrgName = !isOrgTab || orgNameFilter === "all" || k.organization_id === orgNameFilter;
-      return matchName && matchApiKey && matchStatus && matchRunning && matchGroup && matchMember && matchOrgName;
+      return matchName && matchApiKey && matchStatus && matchGroup && matchMember && matchOrgName;
     });
   };
 
