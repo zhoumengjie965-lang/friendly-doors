@@ -603,17 +603,16 @@ function OrgView({ enterprise, role, orgId, orgs, onOrgUpdated }: {
   const [bulkRole, setBulkRole] = useState("member");
   const [bulkLimit, setBulkLimit] = useState("2000");
   const [saving, setSaving] = useState(false);
+  // Sub-dept creation
   const [showCreateSubOrg, setShowCreateSubOrg] = useState(false);
   const [subOrgName, setSubOrgName] = useState("");
   const [subOrgBudget, setSubOrgBudget] = useState("");
+  // Budget batch dialog
   const [showBudgetDialog, setShowBudgetDialog] = useState(false);
-  const [budgetDialogMode, setBudgetDialogMode] = useState<"members">("members");
   const [memberDailyLimit, setMemberDailyLimit] = useState("");
   const [distributing, setDistributing] = useState(false);
   const [statsFlashKey, setStatsFlashKey] = useState(0);
-  // Transfer member state
   const [transferMember, setTransferMember] = useState<Member | null>(null);
-  const cardRef = useRef<HTMLDivElement>(null);
   const { toast } = useToast();
   const phone = getCurrentPhone();
 
@@ -621,29 +620,148 @@ function OrgView({ enterprise, role, orgId, orgs, onOrgUpdated }: {
   const budget = selectedOrg?.monthly_budget ?? 0;
   const consumed = selectedOrg?.current_month_budget ?? 0;
 
-  // Children count from the recursive tree (orgs with parent_id === orgId)
+  // Children in the recursive tree
   const childCount = orgs.filter(o => o.parent_id === orgId).length;
   const hasChildren = childCount > 0;
 
   const memberAllocated = members.reduce((s, m) => s + (m.daily_limit ?? 2000) * 30, 0);
-  const totalAllocated = memberAllocated;
-  const remaining = budget > 0 ? budget - totalAllocated : null;
-  const allocatedPct = budget > 0 ? Math.min(100, Math.round((totalAllocated / budget) * 100)) : null;
-  const totalConsumed = consumed;
-  const available = budget > 0 ? budget - totalConsumed : null;
-  const execRate = budget > 0 ? Math.min(100, Math.round((totalConsumed / budget) * 100)) : 0;
+  const remaining = budget > 0 ? budget - memberAllocated : null;
+  const allocatedPct = budget > 0 ? Math.min(100, Math.round((memberAllocated / budget) * 100)) : null;
+  const available = budget > 0 ? budget - consumed : null;
+  const execRate = budget > 0 ? Math.min(100, Math.round((consumed / budget) * 100)) : 0;
   const execOverWarning = execRate >= 90;
+
+  useEffect(() => { fetchMembers(); }, [orgId]);
+
+  async function fetchMembers() {
+    setLoading(true);
+    const [{ data: membersData }, { data: invData }] = await Promise.all([
+      supabase.from("members").select("*").eq("organization_id", orgId),
+      supabase.from("invitations").select("*").eq("organization_id", orgId).eq("status", "pending").gt("expires_at", new Date().toISOString()).not("invitee_phone", "is", null),
+    ]);
+    const mList = (membersData as Member[]) ?? [];
+    const iList = (invData as PendingInvite[]) ?? [];
+    setMembers(mList);
+    setPendingInvites(iList);
+    const phones = [...mList.map(m => m.user_phone), ...iList.filter(i => i.invitee_phone).map(i => i.invitee_phone!)];
+    if (phones.length > 0) {
+      const { data: usersData } = await supabase.from("users").select("phone, name").in("phone", phones);
+      if (usersData) {
+        const map: Record<string, string | null> = {};
+        usersData.forEach((u: { phone: string; name?: string | null }) => { map[u.phone] = u.name ?? null; });
+        setMemberNames(map);
+      }
+    }
+    setLoading(false);
+  }
+
+  async function revokeInvite(inviteId: string) {
+    await supabase.from("invitations").delete().eq("id", inviteId);
+    fetchMembers();
+    toast({ title: "已取消添加" });
+  }
+
+  function openEdit(m: Member) { setEditMember(m); setEditRole(m.role); setEditLimit(String(m.daily_limit ?? 2000)); }
+
+  async function saveMember() {
+    if (!editMember) return;
+    if (editRole !== "org_admin" && editMember.role === "org_admin") {
+      if (members.filter(m => m.role === "org_admin").length <= 1) {
+        toast({ title: "至少保留 1 名部门管理员", variant: "destructive" }); return;
+      }
+    }
+    setSaving(true);
+    await supabase.from("members").update({ role: editRole, daily_limit: Number(editLimit) }).eq("id", editMember.id);
+    setSaving(false); setEditMember(null); fetchMembers();
+    toast({ title: "已保存" });
+  }
+
+  async function toggleMemberStatus(m: Member) {
+    const newStatus = m.status === "active" ? "disabled" : "active";
+    await supabase.from("members").update({ status: newStatus }).eq("id", m.id);
+    fetchMembers();
+  }
+
+  async function removeMember(m: Member) {
+    await supabase.from("members").delete().eq("id", m.id);
+    fetchMembers();
+    toast({ title: "成员已移除" });
+  }
+
+  async function handleTransfer(targetOrgId: string) {
+    if (!transferMember) return;
+    await supabase.from("members").update({ organization_id: targetOrgId } as any).eq("id", transferMember.id);
+    toast({ title: "转移成功", description: `成员已转移到「${orgs.find(o => o.id === targetOrgId)?.name}」` });
+    setTransferMember(null);
+    fetchMembers();
+  }
+
+  const bulkParsed = useMemo(() => parseBulkText(bulkText), [bulkText]);
+
+  function resetAddDialog() {
+    setAddPhone(""); setAddName(""); setAddRole("member"); setAddLimit("2000");
+    setBulkText(""); setBulkRole("member"); setBulkLimit("2000"); setAddMode("single");
+  }
+
+  async function processSingleMember(memberPhone: string, memberName: string, memberRole: string, memberLimit: string) {
+    const { data: existing } = await supabase.from("members").select("id, organization_id").eq("enterprise_id", enterprise.id).eq("user_phone", memberPhone).maybeSingle();
+    if (existing) {
+      if (existing.organization_id === orgId) return { skipped: true };
+      await supabase.from("members").insert({ enterprise_id: enterprise.id, organization_id: orgId, user_phone: memberPhone, role: memberRole, daily_limit: Number(memberLimit), status: "active" });
+    } else {
+      await supabase.from("invitations").insert({ enterprise_id: enterprise.id, organization_id: orgId, inviter_phone: phone ?? "", invitee_phone: memberPhone, invited_role: memberRole });
+    }
+    if (memberName.trim()) await supabase.from("users").upsert({ phone: memberPhone, name: memberName.trim() }, { onConflict: "phone" });
+    return { skipped: false };
+  }
+
+  async function addMember() {
+    if (!addPhone.trim()) { toast({ title: "请输入手机号", variant: "destructive" }); return; }
+    if (!addName.trim()) { toast({ title: "请输入成员姓名", variant: "destructive" }); return; }
+    setSaving(true);
+    const result = await processSingleMember(addPhone.trim(), addName.trim(), addRole, addLimit);
+    if (result.skipped) { toast({ title: "该成员已在本部门中", variant: "destructive" }); setSaving(false); return; }
+    toast({ title: "添加成功" });
+    setSaving(false); setShowAdd(false); resetAddDialog(); fetchMembers();
+  }
+
+  async function addBulkMembers() {
+    if (bulkParsed.length === 0) { toast({ title: "请输入成员信息", variant: "destructive" }); return; }
+    if (bulkParsed.some(m => !m.valid)) { toast({ title: "批量导入中有格式错误，请修正后再提交", variant: "destructive" }); return; }
+    setSaving(true);
+    let added = 0;
+    for (const m of bulkParsed) { if (m.valid) { const r = await processSingleMember(m.phone, m.name, bulkRole, bulkLimit); if (!r.skipped) added++; } }
+    toast({ title: `批量添加完成`, description: `共处理 ${added} 位成员` });
+    setSaving(false); setShowAdd(false); resetAddDialog(); fetchMembers();
+  }
+
+  const roleLabel = (r: string) => r === "org_admin" ? "部门管理员" : "普通成员";
+  const statusBadge = (s: string) =>
+    s === "active"
+      ? <Badge variant="outline" style={{color:"hsl(142,70%,40%)",borderColor:"hsl(142,70%,75%)",background:"hsl(142,70%,97%)"}}>正常</Badge>
+      : <Badge variant="outline" className="text-muted-foreground border-border">禁用</Badge>;
+  const pendingBadge = <Badge variant="outline" className="w-fit" style={{color:"hsl(32,95%,44%)",borderColor:"hsl(32,95%,72%)",background:"hsl(32,95%,97%)"}}>待激活</Badge>;
 
   if (loading) return <div className="flex items-center justify-center h-64"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" /></div>;
 
   return (
     <div className="space-y-6">
-      {/* Header */}
+      {/* Header — page-level actions */}
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-foreground">{selectedOrg?.name ?? "部门管理"}</h1>
           <p className="text-muted-foreground text-sm mt-0.5">管理部门成员与预算</p>
         </div>
+        {hasChildren && (
+          <div className="flex items-center gap-2">
+            <Button variant="outline" size="sm" onClick={() => { setMemberDailyLimit(""); setShowBudgetDialog(true); }} className="gap-1.5">
+              <Sliders className="w-3.5 h-3.5" />部门批量分配
+            </Button>
+            <Button size="sm" onClick={() => setShowCreateSubOrg(true)} className="gap-1.5">
+              <Plus className="w-3.5 h-3.5" />创建子部门
+            </Button>
+          </div>
+        )}
       </div>
 
       {/* 3 overview cards */}
@@ -663,7 +781,7 @@ function OrgView({ enterprise, role, orgId, orgs, onOrgUpdated }: {
           <div className="border-t pt-3 space-y-2.5">
             <div className="flex justify-between text-sm">
               <span className="text-muted-foreground">已分配总额</span>
-              <span className="font-medium tabular-nums">¥{totalAllocated.toLocaleString()}{allocatedPct !== null && <span className="text-xs text-muted-foreground ml-1">({allocatedPct}%)</span>}</span>
+              <span className="font-medium tabular-nums">¥{memberAllocated.toLocaleString()}{allocatedPct !== null && <span className="text-xs text-muted-foreground ml-1">({allocatedPct}%)</span>}</span>
             </div>
             <div className="flex justify-between text-sm">
               <span className="text-muted-foreground">剩余可分配额</span>
@@ -682,7 +800,7 @@ function OrgView({ enterprise, role, orgId, orgs, onOrgUpdated }: {
           </div>
           <div>
             <p className="text-xs text-muted-foreground">本月累计总消耗</p>
-            <p key={`consumed-${statsFlashKey}`} className="text-3xl font-bold text-foreground mt-0.5 tabular-nums animate-in zoom-in-95 duration-300">¥{totalConsumed.toLocaleString()}</p>
+            <p key={`consumed-${statsFlashKey}`} className="text-3xl font-bold text-foreground mt-0.5 tabular-nums animate-in zoom-in-95 duration-300">¥{consumed.toLocaleString()}</p>
           </div>
           <div className="border-t pt-3 space-y-2.5">
             <div className="flex justify-between text-sm">
@@ -709,230 +827,130 @@ function OrgView({ enterprise, role, orgId, orgs, onOrgUpdated }: {
           </div>
           <div className="space-y-1">
             {[
-              { icon: <Building2 className="w-4 h-4 text-muted-foreground" />, label: "下级部门", value: `${subOrgs.length} 个`, tab: "sub-orgs" as const },
-              { icon: <Users className="w-4 h-4 text-muted-foreground" />, label: "直属成员", value: `${members.length} 人`, tab: "members" as const },
-              { icon: <Key className="w-4 h-4 text-muted-foreground" />, label: "API Key 总数", value: "42 个", tab: null },
-            ].map(({ icon, label, value, tab }) => (
-              <div key={label} className="flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-muted/60 cursor-pointer transition-colors group"
-                onClick={() => { if (tab) navigateTo(tab); else toast({ title: "请前往 API Key 页面查看" }); }}>
+              { icon: <Building2 className="w-4 h-4 text-muted-foreground" />, label: "下级部门", value: `${childCount} 个` },
+              { icon: <Users className="w-4 h-4 text-muted-foreground" />, label: "直属成员", value: `${members.length} 人` },
+              { icon: <Key className="w-4 h-4 text-muted-foreground" />, label: "API Key 总数", value: "42 个" },
+            ].map(({ icon, label, value }) => (
+              <div key={label} className="flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-muted/60 transition-colors">
                 {icon}
                 <span className="text-sm text-muted-foreground flex-1">{label}</span>
                 <span className="text-sm font-semibold text-foreground tabular-nums">{value}</span>
-                <ArrowRight className="w-3.5 h-3.5 text-muted-foreground/50 group-hover:text-muted-foreground transition-colors" />
               </div>
             ))}
           </div>
         </div>
       </div>
 
-      {/* Members + Sub-orgs Card */}
-      <Card ref={tabCardRef}>
+      {/* Members Card */}
+      <Card>
         <CardHeader className="pb-0">
-          <div className="flex items-center justify-between">
-            <div className="flex gap-0 border-b border-transparent">
-              {(["members", "sub-orgs"] as const).map((tab) => (
-                <button key={tab} type="button" onClick={() => setActiveTab(tab)}
-                  className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${activeTab === tab ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"}`}>
-                  {tab === "members" ? "直属成员" : "下属子部门"}
-                </button>
-              ))}
+          <div className="flex items-center justify-between pb-3 border-b">
+            <h3 className="font-semibold text-sm">直属成员</h3>
+            <div className="flex items-center gap-2">
+              <Button size="sm" variant="outline" onClick={() => { setMemberDailyLimit(""); setShowBudgetDialog(true); }} className="gap-1.5">
+                <Sliders className="w-3.5 h-3.5" />成员批量分配
+              </Button>
+              <Button size="sm" onClick={() => setShowAdd(true)} className="gap-1.5">
+                <Plus className="w-3.5 h-3.5" />添加成员
+              </Button>
             </div>
-            {activeTab === "members" ? (
-              <div className="flex items-center gap-2">
-                <Button size="sm" variant="outline" onClick={() => { setBudgetDialogMode("members"); setMemberDailyLimit(""); setShowBudgetDialog(true); }}>
-                  <Sliders className="w-4 h-4 mr-1" />成员批量分配
-                </Button>
-                <Button size="sm" onClick={() => setShowAdd(true)}><Plus className="w-4 h-4 mr-1" />添加成员</Button>
-              </div>
-            ) : (
-              <div className="flex items-center gap-2">
-                <Button size="sm" variant="outline" onClick={() => { setBudgetDialogMode("sub-orgs"); setTotalPackage(""); setShowBudgetDialog(true); }}>
-                  <Sliders className="w-4 h-4 mr-1" />部门批量分配
-                </Button>
-                <Button size="sm" onClick={() => setShowCreateSubOrg(true)}><Plus className="w-4 h-4 mr-1" />创建子部门</Button>
-              </div>
-            )}
           </div>
         </CardHeader>
-
-        {/* Tab: 直属成员 */}
-        {activeTab === "members" && (
-          <CardContent className="p-0 pt-0">
-            {members.filter(m => !m.daily_limit || m.daily_limit === 0).length > 0 && (
-              <div className="px-4 pt-3">
-                <div className="flex items-center justify-between gap-3 rounded-lg border border-orange-300 bg-orange-50 dark:border-orange-500/40 dark:bg-orange-500/10 px-4 py-3">
-                  <div className="flex items-center gap-2.5">
-                    <AlertTriangle className="w-4 h-4 text-orange-500 shrink-0" />
-                    <span className="text-sm font-medium text-orange-800 dark:text-orange-300">检测到 {members.filter(m => !m.daily_limit || m.daily_limit === 0).length} 个成员未配置预算</span>
-                  </div>
-                  <button className="shrink-0 text-xs font-semibold text-orange-600 dark:text-orange-400 underline underline-offset-2" onClick={() => { setBudgetDialogMode("members"); setMemberDailyLimit(""); setShowBudgetDialog(true); }}>点击一键配置</button>
+        <CardContent className="p-0 pt-0">
+          {members.filter(m => !m.daily_limit || m.daily_limit === 0).length > 0 && (
+            <div className="px-4 pt-3">
+              <div className="flex items-center justify-between gap-3 rounded-lg border border-orange-300 bg-orange-50 dark:border-orange-500/40 dark:bg-orange-500/10 px-4 py-3">
+                <div className="flex items-center gap-2.5">
+                  <AlertTriangle className="w-4 h-4 text-orange-500 shrink-0" />
+                  <span className="text-sm font-medium text-orange-800 dark:text-orange-300">检测到 {members.filter(m => !m.daily_limit || m.daily_limit === 0).length} 个成员未配置预算</span>
                 </div>
+                <button className="shrink-0 text-xs font-semibold text-orange-600 dark:text-orange-400 underline underline-offset-2" onClick={() => { setMemberDailyLimit(""); setShowBudgetDialog(true); }}>点击一键配置</button>
               </div>
-            )}
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>成员</TableHead>
-                  <TableHead>角色</TableHead>
-                  <TableHead>今日消耗</TableHead>
-                  <TableHead>本月消耗</TableHead>
-                  <TableHead>单日上限</TableHead>
-                  <TableHead>状态</TableHead>
-                  <TableHead className="w-10"></TableHead>
+            </div>
+          )}
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>成员</TableHead>
+                <TableHead>角色</TableHead>
+                <TableHead>今日消耗</TableHead>
+                <TableHead>本月消耗</TableHead>
+                <TableHead>单日上限</TableHead>
+                <TableHead>状态</TableHead>
+                <TableHead className="w-10"></TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {members.length === 0 && pendingInvites.length === 0 ? (
+                <TableRow><TableCell colSpan={7} className="text-center text-muted-foreground py-10">暂无成员，点击"添加成员"开始</TableCell></TableRow>
+              ) : members.map((m) => (
+                <TableRow key={m.id}>
+                  <TableCell>
+                    <div className="flex flex-col gap-0.5">
+                      <span className="font-semibold text-sm text-foreground">{memberNames[m.user_phone] ?? "—"}</span>
+                      <span className="text-xs text-muted-foreground">{maskPhone(m.user_phone)}</span>
+                    </div>
+                  </TableCell>
+                  <TableCell><Badge variant={m.role === "org_admin" ? "default" : "secondary"}>{roleLabel(m.role)}</Badge></TableCell>
+                  <TableCell className="text-muted-foreground">—</TableCell>
+                  <TableCell className="text-muted-foreground">—</TableCell>
+                  <TableCell>
+                    <InlineBudgetEdit
+                      value={m.daily_limit ?? 2000} label="单日上限" unit="元/天"
+                      onSave={async (val) => {
+                        await supabase.from("members").update({ daily_limit: val }).eq("id", m.id);
+                        setMembers(prev => prev.map(x => x.id === m.id ? { ...x, daily_limit: val } : x));
+                        toast({ title: "单日上限已更新", description: `¥${val}/天` });
+                      }}
+                    />
+                  </TableCell>
+                  <TableCell>{statusBadge(m.status ?? "active")}</TableCell>
+                  <TableCell>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="ghost" size="icon" className="h-8 w-8"><MoreHorizontal className="w-4 h-4" /></Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem onClick={() => openEdit(m)}>编辑成员</DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => toggleMemberStatus(m)}>{m.status === "active" ? "禁用成员" : "启用成员"}</DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => setTransferMember(m)} className="gap-2">
+                          <ArrowLeftRight className="w-3.5 h-3.5" />转移成员
+                        </DropdownMenuItem>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem className="text-destructive focus:text-destructive" onClick={() => removeMember(m)}>移除成员</DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </TableCell>
                 </TableRow>
-              </TableHeader>
-              <TableBody>
-                {members.length === 0 && pendingInvites.length === 0 ? (
-                  <TableRow><TableCell colSpan={7} className="text-center text-muted-foreground py-10">暂无成员，点击"添加成员"开始</TableCell></TableRow>
-                ) : members.map((m) => (
-                  <TableRow key={m.id}>
-                    <TableCell>
-                      <div className="flex flex-col gap-0.5">
-                        <span className="font-semibold text-sm text-foreground">{memberNames[m.user_phone] ?? "—"}</span>
-                        <span className="text-xs text-muted-foreground">{maskPhone(m.user_phone)}</span>
-                      </div>
-                    </TableCell>
-                    <TableCell><Badge variant={m.role === "org_admin" ? "default" : "secondary"}>{roleLabel(m.role)}</Badge></TableCell>
-                    <TableCell className="text-muted-foreground">—</TableCell>
-                    <TableCell className="text-muted-foreground">—</TableCell>
-                    <TableCell>
-                      <InlineBudgetEdit
-                        value={m.daily_limit ?? 2000} label="单日上限" unit="元/天"
-                        onSave={async (val) => {
-                          await supabase.from("members").update({ daily_limit: val }).eq("id", m.id);
-                          setMembers(prev => prev.map(x => x.id === m.id ? { ...x, daily_limit: val } : x));
-                          toast({ title: "单日上限已更新", description: `¥${val}/天` });
-                        }}
-                      />
-                    </TableCell>
-                    <TableCell>{statusBadge(m.status ?? "active")}</TableCell>
-                    <TableCell>
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" size="icon" className="h-8 w-8"><MoreHorizontal className="w-4 h-4" /></Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          <DropdownMenuItem onClick={() => openEdit(m)}>编辑成员</DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => toggleMemberStatus(m)}>{m.status === "active" ? "禁用成员" : "启用成员"}</DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => setTransferMember(m)} className="gap-2">
-                            <ArrowLeftRight className="w-3.5 h-3.5" />转移成员
-                          </DropdownMenuItem>
-                          <DropdownMenuSeparator />
-                          <DropdownMenuItem className="text-destructive focus:text-destructive" onClick={() => removeMember(m)}>移除成员</DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    </TableCell>
-                  </TableRow>
-                ))}
-                {pendingInvites.map((inv) => (
-                  <TableRow key={inv.id} className="opacity-80">
-                    <TableCell>
-                      <div className="flex flex-col gap-0.5">
-                        <span className="font-semibold text-sm text-foreground">{inv.invitee_phone ? (memberNames[inv.invitee_phone] ?? "—") : "—"}</span>
-                        <span className="text-xs text-muted-foreground">{inv.invitee_phone ? maskPhone(inv.invitee_phone) : "—"}</span>
-                      </div>
-                    </TableCell>
-                    <TableCell><Badge variant={inv.invited_role === "org_admin" ? "default" : "secondary"}>{roleLabel(inv.invited_role)}</Badge></TableCell>
-                    <TableCell className="text-muted-foreground">—</TableCell>
-                    <TableCell className="text-muted-foreground">—</TableCell>
-                    <TableCell className="text-muted-foreground">—</TableCell>
-                    <TableCell>{pendingBadge}</TableCell>
-                    <TableCell>
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" size="icon" className="h-8 w-8"><MoreHorizontal className="w-4 h-4" /></Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          <DropdownMenuItem className="text-destructive focus:text-destructive" onClick={() => revokeInvite(inv.id)}>取消添加</DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </CardContent>
-        )}
-
-        {/* Tab: 下属子部门 */}
-        {activeTab === "sub-orgs" && (
-          <CardContent className="p-0 pt-0">
-            {subOrgs.filter(s => !s.monthlyBudget || s.monthlyBudget === 0).length > 0 && (
-              <div className="px-4 pt-3">
-                <div className="flex items-center justify-between gap-3 rounded-lg border border-orange-300 bg-orange-50 dark:border-orange-500/40 dark:bg-orange-500/10 px-4 py-3">
-                  <div className="flex items-center gap-2.5">
-                    <AlertTriangle className="w-4 h-4 text-orange-500 shrink-0" />
-                    <span className="text-sm font-medium text-orange-800 dark:text-orange-300">检测到 {subOrgs.filter(s => !s.monthlyBudget || s.monthlyBudget === 0).length} 个子部门未配置预算</span>
-                  </div>
-                  <button className="shrink-0 text-xs font-semibold text-orange-600 dark:text-orange-400 underline underline-offset-2" onClick={() => { setBudgetDialogMode("sub-orgs"); setTotalPackage(""); setShowBudgetDialog(true); }}>点击一键配置</button>
-                </div>
-              </div>
-            )}
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>部门名称</TableHead><TableHead>管理员</TableHead><TableHead>成员数</TableHead>
-                  <TableHead>本月预算上限</TableHead><TableHead>本月消耗预算</TableHead><TableHead>使用率</TableHead>
-                  <TableHead>状态</TableHead><TableHead className="w-10"></TableHead>
+              ))}
+              {pendingInvites.map((inv) => (
+                <TableRow key={inv.id} className="opacity-80">
+                  <TableCell>
+                    <div className="flex flex-col gap-0.5">
+                      <span className="font-semibold text-sm text-foreground">{inv.invitee_phone ? (memberNames[inv.invitee_phone] ?? "—") : "—"}</span>
+                      <span className="text-xs text-muted-foreground">{inv.invitee_phone ? maskPhone(inv.invitee_phone) : "—"}</span>
+                    </div>
+                  </TableCell>
+                  <TableCell><Badge variant={inv.invited_role === "org_admin" ? "default" : "secondary"}>{roleLabel(inv.invited_role)}</Badge></TableCell>
+                  <TableCell className="text-muted-foreground">—</TableCell>
+                  <TableCell className="text-muted-foreground">—</TableCell>
+                  <TableCell className="text-muted-foreground">—</TableCell>
+                  <TableCell>{pendingBadge}</TableCell>
+                  <TableCell>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="ghost" size="icon" className="h-8 w-8"><MoreHorizontal className="w-4 h-4" /></Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem className="text-destructive focus:text-destructive" onClick={() => revokeInvite(inv.id)}>取消添加</DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </TableCell>
                 </TableRow>
-              </TableHeader>
-              <TableBody>
-                {subOrgs.length === 0 ? (
-                  <TableRow><TableCell colSpan={8} className="text-center text-muted-foreground py-10">暂无下属部门，点击「创建子部门」开始</TableCell></TableRow>
-                ) : subOrgs.map((s) => {
-                  const rate = s.monthlyBudget && s.monthlyBudget > 0 ? Math.min(100, Math.round(s.consumed / s.monthlyBudget * 100)) : 0;
-                  const overBudget = !!(s.monthlyBudget && s.consumed >= s.monthlyBudget);
-                  return (
-                    <TableRow key={s.id}>
-                      <TableCell className="font-medium text-foreground">{s.name}</TableCell>
-                      <TableCell>
-                        <div className="flex flex-col gap-0.5">
-                          <span className="text-sm text-foreground">{s.adminName}</span>
-                          <span className="text-xs text-muted-foreground">{maskPhone(s.adminPhone)}</span>
-                        </div>
-                      </TableCell>
-                      <TableCell className="tabular-nums">{s.memberCount}</TableCell>
-                      <TableCell className="tabular-nums">
-                        <InlineBudgetEdit value={s.monthlyBudget ?? 0} label="本月预算上限" unit="元/月" emptyLabel="不限"
-                          onSave={(val) => { setSubOrgs(prev => prev.map(x => x.id === s.id ? { ...x, monthlyBudget: val === 0 ? null : val } : x)); toast({ title: "预算上限已更新" }); }}
-                        />
-                      </TableCell>
-                      <TableCell className={`tabular-nums font-medium ${overBudget ? "text-destructive" : ""}`}>¥{s.consumed.toLocaleString()}</TableCell>
-                      <TableCell>
-                        {s.monthlyBudget ? (
-                          <div className="flex items-center gap-2 min-w-[90px]">
-                            <Progress value={rate} className={`h-1.5 flex-1 ${overBudget ? "[&>div]:bg-destructive" : ""}`} />
-                            <span className={`text-xs tabular-nums ${overBudget ? "text-destructive" : "text-muted-foreground"}`}>{rate}%</span>
-                          </div>
-                        ) : <span className="text-xs text-muted-foreground">—</span>}
-                      </TableCell>
-                      <TableCell>
-                        {s.status === "active"
-                          ? <Badge variant="outline" style={{color:"hsl(142,70%,40%)",borderColor:"hsl(142,70%,75%)",background:"hsl(142,70%,97%)"}}>正常</Badge>
-                          : <Badge variant="outline" className="text-muted-foreground border-border">禁用</Badge>}
-                      </TableCell>
-                      <TableCell>
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="icon" className="h-8 w-8"><MoreHorizontal className="w-4 h-4" /></Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end">
-                            <DropdownMenuItem onClick={() => toast({ title: "功能开发中" })}>编辑子部门</DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => setSubOrgs(prev => prev.map(x => x.id === s.id ? { ...x, status: x.status === "active" ? "disabled" : "active" } : x))}>
-                              {s.status === "active" ? "禁用子部门" : "启用子部门"}
-                            </DropdownMenuItem>
-                            <DropdownMenuSeparator />
-                            <DropdownMenuItem className="text-destructive focus:text-destructive" onClick={() => setDeleteTarget(s)}>删除子部门</DropdownMenuItem>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                      </TableCell>
-                    </TableRow>
-                  );
-                })}
-              </TableBody>
-            </Table>
-          </CardContent>
-        )}
+              ))}
+            </TableBody>
+          </Table>
+        </CardContent>
       </Card>
 
       {/* Edit Member Sheet */}
@@ -1030,8 +1048,8 @@ function OrgView({ enterprise, role, orgId, orgs, onOrgUpdated }: {
         </DialogContent>
       </Dialog>
 
-      {/* Create Sub-org Dialog */}
-      <Dialog open={showCreateSubOrg} onOpenChange={(open) => { setShowCreateSubOrg(open); if (!open) { setSubOrgName(""); setSubOrgBudget(""); setSubOrgAdminName(""); setSubOrgAdminPhone(""); } }}>
+      {/* Create Sub-dept Dialog */}
+      <Dialog open={showCreateSubOrg} onOpenChange={(open) => { setShowCreateSubOrg(open); if (!open) { setSubOrgName(""); setSubOrgBudget(""); } }}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>创建子部门</DialogTitle>
@@ -1046,56 +1064,39 @@ function OrgView({ enterprise, role, orgId, orgs, onOrgUpdated }: {
               <Label htmlFor="sub-budget">本月预算上限（元）</Label>
               <Input id="sub-budget" type="number" placeholder="留空表示不限制" value={subOrgBudget} onChange={(e) => setSubOrgBudget(e.target.value)} />
             </div>
-            <div className="space-y-1.5">
-              <Label>设置部门管理员（可选）</Label>
-              <div className="grid grid-cols-2 gap-2">
-                <Input placeholder="姓名" value={subOrgAdminName} onChange={(e) => setSubOrgAdminName(e.target.value)} />
-                <Input placeholder="手机号" value={subOrgAdminPhone} onChange={(e) => setSubOrgAdminPhone(e.target.value)} />
-              </div>
-            </div>
           </div>
           <DialogFooter className="gap-2">
             <Button variant="outline" onClick={() => setShowCreateSubOrg(false)}>取消</Button>
-            <Button onClick={() => {
+            <Button onClick={async () => {
               if (!subOrgName.trim()) { toast({ title: "请输入子部门名称", variant: "destructive" }); return; }
-              const newSub: SubOrg = { id: `s${Date.now()}`, name: subOrgName.trim(), adminName: subOrgAdminName.trim() || "—", adminPhone: subOrgAdminPhone.trim() || "00000000000", memberCount: 0, monthlyBudget: subOrgBudget ? Number(subOrgBudget) : null, consumed: 0, status: "active" };
-              setSubOrgs(prev => [...prev, newSub]);
-              setShowCreateSubOrg(false); setSubOrgName(""); setSubOrgBudget(""); setSubOrgAdminName(""); setSubOrgAdminPhone("");
-              toast({ title: "子部门创建成功", description: newSub.name });
+              const { error } = await supabase.from("organizations").insert({
+                enterprise_id: enterprise.id,
+                name: subOrgName.trim(),
+                monthly_budget: subOrgBudget ? Number(subOrgBudget) : null,
+                parent_id: orgId,
+                status: "active",
+              } as any);
+              if (error) { toast({ title: "创建失败", variant: "destructive" }); return; }
+              toast({ title: "子部门创建成功", description: subOrgName.trim() });
+              setShowCreateSubOrg(false); setSubOrgName(""); setSubOrgBudget("");
+              setStatsFlashKey(k => k + 1);
+              onOrgUpdated();
             }}>创建</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
-      {/* Delete sub-org confirm */}
-      <AlertDialog open={!!deleteTarget} onOpenChange={(o) => { if (!o) setDeleteTarget(null); }}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>确认删除子部门</AlertDialogTitle>
-            <AlertDialogDescription>将永久删除子部门「{deleteTarget?.name}」，此操作不可撤销。</AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>取消</AlertDialogCancel>
-            <AlertDialogAction onClick={() => { setSubOrgs(prev => prev.filter(s => s.id !== deleteTarget?.id)); setDeleteTarget(null); toast({ title: "已删除" }); }}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90">确认删除</AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-
-      {/* 批量分配预算 Dialog */}
+      {/* 成员批量分配 Dialog */}
       {(() => {
-        const n = subOrgs.length;
-        const pkg = Number(totalPackage);
-        const perBudget = n > 0 && pkg > 0 ? pkg / n : 0;
         const dailyLimitNum = Number(memberDailyLimit);
         const perMonthBudget = dailyLimitNum > 0 ? dailyLimitNum * 30 : 0;
         const totalMonthCost = perMonthBudget * members.length;
         return (
-          <Dialog open={showBudgetDialog} onOpenChange={(open) => { setShowBudgetDialog(open); if (!open) { setTotalPackage(""); setMemberDailyLimit(""); } }}>
+          <Dialog open={showBudgetDialog} onOpenChange={(open) => { setShowBudgetDialog(open); if (!open) setMemberDailyLimit(""); }}>
             <DialogContent className="sm:max-w-md">
               <DialogHeader>
-                <DialogTitle>{budgetDialogMode === "members" ? "成员批量分配" : "部门批量分配"}</DialogTitle>
-                <DialogDescription>{budgetDialogMode === "members" ? "为本部门所有直属成员统一设置单日消耗上限。" : "将输入的总金额均分给所有子部门。"}</DialogDescription>
+                <DialogTitle>成员批量分配</DialogTitle>
+                <DialogDescription>为本部门所有直属成员统一设置单日消耗上限。</DialogDescription>
               </DialogHeader>
               {remaining !== null && (
                 <div className={`rounded-lg p-3 flex justify-between text-sm ${remaining < 0 ? "bg-destructive/10 border border-destructive/30" : "bg-muted/60"}`}>
@@ -1103,37 +1104,26 @@ function OrgView({ enterprise, role, orgId, orgs, onOrgUpdated }: {
                   <span className={`font-semibold tabular-nums ${remaining < 0 ? "text-destructive" : "text-foreground"}`}>¥{remaining.toLocaleString()}</span>
                 </div>
               )}
-              {budgetDialogMode === "sub-orgs" ? (
-                <div className="space-y-3">
-                  <div className="space-y-1.5">
-                    <Label>要分配的总预算（元）</Label>
-                    <Input type="number" placeholder="请输入总金额" value={totalPackage} onChange={(e) => setTotalPackage(e.target.value)} />
-                  </div>
-                  {n > 0 && pkg > 0 && <div className="rounded-lg border border-primary/20 bg-primary/5 p-3 text-sm">共 <span className="font-semibold">{n}</span> 个子部门，每个分得 <span className="font-bold text-primary">¥{perBudget.toFixed(2)}</span>/月</div>}
+              <div className="space-y-3">
+                <div className="space-y-1.5">
+                  <Label>统一单日上限（元/天）</Label>
+                  <Input type="number" placeholder="如：2000" value={memberDailyLimit} onChange={(e) => setMemberDailyLimit(e.target.value)} />
                 </div>
-              ) : (
-                <div className="space-y-3">
-                  <div className="space-y-1.5">
-                    <Label>统一单日上限（元/天）</Label>
-                    <Input type="number" placeholder="如：2000" value={memberDailyLimit} onChange={(e) => setMemberDailyLimit(e.target.value)} />
+                {dailyLimitNum > 0 && members.length > 0 && (
+                  <div className="rounded-lg border border-primary/20 bg-primary/5 p-3 text-sm">
+                    共 <span className="font-semibold">{members.length}</span> 人，月总消耗上限约 <span className="font-bold text-primary">¥{totalMonthCost.toLocaleString()}</span>
                   </div>
-                  {dailyLimitNum > 0 && members.length > 0 && <div className="rounded-lg border border-primary/20 bg-primary/5 p-3 text-sm">共 <span className="font-semibold">{members.length}</span> 人，月总消耗上限约 <span className="font-bold text-primary">¥{totalMonthCost.toLocaleString()}</span></div>}
-                </div>
-              )}
+                )}
+              </div>
               <DialogFooter className="gap-2">
                 <Button variant="outline" onClick={() => setShowBudgetDialog(false)}>取消</Button>
-                <Button disabled={distributing || (budgetDialogMode === "sub-orgs" ? (n === 0 || pkg <= 0) : (dailyLimitNum <= 0 || members.length === 0))}
+                <Button disabled={distributing || dailyLimitNum <= 0 || members.length === 0}
                   onClick={async () => {
                     setDistributing(true);
-                    if (budgetDialogMode === "sub-orgs") {
-                      setSubOrgs(prev => prev.map(s => ({ ...s, monthlyBudget: perBudget })));
-                      toast({ title: `已为 ${n} 个子部门分配预算` });
-                    } else {
-                      await Promise.all(members.map(m => supabase.from("members").update({ daily_limit: dailyLimitNum }).eq("id", m.id)));
-                      setMembers(prev => prev.map(m => ({ ...m, daily_limit: dailyLimitNum })));
-                      toast({ title: `已为 ${members.length} 位成员设置单日上限 ¥${dailyLimitNum}` });
-                    }
-                    setDistributing(false); setShowBudgetDialog(false); setTotalPackage(""); setMemberDailyLimit("");
+                    await Promise.all(members.map(m => supabase.from("members").update({ daily_limit: dailyLimitNum }).eq("id", m.id)));
+                    setMembers(prev => prev.map(m => ({ ...m, daily_limit: dailyLimitNum })));
+                    toast({ title: `已为 ${members.length} 位成员设置单日上限 ¥${dailyLimitNum}` });
+                    setDistributing(false); setShowBudgetDialog(false); setMemberDailyLimit("");
                   }}
                 >{distributing ? "分配中…" : "确认分配"}</Button>
               </DialogFooter>
@@ -1154,104 +1144,6 @@ function OrgView({ enterprise, role, orgId, orgs, onOrgUpdated }: {
     </div>
   );
 }
-
-// ─────────────────────────────────────────────────────────────────────────────
-// DeptManagement — Main page with left org tree + right dynamic content
-// ─────────────────────────────────────────────────────────────────────────────
-export default function DeptManagement({ enterprise, role }: Props) {
-  const [orgs, setOrgs] = useState<Org[]>([]);
-  const [members, setMembers] = useState<{ user_phone: string; organization_id: string | null }[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [searchTerm, setSearchTerm] = useState("");
-  const [selectedNode, setSelectedNode] = useState<"root" | string>("root");
-  const phone = getCurrentPhone();
-
-  // Permission: which org does the current user manage?
-  // If org_admin, find their org from members list
-  const [currentUserOrgId, setCurrentUserOrgId] = useState<string | null>(null);
-
-  const loadOrgs = async () => {
-    const [orgsRes, membersRes] = await Promise.all([
-      supabase.from("organizations").select("*").eq("enterprise_id", enterprise.id).order("created_at"),
-      supabase.from("members").select("user_phone, organization_id").eq("enterprise_id", enterprise.id),
-    ]);
-    const allMembers = (membersRes.data || []) as { user_phone: string; organization_id: string | null }[];
-    const rawOrgs = (orgsRes.data || []) as any[];
-    const orgsWithCount = rawOrgs.map(org => ({
-      ...org,
-      memberCount: allMembers.filter(m => m.organization_id === org.id).length,
-    }));
-    setOrgs(orgsWithCount);
-    setMembers(allMembers);
-
-    // Find current user's org (for org_admin permission check)
-    if (role === "org_admin" && phone) {
-      const myMembership = allMembers.find(m => m.user_phone === phone);
-      setCurrentUserOrgId(myMembership?.organization_id ?? null);
-    }
-    setLoading(false);
-  };
-
-  useEffect(() => { loadOrgs(); }, [enterprise.id]);
-
-  // Auto-select first org for org_admin
-  useEffect(() => {
-    if (role === "org_admin" && currentUserOrgId) {
-      setSelectedNode(currentUserOrgId);
-    }
-  }, [role, currentUserOrgId]);
-
-  const canAccess = (nodeId: "root" | string): boolean => {
-    if (role === "admin") return true;
-    if (nodeId === "root") return false; // only admins see root
-    if (role === "org_admin") return nodeId === currentUserOrgId;
-    return false;
-  };
-
-  // Build flat tree node list with search filter
-  const treeNodes = useMemo(() => {
-    const nodes: { id: "root" | string; label: string; locked: boolean }[] = [];
-    const term = searchTerm.toLowerCase();
-
-    // Root node
-    if (!term || enterprise.name.toLowerCase().includes(term)) {
-      nodes.push({ id: "root", label: enterprise.name, locked: !canAccess("root") });
-    }
-
-    // Org nodes
-    orgs
-      .filter(o => !term || o.name.toLowerCase().includes(term))
-      .forEach(o => {
-        nodes.push({ id: o.id, label: o.name, locked: !canAccess(o.id) });
-      });
-
-    return nodes;
-  }, [orgs, searchTerm, enterprise.name, currentUserOrgId, role]);
-
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
-      </div>
-    );
-  }
-
-  return (
-    <div className="flex h-full -m-6 overflow-hidden" style={{ minHeight: "calc(100vh - 56px)" }}>
-      {/* ── Left org tree panel ── */}
-      <div className="w-56 shrink-0 border-r border-border bg-background flex flex-col">
-        {/* Search */}
-        <div className="p-3 border-b border-border">
-          <div className="relative">
-            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
-            <Input
-              placeholder="搜索部门..."
-              value={searchTerm}
-              onChange={e => setSearchTerm(e.target.value)}
-              className="pl-8 h-8 text-xs bg-muted/40 border-0 focus-visible:ring-1"
-            />
-          </div>
-        </div>
 
         {/* Label */}
         <div className="px-3 pt-3 pb-1">
