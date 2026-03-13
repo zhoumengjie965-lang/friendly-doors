@@ -305,6 +305,7 @@ export default function ApiKeys({ enterprise, role }: Props) {
       } else {
         toast({ title: "更新成功" });
         setSheetOpen(false);
+        setSimpleDialogOpen(false);
         fetchMyKeys(); fetchOrgKeys();
       }
     } else {
@@ -318,6 +319,7 @@ export default function ApiKeys({ enterprise, role }: Props) {
       } else {
         toast({ title: "创建成功" });
         setSheetOpen(false);
+        setSimpleDialogOpen(false);
         fetchMyKeys(); fetchOrgKeys();
       }
     }
