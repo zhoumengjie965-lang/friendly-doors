@@ -1,71 +1,63 @@
 
-## Two focused layout tweaks — `src/pages/admin/AdminUsers.tsx` only
+## 目标
 
-### Change 1: Basic info — 2×2 grid (lines 394–447)
+对 `src/pages/OrgGovernance.tsx` 进行以下三处改造：
 
-Currently 4 rows stacked vertically with `space-y-4`. Redesign as a **2×2 grid** — left column: 用户名 + 账号状态, right column: 手机号 + 密码重置.
+---
 
-```tsx
-<div className="grid grid-cols-2 gap-x-4 gap-y-3">
-  {/* 用户名 — top-left */}
-  <div className="flex items-center justify-between">
-    <div>
-      <Label className="text-xs text-muted-foreground">用户名</Label>
-      <p className="text-sm mt-0.5">{drawerUser.name || "—"}</p>
-    </div>
-    <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground" onClick={...}>
-      <Copy className="w-3.5 h-3.5" />
-    </Button>
-  </div>
+## 改动 1 — 上下文感知按钮
 
-  {/* 手机号 — top-right */}
-  <div className="flex items-center justify-between">
-    <div>
-      <Label className="text-xs text-muted-foreground">手机号</Label>
-      <p className="text-sm mt-0.5 font-medium tabular-nums">{drawerUser.phone}</p>
-    </div>
-    <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground" onClick={...}>
-      <Copy className="w-3.5 h-3.5" />
-    </Button>
-  </div>
+**当前**：「一键配置预算」只在 `sub-orgs` Tab 显示。
 
-  {/* 账号状态 — bottom-left */}
-  <div className="flex items-center justify-between">
-    <div>
-      <Label className="text-xs text-muted-foreground">账号状态</Label>
-      <p className="text-sm mt-0.5">...</p>
-    </div>
-    <Switch ... />
-  </div>
+**改后**：
+- `members` Tab → 右上角增加「成员批量分配」按钮（outline）+ 原「添加成员」按钮
+- `sub-orgs` Tab → 原「一键配置预算」改为「部门批量分配」按钮 + 原「创建子部门」
 
-  {/* 密码重置 — bottom-right */}
-  <div className="flex items-center justify-between">
-    <div>
-      <Label className="text-xs text-muted-foreground">密码重置</Label>
-      <p className="text-xs text-muted-foreground mt-0.5">强制用户下次登录时重置密码</p>
-    </div>
-    <Button size="sm" variant="outline" ...>重置密码</Button>
-  </div>
-</div>
+点击时分别设置 `budgetDialogMode: "members" | "sub-orgs"` 并打开同一个 `showBudgetDialog`。
+
+---
+
+## 改动 2 — 弹窗按模式切换内容
+
+新增 state：`budgetDialogMode`、`memberDailyLimit`（成员单日上限输入）。
+
+**部门分配模式**（已有，微调标题）：总包金额 → 均分 N 个部门 → 预览文案。
+
+**成员分配模式**（新增）：
+```
+输入：统一单日上限（元）
+预览卡片：
+  单人月预算       ¥{limit × 30} / 月
+  成员人数         {members.length} 人
+  ─────────────────────────────
+  预计总月成本     ¥{limit × 30 × members.length}
+```
+确认后 `setMembers` 将所有成员的 `daily_limit` 更新为该值，并调用 Supabase batch update。
+
+---
+
+## 改动 3 — 增删引导 Tip（两个 Tab 各一条）
+
+**成员 Tab** — 在 `<Table>` 前插入（仅当有 `daily_limit === 0 || daily_limit === null` 的成员）：
+```
+检测到 X 个成员未配置预算，[点击一键配置]
 ```
 
-### Change 2: Personal space — label outside card, tighter padding (lines 459–486)
-
-Move "个人空间" text **above** the card border, reduce internal padding from `p-4 space-y-3` to `p-3 space-y-2`:
-
-```tsx
-{/* 个人空间 */}
-<div>
-  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1.5">个人空间</p>
-  <div className="bg-blue-50/50 border border-blue-100 rounded-lg p-3 space-y-2">
-    <div className="flex items-center justify-between">
-      <span className="text-sm text-muted-foreground">当前余额</span>
-      <span className="font-semibold tabular-nums">¥{...}</span>
-    </div>
-    {/* balance edit input + 保存 button + disclaimer — unchanged */}
-  </div>
-</div>
+**子部门 Tab** — 将现有橙色 Tip 文案改为统一格式（带计数）：
+```
+检测到 X 个子部门未配置预算，[点击一键配置]
 ```
 
-### Files changed
-- `src/pages/admin/AdminUsers.tsx` — lines 394–486 only
+两条 Tip 点击「一键配置」均打开对应模式的弹窗。
+
+---
+
+## 修改范围
+
+| 位置 | 改动 |
+|------|------|
+| State 区（~line 114）| 增加 `budgetDialogMode`、`memberDailyLimit` |
+| Header 按钮区（~line 515-528）| members Tab 加按钮，sub-orgs Tab 改文字 |
+| 成员 Tab 内容顶部（~line 534）| 新增成员未配预算橙色 Tip |
+| 子部门 Tab Tip（~line 650-666）| 改为带计数的格式 |
+| 预算弹窗（~line 994-1060）| 双模式：部门均分 / 成员单日上限 |
