@@ -274,6 +274,11 @@ export default function AdminEnterprises() {
                   <span className="text-foreground font-medium">{e.member_count}</span> 人
                 </div>
 
+                {/* 注册时间 */}
+                <div className="text-xs text-muted-foreground">
+                  {new Date(e.created_at).toLocaleDateString("zh-CN", { year: "numeric", month: "2-digit", day: "2-digit" })}
+                </div>
+
                 {/* 操作 */}
                 <div className="flex items-center gap-0.5">
                   <Button
