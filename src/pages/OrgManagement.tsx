@@ -12,11 +12,12 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle
 } from "@/components/ui/alert-dialog";
 import {
-  Dialog, DialogContent, DialogHeader, DialogTitle
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Building2, Users, Key, Plus, SlidersHorizontal, Pencil, UserCog, Power, Trash2, ChevronDown } from "lucide-react";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Building2, Users, Key, Plus, SlidersHorizontal, Pencil, UserCog, Power, Trash2, ChevronDown, Sliders, AlertTriangle } from "lucide-react";
 import CreateOrgDialog from "@/components/CreateOrgDialog";
 import OrgBudgetSheet from "@/components/OrgBudgetSheet";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -53,6 +54,11 @@ export default function OrgManagement({ enterprise, role }: Props) {
   const [setAdminOrg, setSetAdminOrg] = useState<Org | null>(null);
   const [newAdminPhone, setNewAdminPhone] = useState("");
   const [saving, setSaving] = useState(false);
+  // 一键配置预算
+  const [showBudgetDialog, setShowBudgetDialog] = useState(false);
+  const [totalPackage, setTotalPackage] = useState("");
+  const [distributing, setDistributing] = useState(false);
+  const [statsFlashKey, setStatsFlashKey] = useState(0);
   const { toast } = useToast();
   const isAdmin = role === "admin";
 
@@ -98,9 +104,14 @@ export default function OrgManagement({ enterprise, role }: Props) {
       setDeleteOrg(null);
       return;
     }
+    const recovered = deleteOrg.monthly_budget ?? 0;
     await supabase.from("organizations").delete().eq("id", deleteOrg.id);
-    toast({ title: "已删除部门" });
+    toast({
+      title: "已删除部门",
+      description: recovered > 0 ? `¥${recovered.toLocaleString()} 预算已回收至企业` : undefined,
+    });
     setDeleteOrg(null);
+    setStatsFlashKey(k => k + 1);
     load();
   };
 
@@ -153,10 +164,15 @@ export default function OrgManagement({ enterprise, role }: Props) {
           <p className="text-muted-foreground mt-1 text-sm">管理企业下的部门单元及预算分配</p>
         </div>
         {isAdmin && (
-          <Button onClick={() => setCreateOpen(true)} className="gap-2">
-            <Plus className="w-4 h-4" />
-            创建部门
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button variant="outline" onClick={() => setShowBudgetDialog(true)} className="gap-2">
+              <Sliders className="w-4 h-4" />一键配置预算
+            </Button>
+            <Button onClick={() => setCreateOpen(true)} className="gap-2">
+              <Plus className="w-4 h-4" />
+              创建部门
+            </Button>
+          </div>
         )}
       </div>
 
@@ -171,7 +187,7 @@ export default function OrgManagement({ enterprise, role }: Props) {
                 <s.icon className="w-4 h-4" style={{ color: s.color }} />
               </div>
             </div>
-            <p className="text-2xl font-bold text-foreground">{s.value}</p>
+            <p key={statsFlashKey} className="text-2xl font-bold text-foreground animate-in zoom-in-95 duration-300">{s.value}</p>
           </div>
         ))}
       </div>
@@ -181,6 +197,22 @@ export default function OrgManagement({ enterprise, role }: Props) {
         <div className="px-6 py-4 border-b border-border">
           <h2 className="font-semibold text-foreground">部门列表</h2>
         </div>
+        {/* Zero-budget alert */}
+        {!loading && orgs.some(o => o.monthly_budget == null || o.monthly_budget === 0) && (
+          <div className="px-6 pt-4">
+            <Alert>
+              <AlertTriangle className="w-4 h-4" />
+              <AlertDescription className="flex items-center justify-between">
+                <span>存在未分配预算的部门，建议为所有部门配置月度预算上限。</span>
+                {isAdmin && (
+                  <button className="text-primary text-xs underline ml-2 shrink-0" onClick={() => setShowBudgetDialog(true)}>
+                    立即均分
+                  </button>
+                )}
+              </AlertDescription>
+            </Alert>
+          </div>
+        )}
         {loading ? (
           <div className="flex items-center justify-center py-16">
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
@@ -376,6 +408,12 @@ export default function OrgManagement({ enterprise, role }: Props) {
               将永久删除部门「{deleteOrg?.name}」。该操作不可撤销，部门内成员不会被删除，但将失去部门归属。
             </AlertDialogDescription>
           </AlertDialogHeader>
+          {deleteOrg?.monthly_budget != null && deleteOrg.monthly_budget > 0 && (
+            <div className="rounded-lg bg-muted/60 p-3 text-sm flex justify-between items-center mx-1">
+              <span className="text-muted-foreground">即将回收至企业的预算金额</span>
+              <span className="font-bold text-primary tabular-nums ml-2">¥{deleteOrg.monthly_budget.toLocaleString()}/月</span>
+            </div>
+          )}
           <AlertDialogFooter>
             <AlertDialogCancel>取消</AlertDialogCancel>
             <AlertDialogAction onClick={handleDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
@@ -384,6 +422,71 @@ export default function OrgManagement({ enterprise, role }: Props) {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* 一键配置预算 Dialog */}
+      {(() => {
+        const n = orgs.length;
+        const pkg = Number(totalPackage);
+        const perBudget = n > 0 && pkg > 0 ? pkg / n : 0;
+        return (
+          <Dialog open={showBudgetDialog} onOpenChange={(open) => { setShowBudgetDialog(open); if (!open) setTotalPackage(""); }}>
+            <DialogContent className="sm:max-w-md">
+              <DialogHeader>
+                <DialogTitle>一键配置预算</DialogTitle>
+                <DialogDescription>将输入的总金额均分给所有部门，统一设置月度预算上限。</DialogDescription>
+              </DialogHeader>
+              <div className="space-y-4 py-2">
+                <div className="space-y-1.5">
+                  <Label htmlFor="total-pkg">要分配的总预算（元）</Label>
+                  <Input
+                    id="total-pkg"
+                    type="number"
+                    placeholder="请输入总金额"
+                    value={totalPackage}
+                    onChange={(e) => setTotalPackage(e.target.value)}
+                  />
+                </div>
+                {n > 0 && pkg > 0 && (
+                  <div className="rounded-lg border border-primary/20 bg-primary/5 p-3 text-sm text-foreground">
+                    共 <span className="font-semibold">{n}</span> 个部门，每个部门将分得{" "}
+                    <span className="font-bold text-primary tabular-nums">¥{perBudget.toFixed(2)}</span>/月
+                  </div>
+                )}
+                {n === 0 && (
+                  <p className="text-sm text-muted-foreground">当前没有部门，请先创建部门。</p>
+                )}
+              </div>
+              <DialogFooter className="gap-2">
+                <Button variant="outline" onClick={() => { setShowBudgetDialog(false); setTotalPackage(""); }}>取消</Button>
+                <Button
+                  disabled={distributing || n === 0 || pkg <= 0}
+                  onClick={async () => {
+                    setDistributing(true);
+                    try {
+                      await Promise.all(
+                        orgs.map(org =>
+                          supabase.from("organizations").update({ monthly_budget: perBudget } as any).eq("id", org.id)
+                        )
+                      );
+                      setStatsFlashKey(k => k + 1);
+                      toast({ title: `已成功为 ${n} 个部门分配预算`, description: `每个部门 ¥${perBudget.toFixed(2)}/月` });
+                      setShowBudgetDialog(false);
+                      setTotalPackage("");
+                      load();
+                    } catch {
+                      toast({ title: "操作失败", variant: "destructive" });
+                    } finally {
+                      setDistributing(false);
+                    }
+                  }}
+                >
+                  {distributing ? "分配中…" : "确认均分"}
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+        );
+      })()}
     </div>
   );
 }
