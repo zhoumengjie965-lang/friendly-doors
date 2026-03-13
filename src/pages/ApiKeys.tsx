@@ -1060,7 +1060,7 @@ export default function ApiKeys({ enterprise, role }: Props) {
           {/* 底部固定按钮 */}
           <div className="shrink-0 px-6 py-4 border-t border-border flex justify-end gap-3 bg-background">
             <Button variant="outline" className="w-24" onClick={() => setSheetOpen(false)} disabled={saving}>取消</Button>
-            <Button className="w-24" onClick={handleSave} disabled={saving || !formName.trim()}>
+            <Button className="w-24" onClick={handleSave} disabled={saving || !formName.trim() || (previewRole !== "member" && !formGroup)}>
               {saving ? "保存中..." : "确定"}
             </Button>
           </div>
