@@ -302,7 +302,7 @@ export default function OrgGovernance({ enterprise, role }: Props) {
         {orgs.length > 1 && (
           <Select value={selectedOrgId} onValueChange={setSelectedOrgId}>
             <SelectTrigger className="w-48">
-              <SelectValue placeholder="选择组织" />
+              <SelectValue placeholder="选择部门" />
             </SelectTrigger>
             <SelectContent>
               {orgs.map((o) => (
