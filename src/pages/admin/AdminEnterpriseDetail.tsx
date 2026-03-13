@@ -230,7 +230,12 @@ export default function AdminEnterpriseDetail() {
       setOrgs(orgData || []);
     }
 
-    if (orgData && orgData.length > 0 && !selectedOrgId) {
+    // Fall back to demo data if this enterprise has no orgs yet
+    if (!orgData || orgData.length === 0) {
+      setOrgs(DEMO_ORGS);
+      setMembers(DEMO_MEMBERS);
+      setSelectedOrgId("demo-1");
+    } else if (!selectedOrgId) {
       setSelectedOrgId(orgData[0].id);
     }
 
