@@ -350,58 +350,138 @@ export default function OrgGovernance({ enterprise, role }: Props) {
         </Card>
       ) : (
         <>
-          {/* Overview Card */}
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-base font-semibold">部门数据总览</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                <div>
-                  <p className="text-xs text-muted-foreground mb-1">本月预算上限</p>
-                  <p className="text-lg font-semibold text-foreground">
-                    {budget > 0 ? `¥${budget.toLocaleString()}` : "未设置"}
-                  </p>
+          {/* ── Overview Panel: 3 functional cards ──────────────────── */}
+          {(() => {
+            // Budget Planning derived values
+            const subOrgAllocated = subOrgs.reduce((s, o) => s + (o.monthlyBudget ?? 0), 0);
+            const memberAllocated = members.reduce((s, m) => s + (m.daily_limit ?? 2000) * 30, 0);
+            const totalAllocated = subOrgAllocated + memberAllocated;
+            const remaining = budget > 0 ? budget - totalAllocated : null;
+            const allocatedPct = budget > 0 ? Math.min(100, Math.round((totalAllocated / budget) * 100)) : null;
+
+            // Real-time Execution derived values
+            const subConsumed = subOrgs.reduce((s, o) => s + o.consumed, 0);
+            const totalConsumed = consumed + subConsumed;
+            const available = budget > 0 ? budget - totalConsumed : null;
+            const execRate = budget > 0 ? Math.min(100, Math.round((totalConsumed / budget) * 100)) : 0;
+            const execOverWarning = execRate >= 90;
+
+            function navigateTo(tab: "members" | "sub-orgs") {
+              setActiveTab(tab);
+              setTimeout(() => tabCardRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 50);
+            }
+
+            return (
+              <div className="grid grid-cols-3 gap-4">
+                {/* A. 预算规划 */}
+                <div className="rounded-xl border bg-card p-5 space-y-4">
+                  <div className="flex items-center gap-2">
+                    <div className="w-7 h-7 rounded-lg bg-primary/10 flex items-center justify-center">
+                      <Wallet className="w-4 h-4 text-primary" />
+                    </div>
+                    <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">预算规划</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground">本月总预算上限</p>
+                    <p className="text-3xl font-bold text-foreground mt-0.5 tabular-nums">
+                      {budget > 0 ? `¥${budget.toLocaleString()}` : <span className="text-xl text-muted-foreground">未设置</span>}
+                    </p>
+                  </div>
+                  <div className="border-t pt-3 space-y-2.5">
+                    <div className="flex justify-between text-sm">
+                      <span className="text-muted-foreground">已分配总额</span>
+                      <span className="font-medium tabular-nums">
+                        ¥{totalAllocated.toLocaleString()}
+                        {allocatedPct !== null && (
+                          <span className="text-xs text-muted-foreground ml-1">({allocatedPct}%)</span>
+                        )}
+                      </span>
+                    </div>
+                    <div className="flex justify-between text-sm">
+                      <span className="text-muted-foreground">剩余可分配额</span>
+                      <span className={`font-medium tabular-nums ${remaining !== null && remaining < 0 ? "text-destructive" : ""}`}>
+                        {remaining !== null
+                          ? `¥${remaining.toLocaleString()}`
+                          : <span className="text-muted-foreground">—</span>}
+                      </span>
+                    </div>
+                  </div>
                 </div>
-                <div>
-                  <p className="text-xs text-muted-foreground mb-1">本月累计消耗</p>
-                  <p className="text-lg font-semibold text-foreground">
-                    {consumed > 0 ? `¥${consumed.toLocaleString()}` : "¥0"}
-                  </p>
+
+                {/* B. 实时消耗 */}
+                <div className="rounded-xl border bg-card p-5 space-y-4">
+                  <div className="flex items-center gap-2">
+                    <div className="w-7 h-7 rounded-lg bg-orange-500/10 flex items-center justify-center">
+                      <TrendingUp className="w-4 h-4 text-orange-500" />
+                    </div>
+                    <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">实时消耗</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground">本月累计总消耗</p>
+                    <p className="text-3xl font-bold text-foreground mt-0.5 tabular-nums">
+                      ¥{totalConsumed.toLocaleString()}
+                    </p>
+                  </div>
+                  <div className="border-t pt-3 space-y-2.5">
+                    <div className="flex justify-between text-sm">
+                      <span className="text-muted-foreground">组织可用余额</span>
+                      <span className="font-medium tabular-nums">
+                        {available !== null
+                          ? <span className={available < 0 ? "text-destructive" : ""}>¥{available.toLocaleString()}</span>
+                          : <span className="text-muted-foreground">—</span>}
+                      </span>
+                    </div>
+                    <div className="space-y-1.5">
+                      <div className="flex justify-between text-sm">
+                        <span className="text-muted-foreground">预算使用率</span>
+                        <span className={`font-medium tabular-nums ${execOverWarning ? "text-destructive" : ""}`}>{execRate}%</span>
+                      </div>
+                      {budget > 0 && (
+                        <Progress
+                          value={execRate}
+                          className={`h-1.5 ${execOverWarning ? "[&>div]:bg-destructive" : ""}`}
+                        />
+                      )}
+                    </div>
+                  </div>
                 </div>
-                <div>
-                  <p className="text-xs text-muted-foreground mb-1">本月使用率</p>
-                  <p className="text-lg font-semibold text-foreground">{usageRate}%</p>
+
+                {/* C. 组织资产 */}
+                <div className="rounded-xl border bg-card p-5 space-y-4">
+                  <div className="flex items-center gap-2">
+                    <div className="w-7 h-7 rounded-lg bg-violet-500/10 flex items-center justify-center">
+                      <BarChart3 className="w-4 h-4 text-violet-500" />
+                    </div>
+                    <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">组织资产</p>
+                  </div>
+                  <div className="space-y-1">
+                    {[
+                      { icon: <Building2 className="w-4 h-4 text-muted-foreground" />, label: "下级部门", value: `${subOrgs.length} 个`, tab: "sub-orgs" as const },
+                      { icon: <Users className="w-4 h-4 text-muted-foreground" />, label: "直属成员", value: `${members.length} 人`, tab: "members" as const },
+                      { icon: <Key className="w-4 h-4 text-muted-foreground" />, label: "API Key 总数", value: "42 个", tab: null },
+                    ].map(({ icon, label, value, tab }) => (
+                      <div
+                        key={label}
+                        className="flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-muted/60 cursor-pointer transition-colors group"
+                        onClick={() => {
+                          if (tab) {
+                            navigateTo(tab);
+                          } else {
+                            toast({ title: "请前往 API Key 页面查看" });
+                          }
+                        }}
+                      >
+                        {icon}
+                        <span className="text-sm text-muted-foreground flex-1">{label}</span>
+                        <span className="text-sm font-semibold text-foreground tabular-nums">{value}</span>
+                        <ArrowRight className="w-3.5 h-3.5 text-muted-foreground/50 group-hover:text-muted-foreground transition-colors" />
+                      </div>
+                    ))}
+                  </div>
                 </div>
               </div>
-              {budget > 0 && (
-                <div>
-                  <Progress value={usageRate} className="h-2" />
-                </div>
-              )}
-              <div className="grid grid-cols-3 gap-4 pt-2 border-t border-border">
-                <div className="flex items-center gap-2">
-                  <Users className="w-4 h-4 text-muted-foreground" />
-                  <span className="text-sm text-muted-foreground">成员数量</span>
-                  <span className="text-sm font-medium text-foreground ml-auto">{members.length}</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Key className="w-4 h-4 text-muted-foreground" />
-                  <span className="text-sm text-muted-foreground">API Key</span>
-                  <span className="text-sm font-medium text-foreground ml-auto">—</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <CheckCircle className="w-4 h-4 text-muted-foreground" />
-                  <span className="text-sm text-muted-foreground">部门状态</span>
-                  <span className="ml-auto">
-                    {selectedOrg?.status === "active"
-                      ? <span className="text-sm font-medium flex items-center gap-1" style={{color:"hsl(142,70%,40%)"}}><span className="w-1.5 h-1.5 rounded-full inline-block" style={{background:"hsl(142,70%,45%)"}} />正常</span>
-                      : <span className="text-sm font-medium text-muted-foreground">禁用</span>}
-                  </span>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
+            );
+          })()}
 
           {/* Members + Sub-orgs Card */}
           <Card>
