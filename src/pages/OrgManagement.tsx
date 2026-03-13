@@ -54,6 +54,11 @@ export default function OrgManagement({ enterprise, role }: Props) {
   const [setAdminOrg, setSetAdminOrg] = useState<Org | null>(null);
   const [newAdminPhone, setNewAdminPhone] = useState("");
   const [saving, setSaving] = useState(false);
+  // 一键配置预算
+  const [showBudgetDialog, setShowBudgetDialog] = useState(false);
+  const [totalPackage, setTotalPackage] = useState("");
+  const [distributing, setDistributing] = useState(false);
+  const [statsFlashKey, setStatsFlashKey] = useState(0);
   const { toast } = useToast();
   const isAdmin = role === "admin";
 
