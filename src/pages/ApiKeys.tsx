@@ -614,13 +614,15 @@ export default function ApiKeys({ enterprise, role }: Props) {
                     </TableCell>
                     <TableCell>
                       <div className="flex items-center justify-center gap-1">
-                        <button
-                          onClick={() => openEdit(k)}
-                          className="p-1.5 rounded hover:bg-primary/10 text-primary transition-colors"
-                          title="编辑"
-                        >
-                          <Pencil className="w-3.5 h-3.5" />
-                        </button>
+                        {!(previewRole === "admin" && k.creator_phone !== phone) && (
+                          <button
+                            onClick={() => openEdit(k)}
+                            className="p-1.5 rounded hover:bg-primary/10 text-primary transition-colors"
+                            title="编辑"
+                          >
+                            <Pencil className="w-3.5 h-3.5" />
+                          </button>
+                        )}
                         <button
                           onClick={() => setDeleteTarget(k)}
                           className="p-1.5 rounded hover:bg-destructive/10 text-destructive transition-colors"
