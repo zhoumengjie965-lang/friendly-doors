@@ -538,7 +538,7 @@ export default function OrgGovernance({ enterprise, role }: Props) {
                 onChange={(e) => setEditLimit(e.target.value)}
                 placeholder="2000"
               />
-              <p className="text-xs text-muted-foreground">成员共享组织月预算，单日上限为个人每日最高消耗</p>
+              <p className="text-xs text-muted-foreground">成员共享部门月预算，单日上限为个人每日最高消耗</p>
             </div>
           </div>
           <SheetFooter className="mt-8 flex gap-2">
