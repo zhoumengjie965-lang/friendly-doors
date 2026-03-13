@@ -217,7 +217,7 @@ export default function CreateOrgDialog({ open, onOpenChange, enterpriseId, exis
                 ))}
               </SelectContent>
             </Select>
-            <p className="text-xs text-muted-foreground">不指定时该组织默认由企业管理员管理</p>
+            <p className="text-xs text-muted-foreground">不指定时该部门默认由企业管理员管理</p>
           </div>
 
           <div className="space-y-3">
