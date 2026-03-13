@@ -261,7 +261,11 @@ export default function ApiKeys({ enterprise, role }: Props) {
     setFormName(""); setFormGroup(""); setFormExpires("");
     setFormQuota(""); setFormUnlimited(true);
     setFormModels([]); setFormIpWhitelist("");
-    setSheetOpen(true);
+    if (previewRole === "member") {
+      setSimpleDialogOpen(true);
+    } else {
+      setSheetOpen(true);
+    }
   };
 
   const openEdit = (k: ApiKey) => {
