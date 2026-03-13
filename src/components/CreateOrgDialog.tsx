@@ -50,7 +50,7 @@ function parseBulkText(text: string): ParsedMember[] {
     });
 }
 
-const roleLabel = (r: string) => r === "admin" ? "企业管理员" : r === "org_admin" ? "组织管理员" : "普通成员";
+const roleLabel = (r: string) => r === "admin" ? "企业管理员" : r === "org_admin" ? "部门管理员" : "普通成员";
 
 export default function CreateOrgDialog({ open, onOpenChange, enterpriseId, existingMembers, onCreated }: Props) {
   const [orgName, setOrgName] = useState("");
