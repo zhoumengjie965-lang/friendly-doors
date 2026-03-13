@@ -23,18 +23,17 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { Switch } from "@/components/ui/switch";
 import {
   Search, Lock, Building2, Folder, ChevronRight, ChevronDown,
   Users, Key, Plus, MoreHorizontal, Wallet, TrendingUp, BarChart3,
-  ArrowRight, Sliders, SlidersHorizontal, Pencil, UserCog, Power,
-  Trash2, AlertTriangle, CheckCircle, ArrowLeftRight,
+  Sliders, SlidersHorizontal, Pencil, UserCog, Power,
+  Trash2, AlertTriangle, ArrowLeftRight,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import CreateOrgDialog from "@/components/CreateOrgDialog";
 import OrgBudgetSheet from "@/components/OrgBudgetSheet";
 import InlineBudgetEdit from "@/components/InlineBudgetEdit";
-import { Alert, AlertDescription } from "@/components/ui/alert";
+
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Types
