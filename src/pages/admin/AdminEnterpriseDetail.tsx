@@ -98,6 +98,25 @@ const RECORD_TYPE_LABELS: Record<string, string> = {
   adjust: "调整",
 };
 
+// Demo data for when no real orgs exist yet
+const DEMO_ORGS: Org[] = [
+  { id: "demo-1", name: "技术研发部",   status: "active",   admin_phone: "13800138001", monthly_budget: 20000, current_month_budget: 8400,  memberCount: 12, adminName: "陈志远" },
+  { id: "demo-2", name: "前端工程组",   status: "active",   admin_phone: "13912340001", monthly_budget: 6000,  current_month_budget: 5800,  memberCount: 5,  adminName: "林晓雨" },
+  { id: "demo-3", name: "后端服务组",   status: "active",   admin_phone: "13612340002", monthly_budget: 8000,  current_month_budget: 2100,  memberCount: 6,  adminName: "王磊" },
+  { id: "demo-4", name: "AI算法组",     status: "active",   admin_phone: null,          monthly_budget: null,  current_month_budget: 0,     memberCount: 3,  adminName: null },
+  { id: "demo-5", name: "市场运营部",   status: "active",   admin_phone: "18800110022", monthly_budget: 12000, current_month_budget: 3200,  memberCount: 9,  adminName: "张晴" },
+  { id: "demo-6", name: "华南销售组",   status: "active",   admin_phone: "13311220033", monthly_budget: 5000,  current_month_budget: 4900,  memberCount: 7,  adminName: "刘伟强" },
+  { id: "demo-7", name: "品牌推广组",   status: "disabled", admin_phone: null,          monthly_budget: 4000,  current_month_budget: 0,     memberCount: 4,  adminName: null },
+];
+const DEMO_MEMBERS: Member[] = [
+  { id: "dm-1", user_phone: "13800138001", role: "admin",  status: "active", daily_limit: 500,  organization_id: "demo-1", name: "陈志远" },
+  { id: "dm-2", user_phone: "13912340001", role: "member", status: "active", daily_limit: 200,  organization_id: "demo-1", name: "林晓雨" },
+  { id: "dm-3", user_phone: "13612340002", role: "member", status: "active", daily_limit: null, organization_id: "demo-1", name: "王磊" },
+  { id: "dm-4", user_phone: "18800110022", role: "admin",  status: "active", daily_limit: 300,  organization_id: "demo-5", name: "张晴" },
+  { id: "dm-5", user_phone: "13311220033", role: "member", status: "active", daily_limit: 150,  organization_id: "demo-5", name: "刘伟强" },
+  { id: "dm-6", user_phone: "13700000001", role: "member", status: "active", daily_limit: 200,  organization_id: "demo-5", name: "赵小明" },
+];
+
 function maskPhone(phone: string) {
   if (phone.length < 7) return phone;
   return phone.slice(0, 3) + "****" + phone.slice(-4);
@@ -211,7 +230,12 @@ export default function AdminEnterpriseDetail() {
       setOrgs(orgData || []);
     }
 
-    if (orgData && orgData.length > 0 && !selectedOrgId) {
+    // Fall back to demo data if this enterprise has no orgs yet
+    if (!orgData || orgData.length === 0) {
+      setOrgs(DEMO_ORGS);
+      setMembers(DEMO_MEMBERS);
+      setSelectedOrgId("demo-1");
+    } else if (!selectedOrgId) {
       setSelectedOrgId(orgData[0].id);
     }
 
