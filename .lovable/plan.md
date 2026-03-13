@@ -1,71 +1,96 @@
 
-## Two focused layout tweaks — `src/pages/admin/AdminUsers.tsx` only
+## 全客户端"组织" → "部门"替换计划
 
-### Change 1: Basic info — 2×2 grid (lines 394–447)
+### 涉及文件
+- `src/pages/OrgManagement.tsx` — "组织管理"页面，大量"组织"字样
+- `src/pages/OrgGovernance.tsx` — "组织治理"页面，多处"组织"字样
+- `src/components/CreateOrgDialog.tsx` — 创建对话框
+- `src/pages/ApiKeys.tsx` — Tab/筛选器/表格列/提示语
+- `src/pages/Workspace.tsx` — 角色标签"组织管理员"
 
-Currently 4 rows stacked vertically with `space-y-4`. Redesign as a **2×2 grid** — left column: 用户名 + 账号状态, right column: 手机号 + 密码重置.
+---
 
-```tsx
-<div className="grid grid-cols-2 gap-x-4 gap-y-3">
-  {/* 用户名 — top-left */}
-  <div className="flex items-center justify-between">
-    <div>
-      <Label className="text-xs text-muted-foreground">用户名</Label>
-      <p className="text-sm mt-0.5">{drawerUser.name || "—"}</p>
-    </div>
-    <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground" onClick={...}>
-      <Copy className="w-3.5 h-3.5" />
-    </Button>
-  </div>
+### 改动明细
 
-  {/* 手机号 — top-right */}
-  <div className="flex items-center justify-between">
-    <div>
-      <Label className="text-xs text-muted-foreground">手机号</Label>
-      <p className="text-sm mt-0.5 font-medium tabular-nums">{drawerUser.phone}</p>
-    </div>
-    <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground" onClick={...}>
-      <Copy className="w-3.5 h-3.5" />
-    </Button>
-  </div>
+#### 1. `src/pages/OrgManagement.tsx`（UI 文本，不涉及变量/函数名）
 
-  {/* 账号状态 — bottom-left */}
-  <div className="flex items-center justify-between">
-    <div>
-      <Label className="text-xs text-muted-foreground">账号状态</Label>
-      <p className="text-sm mt-0.5">...</p>
-    </div>
-    <Switch ... />
-  </div>
+| 原文 | 改为 |
+|------|------|
+| `组织管理` （页标题 h1）| `部门治理` |
+| `管理企业下的组织单元及预算分配` | `管理企业下的部门单元及预算分配` |
+| `创建组织`（按钮）| `创建部门` |
+| `组织总数`（统计卡）| `部门总数` |
+| `组织列表`（表头）| `部门列表` |
+| `暂无组织` | `暂无部门` |
+| `创建第一个组织`（按钮）| `创建第一个部门` |
+| `组织名称`（列头）| `部门名称` |
+| `组织管理员`（列头）| `部门管理员` |
+| `编辑组织名称`（菜单项）| `编辑部门名称` |
+| `禁用组织` / `启用组织` | `禁用部门` / `启用部门` |
+| `删除组织` | `删除部门` |
+| `编辑组织名称`（Dialog 标题）| `编辑部门名称` |
+| `组织名称`（Label）| `部门名称` |
+| `设置组织管理员`（Dialog 标题）| `设置部门管理员` |
+| `组织管理员已更新`（toast）| `部门管理员已更新` |
+| `不指定时，该组织默认由企业管理员管理` | `不指定时，该部门默认由企业管理员管理` |
+| `确认删除组织`（AlertDialog 标题）| `确认删除部门` |
+| `将永久删除组织「...」…组织内成员…失去组织归属` | 同步替换为"部门" |
+| `无法删除默认组织` / `已删除组织`（toast）| 替换为"部门" |
 
-  {/* 密码重置 — bottom-right */}
-  <div className="flex items-center justify-between">
-    <div>
-      <Label className="text-xs text-muted-foreground">密码重置</Label>
-      <p className="text-xs text-muted-foreground mt-0.5">强制用户下次登录时重置密码</p>
-    </div>
-    <Button size="sm" variant="outline" ...>重置密码</Button>
-  </div>
-</div>
-```
+#### 2. `src/pages/OrgGovernance.tsx`
 
-### Change 2: Personal space — label outside card, tighter padding (lines 459–486)
+| 原文 | 改为 |
+|------|------|
+| `组织治理`（h1 标题）| `部门管理` |
+| `管理组织成员与预算`（副标题）| `管理部门成员与预算` |
+| `选择组织`（Select placeholder）| `选择部门` |
+| `暂无组织`（Card 空态）| `暂无部门` |
+| `请先在企业管理中创建组织` | `请先在企业管理中创建部门` |
+| `组织数据总览`（CardTitle）| `部门数据总览` |
+| `组织状态`（小标签）| `部门状态` |
+| `组织管理员`（roleLabel 函数返回、RadioGroup label）| `部门管理员` |
+| `至少保留 1 名组织管理员`（toast）| `至少保留 1 名部门管理员` |
+| `该成员已在本组织中`（toast）| `该成员已在本部门中` |
+| `成员共享组织月预算…`（hint text）| `成员共享部门月预算…` |
 
-Move "个人空间" text **above** the card border, reduce internal padding from `p-4 space-y-3` to `p-3 space-y-2`:
+#### 3. `src/components/CreateOrgDialog.tsx`
 
-```tsx
-{/* 个人空间 */}
-<div>
-  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1.5">个人空间</p>
-  <div className="bg-blue-50/50 border border-blue-100 rounded-lg p-3 space-y-2">
-    <div className="flex items-center justify-between">
-      <span className="text-sm text-muted-foreground">当前余额</span>
-      <span className="font-semibold tabular-nums">¥{...}</span>
-    </div>
-    {/* balance edit input + 保存 button + disclaimer — unchanged */}
-  </div>
-</div>
-```
+| 原文 | 改为 |
+|------|------|
+| `roleLabel` 中 `org_admin` → `组织管理员` | `部门管理员` |
+| `请填写组织名称`（toast）| `请填写部门名称` |
+| `组织「...」已创建`（toast）| `部门「...」已创建` |
+| `创建组织`（DialogTitle）| `创建部门` |
+| `填写以下信息创建新的组织单元`（Description）| `填写以下信息创建新的部门` |
+| `组织名称`（Label 2 处）| `部门名称` |
+| `请输入组织名称`（placeholder）| `请输入部门名称` |
+| `设置组织管理员`（Label）| `设置部门管理员` |
+| `不指定时该组织默认由企业管理员管理`（hint）| `不指定时该部门默认由企业管理员管理` |
+| `组织管理员`（SelectItem 2 处）| `部门管理员` |
+| `创建组织`（提交按钮）| `创建部门` |
 
-### Files changed
-- `src/pages/admin/AdminUsers.tsx` — lines 394–486 only
+#### 4. `src/pages/ApiKeys.tsx`
+
+| 原文 | 改为 |
+|------|------|
+| `组织 API Key`（Tab label，非 admin 时）| `部门 API Key` |
+| `选择组织...`（Select placeholder）| `选择部门...` |
+| `所属组织：全部` / `所属组织`（筛选器）| `所属部门：全部` / `所属部门` |
+| `组织`（表格列头 `showOrg`）| `部门` |
+| `成员（仅组织Tab）`（代码注释、关键用于理解）| 注释也改，但不影响运行 |
+| `全局组织选择器`（注释）| `全局部门选择器` |
+| `组织管理员`（角色预览按钮切换器）| `部门管理员` |
+| `该组织暂无成员`（高级权限 Dialog 空态）| `该部门暂无成员` |
+| `该规则适用于所有组织内成员的新建 key 属性`（配置提示）| `该规则适用于所有部门内成员的新建 key 属性` |
+
+#### 5. `src/pages/Workspace.tsx`
+
+| 原文 | 改为 |
+|------|------|
+| `org_admin ? "组织管理员"` (3 处，含 roleLabel 函数和内联表达式) | `部门管理员` |
+
+---
+
+### 范围说明
+- **不修改**：变量名、函数名（如 `orgAdmin`、`org_admin`、`selectedOrgId`）、数据库字段名——仅改用户可见的 UI 文本字符串。
+- **不涉及管理端**（`src/pages/admin/` 路径下文件保持原样）。
