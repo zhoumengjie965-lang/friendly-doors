@@ -125,6 +125,7 @@ export default function ApiKeys({ enterprise, role }: Props) {
 
   const [myKeys, setMyKeys] = useState<ApiKey[]>([]);
   const [orgKeys, setOrgKeys] = useState<ApiKey[]>([]);
+  const [prodKeys, setProdKeys] = useState<ApiKey[]>([]);
   const [loading, setLoading] = useState(false);
 
   // Multi-org switching
@@ -146,6 +147,11 @@ export default function ApiKeys({ enterprise, role }: Props) {
   // Pagination
   const [myPage, setMyPage] = useState(1);
   const [orgPage, setOrgPage] = useState(1);
+  const [prodPage, setProdPage] = useState(1);
+
+  // Production tab state
+  const [creatingProd, setCreatingProd] = useState(false);
+  const [formBudgetType, setFormBudgetType] = useState<"monthly" | "daily">("monthly");
 
   // Visibility per key
   const [visibleKeys, setVisibleKeys] = useState<Set<string>>(new Set());
