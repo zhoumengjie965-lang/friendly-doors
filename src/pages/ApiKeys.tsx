@@ -152,6 +152,7 @@ export default function ApiKeys({ enterprise, role }: Props) {
 
   // Sheet state
   const [sheetOpen, setSheetOpen] = useState(false);
+  const [simpleDialogOpen, setSimpleDialogOpen] = useState(false);
   const [editingKey, setEditingKey] = useState<ApiKey | null>(null);
 
   // Form fields
