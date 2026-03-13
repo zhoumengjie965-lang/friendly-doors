@@ -290,8 +290,8 @@ export default function CreateOrgDialog({ open, onOpenChange, enterpriseId, exis
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="member">普通成员</SelectItem>
-                      <SelectItem value="org_admin">组织管理员</SelectItem>
-                      <SelectItem value="admin">企业管理员</SelectItem>
+                  <SelectItem value="org_admin">部门管理员</SelectItem>
+                       <SelectItem value="admin">企业管理员</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
