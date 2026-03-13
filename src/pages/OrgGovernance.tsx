@@ -8,6 +8,7 @@ import { Progress } from "@/components/ui/progress";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetFooter } from "@/components/ui/sheet";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
@@ -19,6 +20,7 @@ import {
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { MoreHorizontal, Plus, Users, Key, TrendingUp, CheckCircle, ArrowRight, Building2, BarChart3, Wallet, Sliders, AlertTriangle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import InlineBudgetEdit from "@/components/InlineBudgetEdit";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 
 // ── Mock sub-department data (UI preview only) ──────────────────────────────
@@ -598,7 +600,16 @@ export default function OrgGovernance({ enterprise, role }: Props) {
                       <TableCell className="text-muted-foreground">—</TableCell>
                       <TableCell className="text-muted-foreground">—</TableCell>
                       <TableCell>
-                        {m.daily_limit != null ? `¥${m.daily_limit}` : "¥2000"}
+                        <InlineBudgetEdit
+                          value={m.daily_limit ?? 2000}
+                          label="单日上限"
+                          unit="元/天"
+                          onSave={async (val) => {
+                            await supabase.from("members").update({ daily_limit: val }).eq("id", m.id);
+                            setMembers(prev => prev.map(x => x.id === m.id ? { ...x, daily_limit: val } : x));
+                            toast({ title: "单日上限已更新", description: `¥${val}/天` });
+                          }}
+                        />
                       </TableCell>
                       <TableCell>{statusBadge(m.status ?? "active")}</TableCell>
                       <TableCell>
@@ -727,9 +738,18 @@ export default function OrgGovernance({ enterprise, role }: Props) {
                           </div>
                         </TableCell>
                         <TableCell className="tabular-nums">{s.memberCount}</TableCell>
-                        <TableCell className="tabular-nums">
-                          {s.monthlyBudget ? `¥${s.monthlyBudget.toLocaleString()}` : <span className="text-muted-foreground">不限</span>}
-                        </TableCell>
+                         <TableCell className="tabular-nums">
+                           <InlineBudgetEdit
+                             value={s.monthlyBudget ?? 0}
+                             label="本月预算上限"
+                             unit="元/月"
+                             emptyLabel="不限"
+                             onSave={(val) => {
+                               setSubOrgs(prev => prev.map(x => x.id === s.id ? { ...x, monthlyBudget: val === 0 ? null : val } : x));
+                               toast({ title: "预算上限已更新", description: val === 0 ? "已设为不限" : `¥${val.toLocaleString()}/月` });
+                             }}
+                           />
+                         </TableCell>
                         <TableCell className={`tabular-nums font-medium ${overBudget ? "text-destructive" : ""}`}>
                           ¥{s.consumed.toLocaleString()}
                         </TableCell>
