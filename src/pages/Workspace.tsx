@@ -242,7 +242,7 @@ export default function Workspace() {
   ];
 
   // ── Role label helper ──
-  const roleLabel = (r: string) => r === "admin" ? "管理员" : r === "org_admin" ? "组织管理员" : "普通成员";
+  const roleLabel = (r: string) => r === "admin" ? "管理员" : r === "org_admin" ? "部门管理员" : "普通成员";
 
   // ── Identity description ──
   const identityDesc = enterprise
