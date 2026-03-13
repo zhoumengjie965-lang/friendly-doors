@@ -242,6 +242,16 @@ export default function ApiKeys({ enterprise, role }: Props) {
           name: m.users?.name ?? null,
         })));
       }
+    } else if (role === "admin") {
+      const { data: members } = await supabase
+        .from("members")
+        .select("user_phone, users(name)")
+        .eq("enterprise_id", enterprise.id)
+        .eq("status", "active");
+      setOrgMembers(members?.map((m: any) => ({
+        phone: m.user_phone,
+        name: m.users?.name ?? null,
+      })) ?? []);
     } else {
       setOrgMembers([]);
     }
@@ -604,13 +614,15 @@ export default function ApiKeys({ enterprise, role }: Props) {
                     </TableCell>
                     <TableCell>
                       <div className="flex items-center justify-center gap-1">
-                        <button
-                          onClick={() => openEdit(k)}
-                          className="p-1.5 rounded hover:bg-primary/10 text-primary transition-colors"
-                          title="编辑"
-                        >
-                          <Pencil className="w-3.5 h-3.5" />
-                        </button>
+                        {!(previewRole === "admin" && k.creator_phone !== phone) && (
+                          <button
+                            onClick={() => openEdit(k)}
+                            className="p-1.5 rounded hover:bg-primary/10 text-primary transition-colors"
+                            title="编辑"
+                          >
+                            <Pencil className="w-3.5 h-3.5" />
+                          </button>
+                        )}
                         <button
                           onClick={() => setDeleteTarget(k)}
                           className="p-1.5 rounded hover:bg-destructive/10 text-destructive transition-colors"
@@ -754,8 +766,8 @@ export default function ApiKeys({ enterprise, role }: Props) {
               </SelectContent>
             </Select>
           )}
-          {/* 成员筛选：仅在组织 Tab 下显示；org_admin 的"我的"Tab 不显示 */}
-          {(previewRole === "admin" || activeTab === "org") && (
+          {/* 成员筛选：仅在组织 Tab 下显示 */}
+          {activeTab === "org" && (
             <Select value={memberFilter} onValueChange={setMemberFilter}>
               <SelectTrigger className="h-9 w-40 border-border shadow-sm text-sm">
                 <SelectValue placeholder="所属成员" />
@@ -805,11 +817,11 @@ export default function ApiKeys({ enterprise, role }: Props) {
                 <ShieldCheck className="w-4 h-4" />成员高级权限
               </Button>
             </>
-          ) : (
+          ) : previewRole !== "admin" ? (
             <Button onClick={openCreate} className="gap-2 h-9">
               <Plus className="w-4 h-4" />创建 API Key
             </Button>
-          )}
+          ) : null}
         </div>
         <div className="flex items-center gap-2">
           {/* 名称 label + 输入框 */}
