@@ -16,8 +16,9 @@ import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { MoreHorizontal, Plus, Users, Key, TrendingUp, CheckCircle, ArrowRight, Building2, BarChart3, Wallet } from "lucide-react";
+import { MoreHorizontal, Plus, Users, Key, TrendingUp, CheckCircle, ArrowRight, Building2, BarChart3, Wallet, Sliders, AlertTriangle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 
 // ── Mock sub-department data (UI preview only) ──────────────────────────────
 interface SubOrg {
@@ -109,6 +110,13 @@ export default function OrgGovernance({ enterprise, role }: Props) {
   const [subOrgBudget, setSubOrgBudget] = useState("");
   const [subOrgAdminName, setSubOrgAdminName] = useState("");
   const [subOrgAdminPhone, setSubOrgAdminPhone] = useState("");
+
+  // 一键配置预算 state
+  const [showBudgetDialog, setShowBudgetDialog] = useState(false);
+  const [totalPackage, setTotalPackage] = useState("");
+  const [distributing, setDistributing] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<SubOrg | null>(null);
+  const [statsFlashKey, setStatsFlashKey] = useState(0);
 
   const { toast } = useToast();
   const phone = getCurrentPhone();
@@ -383,7 +391,7 @@ export default function OrgGovernance({ enterprise, role }: Props) {
                   </div>
                   <div>
                     <p className="text-xs text-muted-foreground">本月总预算上限</p>
-                    <p className="text-3xl font-bold text-foreground mt-0.5 tabular-nums">
+                    <p key={statsFlashKey} className="text-3xl font-bold text-foreground mt-0.5 tabular-nums animate-in zoom-in-95 duration-300">
                       {budget > 0 ? `¥${budget.toLocaleString()}` : <span className="text-xl text-muted-foreground">未设置</span>}
                     </p>
                   </div>
@@ -418,7 +426,7 @@ export default function OrgGovernance({ enterprise, role }: Props) {
                   </div>
                   <div>
                     <p className="text-xs text-muted-foreground">本月累计总消耗</p>
-                    <p className="text-3xl font-bold text-foreground mt-0.5 tabular-nums">
+                    <p key={`consumed-${statsFlashKey}`} className="text-3xl font-bold text-foreground mt-0.5 tabular-nums animate-in zoom-in-95 duration-300">
                       ¥{totalConsumed.toLocaleString()}
                     </p>
                   </div>
@@ -509,9 +517,14 @@ export default function OrgGovernance({ enterprise, role }: Props) {
                     <Plus className="w-4 h-4 mr-1" />添加成员
                   </Button>
                 ) : (
-                  <Button size="sm" onClick={() => setShowCreateSubOrg(true)}>
-                    <Plus className="w-4 h-4 mr-1" />创建子部门
-                  </Button>
+                  <div className="flex items-center gap-2">
+                    <Button size="sm" variant="outline" onClick={() => setShowBudgetDialog(true)}>
+                      <Sliders className="w-4 h-4 mr-1" />一键配置预算
+                    </Button>
+                    <Button size="sm" onClick={() => setShowCreateSubOrg(true)}>
+                      <Plus className="w-4 h-4 mr-1" />创建子部门
+                    </Button>
+                  </div>
                 )}
               </div>
             </CardHeader>
@@ -633,6 +646,23 @@ export default function OrgGovernance({ enterprise, role }: Props) {
             {/* ── Tab: 下属子部门 ───────────────────────────────────────── */}
             {activeTab === "sub-orgs" && (
             <CardContent className="p-0 pt-0">
+              {/* Zero-budget alert */}
+              {subOrgs.some(s => !s.monthlyBudget || s.monthlyBudget === 0) && (
+                <div className="px-4 pt-3">
+                  <Alert>
+                    <AlertTriangle className="w-4 h-4" />
+                    <AlertDescription className="flex items-center justify-between">
+                      <span>存在未分配预算的子部门，新部门需要分配预算后方可使用。</span>
+                      <button
+                        className="text-primary text-xs underline ml-2 shrink-0"
+                        onClick={() => setShowBudgetDialog(true)}
+                      >
+                        立即均分
+                      </button>
+                    </AlertDescription>
+                  </Alert>
+                </div>
+              )}
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -702,10 +732,7 @@ export default function OrgGovernance({ enterprise, role }: Props) {
                               <DropdownMenuSeparator />
                               <DropdownMenuItem
                                 className="text-destructive focus:text-destructive"
-                                onClick={() => {
-                                  setSubOrgs(prev => prev.filter(x => x.id !== s.id));
-                                  toast({ title: "子部门已删除" });
-                                }}
+                                onClick={() => setDeleteTarget(s)}
                               >
                                 删除子部门
                               </DropdownMenuItem>
@@ -957,6 +984,113 @@ export default function OrgGovernance({ enterprise, role }: Props) {
               }}
             >
               创建
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── 一键配置预算 Dialog ─────────────────────────────────────── */}
+      {(() => {
+        const subOrgAllocated = subOrgs.reduce((s, o) => s + (o.monthlyBudget ?? 0), 0);
+        const memberAllocated = members.reduce((s, m) => s + (m.daily_limit ?? 2000) * 30, 0);
+        const totalAllocated = subOrgAllocated + memberAllocated;
+        const remaining = budget > 0 ? budget - totalAllocated : null;
+        const n = subOrgs.length;
+        const pkg = Number(totalPackage);
+        const perBudget = n > 0 && pkg > 0 ? pkg / n : 0;
+
+        return (
+          <Dialog open={showBudgetDialog} onOpenChange={(open) => { setShowBudgetDialog(open); if (!open) setTotalPackage(""); }}>
+            <DialogContent className="sm:max-w-md">
+              <DialogHeader>
+                <DialogTitle>一键配置预算</DialogTitle>
+                <DialogDescription>将输入的总金额均分给所有子部门，并设置默认预警阈值 80%。</DialogDescription>
+              </DialogHeader>
+              <div className="space-y-4 py-2">
+                {remaining !== null && (
+                  <div className="rounded-lg bg-muted/60 p-3 flex justify-between text-sm">
+                    <span className="text-muted-foreground">企业剩余可分配额</span>
+                    <span className={`font-semibold tabular-nums ${remaining < 0 ? "text-destructive" : "text-foreground"}`}>
+                      ¥{remaining.toLocaleString()}
+                    </span>
+                  </div>
+                )}
+                <div className="space-y-1.5">
+                  <Label htmlFor="total-package">要分配的总预算（元）</Label>
+                  <Input
+                    id="total-package"
+                    type="number"
+                    placeholder="请输入总金额"
+                    value={totalPackage}
+                    onChange={(e) => setTotalPackage(e.target.value)}
+                  />
+                </div>
+                {n > 0 && pkg > 0 && (
+                  <div className="rounded-lg border border-primary/20 bg-primary/5 p-3 text-sm text-foreground">
+                    共 <span className="font-semibold">{n}</span> 个部门，每个部门将分得{" "}
+                    <span className="font-bold text-primary tabular-nums">¥{perBudget.toFixed(2)}</span>/月
+                  </div>
+                )}
+                {n === 0 && (
+                  <p className="text-sm text-muted-foreground">当前没有子部门，请先创建子部门。</p>
+                )}
+              </div>
+              <DialogFooter className="gap-2">
+                <Button variant="outline" onClick={() => { setShowBudgetDialog(false); setTotalPackage(""); }}>取消</Button>
+                <Button
+                  disabled={distributing || n === 0 || pkg <= 0}
+                  onClick={() => {
+                    setDistributing(true);
+                    setSubOrgs(prev => prev.map(s => ({ ...s, monthlyBudget: perBudget, warningThreshold: 80 })));
+                    setStatsFlashKey(k => k + 1);
+                    toast({ title: `已成功为 ${n} 个部门分配预算`, description: `每个部门 ¥${perBudget.toFixed(2)}/月` });
+                    setShowBudgetDialog(false);
+                    setTotalPackage("");
+                    setDistributing(false);
+                  }}
+                >
+                  {distributing ? "分配中…" : "确认均分"}
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+        );
+      })()}
+
+      {/* ── 删除子部门确认 Dialog ────────────────────────────────────── */}
+      <Dialog open={!!deleteTarget} onOpenChange={(open) => !open && setDeleteTarget(null)}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle>删除子部门</DialogTitle>
+            <DialogDescription>此操作不可恢复，请确认后继续。</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3 py-1">
+            <p className="text-sm text-foreground">
+              确认删除「<span className="font-semibold">{deleteTarget?.name}</span>」？
+            </p>
+            {deleteTarget?.monthlyBudget != null && deleteTarget.monthlyBudget > 0 && (
+              <div className="rounded-lg bg-muted/60 p-3 text-sm flex justify-between items-center">
+                <span className="text-muted-foreground">即将回收至企业的预算金额</span>
+                <span className="font-bold text-primary tabular-nums ml-2">¥{deleteTarget.monthlyBudget.toLocaleString()}/月</span>
+              </div>
+            )}
+          </div>
+          <DialogFooter className="gap-2">
+            <Button variant="outline" onClick={() => setDeleteTarget(null)}>取消</Button>
+            <Button
+              variant="destructive"
+              onClick={() => {
+                const recovered = deleteTarget?.monthlyBudget ?? 0;
+                setSubOrgs(prev => prev.filter(x => x.id !== deleteTarget!.id));
+                setStatsFlashKey(k => k + 1);
+                toast({
+                  title: "子部门已删除",
+                  description: recovered > 0 ? `¥${recovered.toLocaleString()} 预算已回收至企业` : undefined,
+                });
+                setDeleteTarget(null);
+              }}
+            >
+              确认删除
             </Button>
           </DialogFooter>
         </DialogContent>
