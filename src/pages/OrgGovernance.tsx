@@ -426,7 +426,7 @@ export default function OrgGovernance({ enterprise, role }: Props) {
                   </div>
                   <div>
                     <p className="text-xs text-muted-foreground">本月累计总消耗</p>
-                    <p className="text-3xl font-bold text-foreground mt-0.5 tabular-nums">
+                    <p key={`consumed-${statsFlashKey}`} className="text-3xl font-bold text-foreground mt-0.5 tabular-nums animate-in zoom-in-95 duration-300">
                       ¥{totalConsumed.toLocaleString()}
                     </p>
                   </div>
