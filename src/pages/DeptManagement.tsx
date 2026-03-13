@@ -1145,6 +1145,156 @@ function OrgView({ enterprise, role, orgId, orgs, onOrgUpdated }: {
   );
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// DeptManagement — Main page with left org tree + right dynamic content
+// ─────────────────────────────────────────────────────────────────────────────
+export default function DeptManagement({ enterprise, role }: Props) {
+  const [orgs, setOrgs] = useState<Org[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [selectedNode, setSelectedNode] = useState<"root" | string>("root");
+  const [expandedNodes, setExpandedNodes] = useState<Set<string>>(new Set());
+  const phone = getCurrentPhone();
+  const [currentUserOrgId, setCurrentUserOrgId] = useState<string | null>(null);
+
+  const loadOrgs = async () => {
+    const [orgsRes, membersRes] = await Promise.all([
+      supabase.from("organizations").select("*").eq("enterprise_id", enterprise.id).order("created_at"),
+      supabase.from("members").select("user_phone, organization_id").eq("enterprise_id", enterprise.id),
+    ]);
+    const allMembers = (membersRes.data || []) as { user_phone: string; organization_id: string | null }[];
+    const rawOrgs = (orgsRes.data || []) as any[];
+    const orgsWithCount = rawOrgs.map(org => ({
+      ...org,
+      memberCount: allMembers.filter(m => m.organization_id === org.id).length,
+    }));
+    setOrgs(orgsWithCount);
+    if (role === "org_admin" && phone) {
+      const myMembership = allMembers.find(m => m.user_phone === phone);
+      setCurrentUserOrgId(myMembership?.organization_id ?? null);
+    }
+    setLoading(false);
+  };
+
+  useEffect(() => { loadOrgs(); }, [enterprise.id]);
+
+  useEffect(() => {
+    if (role === "org_admin" && currentUserOrgId) {
+      setSelectedNode(currentUserOrgId);
+    }
+  }, [role, currentUserOrgId]);
+
+  const canAccess = (nodeId: "root" | string): boolean => {
+    if (role === "admin") return true;
+    if (nodeId === "root") return false;
+    if (role === "org_admin") return nodeId === currentUserOrgId;
+    return false;
+  };
+
+  const toggleExpand = (id: string) => {
+    setExpandedNodes(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
+
+  // Build recursive tree
+  const rootTree = useMemo(() => buildTree(orgs, null), [orgs]);
+
+  // Flatten tree for search — when searching, show all matching nodes
+  const flatAll = useMemo(() => flattenTree(rootTree), [rootTree]);
+
+  // Breadcrumb ancestors for selected node
+  const breadcrumb = useMemo(() => {
+    if (selectedNode === "root") return [];
+    return getAncestors(orgs, selectedNode);
+  }, [selectedNode, orgs]);
+
+  // Filter nodes by search
+  const searchActive = searchTerm.trim().length > 0;
+  const filteredFlat = useMemo(() => {
+    if (!searchActive) return null;
+    const term = searchTerm.toLowerCase();
+    return flatAll.filter(({ node }) => node.name.toLowerCase().includes(term));
+  }, [flatAll, searchTerm, searchActive]);
+
+  function renderTreeNode(node: OrgTreeNode, depth: number): React.ReactNode {
+    const isSelected = selectedNode === node.id;
+    const isLocked = !canAccess(node.id);
+    const hasKids = node.children.length > 0;
+    const isExpanded = expandedNodes.has(node.id);
+
+    return (
+      <div key={node.id}>
+        <button
+          disabled={isLocked}
+          onClick={() => { if (!isLocked) setSelectedNode(node.id); }}
+          style={{ paddingLeft: `${8 + depth * 14}px` }}
+          className={`w-full flex items-center gap-1.5 pr-2 py-1.5 rounded-md text-left text-xs transition-colors ${
+            isSelected
+              ? "bg-primary/10 text-primary font-medium"
+              : isLocked
+                ? "text-muted-foreground/40 cursor-not-allowed"
+                : "text-foreground hover:bg-muted/60"
+          }`}
+        >
+          {/* Expand/collapse chevron */}
+          {hasKids ? (
+            <span
+              className="shrink-0 flex items-center justify-center w-3.5 h-3.5"
+              onClick={(e) => { e.stopPropagation(); toggleExpand(node.id); }}
+            >
+              {isExpanded
+                ? <ChevronDown className="w-3 h-3 text-muted-foreground" />
+                : <ChevronRight className="w-3 h-3 text-muted-foreground" />}
+            </span>
+          ) : (
+            <span className="w-3.5 shrink-0" />
+          )}
+          {isLocked
+            ? <Lock className="w-3 h-3 shrink-0 text-muted-foreground/30" />
+            : <Folder className={`w-3 h-3 shrink-0 ${isSelected ? "text-primary" : "text-muted-foreground"}`} />
+          }
+          <span className="truncate flex-1">{node.name}</span>
+          {!isLocked && (
+            <span className="ml-auto text-[10px] text-muted-foreground/60 shrink-0">{node.memberCount ?? 0}</span>
+          )}
+        </button>
+        {hasKids && isExpanded && (
+          <div>
+            {node.children.map(child => renderTreeNode(child, depth + 1))}
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex h-full -m-6 overflow-hidden" style={{ minHeight: "calc(100vh - 56px)" }}>
+      {/* ── Left org tree panel ── */}
+      <div className="w-56 shrink-0 border-r border-border bg-background flex flex-col">
+        {/* Search */}
+        <div className="p-3 border-b border-border">
+          <div className="relative">
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
+            <Input
+              placeholder="搜索部门..."
+              value={searchTerm}
+              onChange={e => setSearchTerm(e.target.value)}
+              className="pl-8 h-8 text-xs bg-muted/40 border-0 focus-visible:ring-1"
+            />
+          </div>
+        </div>
+
         {/* Label */}
         <div className="px-3 pt-3 pb-1">
           <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">组织架构</p>
@@ -1152,44 +1302,46 @@ function OrgView({ enterprise, role, orgId, orgs, onOrgUpdated }: {
 
         {/* Tree */}
         <div className="flex-1 overflow-y-auto px-2 pb-3 space-y-0.5">
-          {treeNodes.map(node => {
-            const isRoot = node.id === "root";
-            const isSelected = selectedNode === node.id;
-            const isLocked = node.locked;
+          {/* Root node */}
+          {(!searchActive || enterprise.name.toLowerCase().includes(searchTerm.toLowerCase())) && (
+            <button
+              onClick={() => canAccess("root") && setSelectedNode("root")}
+              disabled={!canAccess("root")}
+              className={`w-full flex items-center gap-2 px-2 py-2 rounded-lg text-left text-xs transition-colors ${
+                selectedNode === "root"
+                  ? "bg-primary/10 text-primary font-medium"
+                  : !canAccess("root")
+                    ? "text-muted-foreground/40 cursor-not-allowed"
+                    : "text-foreground hover:bg-muted/60"
+              }`}
+            >
+              <Building2 className={`w-3.5 h-3.5 shrink-0 ${selectedNode === "root" ? "text-primary" : "text-muted-foreground"}`} />
+              <span className="truncate">{enterprise.name}</span>
+            </button>
+          )}
 
-            return (
-              <button
-                key={node.id}
-                disabled={isLocked}
-                onClick={() => !isLocked && setSelectedNode(node.id)}
-                className={`w-full flex items-center gap-2 px-2 py-2 rounded-lg text-left text-sm transition-colors ${
-                  isRoot ? "" : "pl-5"
-                } ${
-                  isSelected
-                    ? "bg-primary/10 text-primary font-medium"
-                    : isLocked
-                      ? "text-muted-foreground/50 cursor-not-allowed"
-                      : "text-foreground hover:bg-muted/60"
-                }`}
-              >
-                {isLocked ? (
-                  <Lock className="w-3.5 h-3.5 shrink-0 text-muted-foreground/40" />
-                ) : isRoot ? (
-                  <Building2 className={`w-3.5 h-3.5 shrink-0 ${isSelected ? "text-primary" : "text-muted-foreground"}`} />
-                ) : (
-                  <Folder className={`w-3.5 h-3.5 shrink-0 ${isSelected ? "text-primary" : "text-muted-foreground"}`} />
-                )}
-                <span className="truncate text-xs">{node.label}</span>
-                {!isLocked && !isRoot && (
-                  <span className="ml-auto text-[10px] text-muted-foreground shrink-0">
-                    {orgs.find(o => o.id === node.id)?.memberCount ?? 0}人
-                  </span>
-                )}
-              </button>
-            );
-          })}
+          {/* Recursive org tree (or flat search results) */}
+          {searchActive ? (
+            filteredFlat?.map(({ node, depth }) => {
+              const isSelected = selectedNode === node.id;
+              const isLocked = !canAccess(node.id);
+              return (
+                <button key={node.id} disabled={isLocked} onClick={() => !isLocked && setSelectedNode(node.id)}
+                  style={{ paddingLeft: `${8 + depth * 14}px` }}
+                  className={`w-full flex items-center gap-1.5 pr-2 py-1.5 rounded-md text-left text-xs transition-colors ${
+                    isSelected ? "bg-primary/10 text-primary font-medium" : isLocked ? "text-muted-foreground/40 cursor-not-allowed" : "text-foreground hover:bg-muted/60"
+                  }`}>
+                  {isLocked ? <Lock className="w-3 h-3 shrink-0 text-muted-foreground/30" /> : <Folder className={`w-3 h-3 shrink-0 ${isSelected ? "text-primary" : "text-muted-foreground"}`} />}
+                  <span className="truncate flex-1">{node.name}</span>
+                  {!isLocked && <span className="ml-auto text-[10px] text-muted-foreground/60 shrink-0">{node.memberCount ?? 0}</span>}
+                </button>
+              );
+            })
+          ) : (
+            rootTree.map(node => renderTreeNode(node, 0))
+          )}
 
-          {treeNodes.length === 0 && (
+          {searchActive && filteredFlat?.length === 0 && (
             <p className="text-xs text-muted-foreground text-center py-6">无匹配部门</p>
           )}
         </div>
@@ -1197,6 +1349,22 @@ function OrgView({ enterprise, role, orgId, orgs, onOrgUpdated }: {
 
       {/* ── Right content panel ── */}
       <div className="flex-1 overflow-y-auto p-6">
+        {/* Breadcrumb */}
+        {selectedNode !== "root" && breadcrumb.length > 0 && (
+          <div className="flex items-center gap-1 text-xs text-muted-foreground mb-4">
+            <button onClick={() => setSelectedNode("root")} className="hover:text-foreground transition-colors">{enterprise.name}</button>
+            {breadcrumb.map((anc, i) => (
+              <span key={anc.id} className="flex items-center gap-1">
+                <ChevronRight className="w-3 h-3" />
+                {i === breadcrumb.length - 1
+                  ? <span className="text-foreground font-medium">{anc.name}</span>
+                  : <button onClick={() => setSelectedNode(anc.id)} className="hover:text-foreground transition-colors">{anc.name}</button>
+                }
+              </span>
+            ))}
+          </div>
+        )}
+
         {selectedNode === "root" ? (
           <RootView
             enterprise={enterprise}
