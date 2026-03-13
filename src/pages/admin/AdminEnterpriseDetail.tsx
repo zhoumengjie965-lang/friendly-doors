@@ -662,91 +662,178 @@ export default function AdminEnterpriseDetail() {
                     </div>
                   </div>
 
-                  {/* Right: Members of selected org */}
+                  {/* Right: Tabbed panel */}
                   <div className="flex flex-col">
+                    {/* Header with tabs */}
                     <div className="px-5 py-3 border-b bg-muted/30 flex items-center justify-between">
                       <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
-                        {selectedOrg?.name} · 成员 ({orgMembers.length})
+                        {selectedOrg?.name}
                       </p>
+                      {hasSubOrgs ? (
+                        <div className="flex items-center gap-0.5 bg-muted rounded-md p-0.5">
+                          <button
+                            onClick={() => setOrgRightTab("members")}
+                            className={`px-3 py-1 text-xs font-medium rounded transition-colors ${
+                              orgRightTab === "members"
+                                ? "bg-background text-foreground shadow-sm"
+                                : "text-muted-foreground hover:text-foreground"
+                            }`}
+                          >
+                            直属成员 {hasMembers ? `(${orgMembers.length})` : "(0)"}
+                          </button>
+                          <button
+                            onClick={() => setOrgRightTab("sub-orgs")}
+                            className={`px-3 py-1 text-xs font-medium rounded transition-colors ${
+                              orgRightTab === "sub-orgs"
+                                ? "bg-background text-foreground shadow-sm"
+                                : "text-muted-foreground hover:text-foreground"
+                            }`}
+                          >
+                            下属子部门 ({subOrgs.length})
+                          </button>
+                        </div>
+                      ) : (
+                        <span className="text-xs text-muted-foreground">
+                          直属成员 ({orgMembers.length})
+                        </span>
+                      )}
                     </div>
 
-                    {/* Member table header */}
-                    <div className="grid grid-cols-[2fr_1fr_1fr_1fr_100px] gap-3 px-5 py-2.5 bg-muted/20 text-xs font-medium text-muted-foreground border-b">
-                      <span>成员</span>
-                      <span>角色</span>
-                      <span>单日上限</span>
-                      <span>状态</span>
-                      <span>操作</span>
-                    </div>
-
-                    {orgMembers.length === 0 ? (
-                      <div className="flex-1 flex items-center justify-center p-8 text-sm text-muted-foreground">
-                        该组织暂无成员
-                      </div>
-                    ) : (
-                      <div className="overflow-y-auto">
-                        {orgMembers.map((m) => (
-                          <div key={m.id} className="grid grid-cols-[2fr_1fr_1fr_1fr_100px] gap-3 px-5 py-3 border-b last:border-0 text-sm items-center">
-                            <div>
-                              <p className="font-medium text-foreground">{m.name || "用户"}</p>
-                              <p className="text-xs text-muted-foreground">{maskPhone(m.user_phone)}</p>
-                            </div>
-                            <span className="text-xs text-muted-foreground">
-                              {m.role === "admin" ? "组织管理员" : "普通成员"}
-                            </span>
-                            <span className="text-xs text-muted-foreground">
-                              {m.daily_limit != null ? `¥${m.daily_limit}` : "无限制"}
-                            </span>
-                            <span>
-                              <Badge
-                                variant={m.status === "active" ? "outline" : "secondary"}
-                                className="text-xs"
-                              >
-                                {m.status === "active" ? "正常" : "停用"}
-                              </Badge>
-                            </span>
-                            <div className="flex items-center gap-1">
-                              {/* Change role */}
-                              <button
-                                className="p-1.5 rounded hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
-                                title="修改角色"
-                                onClick={() => {
-                                  setEditMemberTarget(m);
-                                  setEditMemberAction("role");
-                                  setEditMemberRole(m.role);
-                                  setEditMemberOpen(true);
-                                }}
-                              >
-                                <UserCheck className="w-3.5 h-3.5" />
-                              </button>
-                              {/* Change limit */}
-                              <button
-                                className="p-1.5 rounded hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
-                                title="修改限额"
-                                onClick={() => {
-                                  setEditMemberTarget(m);
-                                  setEditMemberAction("limit");
-                                  setEditMemberLimit(m.daily_limit != null ? String(m.daily_limit) : "");
-                                  setEditMemberOpen(true);
-                                }}
-                              >
-                                <DollarSign className="w-3.5 h-3.5" />
-                              </button>
-                              {/* Ban */}
-                              <button
-                                className="p-1.5 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors"
-                                title="移除并封禁"
-                                onClick={() => {
-                                  setBanTarget(m);
-                                  setBanOpen(true);
-                                }}
-                              >
-                                <UserX className="w-3.5 h-3.5" />
-                              </button>
-                            </div>
+                    {/* Tab: 直属成员 */}
+                    {orgRightTab === "members" && (
+                      <>
+                        <div className="grid grid-cols-[2fr_1fr_1fr_1fr_100px] gap-3 px-5 py-2.5 bg-muted/20 text-xs font-medium text-muted-foreground border-b">
+                          <span>成员</span>
+                          <span>角色</span>
+                          <span>单日上限</span>
+                          <span>状态</span>
+                          <span>操作</span>
+                        </div>
+                        {orgMembers.length === 0 ? (
+                          <div className="flex-1 flex items-center justify-center p-8 text-sm text-muted-foreground">
+                            该组织暂无成员
                           </div>
-                        ))}
-                      </div>
+                        ) : (
+                          <div className="overflow-y-auto">
+                            {orgMembers.map((m) => (
+                              <div key={m.id} className="grid grid-cols-[2fr_1fr_1fr_1fr_100px] gap-3 px-5 py-3 border-b last:border-0 text-sm items-center">
+                                <div>
+                                  <p className="font-medium text-foreground">{m.name || "用户"}</p>
+                                  <p className="text-xs text-muted-foreground">{maskPhone(m.user_phone)}</p>
+                                </div>
+                                <span className="text-xs text-muted-foreground">
+                                  {m.role === "admin" ? "部门管理员" : "普通成员"}
+                                </span>
+                                <span className="text-xs text-muted-foreground">
+                                  {m.daily_limit != null ? `¥${m.daily_limit}` : "无限制"}
+                                </span>
+                                <span>
+                                  <Badge
+                                    variant={m.status === "active" ? "outline" : "secondary"}
+                                    className="text-xs"
+                                  >
+                                    {m.status === "active" ? "正常" : "停用"}
+                                  </Badge>
+                                </span>
+                                <div className="flex items-center gap-1">
+                                  <button
+                                    className="p-1.5 rounded hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
+                                    title="修改角色"
+                                    onClick={() => {
+                                      setEditMemberTarget(m);
+                                      setEditMemberAction("role");
+                                      setEditMemberRole(m.role);
+                                      setEditMemberOpen(true);
+                                    }}
+                                  >
+                                    <UserCheck className="w-3.5 h-3.5" />
+                                  </button>
+                                  <button
+                                    className="p-1.5 rounded hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
+                                    title="修改限额"
+                                    onClick={() => {
+                                      setEditMemberTarget(m);
+                                      setEditMemberAction("limit");
+                                      setEditMemberLimit(m.daily_limit != null ? String(m.daily_limit) : "");
+                                      setEditMemberOpen(true);
+                                    }}
+                                  >
+                                    <DollarSign className="w-3.5 h-3.5" />
+                                  </button>
+                                  <button
+                                    className="p-1.5 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors"
+                                    title="移除并封禁"
+                                    onClick={() => {
+                                      setBanTarget(m);
+                                      setBanOpen(true);
+                                    }}
+                                  >
+                                    <UserX className="w-3.5 h-3.5" />
+                                  </button>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </>
+                    )}
+
+                    {/* Tab: 下属子部门 */}
+                    {orgRightTab === "sub-orgs" && (
+                      <>
+                        <div className="grid grid-cols-[2fr_1.5fr_1fr_1.2fr] gap-3 px-5 py-2.5 bg-muted/20 text-xs font-medium text-muted-foreground border-b">
+                          <span>部门名称</span>
+                          <span>管理员</span>
+                          <span>本月预算上限</span>
+                          <span>使用率</span>
+                        </div>
+                        {subOrgs.length === 0 ? (
+                          <div className="flex-1 flex items-center justify-center p-8 text-sm text-muted-foreground">
+                            暂无下属子部门
+                          </div>
+                        ) : (
+                          <div className="overflow-y-auto">
+                            {subOrgs.map((o) => {
+                              const budget = o.monthly_budget;
+                              const consumed = o.current_month_budget ?? 0;
+                              const usageRatio = budget && budget > 0 ? Math.min((consumed / budget) * 100, 100) : 0;
+                              return (
+                                <div key={o.id} className="grid grid-cols-[2fr_1.5fr_1fr_1.2fr] gap-3 px-5 py-3 border-b last:border-0 text-sm items-center">
+                                  <div className="flex items-center gap-2">
+                                    <p className="font-medium text-foreground">{o.name}</p>
+                                    <Badge variant={o.status === "active" ? "outline" : "secondary"} className="text-xs">
+                                      {o.status === "active" ? "正常" : "停用"}
+                                    </Badge>
+                                  </div>
+                                  <div>
+                                    {o.admin_phone ? (
+                                      <>
+                                        <p className="text-sm text-foreground">{o.adminName || "用户"}</p>
+                                        <p className="text-xs text-muted-foreground">{maskPhone(o.admin_phone)}</p>
+                                      </>
+                                    ) : (
+                                      <span className="text-xs text-muted-foreground">未设置</span>
+                                    )}
+                                  </div>
+                                  <span className="text-xs text-muted-foreground">
+                                    {budget != null ? `¥${budget.toFixed(0)}` : "无限制"}
+                                  </span>
+                                  <div className="flex items-center gap-2">
+                                    {budget != null && budget > 0 ? (
+                                      <>
+                                        <Progress value={usageRatio} className="h-1.5 flex-1" />
+                                        <span className="text-[10px] text-muted-foreground w-7 text-right">{usageRatio.toFixed(0)}%</span>
+                                      </>
+                                    ) : (
+                                      <span className="text-xs text-muted-foreground">—</span>
+                                    )}
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </>
                     )}
                   </div>
                 </div>
