@@ -317,7 +317,7 @@ export default function CreateOrgDialog({ open, onOpenChange, enterpriseId, exis
               取消
             </Button>
             <Button className="flex-1" onClick={handleCreate} disabled={loading}>
-              {loading ? "创建中..." : "创建组织"}
+              {loading ? "创建中..." : "创建部门"}
             </Button>
           </div>
         </div>
