@@ -366,6 +366,7 @@ export default function AccountBalance({ enterprise, role }: Props) {
               <SelectItem value="manual">后台充值</SelectItem>
             </SelectContent>
           </Select>
+          </div>
         </div>
 
         <div className="rounded-lg border border-border overflow-hidden">
