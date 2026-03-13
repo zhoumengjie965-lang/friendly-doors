@@ -111,6 +111,13 @@ export default function OrgGovernance({ enterprise, role }: Props) {
   const [subOrgAdminName, setSubOrgAdminName] = useState("");
   const [subOrgAdminPhone, setSubOrgAdminPhone] = useState("");
 
+  // 一键配置预算 state
+  const [showBudgetDialog, setShowBudgetDialog] = useState(false);
+  const [totalPackage, setTotalPackage] = useState("");
+  const [distributing, setDistributing] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<SubOrg | null>(null);
+  const [statsFlashKey, setStatsFlashKey] = useState(0);
+
   const { toast } = useToast();
   const phone = getCurrentPhone();
   const tabCardRef = useRef<HTMLDivElement>(null);
