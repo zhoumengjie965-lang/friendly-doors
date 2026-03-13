@@ -4,50 +4,79 @@ import { getCurrentPhone } from "@/lib/auth";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { useToast } from "@/hooks/use-toast";
-import { User, Building2, Shield } from "lucide-react";
+import { User, Shield, Building2, Layers } from "lucide-react";
 
 const EMAIL_KEY = "ai_gateway_profile_email";
 
-interface Enterprise {
-  id: string;
-  name: string;
-  enterprise_code: string;
+interface MembershipCard {
+  enterprise_id: string;
+  enterprise_name: string;
+  org_name: string | null;
+  role: string;
 }
 
-interface OrgInfo {
-  id: string;
-  name: string;
+function maskPhone(phone: string) {
+  if (phone.length < 7) return phone;
+  return phone.slice(0, 3) + "****" + phone.slice(-4);
 }
 
-interface ProfileProps {
-  enterprise?: Enterprise | null;
-  currentOrg?: OrgInfo | null;
-  role?: string;
+function roleLabel(r?: string) {
+  return r === "admin" ? "管理员" : r === "org_admin" ? "组织管理员" : "成员";
 }
 
-export default function Profile({ enterprise, currentOrg, role }: ProfileProps) {
-  const [name, setName] = useState("");
+function avatarInitial(name: string, phone: string) {
+  if (name) return name[0];
+  return phone.slice(-2);
+}
+
+export default function Profile() {
+  const [username, setUsername] = useState("");
   const [email, setEmail] = useState(() => localStorage.getItem(EMAIL_KEY) || "");
+  const [userId, setUserId] = useState("");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [memberships, setMemberships] = useState<MembershipCard[]>([]);
   const { toast } = useToast();
-  const phone = getCurrentPhone();
+  const phone = getCurrentPhone() || "";
 
   useEffect(() => {
-    async function fetchProfile() {
-      if (!phone) return;
-      const { data } = await supabase
+    if (!phone) return;
+    async function load() {
+      // Fetch user record
+      const { data: user } = await supabase
         .from("users")
-        .select("name")
+        .select("id, name")
         .eq("phone", phone)
         .maybeSingle();
-      if (data?.name) setName(data.name);
+
+      if (user) {
+        setUserId(user.id);
+        setUsername(user.name || "");
+      }
+
+      // Fetch all memberships
+      const { data: memberRows } = await supabase
+        .from("members")
+        .select("enterprise_id, role, organizations(id, name), enterprises(id, name)")
+        .eq("user_phone", phone)
+        .eq("status", "active");
+
+      if (memberRows) {
+        const cards: MembershipCard[] = memberRows.map((m: any) => ({
+          enterprise_id: m.enterprise_id,
+          enterprise_name: m.enterprises?.name || "—",
+          org_name: m.organizations?.name || null,
+          role: m.role,
+        }));
+        setMemberships(cards);
+      }
+
       setLoading(false);
     }
-    fetchProfile();
+    load();
   }, [phone]);
 
   async function handleSave() {
@@ -56,7 +85,7 @@ export default function Profile({ enterprise, currentOrg, role }: ProfileProps) 
     localStorage.setItem(EMAIL_KEY, email.trim());
     const { error } = await supabase
       .from("users")
-      .update({ name: name.trim() })
+      .update({ name: username.trim() })
       .eq("phone", phone);
     setSaving(false);
     if (error) {
@@ -66,9 +95,6 @@ export default function Profile({ enterprise, currentOrg, role }: ProfileProps) 
     }
   }
 
-  const roleLabel = (r?: string) =>
-    r === "admin" ? "管理员" : r === "org_admin" ? "组织管理员" : "普通成员";
-
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -77,80 +103,129 @@ export default function Profile({ enterprise, currentOrg, role }: ProfileProps) 
     );
   }
 
+  const shortId = userId ? userId.replace(/-/g, "").slice(0, 6).toUpperCase() : "—";
+
   return (
-    <div className="max-w-md">
-      <div className="mb-5">
+    <div className="max-w-lg space-y-5">
+      <div>
         <h1 className="text-xl font-bold text-foreground flex items-center gap-2">
           <User className="w-5 h-5" />个人信息
         </h1>
         <p className="text-muted-foreground text-sm mt-0.5">管理你的账号资料</p>
       </div>
 
+      {/* ── 账号基础信息 ── */}
       <Card>
         <CardContent className="pt-5 pb-5 space-y-4">
-          {/* Account info */}
-          <div className="grid grid-cols-[80px_1fr] items-center gap-x-3 gap-y-3.5">
-            <Label className="text-muted-foreground text-xs text-right">手机号</Label>
-            <div className="h-9 px-3 flex items-center rounded-md border border-input bg-muted text-sm text-muted-foreground select-none">
-              {phone}
+          {/* Avatar + ID */}
+          <div className="flex items-center gap-3">
+            <Avatar className="h-12 w-12">
+              <AvatarFallback className="bg-primary/10 text-primary font-semibold text-base">
+                {avatarInitial(username, phone)}
+              </AvatarFallback>
+            </Avatar>
+            <div>
+              <p className="text-sm font-semibold text-foreground">{username || "未设置用户名"}</p>
+              <p className="text-xs text-muted-foreground">用户 ID：{shortId}（系统唯一标识）</p>
             </div>
+          </div>
 
-            <Label htmlFor="profile-name" className="text-xs text-right">姓名</Label>
+          <Separator />
+
+          {/* 用户名（可编辑） */}
+          <div className="space-y-1.5">
+            <label className="text-xs font-medium text-muted-foreground">用户名</label>
             <Input
-              id="profile-name"
-              placeholder="请输入姓名"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
+              placeholder="设置用户名"
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
               className="h-9"
             />
+            <p className="text-xs text-muted-foreground">注册时自动生成，可自行修改</p>
+          </div>
 
-            <Label htmlFor="profile-email" className="text-xs text-right">邮箱</Label>
-            <div className="space-y-0.5">
-              <Input
-                id="profile-email"
-                type="email"
-                placeholder="用于接收通知"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                className="h-9"
-              />
+          <Separator />
+
+          {/* 账号安全 */}
+          <div>
+            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">
+              账号安全
+            </p>
+            <div className="space-y-2.5">
+              {/* 手机号 */}
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-xs text-muted-foreground">手机号</p>
+                  <p className="text-sm font-medium text-foreground font-mono">{maskPhone(phone)}</p>
+                </div>
+                <Button variant="ghost" size="sm" className="text-xs text-primary h-7 px-2" disabled>
+                  更换绑定
+                </Button>
+              </div>
+
+              {/* 邮箱 */}
+              <div className="flex items-center gap-3">
+                <div className="flex-1">
+                  <p className="text-xs text-muted-foreground mb-1">邮箱</p>
+                  <Input
+                    type="email"
+                    placeholder="未绑定，用于接收通知"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    className="h-9"
+                  />
+                </div>
+              </div>
             </div>
           </div>
-
-          <Separator />
-
-          {/* Enterprise info */}
-          <div>
-            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3 flex items-center gap-1.5">
-              <Building2 className="w-3.5 h-3.5" />所属企业
-            </p>
-            {enterprise ? (
-              <div className="grid grid-cols-[80px_1fr] gap-x-3 gap-y-2 text-sm">
-                <span className="text-muted-foreground text-xs text-right self-center">企业</span>
-                <span className="font-medium text-foreground">{enterprise.name}</span>
-
-                <span className="text-muted-foreground text-xs text-right self-center">组织</span>
-                <span className="text-foreground">{currentOrg?.name || <span className="text-muted-foreground">—</span>}</span>
-
-                <span className="text-muted-foreground text-xs text-right self-center">角色</span>
-                <span className="inline-flex">
-                  <span className="flex items-center gap-1 text-xs px-2 py-0.5 rounded-full bg-primary/10 text-primary font-medium">
-                    <Shield className="w-3 h-3" />{roleLabel(role)}
-                  </span>
-                </span>
-              </div>
-            ) : (
-              <p className="text-sm text-muted-foreground">暂未加入企业</p>
-            )}
-          </div>
-
-          <Separator />
 
           <Button onClick={handleSave} disabled={saving} className="w-full">
             {saving ? "保存中…" : "保存"}
           </Button>
         </CardContent>
       </Card>
+
+      {/* ── 我的名片（每个企业一张） ── */}
+      <div>
+        <h2 className="text-sm font-semibold text-foreground flex items-center gap-1.5 mb-3">
+          <Layers className="w-4 h-4 text-muted-foreground" />我的名片
+        </h2>
+
+        {memberships.length === 0 ? (
+          <Card>
+            <CardContent className="py-6 text-center text-sm text-muted-foreground">
+              暂未加入任何企业
+            </CardContent>
+          </Card>
+        ) : (
+          <div className="space-y-3">
+            {memberships.map((m) => (
+              <Card key={m.enterprise_id}>
+                <CardContent className="pt-4 pb-4">
+                  <div className="flex items-center gap-2 mb-3">
+                    <Building2 className="w-4 h-4 text-primary" />
+                    <span className="text-sm font-semibold text-foreground">{m.enterprise_name}</span>
+                  </div>
+                  <div className="grid grid-cols-[64px_1fr] gap-x-3 gap-y-2 text-sm">
+                    <span className="text-xs text-muted-foreground self-center">企业内姓名</span>
+                    <span className="text-foreground font-medium">{username || <span className="text-muted-foreground">—</span>}</span>
+
+                    <span className="text-xs text-muted-foreground self-center">所属组织</span>
+                    <span className="text-foreground">{m.org_name || <span className="text-muted-foreground">—</span>}</span>
+
+                    <span className="text-xs text-muted-foreground self-center">我的角色</span>
+                    <span className="inline-flex">
+                      <span className="flex items-center gap-1 text-xs px-2 py-0.5 rounded-full bg-primary/10 text-primary font-medium">
+                        <Shield className="w-3 h-3" />{roleLabel(m.role)}
+                      </span>
+                    </span>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   );
 }
