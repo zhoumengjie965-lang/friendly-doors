@@ -113,7 +113,9 @@ export default function OrgGovernance({ enterprise, role }: Props) {
 
   // 一键配置预算 state
   const [showBudgetDialog, setShowBudgetDialog] = useState(false);
+  const [budgetDialogMode, setBudgetDialogMode] = useState<"members" | "sub-orgs">("sub-orgs");
   const [totalPackage, setTotalPackage] = useState("");
+  const [memberDailyLimit, setMemberDailyLimit] = useState("");
   const [distributing, setDistributing] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<SubOrg | null>(null);
   const [statsFlashKey, setStatsFlashKey] = useState(0);
@@ -513,13 +515,18 @@ export default function OrgGovernance({ enterprise, role }: Props) {
                   ))}
                 </div>
                 {activeTab === "members" ? (
-                  <Button size="sm" onClick={() => setShowAdd(true)}>
-                    <Plus className="w-4 h-4 mr-1" />添加成员
-                  </Button>
+                  <div className="flex items-center gap-2">
+                    <Button size="sm" variant="outline" onClick={() => { setBudgetDialogMode("members"); setMemberDailyLimit(""); setShowBudgetDialog(true); }}>
+                      <Sliders className="w-4 h-4 mr-1" />成员批量分配
+                    </Button>
+                    <Button size="sm" onClick={() => setShowAdd(true)}>
+                      <Plus className="w-4 h-4 mr-1" />添加成员
+                    </Button>
+                  </div>
                 ) : (
                   <div className="flex items-center gap-2">
-                    <Button size="sm" variant="outline" onClick={() => setShowBudgetDialog(true)}>
-                      <Sliders className="w-4 h-4 mr-1" />一键配置预算
+                    <Button size="sm" variant="outline" onClick={() => { setBudgetDialogMode("sub-orgs"); setTotalPackage(""); setShowBudgetDialog(true); }}>
+                      <Sliders className="w-4 h-4 mr-1" />部门批量分配
                     </Button>
                     <Button size="sm" onClick={() => setShowCreateSubOrg(true)}>
                       <Plus className="w-4 h-4 mr-1" />创建子部门
@@ -532,6 +539,25 @@ export default function OrgGovernance({ enterprise, role }: Props) {
             {/* ── Tab: 直属成员 ─────────────────────────────────────────── */}
             {activeTab === "members" && (
             <CardContent className="p-0 pt-0">
+              {/* Member zero-budget tip */}
+              {members.filter(m => !m.daily_limit || m.daily_limit === 0).length > 0 && (
+                <div className="px-4 pt-3">
+                  <div className="flex items-center justify-between gap-3 rounded-lg border border-orange-300 bg-orange-50 dark:border-orange-500/40 dark:bg-orange-500/10 px-4 py-3">
+                    <div className="flex items-center gap-2.5">
+                      <AlertTriangle className="w-4 h-4 text-orange-500 shrink-0" />
+                      <span className="text-sm font-medium text-orange-800 dark:text-orange-300">
+                        检测到 {members.filter(m => !m.daily_limit || m.daily_limit === 0).length} 个成员未配置预算
+                      </span>
+                    </div>
+                    <button
+                      className="shrink-0 text-xs font-semibold text-orange-600 dark:text-orange-400 underline underline-offset-2 hover:text-orange-700 dark:hover:text-orange-300 transition-colors"
+                      onClick={() => { setBudgetDialogMode("members"); setMemberDailyLimit(""); setShowBudgetDialog(true); }}
+                    >
+                      点击一键配置
+                    </button>
+                  </div>
+                </div>
+              )}
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -647,20 +673,20 @@ export default function OrgGovernance({ enterprise, role }: Props) {
             {activeTab === "sub-orgs" && (
             <CardContent className="p-0 pt-0">
               {/* Zero-budget alert */}
-              {subOrgs.some(s => !s.monthlyBudget || s.monthlyBudget === 0) && (
+              {subOrgs.filter(s => !s.monthlyBudget || s.monthlyBudget === 0).length > 0 && (
                 <div className="px-4 pt-3">
                   <div className="flex items-center justify-between gap-3 rounded-lg border border-orange-300 bg-orange-50 dark:border-orange-500/40 dark:bg-orange-500/10 px-4 py-3">
                     <div className="flex items-center gap-2.5">
                       <AlertTriangle className="w-4 h-4 text-orange-500 shrink-0" />
                       <span className="text-sm font-medium text-orange-800 dark:text-orange-300">
-                        存在未分配预算的子部门，新部门需要分配预算后方可使用。
+                        检测到 {subOrgs.filter(s => !s.monthlyBudget || s.monthlyBudget === 0).length} 个子部门未配置预算
                       </span>
                     </div>
                     <button
                       className="shrink-0 text-xs font-semibold text-orange-600 dark:text-orange-400 underline underline-offset-2 hover:text-orange-700 dark:hover:text-orange-300 transition-colors"
-                      onClick={() => setShowBudgetDialog(true)}
+                      onClick={() => { setBudgetDialogMode("sub-orgs"); setTotalPackage(""); setShowBudgetDialog(true); }}
                     >
-                      立即均分
+                      点击一键配置
                     </button>
                   </div>
                 </div>
@@ -991,7 +1017,7 @@ export default function OrgGovernance({ enterprise, role }: Props) {
         </DialogContent>
       </Dialog>
 
-      {/* ── 一键配置预算 Dialog ─────────────────────────────────────── */}
+      {/* ── 批量分配预算 Dialog ─────────────────────────────────────── */}
       {(() => {
         const subOrgAllocated = subOrgs.reduce((s, o) => s + (o.monthlyBudget ?? 0), 0);
         const memberAllocated = members.reduce((s, m) => s + (m.daily_limit ?? 2000) * 30, 0);
@@ -1000,59 +1026,127 @@ export default function OrgGovernance({ enterprise, role }: Props) {
         const n = subOrgs.length;
         const pkg = Number(totalPackage);
         const perBudget = n > 0 && pkg > 0 ? pkg / n : 0;
+        const dailyLimitNum = Number(memberDailyLimit);
+        const perMonthBudget = dailyLimitNum > 0 ? dailyLimitNum * 30 : 0;
+        const totalMonthCost = perMonthBudget * members.length;
 
         return (
-          <Dialog open={showBudgetDialog} onOpenChange={(open) => { setShowBudgetDialog(open); if (!open) setTotalPackage(""); }}>
+          <Dialog open={showBudgetDialog} onOpenChange={(open) => { setShowBudgetDialog(open); if (!open) { setTotalPackage(""); setMemberDailyLimit(""); } }}>
             <DialogContent className="sm:max-w-md">
               <DialogHeader>
-                <DialogTitle>一键配置预算</DialogTitle>
-                <DialogDescription>将输入的总金额均分给所有子部门，并设置默认预警阈值 80%。</DialogDescription>
+                <DialogTitle>{budgetDialogMode === "members" ? "成员批量分配" : "部门批量分配"}</DialogTitle>
+                <DialogDescription>
+                  {budgetDialogMode === "members"
+                    ? "为本部门所有直属成员统一设置单日消耗上限。"
+                    : "将输入的总金额均分给所有子部门，并设置默认预警阈值 80%。"}
+                </DialogDescription>
               </DialogHeader>
-              <div className="space-y-4 py-2">
-                {remaining !== null && (
-                  <div className="rounded-lg bg-muted/60 p-3 flex justify-between text-sm">
-                    <span className="text-muted-foreground">企业剩余可分配额</span>
-                    <span className={`font-semibold tabular-nums ${remaining < 0 ? "text-destructive" : "text-foreground"}`}>
-                      ¥{remaining.toLocaleString()}
-                    </span>
+
+              {budgetDialogMode === "sub-orgs" ? (
+                <div className="space-y-4 py-2">
+                  {remaining !== null && (
+                    <div className="rounded-lg bg-muted/60 p-3 flex justify-between text-sm">
+                      <span className="text-muted-foreground">企业剩余可分配额</span>
+                      <span className={`font-semibold tabular-nums ${remaining < 0 ? "text-destructive" : "text-foreground"}`}>
+                        ¥{remaining.toLocaleString()}
+                      </span>
+                    </div>
+                  )}
+                  <div className="space-y-1.5">
+                    <Label htmlFor="total-package">要分配的总预算（元）</Label>
+                    <Input
+                      id="total-package"
+                      type="number"
+                      placeholder="请输入总金额"
+                      value={totalPackage}
+                      onChange={(e) => setTotalPackage(e.target.value)}
+                    />
                   </div>
-                )}
-                <div className="space-y-1.5">
-                  <Label htmlFor="total-package">要分配的总预算（元）</Label>
-                  <Input
-                    id="total-package"
-                    type="number"
-                    placeholder="请输入总金额"
-                    value={totalPackage}
-                    onChange={(e) => setTotalPackage(e.target.value)}
-                  />
+                  {n > 0 && pkg > 0 && (
+                    <div className="rounded-lg border border-primary/20 bg-primary/5 p-3 text-sm text-foreground">
+                      共 <span className="font-semibold">{n}</span> 个部门，每个部门将分得{" "}
+                      <span className="font-bold text-primary tabular-nums">¥{perBudget.toFixed(2)}</span>/月
+                    </div>
+                  )}
+                  {n === 0 && (
+                    <p className="text-sm text-muted-foreground">当前没有子部门，请先创建子部门。</p>
+                  )}
                 </div>
-                {n > 0 && pkg > 0 && (
-                  <div className="rounded-lg border border-primary/20 bg-primary/5 p-3 text-sm text-foreground">
-                    共 <span className="font-semibold">{n}</span> 个部门，每个部门将分得{" "}
-                    <span className="font-bold text-primary tabular-nums">¥{perBudget.toFixed(2)}</span>/月
+              ) : (
+                <div className="space-y-4 py-2">
+                  <div className="space-y-1.5">
+                    <Label htmlFor="member-daily-limit">统一单日上限（元 / 人）</Label>
+                    <Input
+                      id="member-daily-limit"
+                      type="number"
+                      min="0"
+                      placeholder="例：200"
+                      value={memberDailyLimit}
+                      onChange={(e) => setMemberDailyLimit(e.target.value)}
+                    />
                   </div>
-                )}
-                {n === 0 && (
-                  <p className="text-sm text-muted-foreground">当前没有子部门，请先创建子部门。</p>
-                )}
-              </div>
+                  {dailyLimitNum > 0 && (
+                    <div className="rounded-lg border border-primary/20 bg-primary/5 p-3 text-sm space-y-2">
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">单人月预算</span>
+                        <span className="font-semibold tabular-nums text-foreground">¥{perMonthBudget.toLocaleString()} / 月</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">成员人数</span>
+                        <span className="font-semibold tabular-nums text-foreground">{members.length} 人</span>
+                      </div>
+                      <div className="border-t border-primary/20 pt-2 flex justify-between">
+                        <span className="text-muted-foreground font-medium">预计总月成本</span>
+                        <span className="font-bold text-primary tabular-nums">¥{totalMonthCost.toLocaleString()}</span>
+                      </div>
+                    </div>
+                  )}
+                  {members.length === 0 && (
+                    <p className="text-sm text-muted-foreground">当前没有成员，请先添加成员。</p>
+                  )}
+                </div>
+              )}
+
               <DialogFooter className="gap-2">
-                <Button variant="outline" onClick={() => { setShowBudgetDialog(false); setTotalPackage(""); }}>取消</Button>
-                <Button
-                  disabled={distributing || n === 0 || pkg <= 0}
-                  onClick={() => {
-                    setDistributing(true);
-                    setSubOrgs(prev => prev.map(s => ({ ...s, monthlyBudget: perBudget, warningThreshold: 80 })));
-                    setStatsFlashKey(k => k + 1);
-                    toast({ title: `已成功为 ${n} 个部门分配预算`, description: `每个部门 ¥${perBudget.toFixed(2)}/月` });
-                    setShowBudgetDialog(false);
-                    setTotalPackage("");
-                    setDistributing(false);
-                  }}
-                >
-                  {distributing ? "分配中…" : "确认均分"}
-                </Button>
+                <Button variant="outline" onClick={() => { setShowBudgetDialog(false); setTotalPackage(""); setMemberDailyLimit(""); }}>取消</Button>
+                {budgetDialogMode === "sub-orgs" ? (
+                  <Button
+                    disabled={distributing || n === 0 || pkg <= 0}
+                    onClick={() => {
+                      setDistributing(true);
+                      setSubOrgs(prev => prev.map(s => ({ ...s, monthlyBudget: perBudget, warningThreshold: 80 })));
+                      setStatsFlashKey(k => k + 1);
+                      toast({ title: `已成功为 ${n} 个部门分配预算`, description: `每个部门 ¥${perBudget.toFixed(2)}/月` });
+                      setShowBudgetDialog(false);
+                      setTotalPackage("");
+                      setDistributing(false);
+                    }}
+                  >
+                    {distributing ? "分配中…" : "确认均分"}
+                  </Button>
+                ) : (
+                  <Button
+                    disabled={distributing || members.length === 0 || dailyLimitNum <= 0}
+                    onClick={async () => {
+                      setDistributing(true);
+                      try {
+                        await Promise.all(members.map(m =>
+                          supabase.from("members").update({ daily_limit: dailyLimitNum }).eq("id", m.id)
+                        ));
+                        setMembers(prev => prev.map(m => ({ ...m, daily_limit: dailyLimitNum })));
+                        toast({ title: `已为 ${members.length} 位成员设置单日上限`, description: `¥${dailyLimitNum}/天 · ¥${perMonthBudget}/月` });
+                        setShowBudgetDialog(false);
+                        setMemberDailyLimit("");
+                      } catch {
+                        toast({ title: "分配失败", variant: "destructive" });
+                      } finally {
+                        setDistributing(false);
+                      }
+                    }}
+                  >
+                    {distributing ? "分配中…" : "确认分配"}
+                  </Button>
+                )}
               </DialogFooter>
             </DialogContent>
           </Dialog>
