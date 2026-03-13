@@ -649,18 +649,20 @@ export default function OrgGovernance({ enterprise, role }: Props) {
               {/* Zero-budget alert */}
               {subOrgs.some(s => !s.monthlyBudget || s.monthlyBudget === 0) && (
                 <div className="px-4 pt-3">
-                  <Alert>
-                    <AlertTriangle className="w-4 h-4" />
-                    <AlertDescription className="flex items-center justify-between">
-                      <span>存在未分配预算的子部门，新部门需要分配预算后方可使用。</span>
-                      <button
-                        className="text-primary text-xs underline ml-2 shrink-0"
-                        onClick={() => setShowBudgetDialog(true)}
-                      >
-                        立即均分
-                      </button>
-                    </AlertDescription>
-                  </Alert>
+                  <div className="flex items-center justify-between gap-3 rounded-lg border border-orange-300 bg-orange-50 dark:border-orange-500/40 dark:bg-orange-500/10 px-4 py-3">
+                    <div className="flex items-center gap-2.5">
+                      <AlertTriangle className="w-4 h-4 text-orange-500 shrink-0" />
+                      <span className="text-sm font-medium text-orange-800 dark:text-orange-300">
+                        存在未分配预算的子部门，新部门需要分配预算后方可使用。
+                      </span>
+                    </div>
+                    <button
+                      className="shrink-0 text-xs font-semibold text-orange-600 dark:text-orange-400 underline underline-offset-2 hover:text-orange-700 dark:hover:text-orange-300 transition-colors"
+                      onClick={() => setShowBudgetDialog(true)}
+                    >
+                      立即均分
+                    </button>
+                  </div>
                 </div>
               )}
               <Table>
