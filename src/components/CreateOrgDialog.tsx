@@ -186,8 +186,8 @@ export default function CreateOrgDialog({ open, onOpenChange, enterpriseId, exis
 
         <div className="space-y-5 py-2">
           <div className="space-y-2">
-            <Label>组织名称 <span className="text-destructive">*</span></Label>
-          <Input placeholder="请输入组织名称" value={orgName} onChange={e => setOrgName(e.target.value)} />
+            <Label>部门名称 <span className="text-destructive">*</span></Label>
+          <Input placeholder="请输入部门名称" value={orgName} onChange={e => setOrgName(e.target.value)} />
           </div>
 
           <div className="space-y-2">
