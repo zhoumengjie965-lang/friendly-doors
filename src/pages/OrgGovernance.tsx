@@ -626,7 +626,7 @@ export default function OrgGovernance({ enterprise, role }: Props) {
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="member">普通成员</SelectItem>
-                        <SelectItem value="org_admin">组织管理员</SelectItem>
+                        <SelectItem value="org_admin">部门管理员</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
