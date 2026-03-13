@@ -1,71 +1,70 @@
 
-## Two focused layout tweaks — `src/pages/admin/AdminUsers.tsx` only
+## 修改范围：`src/pages/ApiKeys.tsx`，4 处精准改动
 
-### Change 1: Basic info — 2×2 grid (lines 394–447)
+### 改动 1：删除企业管理员「我的 key」Tab 的成员筛选框（第 758 行）
 
-Currently 4 rows stacked vertically with `space-y-4`. Redesign as a **2×2 grid** — left column: 用户名 + 账号状态, right column: 手机号 + 密码重置.
+**当前条件**：`(previewRole === "admin" || activeTab === "org")` — 导致 admin 在「我的」Tab 也显示成员筛选
+**改为**：`activeTab === "org"` — 仅在组织 Tab 显示，与 org_admin 行为保持一致
 
-```tsx
-<div className="grid grid-cols-2 gap-x-4 gap-y-3">
-  {/* 用户名 — top-left */}
-  <div className="flex items-center justify-between">
-    <div>
-      <Label className="text-xs text-muted-foreground">用户名</Label>
-      <p className="text-sm mt-0.5">{drawerUser.name || "—"}</p>
-    </div>
-    <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground" onClick={...}>
-      <Copy className="w-3.5 h-3.5" />
-    </Button>
-  </div>
+---
 
-  {/* 手机号 — top-right */}
-  <div className="flex items-center justify-between">
-    <div>
-      <Label className="text-xs text-muted-foreground">手机号</Label>
-      <p className="text-sm mt-0.5 font-medium tabular-nums">{drawerUser.phone}</p>
-    </div>
-    <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground" onClick={...}>
-      <Copy className="w-3.5 h-3.5" />
-    </Button>
-  </div>
+### 改动 2：企业管理员组织 Tab 加载全企业成员数据（第 232-247 行）
 
-  {/* 账号状态 — bottom-left */}
-  <div className="flex items-center justify-between">
-    <div>
-      <Label className="text-xs text-muted-foreground">账号状态</Label>
-      <p className="text-sm mt-0.5">...</p>
-    </div>
-    <Switch ... />
-  </div>
+当前当 `targetOrgId = null`（admin 默认情况）时，`orgMembers` 被置空 `[]`，导致组织 Tab 的成员筛选下拉无数据。
 
-  {/* 密码重置 — bottom-right */}
-  <div className="flex items-center justify-between">
-    <div>
-      <Label className="text-xs text-muted-foreground">密码重置</Label>
-      <p className="text-xs text-muted-foreground mt-0.5">强制用户下次登录时重置密码</p>
-    </div>
-    <Button size="sm" variant="outline" ...>重置密码</Button>
-  </div>
-</div>
+**修改**：在 `else { setOrgMembers([]) }` 分支中，增加判断：当 `role === "admin"` 且无 targetOrgId 时，改为按 `enterprise_id` 查全企业成员：
+
+```
+} else if (role === "admin") {
+  // 查全企业所有活跃成员
+  const { data: members } = await supabase
+    .from("members")
+    .select("user_phone, users(name)")
+    .eq("enterprise_id", enterprise.id)
+    .eq("status", "active");
+  setOrgMembers(members?.map(...) ?? []);
+} else {
+  setOrgMembers([]);
+}
 ```
 
-### Change 2: Personal space — label outside card, tighter padding (lines 459–486)
+数据获取侧（无 org 过滤的全企业 Key）已经是正确的，只需补充成员列表数据即可。
 
-Move "个人空间" text **above** the card border, reduce internal padding from `p-4 space-y-3` to `p-3 space-y-2`:
+---
+
+### 改动 3：企业管理员对他人 Key 隐藏编辑按钮（第 607-613 行）
+
+在编辑按钮外层加条件：当 `previewRole === "admin"` 且 `k.creator_phone !== phone` 时，不渲染编辑按钮（删除和启停按钮保留）。
 
 ```tsx
-{/* 个人空间 */}
-<div>
-  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1.5">个人空间</p>
-  <div className="bg-blue-50/50 border border-blue-100 rounded-lg p-3 space-y-2">
-    <div className="flex items-center justify-between">
-      <span className="text-sm text-muted-foreground">当前余额</span>
-      <span className="font-semibold tabular-nums">¥{...}</span>
-    </div>
-    {/* balance edit input + 保存 button + disclaimer — unchanged */}
-  </div>
-</div>
+{!(previewRole === "admin" && k.creator_phone !== phone) && (
+  <button onClick={() => openEdit(k)} ...>
+    <Pencil />
+  </button>
+)}
 ```
 
-### Files changed
-- `src/pages/admin/AdminUsers.tsx` — lines 394–486 only
+---
+
+### 改动 4：企业管理员视角移除「创建 API Key」按钮（第 780-812 行）
+
+当前三元判断：`org_admin && org tab ? 配置按钮 : 创建按钮`
+改为三路判断：`org_admin && org tab ? 配置按钮 : admin ? null : 创建按钮`
+
+```tsx
+{previewRole === "org_admin" && activeTab === "org" ? (
+  /* 配置 & 高级权限按钮 */
+) : previewRole !== "admin" ? (
+  <Button onClick={openCreate}>创建 API Key</Button>
+) : null}
+```
+
+---
+
+### 改动汇总
+| # | 位置 | 类型 |
+|---|------|------|
+| 1 | 行 758 | 条件表达式 1 行修改 |
+| 2 | 行 232-247 | else 分支新增 ~8 行 |
+| 3 | 行 607-613 | 按钮外层加条件包裹 |
+| 4 | 行 780-812 | 三元改三路 ~3 行 |
