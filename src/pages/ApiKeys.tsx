@@ -909,7 +909,7 @@ export default function ApiKeys({ enterprise, role }: Props) {
           <Button variant="outline" className="h-9 px-3" onClick={handleReset}>重置</Button>
           {/* 刷新图标 */}
           <button
-            onClick={() => { if (activeTab === "my") fetchMyKeys(); else fetchOrgKeys(); }}
+            onClick={() => { if (activeTab === "my") fetchMyKeys(); else if (activeTab === "prod") fetchProdKeys(); else fetchOrgKeys(); }}
             className="h-9 w-9 flex items-center justify-center rounded-md border border-border hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
             title="刷新"
           >
