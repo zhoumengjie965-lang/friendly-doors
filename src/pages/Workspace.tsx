@@ -372,48 +372,117 @@ export default function Workspace() {
     </div>
   );
 
-  // ── Personal space (no enterprise) ──
+  // ── Onboarding (no enterprise) ──
   if (!enterprise) {
     return (
-      <div className="min-h-screen bg-background">
-        <header className="h-14 border-b border-border bg-background flex items-center px-4 gap-3">
-          <div className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0"
-            style={{ background: "linear-gradient(135deg, hsl(224,76%,48%), hsl(262,60%,58%))" }}>
-            <Building2 className="w-4 h-4 text-white" />
-          </div>
-          <span className="text-sm font-medium text-foreground">AI 网关平台</span>
-          <div className="flex-1" />
-          <UserMenu />
-        </header>
-        <div className="flex-1 flex items-center justify-center min-h-[calc(100vh-56px)] p-6">
-          <div className="text-center max-w-md">
-            <div className="w-16 h-16 rounded-2xl mx-auto mb-4 flex items-center justify-center"
+      <div className="min-h-screen bg-background flex items-center justify-center p-6">
+        <div className="w-full max-w-sm">
+          {/* Icon + Title */}
+          <div className="flex flex-col items-center mb-8">
+            <div className="w-14 h-14 rounded-2xl flex items-center justify-center mb-5"
               style={{ background: "linear-gradient(135deg, hsl(224,76%,48%), hsl(262,60%,58%))" }}>
-              <Building2 className="w-8 h-8 text-white" />
+              <svg className="w-7 h-7 text-white" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" />
+              </svg>
             </div>
-            <h2 className="text-2xl font-bold text-foreground mb-2">欢迎来到 AI 网关平台</h2>
-            <p className="text-muted-foreground mb-8">你还没有加入任何企业，创建或加入一个企业开始使用</p>
-            <div className="flex gap-3 justify-center">
-              <button
-                onClick={() => setShowCreateEnterprise(true)}
-                className="flex items-center gap-2 px-5 py-2.5 rounded-lg text-white text-sm font-medium transition-opacity hover:opacity-90"
-                style={{ background: "linear-gradient(135deg, hsl(224,76%,48%), hsl(262,60%,58%))" }}
-              >
-                <Plus className="w-4 h-4" />创建企业
-              </button>
-              <button
-                onClick={() => setShowJoinEnterprise(true)}
-                className="flex items-center gap-2 px-5 py-2.5 rounded-lg border border-border text-foreground text-sm font-medium hover:bg-muted transition-colors"
-              >
-                <UserPlus className="w-4 h-4" />加入企业
-              </button>
-            </div>
+            <h1 className="text-2xl font-bold text-foreground">欢迎来到 AI 网关平台</h1>
+            <p className="text-sm text-muted-foreground mt-2">开启您的 AI 之旅，选择适合您的使用方式</p>
           </div>
+
+          {/* Cards */}
+          <div className="space-y-3">
+            {/* Create Enterprise */}
+            <button
+              onClick={() => setShowCreateEnterprise(true)}
+              className="w-full flex items-center gap-4 p-5 bg-card border border-border rounded-xl hover:border-primary/60 hover:shadow-sm transition-all text-left group"
+            >
+              <div className="w-10 h-10 rounded-lg flex items-center justify-center shrink-0"
+                style={{ background: "linear-gradient(135deg, hsl(224,76%,48%), hsl(262,60%,58%))" }}>
+                <Plus className="w-5 h-5 text-white" />
+              </div>
+              <div className="flex-1">
+                <p className="font-semibold text-foreground group-hover:text-primary transition-colors">创建企业</p>
+                <p className="text-xs text-muted-foreground mt-0.5">适合团队协作，可邀请成员、分配权限</p>
+              </div>
+              <ChevronRight className="w-4 h-4 text-muted-foreground group-hover:text-primary transition-colors" />
+            </button>
+
+            {/* Divider */}
+            <div className="flex items-center gap-3 py-1">
+              <div className="flex-1 h-px bg-border" />
+              <span className="text-xs text-muted-foreground">或</span>
+              <div className="flex-1 h-px bg-border" />
+            </div>
+
+            {/* Personal Mode */}
+            <button
+              disabled
+              className="w-full flex items-center gap-4 p-5 bg-card border border-dashed border-border rounded-xl text-left opacity-60 cursor-not-allowed"
+            >
+              <div className="w-10 h-10 rounded-lg border border-border flex items-center justify-center shrink-0">
+                <UserCircle className="w-5 h-5 text-muted-foreground" />
+              </div>
+              <div className="flex-1">
+                <p className="font-semibold text-foreground">个人模式</p>
+                <p className="text-xs text-muted-foreground mt-0.5">适合独立开发者，快速开始使用</p>
+              </div>
+              <ChevronRight className="w-4 h-4 text-muted-foreground" />
+            </button>
+          </div>
+
+          <p className="text-center text-xs text-muted-foreground mt-8">
+            后续可以在设置中随时切换或创建新的空间
+          </p>
         </div>
 
-        {/* Modals */}
-        {showCreateEnterprise && <EnterpriseModal title="创建企业" placeholder="请输入企业名称" value={newEnterpriseName} onChange={setNewEnterpriseName} onConfirm={handleCreateEnterprise} onClose={() => { setShowCreateEnterprise(false); setNewEnterpriseName(""); }} loading={actionLoading} confirmText="创建" />}
-        {showJoinEnterprise && <EnterpriseModal title="加入企业" placeholder="请输入邀请码" value={joinCode} onChange={setJoinCode} onConfirm={handleJoinEnterprise} onClose={() => { setShowJoinEnterprise(false); setJoinCode(""); }} loading={actionLoading} confirmText="加入" />}
+        {/* Create Enterprise Dialog */}
+        {showCreateEnterprise && (
+          <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
+            <div className="bg-card border border-border rounded-2xl shadow-xl w-full max-w-sm p-6 space-y-5">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <svg className="w-5 h-5 text-primary" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <rect x="2" y="3" width="20" height="14" rx="2" /><path d="M8 21h8M12 17v4" />
+                  </svg>
+                  <h2 className="text-base font-semibold text-foreground">创建企业</h2>
+                </div>
+                <button onClick={() => { setShowCreateEnterprise(false); setNewEnterpriseName(""); }}
+                  className="text-muted-foreground hover:text-foreground transition-colors">
+                  <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M18 6L6 18M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium text-foreground">
+                  企业名称 <span className="text-destructive">*</span>
+                </label>
+                <Input
+                  placeholder="请输入企业名称"
+                  value={newEnterpriseName}
+                  onChange={e => setNewEnterpriseName(e.target.value)}
+                  onKeyDown={e => e.key === "Enter" && handleCreateEnterprise()}
+                  className="focus-visible:ring-primary"
+                  autoFocus
+                />
+                <p className="text-xs text-primary">创建后您将成为企业管理员，可以邀请团队成员加入</p>
+              </div>
+              <div className="flex gap-3">
+                <Button variant="outline" className="flex-1" onClick={() => { setShowCreateEnterprise(false); setNewEnterpriseName(""); }} disabled={actionLoading}>
+                  取消
+                </Button>
+                <Button
+                  className="flex-1 text-white"
+                  style={{ background: "linear-gradient(135deg, hsl(224,76%,48%), hsl(262,60%,58%))" }}
+                  onClick={handleCreateEnterprise}
+                  disabled={actionLoading || !newEnterpriseName.trim()}
+                >
+                  {actionLoading ? "创建中..." : "创建并进入"}
+                </Button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     );
   }
