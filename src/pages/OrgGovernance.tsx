@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetFooter } from "@/components/ui/sheet";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
@@ -18,6 +18,17 @@ import {
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { MoreHorizontal, Plus, Users, Key, TrendingUp, CheckCircle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+
+// ── Mock sub-department data (UI preview only) ──────────────────────────────
+interface SubOrg {
+  id: string; name: string; adminName: string; adminPhone: string;
+  memberCount: number; monthlyBudget: number | null; consumed: number; status: "active" | "disabled";
+}
+const MOCK_SUB_ORGS: SubOrg[] = [
+  { id: "s1", name: "华东销售组", adminName: "张伟",   adminPhone: "13800138001", memberCount: 8,  monthlyBudget: 5000, consumed: 1240, status: "active" },
+  { id: "s2", name: "技术支持组", adminName: "李晓梅", adminPhone: "13912345678", memberCount: 5,  monthlyBudget: 3000, consumed: 3100, status: "active" },
+  { id: "s3", name: "市场推广组", adminName: "王建国", adminPhone: "18611223344", memberCount: 12, monthlyBudget: 8000, consumed:  320, status: "active" },
+];
 
 interface Enterprise { id: string; name: string; }
 interface Organization {
@@ -89,6 +100,16 @@ export default function OrgGovernance({ enterprise, role }: Props) {
   const [bulkRole, setBulkRole] = useState("member");
   const [bulkLimit, setBulkLimit] = useState("2000");
   const [saving, setSaving] = useState(false);
+
+  // Sub-department tab state
+  const [activeTab, setActiveTab] = useState<"members" | "sub-orgs">("members");
+  const [subOrgs, setSubOrgs] = useState<SubOrg[]>(MOCK_SUB_ORGS);
+  const [showCreateSubOrg, setShowCreateSubOrg] = useState(false);
+  const [subOrgName, setSubOrgName] = useState("");
+  const [subOrgBudget, setSubOrgBudget] = useState("");
+  const [subOrgAdminName, setSubOrgAdminName] = useState("");
+  const [subOrgAdminPhone, setSubOrgAdminPhone] = useState("");
+
   const { toast } = useToast();
   const phone = getCurrentPhone();
 
@@ -381,17 +402,42 @@ export default function OrgGovernance({ enterprise, role }: Props) {
             </CardContent>
           </Card>
 
-          {/* Members Card */}
+          {/* Members + Sub-orgs Card */}
           <Card>
-            <CardHeader className="pb-3">
+            <CardHeader className="pb-0">
               <div className="flex items-center justify-between">
-                <CardTitle className="text-base font-semibold">成员管理</CardTitle>
-                <Button size="sm" onClick={() => setShowAdd(true)}>
-                  <Plus className="w-4 h-4 mr-1" />添加成员
-                </Button>
+                {/* Tab switcher */}
+                <div className="flex gap-0 border-b border-transparent">
+                  {(["members", "sub-orgs"] as const).map((tab) => (
+                    <button
+                      key={tab}
+                      type="button"
+                      onClick={() => setActiveTab(tab)}
+                      className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+                        activeTab === tab
+                          ? "border-primary text-primary"
+                          : "border-transparent text-muted-foreground hover:text-foreground"
+                      }`}
+                    >
+                      {tab === "members" ? "直属成员" : "下属子部门"}
+                    </button>
+                  ))}
+                </div>
+                {activeTab === "members" ? (
+                  <Button size="sm" onClick={() => setShowAdd(true)}>
+                    <Plus className="w-4 h-4 mr-1" />添加成员
+                  </Button>
+                ) : (
+                  <Button size="sm" onClick={() => setShowCreateSubOrg(true)}>
+                    <Plus className="w-4 h-4 mr-1" />创建子部门
+                  </Button>
+                )}
               </div>
             </CardHeader>
-            <CardContent className="p-0">
+
+            {/* ── Tab: 直属成员 ─────────────────────────────────────────── */}
+            {activeTab === "members" && (
+            <CardContent className="p-0 pt-0">
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -501,6 +547,97 @@ export default function OrgGovernance({ enterprise, role }: Props) {
                 </TableBody>
               </Table>
             </CardContent>
+            )}
+
+            {/* ── Tab: 下属子部门 ───────────────────────────────────────── */}
+            {activeTab === "sub-orgs" && (
+            <CardContent className="p-0 pt-0">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>部门名称</TableHead>
+                    <TableHead>管理员</TableHead>
+                    <TableHead>成员数</TableHead>
+                    <TableHead>本月预算上限</TableHead>
+                    <TableHead>本月消耗预算</TableHead>
+                    <TableHead>使用率</TableHead>
+                    <TableHead>状态</TableHead>
+                    <TableHead className="w-10"></TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {subOrgs.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={8} className="text-center text-muted-foreground py-10">
+                        暂无下属部门，点击「创建子部门」开始
+                      </TableCell>
+                    </TableRow>
+                  ) : subOrgs.map((s) => {
+                    const rate = s.monthlyBudget && s.monthlyBudget > 0 ? Math.min(100, Math.round(s.consumed / s.monthlyBudget * 100)) : 0;
+                    const overBudget = s.monthlyBudget && s.consumed >= s.monthlyBudget;
+                    return (
+                      <TableRow key={s.id}>
+                        <TableCell className="font-medium text-foreground">{s.name}</TableCell>
+                        <TableCell>
+                          <div className="flex flex-col gap-0.5">
+                            <span className="text-sm text-foreground">{s.adminName}</span>
+                            <span className="text-xs text-muted-foreground">{maskPhone(s.adminPhone)}</span>
+                          </div>
+                        </TableCell>
+                        <TableCell className="tabular-nums">{s.memberCount}</TableCell>
+                        <TableCell className="tabular-nums">
+                          {s.monthlyBudget ? `¥${s.monthlyBudget.toLocaleString()}` : <span className="text-muted-foreground">不限</span>}
+                        </TableCell>
+                        <TableCell className={`tabular-nums font-medium ${overBudget ? "text-destructive" : ""}`}>
+                          ¥{s.consumed.toLocaleString()}
+                        </TableCell>
+                        <TableCell>
+                          {s.monthlyBudget ? (
+                            <div className="flex items-center gap-2 min-w-[90px]">
+                              <Progress value={rate} className={`h-1.5 flex-1 ${overBudget ? "[&>div]:bg-destructive" : ""}`} />
+                              <span className={`text-xs tabular-nums ${overBudget ? "text-destructive" : "text-muted-foreground"}`}>{rate}%</span>
+                            </div>
+                          ) : <span className="text-xs text-muted-foreground">—</span>}
+                        </TableCell>
+                        <TableCell>
+                          {s.status === "active"
+                            ? <Badge variant="outline" style={{color:"hsl(142,70%,40%)",borderColor:"hsl(142,70%,75%)",background:"hsl(142,70%,97%)"}}>正常</Badge>
+                            : <Badge variant="outline" className="text-muted-foreground border-border">禁用</Badge>}
+                        </TableCell>
+                        <TableCell>
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button variant="ghost" size="icon" className="h-8 w-8">
+                                <MoreHorizontal className="w-4 h-4" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              <DropdownMenuItem onClick={() => toast({ title: "功能开发中" })}>编辑子部门</DropdownMenuItem>
+                              <DropdownMenuItem onClick={() =>
+                                setSubOrgs(prev => prev.map(x => x.id === s.id ? { ...x, status: x.status === "active" ? "disabled" : "active" } : x))
+                              }>
+                                {s.status === "active" ? "禁用子部门" : "启用子部门"}
+                              </DropdownMenuItem>
+                              <DropdownMenuSeparator />
+                              <DropdownMenuItem
+                                className="text-destructive focus:text-destructive"
+                                onClick={() => {
+                                  setSubOrgs(prev => prev.filter(x => x.id !== s.id));
+                                  toast({ title: "子部门已删除" });
+                                }}
+                              >
+                                删除子部门
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
+            </CardContent>
+            )}
           </Card>
         </>
       )}
@@ -665,6 +802,80 @@ export default function OrgGovernance({ enterprise, role }: Props) {
               disabled={saving}
             >
               {saving ? "添加中…" : "添加"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Create Sub-org Dialog */}
+      <Dialog open={showCreateSubOrg} onOpenChange={(open) => {
+        setShowCreateSubOrg(open);
+        if (!open) { setSubOrgName(""); setSubOrgBudget(""); setSubOrgAdminName(""); setSubOrgAdminPhone(""); }
+      }}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>创建子部门</DialogTitle>
+            <DialogDescription>在当前部门下创建下属子部门，子部门共享月度预算限制。</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="space-y-1.5">
+              <Label htmlFor="sub-name">子部门名称 <span className="text-destructive">*</span></Label>
+              <Input
+                id="sub-name"
+                placeholder="如：华东销售组"
+                value={subOrgName}
+                onChange={(e) => setSubOrgName(e.target.value)}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="sub-budget">本月预算上限（元）</Label>
+              <Input
+                id="sub-budget"
+                type="number"
+                placeholder="留空表示不限制"
+                value={subOrgBudget}
+                onChange={(e) => setSubOrgBudget(e.target.value)}
+              />
+              <p className="text-xs text-muted-foreground">子部门的月度消耗不超过此限额</p>
+            </div>
+            <div className="space-y-1.5">
+              <Label>设置部门管理员（可选）</Label>
+              <div className="grid grid-cols-2 gap-2">
+                <Input
+                  placeholder="姓名"
+                  value={subOrgAdminName}
+                  onChange={(e) => setSubOrgAdminName(e.target.value)}
+                />
+                <Input
+                  placeholder="手机号"
+                  value={subOrgAdminPhone}
+                  onChange={(e) => setSubOrgAdminPhone(e.target.value)}
+                />
+              </div>
+            </div>
+          </div>
+          <DialogFooter className="gap-2">
+            <Button variant="outline" onClick={() => setShowCreateSubOrg(false)}>取消</Button>
+            <Button
+              onClick={() => {
+                if (!subOrgName.trim()) { toast({ title: "请输入子部门名称", variant: "destructive" }); return; }
+                const newSub: SubOrg = {
+                  id: `s${Date.now()}`,
+                  name: subOrgName.trim(),
+                  adminName: subOrgAdminName.trim() || "—",
+                  adminPhone: subOrgAdminPhone.trim() || "00000000000",
+                  memberCount: 0,
+                  monthlyBudget: subOrgBudget ? Number(subOrgBudget) : null,
+                  consumed: 0,
+                  status: "active",
+                };
+                setSubOrgs(prev => [...prev, newSub]);
+                setShowCreateSubOrg(false);
+                setSubOrgName(""); setSubOrgBudget(""); setSubOrgAdminName(""); setSubOrgAdminPhone("");
+                toast({ title: "子部门创建成功", description: newSub.name });
+              }}
+            >
+              创建
             </Button>
           </DialogFooter>
         </DialogContent>

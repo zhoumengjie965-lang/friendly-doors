@@ -1,92 +1,71 @@
 
-## 部门管理新增「子部门」Tab 计划
+## Two focused layout tweaks — `src/pages/admin/AdminUsers.tsx` only
 
-### 目标
-在 `OrgGovernance.tsx` 的成员管理 Card 中，增加「直属成员」/「下属子部门」两个 Tab 切换，支持子部门的展示与创建（纯前端 mock 数据演示）。
+### Change 1: Basic info — 2×2 grid (lines 394–447)
 
----
+Currently 4 rows stacked vertically with `space-y-4`. Redesign as a **2×2 grid** — left column: 用户名 + 账号状态, right column: 手机号 + 密码重置.
 
-### 涉及文件
-只修改 `src/pages/OrgGovernance.tsx`（不动 `CreateOrgDialog.tsx`，子部门弹窗是独立的局部 Dialog）
+```tsx
+<div className="grid grid-cols-2 gap-x-4 gap-y-3">
+  {/* 用户名 — top-left */}
+  <div className="flex items-center justify-between">
+    <div>
+      <Label className="text-xs text-muted-foreground">用户名</Label>
+      <p className="text-sm mt-0.5">{drawerUser.name || "—"}</p>
+    </div>
+    <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground" onClick={...}>
+      <Copy className="w-3.5 h-3.5" />
+    </Button>
+  </div>
 
----
+  {/* 手机号 — top-right */}
+  <div className="flex items-center justify-between">
+    <div>
+      <Label className="text-xs text-muted-foreground">手机号</Label>
+      <p className="text-sm mt-0.5 font-medium tabular-nums">{drawerUser.phone}</p>
+    </div>
+    <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground" onClick={...}>
+      <Copy className="w-3.5 h-3.5" />
+    </Button>
+  </div>
 
-### 改动明细
+  {/* 账号状态 — bottom-left */}
+  <div className="flex items-center justify-between">
+    <div>
+      <Label className="text-xs text-muted-foreground">账号状态</Label>
+      <p className="text-sm mt-0.5">...</p>
+    </div>
+    <Switch ... />
+  </div>
 
-#### 1. Mock 数据
-在组件顶部添加常量，供子部门 Tab 默认展示用：
-```ts
-const MOCK_SUB_ORGS = [
-  { id: "s1", name: "华东销售组", adminName: "张伟", memberCount: 8, monthlyBudget: 5000, consumed: 1240, status: "active" },
-  { id: "s2", name: "技术支持组", adminName: "李晓梅", memberCount: 5, monthlyBudget: 3000, consumed: 3100, status: "active" },
-  { id: "s3", name: "市场推广组", adminName: "王建国", memberCount: 12, monthlyBudget: 8000, consumed: 320, status: "active" },
-];
+  {/* 密码重置 — bottom-right */}
+  <div className="flex items-center justify-between">
+    <div>
+      <Label className="text-xs text-muted-foreground">密码重置</Label>
+      <p className="text-xs text-muted-foreground mt-0.5">强制用户下次登录时重置密码</p>
+    </div>
+    <Button size="sm" variant="outline" ...>重置密码</Button>
+  </div>
+</div>
 ```
 
-#### 2. 新增 Tab 状态
-```ts
-const [activeTab, setActiveTab] = useState<"members" | "sub-orgs">("members");
-const [showCreateSubOrg, setShowCreateSubOrg] = useState(false);
-const [subOrgs, setSubOrgs] = useState(MOCK_SUB_ORGS);
-// 子部门创建弹窗表单状态
-const [subOrgName, setSubOrgName] = useState("");
-const [subOrgBudget, setSubOrgBudget] = useState("");
-const [subOrgAdminName, setSubOrgAdminName] = useState("");
-const [subOrgAdminPhone, setSubOrgAdminPhone] = useState("");
+### Change 2: Personal space — label outside card, tighter padding (lines 459–486)
+
+Move "个人空间" text **above** the card border, reduce internal padding from `p-4 space-y-3` to `p-3 space-y-2`:
+
+```tsx
+{/* 个人空间 */}
+<div>
+  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1.5">个人空间</p>
+  <div className="bg-blue-50/50 border border-blue-100 rounded-lg p-3 space-y-2">
+    <div className="flex items-center justify-between">
+      <span className="text-sm text-muted-foreground">当前余额</span>
+      <span className="font-semibold tabular-nums">¥{...}</span>
+    </div>
+    {/* balance edit input + 保存 button + disclaimer — unchanged */}
+  </div>
+</div>
 ```
 
-#### 3. 成员管理 Card 改造
-将原来 CardHeader 的标题改为 Tab 切换器 + 右侧动态按钮：
-
-```
-直属成员 | 下属子部门          [+ 添加成员] / [+ 创建子部门]
-```
-
-Tab 样式：蓝色下划线激活态，灰色文字非激活态（与图2一致）。
-
-#### 4. Tab 内容切换
-
-**`activeTab === "members"`**：
-- 渲染现有的成员 Table（保持完全不变）
-
-**`activeTab === "sub-orgs"`**：
-- 渲染子部门 Table，列：
-  - 组织名称
-  - 管理员（姓名）
-  - 成员数
-  - 本月预算上限（`¥N` 或 `不限`）
-  - 本月消耗预算（`¥N`）
-  - 使用率（进度条 + 百分比）
-  - 状态（正常/禁用 badge）
-- 空态文案：「暂无下属部门」
-
-#### 5. 创建子部门弹窗
-点击「创建子部门」按钮触发局部 Dialog，字段：
-- **子部门名称** `*`（必填）
-- **本月预算上限（元）** `可选`，placeholder：留空表示不限制
-- **设置部门管理员** `可选`，两个输入框并排：姓名 + 手机号
-
-确认后将新记录 push 到 `subOrgs` state（mock），弹窗关闭，列表立即更新展示。
-
-#### 6. 子部门行的操作菜单
-每行末尾 `⋮` 菜单：
-- 编辑子部门（空 toast 提示"功能开发中"）
-- 禁用/启用（切换 status，立即反映在 badge）
-- 分隔线
-- 删除子部门（从 state 中移除，立即更新列表）
-
----
-
-### 视觉对齐
-- Tab 下划线激活样式与 image-151.png 一致
-- 表格列顺序、字段名称与 image-151.png 一致（组织名称、管理员、成员数、本月预算上限、本月消耗预算、使用率、状态）
-- 创建弹窗字段与 image-150.png 一致（组织名称、默认月预算、设置管理员）
-- 所有 UI 文本中"组织"→"子部门"或"部门"
-
----
-
-### 不改动的内容
-- 所有数据库查询逻辑
-- 成员管理 Tab 内的所有交互
-- 编辑成员 Sheet
-- 添加成员 Dialog
+### Files changed
+- `src/pages/admin/AdminUsers.tsx` — lines 394–486 only
