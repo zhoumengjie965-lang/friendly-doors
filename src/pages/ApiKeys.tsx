@@ -388,6 +388,7 @@ export default function ApiKeys({ enterprise, role }: Props) {
         setSheetOpen(false);
         setSimpleDialogOpen(false);
         fetchMyKeys(); fetchOrgKeys();
+        if (creatingProd) { fetchProdKeys(); setCreatingProd(false); }
       }
     } else {
       const { error } = await supabase.rpc("create_api_key" as any, {
@@ -402,6 +403,7 @@ export default function ApiKeys({ enterprise, role }: Props) {
         setSheetOpen(false);
         setSimpleDialogOpen(false);
         fetchMyKeys(); fetchOrgKeys();
+        if (creatingProd) { fetchProdKeys(); setCreatingProd(false); }
       }
     }
     setSaving(false);
