@@ -746,7 +746,7 @@ export default function ApiKeys({ enterprise, role }: Props) {
                 }}
               >
                 <SelectTrigger className="h-9 w-44 border-border shadow-sm font-medium">
-                  <SelectValue placeholder="选择组织..." />
+                  <SelectValue placeholder="选择部门..." />
                 </SelectTrigger>
                 <SelectContent>
                   {organizations.map(org => (
