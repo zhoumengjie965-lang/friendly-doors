@@ -603,21 +603,14 @@ function OrgView({ enterprise, role, orgId, orgs, onOrgUpdated }: {
   const [bulkRole, setBulkRole] = useState("member");
   const [bulkLimit, setBulkLimit] = useState("2000");
   const [saving, setSaving] = useState(false);
-  const [activeTab, setActiveTab] = useState<"members" | "sub-orgs">("members");
-  const [subOrgs, setSubOrgs] = useState<SubOrg[]>(MOCK_SUB_ORGS);
   const [showCreateSubOrg, setShowCreateSubOrg] = useState(false);
   const [subOrgName, setSubOrgName] = useState("");
   const [subOrgBudget, setSubOrgBudget] = useState("");
-  const [subOrgAdminName, setSubOrgAdminName] = useState("");
-  const [subOrgAdminPhone, setSubOrgAdminPhone] = useState("");
   const [showBudgetDialog, setShowBudgetDialog] = useState(false);
-  const [budgetDialogMode, setBudgetDialogMode] = useState<"members" | "sub-orgs">("sub-orgs");
+  const [budgetDialogMode, setBudgetDialogMode] = useState<"members" | "sub-orgs">("members");
   const [totalPackage, setTotalPackage] = useState("");
   const [memberDailyLimit, setMemberDailyLimit] = useState("");
-  const [budgetAlertEnabled, setBudgetAlertEnabled] = useState(false);
-  const [budgetAlertThreshold, setBudgetAlertThreshold] = useState(80);
   const [distributing, setDistributing] = useState(false);
-  const [deleteTarget, setDeleteTarget] = useState<SubOrg | null>(null);
   const [statsFlashKey, setStatsFlashKey] = useState(0);
   // Transfer member state
   const [transferMember, setTransferMember] = useState<Member | null>(null);
