@@ -1032,8 +1032,14 @@ export default function OrgGovernance({ enterprise, role }: Props) {
         const perMonthBudget = dailyLimitNum > 0 ? dailyLimitNum * 30 : 0;
         const totalMonthCost = perMonthBudget * members.length;
 
+        // shared: check if proposed spend exceeds remaining
+        const memberProposedTotal = dailyLimitNum > 0 ? totalMonthCost : 0;
+        const subOrgProposedTotal = pkg > 0 ? pkg : 0;
+        const proposedTotal = budgetDialogMode === "members" ? memberProposedTotal : subOrgProposedTotal;
+        const overBudget = remaining !== null && remaining > 0 && proposedTotal > remaining;
+
         return (
-          <Dialog open={showBudgetDialog} onOpenChange={(open) => { setShowBudgetDialog(open); if (!open) { setTotalPackage(""); setMemberDailyLimit(""); } }}>
+          <Dialog open={showBudgetDialog} onOpenChange={(open) => { setShowBudgetDialog(open); if (!open) { setTotalPackage(""); setMemberDailyLimit(""); setBudgetAlertEnabled(false); setBudgetAlertThreshold(80); } }}>
             <DialogContent className="sm:max-w-md">
               <DialogHeader>
                 <DialogTitle>{budgetDialogMode === "members" ? "成员批量分配" : "部门批量分配"}</DialogTitle>
@@ -1044,16 +1050,18 @@ export default function OrgGovernance({ enterprise, role }: Props) {
                 </DialogDescription>
               </DialogHeader>
 
+              {/* ── 共用：剩余可分配额 ── */}
+              {remaining !== null && (
+                <div className={`rounded-lg p-3 flex justify-between text-sm ${remaining < 0 ? "bg-destructive/10 border border-destructive/30" : "bg-muted/60"}`}>
+                  <span className="text-muted-foreground">部门剩余可分配额</span>
+                  <span className={`font-semibold tabular-nums ${remaining < 0 ? "text-destructive" : "text-foreground"}`}>
+                    ¥{remaining.toLocaleString()}
+                  </span>
+                </div>
+              )}
+
               {budgetDialogMode === "sub-orgs" ? (
-                <div className="space-y-4 py-2">
-                  {remaining !== null && (
-                    <div className="rounded-lg bg-muted/60 p-3 flex justify-between text-sm">
-                      <span className="text-muted-foreground">企业剩余可分配额</span>
-                      <span className={`font-semibold tabular-nums ${remaining < 0 ? "text-destructive" : "text-foreground"}`}>
-                        ¥{remaining.toLocaleString()}
-                      </span>
-                    </div>
-                  )}
+                <div className="space-y-4">
                   <div className="space-y-1.5">
                     <Label htmlFor="total-package">要分配的总预算（元）</Label>
                     <Input
@@ -1075,7 +1083,7 @@ export default function OrgGovernance({ enterprise, role }: Props) {
                   )}
                 </div>
               ) : (
-                <div className="space-y-4 py-2">
+                <div className="space-y-4">
                   <div className="space-y-1.5">
                     <Label htmlFor="member-daily-limit">统一单日上限（元 / 人）</Label>
                     <Input
@@ -1108,6 +1116,41 @@ export default function OrgGovernance({ enterprise, role }: Props) {
                   )}
                 </div>
               )}
+
+              {/* ── 共用：超预算警告 ── */}
+              {overBudget && (
+                <div className="flex items-center gap-2 rounded-lg border border-orange-300 bg-orange-50 dark:border-orange-500/40 dark:bg-orange-500/10 px-3 py-2.5 text-sm">
+                  <AlertTriangle className="w-4 h-4 text-orange-500 shrink-0" />
+                  <span className="text-orange-800 dark:text-orange-300">
+                    分配金额超出剩余可分配额 <span className="font-semibold tabular-nums">¥{(proposedTotal - (remaining ?? 0)).toLocaleString()}</span>
+                  </span>
+                </div>
+              )}
+
+              {/* ── 共用：预算不足预警通知 ── */}
+              <div className="rounded-lg border border-border bg-muted/30 p-3 space-y-3">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="space-y-0.5">
+                    <p className="text-sm font-medium text-foreground">预算不足预警通知</p>
+                    <p className="text-xs text-muted-foreground">消耗达到阈值时，通过短信通知管理员</p>
+                  </div>
+                  <Switch checked={budgetAlertEnabled} onCheckedChange={setBudgetAlertEnabled} />
+                </div>
+                {budgetAlertEnabled && (
+                  <div className="flex items-center gap-2 pt-1 border-t border-border">
+                    <Label className="text-sm text-muted-foreground whitespace-nowrap">预警阈值</Label>
+                    <Input
+                      type="number"
+                      min="1"
+                      max="100"
+                      className="h-8 w-24 text-sm"
+                      value={budgetAlertThreshold}
+                      onChange={(e) => setBudgetAlertThreshold(Number(e.target.value))}
+                    />
+                    <span className="text-sm text-muted-foreground">%</span>
+                  </div>
+                )}
+              </div>
 
               <DialogFooter className="gap-2">
                 <Button variant="outline" onClick={() => { setShowBudgetDialog(false); setTotalPackage(""); setMemberDailyLimit(""); }}>取消</Button>
