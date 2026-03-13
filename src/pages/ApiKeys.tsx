@@ -166,6 +166,21 @@ export default function ApiKeys({ enterprise, role }: Props) {
   const [formIpWhitelist, setFormIpWhitelist] = useState("");
   const [saving, setSaving] = useState(false);
 
+  // Org default config (org_admin sets defaults for member new keys)
+  const [orgConfigOpen, setOrgConfigOpen] = useState(false);
+  const [orgConfigGroup, setOrgConfigGroup] = useState("");
+  const [orgConfigExpires, setOrgConfigExpires] = useState("");
+  const [orgConfigQuota, setOrgConfigQuota] = useState("");
+  const [orgConfigUnlimited, setOrgConfigUnlimited] = useState(true);
+  const [orgConfigModels, setOrgConfigModels] = useState<string[]>([]);
+  const [orgConfigIpWhitelist, setOrgConfigIpWhitelist] = useState("");
+  const orgConfigSaved = useRef({ group: "", expires: "", quota: "", unlimited: true, models: [] as string[], ipWhitelist: "" });
+
+  // Advanced member permissions
+  const [advancedPermOpen, setAdvancedPermOpen] = useState(false);
+  const [advancedMembers, setAdvancedMembers] = useState<Set<string>>(new Set());
+  const [pendingAdvanced, setPendingAdvanced] = useState<Set<string>>(new Set());
+
   // Delete confirm
   const [deleteTarget, setDeleteTarget] = useState<ApiKey | null>(null);
 
