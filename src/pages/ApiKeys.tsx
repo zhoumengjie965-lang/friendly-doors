@@ -147,7 +147,6 @@ export default function ApiKeys({ enterprise, role }: Props) {
   const [nameSearch, setNameSearch] = useState("");
   const [apiKeySearch, setApiKeySearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
-  const [runningStatusFilter, setRunningStatusFilter] = useState<string>("all");
   const [groupFilter, setGroupFilter] = useState<string>("all");
 
   // Pagination
