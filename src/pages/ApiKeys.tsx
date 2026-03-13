@@ -274,12 +274,26 @@ export default function ApiKeys({ enterprise, role }: Props) {
 
   const openCreate = () => {
     setEditingKey(null);
-    setFormName(""); setFormGroup(""); setFormExpires("");
-    setFormQuota(""); setFormUnlimited(true);
-    setFormModels([]); setFormIpWhitelist("");
+    setFormName("");
     if (previewRole === "member") {
-      setSimpleDialogOpen(true);
+      // Prefill from org default config
+      const cfg = orgConfigSaved.current;
+      setFormGroup(cfg.group);
+      setFormExpires(cfg.expires);
+      setFormQuota(cfg.quota);
+      setFormUnlimited(cfg.unlimited);
+      setFormModels([...cfg.models]);
+      setFormIpWhitelist(cfg.ipWhitelist);
+      // Check advanced permission
+      if (phone && advancedMembers.has(phone)) {
+        setSheetOpen(true);
+      } else {
+        setSimpleDialogOpen(true);
+      }
     } else {
+      setFormGroup(""); setFormExpires("");
+      setFormQuota(""); setFormUnlimited(true);
+      setFormModels([]); setFormIpWhitelist("");
       setSheetOpen(true);
     }
   };
