@@ -196,8 +196,8 @@ export default function OrgManagement({ enterprise, role }: Props) {
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-border bg-muted/30">
-                  <th className="text-left px-6 py-3 text-muted-foreground font-medium">组织名称</th>
-                  <th className="text-left px-6 py-3 text-muted-foreground font-medium">组织管理员</th>
+                  <th className="text-left px-6 py-3 text-muted-foreground font-medium">部门名称</th>
+                  <th className="text-left px-6 py-3 text-muted-foreground font-medium">部门管理员</th>
                   <th className="text-left px-6 py-3 text-muted-foreground font-medium">成员数</th>
                   <th className="text-left px-6 py-3 text-muted-foreground font-medium">本月预算上限</th>
                   <th className="text-left px-6 py-3 text-muted-foreground font-medium">本月消耗预算</th>
