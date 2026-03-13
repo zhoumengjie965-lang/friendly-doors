@@ -112,6 +112,7 @@ export default function OrgGovernance({ enterprise, role }: Props) {
 
   const { toast } = useToast();
   const phone = getCurrentPhone();
+  const tabCardRef = useRef<HTMLDivElement>(null);
 
   const selectedOrg = orgs.find((o) => o.id === selectedOrgId);
 
