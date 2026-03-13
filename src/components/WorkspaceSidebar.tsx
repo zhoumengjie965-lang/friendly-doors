@@ -23,10 +23,9 @@ const navItems: NavItem[] = [
     title: "企业管理", icon: Building2, children: [
       { title: "企业信息", url: "/workspace/enterprise/info", icon: Settings },
       { title: "账户余额", url: "/workspace/enterprise/balance", icon: Wallet },
-      { title: "部门治理", url: "/workspace/enterprise/orgs", icon: Network },
     ],
   },
-  { title: "部门管理", url: "/workspace/org/governance", icon: Users },
+  { title: "部门管理", url: "/workspace/dept", icon: Users },
 ];
 
 interface Props {

@@ -4,9 +4,8 @@ import { getCurrentPhone, getUserEnterprises, clearCurrentPhone, createEnterpris
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import WorkspaceSidebar from "@/components/WorkspaceSidebar";
 import EnterpriseInfo from "@/pages/EnterpriseInfo";
-import OrgManagement from "@/pages/OrgManagement";
 import AccountBalance from "@/pages/AccountBalance";
-import OrgGovernance from "@/pages/OrgGovernance";
+import DeptManagement from "@/pages/DeptManagement";
 import Profile from "@/pages/Profile";
 import ApiKeys from "@/pages/ApiKeys";
 import ResourceStats from "@/pages/ResourceStats";
@@ -510,12 +509,10 @@ export default function Workspace() {
           <div className="flex-1 p-6 bg-background overflow-auto">
             {location.pathname === "/workspace/enterprise/info" ? (
               <EnterpriseInfo enterprise={enterprise} role={role} />
-            ) : location.pathname === "/workspace/enterprise/orgs" ? (
-              <OrgManagement enterprise={enterprise} role={role} />
             ) : location.pathname === "/workspace/enterprise/balance" ? (
               <AccountBalance enterprise={enterprise} role={role} />
-            ) : location.pathname === "/workspace/org/governance" ? (
-              <OrgGovernance enterprise={enterprise} role={role} />
+            ) : location.pathname.startsWith("/workspace/dept") ? (
+              <DeptManagement enterprise={enterprise} role={role} />
             ) : location.pathname === "/workspace/keys" ? (
               <ApiKeys enterprise={enterprise} role={role} />
             ) : location.pathname === "/workspace/stats" ? (
