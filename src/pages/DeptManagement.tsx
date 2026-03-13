@@ -49,7 +49,37 @@ interface Org {
   current_month_budget: number | null;
   admin_phone: string | null;
   enterprise_id: string;
+  parent_id?: string | null;
   memberCount?: number;
+}
+
+// ─── Tree utilities ───────────────────────────────────────────────────────────
+type OrgTreeNode = Org & { children: OrgTreeNode[] };
+
+function buildTree(orgs: Org[], parentId: string | null = null): OrgTreeNode[] {
+  return orgs
+    .filter(o => (o.parent_id ?? null) === parentId)
+    .map(o => ({ ...o, children: buildTree(orgs, o.id) }));
+}
+
+function flattenTree(nodes: OrgTreeNode[], depth = 0): { node: OrgTreeNode; depth: number }[] {
+  const result: { node: OrgTreeNode; depth: number }[] = [];
+  for (const n of nodes) {
+    result.push({ node: n, depth });
+    result.push(...flattenTree(n.children, depth + 1));
+  }
+  return result;
+}
+
+function getAncestors(orgs: Org[], nodeId: string): Org[] {
+  const map = new Map(orgs.map(o => [o.id, o]));
+  const chain: Org[] = [];
+  let cur = map.get(nodeId);
+  while (cur) {
+    chain.unshift(cur);
+    cur = cur.parent_id ? map.get(cur.parent_id) : undefined;
+  }
+  return chain;
 }
 
 interface Member {
