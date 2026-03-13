@@ -20,6 +20,7 @@ import {
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { MoreHorizontal, Plus, Users, Key, TrendingUp, CheckCircle, ArrowRight, Building2, BarChart3, Wallet, Sliders, AlertTriangle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import InlineBudgetEdit from "@/components/InlineBudgetEdit";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 
 // ── Mock sub-department data (UI preview only) ──────────────────────────────
