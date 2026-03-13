@@ -695,7 +695,6 @@ export default function ApiKeys({ enterprise, role }: Props) {
     setNameSearch("");
     setApiKeySearch("");
     setStatusFilter("all");
-    setRunningStatusFilter("all");
     setGroupFilter("all");
   };
 
