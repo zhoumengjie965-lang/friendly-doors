@@ -317,7 +317,7 @@ export default function ApiKeys({ enterprise, role }: Props) {
     setEditingKey(null);
     setFormName("");
     if (previewRole === "member") {
-      // Prefill from org default config
+      // Prefill from org default config for member
       const cfg = orgConfigSaved.current;
       setFormGroup(cfg.group);
       setFormExpires(cfg.expires);
@@ -325,12 +325,8 @@ export default function ApiKeys({ enterprise, role }: Props) {
       setFormUnlimited(cfg.unlimited);
       setFormModels([...cfg.models]);
       setFormIpWhitelist(cfg.ipWhitelist);
-      // Check advanced permission
-      if (phone && advancedMembers.has(phone)) {
-        setSheetOpen(true);
-      } else {
-        setSimpleDialogOpen(true);
-      }
+      // Always open simple dialog; advanced settings accessible via button inside
+      setSimpleDialogOpen(true);
     } else {
       setFormGroup(""); setFormExpires("");
       setFormQuota(""); setFormUnlimited(true);
