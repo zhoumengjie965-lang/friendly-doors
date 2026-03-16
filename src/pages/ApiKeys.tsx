@@ -1169,6 +1169,19 @@ export default function ApiKeys({ enterprise, role }: Props) {
               onKeyDown={e => { if (e.key === "Enter" && formName.trim()) handleSave(); }}
               autoFocus
             />
+            {/* 高级设置入口 — 仅创建时显示 */}
+            {!editingKey && (
+              <button
+                type="button"
+                className="mt-3 text-xs text-primary hover:text-primary/80 underline underline-offset-2 transition-colors"
+                onClick={() => {
+                  setSimpleDialogOpen(false);
+                  setSheetOpen(true);
+                }}
+              >
+                高级设置（分组、预算、访问限制…）
+              </button>
+            )}
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => { setSimpleDialogOpen(false); setFormName(""); }} disabled={saving}>
