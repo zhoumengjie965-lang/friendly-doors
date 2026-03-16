@@ -274,20 +274,22 @@ const mockMemberRankData = [
   { name: "陈十二", value: 5.20 },
 ];
 
-// Mock orgs for org_admin (limited view)
+// Mock orgs for org_admin (limited view) — includes parent_id for tree
 const mockOrgs = [
-  { id: "org-1", name: "研发一组" },
-  { id: "org-2", name: "产品设计组" },
+  { id: "org-1", name: "研发一组", parent_id: null },
+  { id: "org-1-1", name: "机器学习组", parent_id: "org-1" },
+  { id: "org-2", name: "产品设计组", parent_id: null },
 ];
 
-// Mock orgs for enterprise_admin (full view)
+// Mock orgs for enterprise_admin (full view) — hierarchical
 const mockAllOrgs = [
-  { id: "org-1", name: "研发一组" },
-  { id: "org-2", name: "产品设计组" },
-  { id: "org-3", name: "运营支持组" },
-  { id: "org-4", name: "市场推广组" },
-  { id: "org-5", name: "客户成功组" },
-  { id: "org-6", name: "数据平台组" },
+  { id: "org-1", name: "研发一组", parent_id: null },
+  { id: "org-1-1", name: "机器学习组", parent_id: "org-1" },
+  { id: "org-2", name: "产品设计组", parent_id: null },
+  { id: "org-3", name: "运营支持组", parent_id: null },
+  { id: "org-4", name: "市场推广组", parent_id: null },
+  { id: "org-5", name: "客户成功组", parent_id: null },
+  { id: "org-6", name: "数据平台组", parent_id: null },
 ];
 
 const orgMonthlyBudget = 5000;
