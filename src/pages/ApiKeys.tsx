@@ -136,7 +136,7 @@ export default function ApiKeys({ enterprise, role }: Props) {
   const [loading, setLoading] = useState(false);
 
   // Multi-org switching
-  const [organizations, setOrganizations] = useState<{ id: string; name: string }[]>([]);
+  const [organizations, setOrganizations] = useState<{ id: string; name: string; parent_id?: string | null }[]>([]);
   const [selectedOrgId, setSelectedOrgId] = useState<string | null>(null);
 
   // Org-tab member filter
