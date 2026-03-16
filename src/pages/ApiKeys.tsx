@@ -293,7 +293,7 @@ export default function ApiKeys({ enterprise, role }: Props) {
     if (!canSeeOrgTab) return;
     const { data } = await supabase
       .from("organizations")
-      .select("id, name")
+      .select("id, name, parent_id")
       .eq("enterprise_id", enterprise.id)
       .eq("status", "active")
       .order("created_at", { ascending: true });
