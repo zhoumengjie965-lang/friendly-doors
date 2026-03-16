@@ -762,39 +762,31 @@ export default function ApiKeys({ enterprise, role }: Props) {
           {previewRole === "org_admin" && organizations.length > 0 && (
             <div className="flex items-center gap-1.5">
               <Building2 className="w-4 h-4 text-muted-foreground" />
-              <Select
+              <OrgTreeSelect
+                orgs={organizations}
                 value={selectedOrgId ?? ""}
                 onValueChange={(val) => {
                   setSelectedOrgId(val);
                   setOrgNameFilter("all");
                   fetchOrgKeys(val);
                 }}
-              >
-                <SelectTrigger className="h-9 w-44 border-border shadow-sm font-medium">
-                  <SelectValue placeholder="选择部门..." />
-                </SelectTrigger>
-                <SelectContent>
-                  {organizations.map(org => (
-                    <SelectItem key={org.id} value={org.id}>{org.name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+                showAll={false}
+                placeholder="选择部门..."
+                triggerClassName="w-44 shadow-sm"
+              />
             </div>
           )}
           {/* 筛选器 — 始终显示在行2同一行 */}
           {/* 企业管理员才显示所属组织筛选 */}
           {previewRole === "admin" && (
-            <Select value={orgNameFilter} onValueChange={setOrgNameFilter}>
-              <SelectTrigger className="h-9 w-36 border-border shadow-sm text-sm">
-                <SelectValue placeholder="所属组织" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">所属部门：全部</SelectItem>
-                {organizations.map(org => (
-                  <SelectItem key={org.id} value={org.id}>{org.name}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <OrgTreeSelect
+              orgs={organizations}
+              value={orgNameFilter}
+              onValueChange={setOrgNameFilter}
+              showAll={true}
+              allLabel="所属部门：全部"
+              triggerClassName="w-44 shadow-sm text-sm"
+            />
           )}
           {/* 成员筛选：仅在组织 Tab 下显示 */}
           {activeTab === "org" && (
@@ -818,7 +810,7 @@ export default function ApiKeys({ enterprise, role }: Props) {
       {/* 行3：创建按钮 + 搜索栏+刷新（右） */}
       <div className="flex items-center justify-between mb-5">
         <div className="flex items-center gap-3">
-          {/* org_admin 在组织 Tab 下：显示配置 & 高级权限按钮；prod tab 显示创建按钮；其他情况显示创建按钮 */}
+          {/* org_admin 在组织 Tab 下：显示配置按钮；prod tab 显示创建按钮；其他情况显示创建按钮 */}
           {previewRole === "org_admin" && activeTab === "org" ? (
             <>
               <Button
@@ -836,15 +828,6 @@ export default function ApiKeys({ enterprise, role }: Props) {
                 }}
               >
                 <Settings className="w-4 h-4" />配置 API Key
-              </Button>
-              <Button
-                className="gap-2 h-9"
-                onClick={() => {
-                  setPendingAdvanced(new Set(advancedMembers));
-                  setAdvancedPermOpen(true);
-                }}
-              >
-                <ShieldCheck className="w-4 h-4" />成员高级权限
               </Button>
             </>
           ) : previewRole === "org_admin" && activeTab === "prod" ? (
