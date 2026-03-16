@@ -15,6 +15,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import type { DateRange } from "react-day-picker";
+import OrgTreeSelect from "@/components/OrgTreeSelect";
 
 interface Props {
   enterprise: { id: string; name: string; enterprise_code: string };
@@ -273,20 +274,22 @@ const mockMemberRankData = [
   { name: "陈十二", value: 5.20 },
 ];
 
-// Mock orgs for org_admin (limited view)
+// Mock orgs for org_admin (limited view) — includes parent_id for tree
 const mockOrgs = [
-  { id: "org-1", name: "研发一组" },
-  { id: "org-2", name: "产品设计组" },
+  { id: "org-1", name: "研发一组", parent_id: null },
+  { id: "org-1-1", name: "机器学习组", parent_id: "org-1" },
+  { id: "org-2", name: "产品设计组", parent_id: null },
 ];
 
-// Mock orgs for enterprise_admin (full view)
+// Mock orgs for enterprise_admin (full view) — hierarchical
 const mockAllOrgs = [
-  { id: "org-1", name: "研发一组" },
-  { id: "org-2", name: "产品设计组" },
-  { id: "org-3", name: "运营支持组" },
-  { id: "org-4", name: "市场推广组" },
-  { id: "org-5", name: "客户成功组" },
-  { id: "org-6", name: "数据平台组" },
+  { id: "org-1", name: "研发一组", parent_id: null },
+  { id: "org-1-1", name: "机器学习组", parent_id: "org-1" },
+  { id: "org-2", name: "产品设计组", parent_id: null },
+  { id: "org-3", name: "运营支持组", parent_id: null },
+  { id: "org-4", name: "市场推广组", parent_id: null },
+  { id: "org-5", name: "客户成功组", parent_id: null },
+  { id: "org-6", name: "数据平台组", parent_id: null },
 ];
 
 const orgMonthlyBudget = 5000;
@@ -529,18 +532,13 @@ export default function ResourceStats({ enterprise }: Props) {
             <Building2 className="w-4 h-4 text-muted-foreground" />
             <span className="text-xs text-muted-foreground font-medium">当前组织</span>
           </div>
-          <Select value={selectedOrg} onValueChange={(v) => { setSelectedOrg(v); handleReset(); }}>
-            <SelectTrigger className="h-8 w-36 text-xs border-border">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {mockOrgs.map((org) => (
-                <SelectItem key={org.id} value={org.id} className="text-xs">
-                  {org.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <OrgTreeSelect
+            orgs={mockOrgs}
+            value={selectedOrg}
+            onValueChange={(v) => { setSelectedOrg(v); handleReset(); }}
+            showAll={false}
+            triggerClassName="h-8 w-36 text-xs"
+          />
           <div className="w-px h-5 bg-border shrink-0" />
           <div className="relative flex-1 min-w-[200px] max-w-xs">
             <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
@@ -574,26 +572,18 @@ export default function ResourceStats({ enterprise }: Props) {
             <Building2 className="w-4 h-4 text-muted-foreground" />
             <span className="text-xs text-muted-foreground font-medium">组织筛选</span>
           </div>
-          <Select
+          <OrgTreeSelect
+            orgs={mockAllOrgs}
             value={selectedEnterpriseOrg}
             onValueChange={(v) => {
               setSelectedEnterpriseOrg(v);
               setEnterpriseMemberFilter("");
               setCommittedEnterpriseMember("");
             }}
-          >
-            <SelectTrigger className="h-8 w-40 text-xs border-border">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all" className="text-xs">全部组织（默认）</SelectItem>
-              {mockAllOrgs.map((org) => (
-                <SelectItem key={org.id} value={org.id} className="text-xs">
-                  {org.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+            showAll={true}
+            allLabel="全部组织（默认）"
+            triggerClassName="h-8 w-44 text-xs"
+          />
           <div className="w-px h-5 bg-border shrink-0" />
           <div className="relative flex-1 min-w-[200px] max-w-xs">
             <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />

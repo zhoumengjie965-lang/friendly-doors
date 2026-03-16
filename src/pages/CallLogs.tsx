@@ -15,6 +15,7 @@ import {
   Pagination, PaginationContent, PaginationItem, PaginationLink,
   PaginationNext, PaginationPrevious
 } from "@/components/ui/pagination";
+import OrgTreeSelect from "@/components/OrgTreeSelect";
 
 interface Enterprise { id: string; name: string; enterprise_code: string; }
 interface OrgInfo { id: string; name: string; }
@@ -663,9 +664,16 @@ export default function CallLogs({ enterprise, role, currentOrg, orgList = [] }:
   const [viewRole, setViewRole] = useState(role);
 
   const mockAllOrgs = Array.from(new Set(mockUsageLogs.map(r => r.org)));
-  const orgOptions: OrgInfo[] = orgList.length > 0
-    ? orgList
-    : mockAllOrgs.map(name => ({ id: name, name }));
+  // Add parent_id for tree structure (ABV is a child of 技术部 for demo)
+  const orgOptions: (OrgInfo & { parent_id?: string | null })[] = orgList.length > 0
+    ? orgList.map(o => ({ ...o, parent_id: null }))
+    : [
+        { id: "技术部", name: "技术部", parent_id: null },
+        { id: "ABV", name: "ABV", parent_id: "技术部" },
+        { id: "产品部", name: "产品部", parent_id: null },
+        { id: "研发部", name: "研发部", parent_id: null },
+        { id: "财务部", name: "财务部", parent_id: null },
+      ];
 
   const allMembers = Array.from(new Set(mockUsageLogs.map(r => r.member)));
 
@@ -758,17 +766,14 @@ export default function CallLogs({ enterprise, role, currentOrg, orgList = [] }:
                 <div className="flex items-center gap-1.5">
                   <Building2 className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
                   <span className="text-xs text-muted-foreground whitespace-nowrap">当前组织</span>
-                  <Select value={globalOrg} onValueChange={v => { setGlobalOrg(v); setGlobalMember("all"); }}>
-                    <SelectTrigger className="h-8 w-32 text-xs font-medium border-primary/40 bg-primary/5 text-primary focus:ring-primary/30">
-                      <SelectValue placeholder="选择组织" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {isEnterpriseAdmin && <SelectItem value="all">全部组织</SelectItem>}
-                      {orgOptions.map(o => (
-                        <SelectItem key={o.id} value={o.id}>{o.name}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <OrgTreeSelect
+                    orgs={orgOptions}
+                    value={globalOrg}
+                    onValueChange={v => { setGlobalOrg(v); setGlobalMember("all"); }}
+                    showAll={isEnterpriseAdmin}
+                    allLabel="全部组织"
+                    triggerClassName="h-8 w-36 text-xs font-medium"
+                  />
                 </div>
               )}
 

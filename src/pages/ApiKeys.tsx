@@ -37,6 +37,7 @@ import {
 import { Progress } from "@/components/ui/progress";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { format } from "date-fns";
+import OrgTreeSelect from "@/components/OrgTreeSelect";
 
 interface Enterprise {
   id: string;
@@ -135,7 +136,7 @@ export default function ApiKeys({ enterprise, role }: Props) {
   const [loading, setLoading] = useState(false);
 
   // Multi-org switching
-  const [organizations, setOrganizations] = useState<{ id: string; name: string }[]>([]);
+  const [organizations, setOrganizations] = useState<{ id: string; name: string; parent_id?: string | null }[]>([]);
   const [selectedOrgId, setSelectedOrgId] = useState<string | null>(null);
 
   // Org-tab member filter
@@ -292,7 +293,7 @@ export default function ApiKeys({ enterprise, role }: Props) {
     if (!canSeeOrgTab) return;
     const { data } = await supabase
       .from("organizations")
-      .select("id, name")
+      .select("id, name, parent_id")
       .eq("enterprise_id", enterprise.id)
       .eq("status", "active")
       .order("created_at", { ascending: true });
@@ -316,7 +317,7 @@ export default function ApiKeys({ enterprise, role }: Props) {
     setEditingKey(null);
     setFormName("");
     if (previewRole === "member") {
-      // Prefill from org default config
+      // Prefill from org default config for member
       const cfg = orgConfigSaved.current;
       setFormGroup(cfg.group);
       setFormExpires(cfg.expires);
@@ -324,12 +325,8 @@ export default function ApiKeys({ enterprise, role }: Props) {
       setFormUnlimited(cfg.unlimited);
       setFormModels([...cfg.models]);
       setFormIpWhitelist(cfg.ipWhitelist);
-      // Check advanced permission
-      if (phone && advancedMembers.has(phone)) {
-        setSheetOpen(true);
-      } else {
-        setSimpleDialogOpen(true);
-      }
+      // Always open simple dialog; advanced settings accessible via button inside
+      setSimpleDialogOpen(true);
     } else {
       setFormGroup(""); setFormExpires("");
       setFormQuota(""); setFormUnlimited(true);
@@ -765,39 +762,31 @@ export default function ApiKeys({ enterprise, role }: Props) {
           {previewRole === "org_admin" && organizations.length > 0 && (
             <div className="flex items-center gap-1.5">
               <Building2 className="w-4 h-4 text-muted-foreground" />
-              <Select
+              <OrgTreeSelect
+                orgs={organizations}
                 value={selectedOrgId ?? ""}
                 onValueChange={(val) => {
                   setSelectedOrgId(val);
                   setOrgNameFilter("all");
                   fetchOrgKeys(val);
                 }}
-              >
-                <SelectTrigger className="h-9 w-44 border-border shadow-sm font-medium">
-                  <SelectValue placeholder="选择部门..." />
-                </SelectTrigger>
-                <SelectContent>
-                  {organizations.map(org => (
-                    <SelectItem key={org.id} value={org.id}>{org.name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+                showAll={false}
+                placeholder="选择部门..."
+                triggerClassName="w-44 shadow-sm"
+              />
             </div>
           )}
           {/* 筛选器 — 始终显示在行2同一行 */}
           {/* 企业管理员才显示所属组织筛选 */}
           {previewRole === "admin" && (
-            <Select value={orgNameFilter} onValueChange={setOrgNameFilter}>
-              <SelectTrigger className="h-9 w-36 border-border shadow-sm text-sm">
-                <SelectValue placeholder="所属组织" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">所属部门：全部</SelectItem>
-                {organizations.map(org => (
-                  <SelectItem key={org.id} value={org.id}>{org.name}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <OrgTreeSelect
+              orgs={organizations}
+              value={orgNameFilter}
+              onValueChange={setOrgNameFilter}
+              showAll={true}
+              allLabel="所属部门：全部"
+              triggerClassName="w-44 shadow-sm text-sm"
+            />
           )}
           {/* 成员筛选：仅在组织 Tab 下显示 */}
           {activeTab === "org" && (
@@ -821,7 +810,7 @@ export default function ApiKeys({ enterprise, role }: Props) {
       {/* 行3：创建按钮 + 搜索栏+刷新（右） */}
       <div className="flex items-center justify-between mb-5">
         <div className="flex items-center gap-3">
-          {/* org_admin 在组织 Tab 下：显示配置 & 高级权限按钮；prod tab 显示创建按钮；其他情况显示创建按钮 */}
+          {/* org_admin 在组织 Tab 下：显示配置按钮；prod tab 显示创建按钮；其他情况显示创建按钮 */}
           {previewRole === "org_admin" && activeTab === "org" ? (
             <>
               <Button
@@ -839,15 +828,6 @@ export default function ApiKeys({ enterprise, role }: Props) {
                 }}
               >
                 <Settings className="w-4 h-4" />配置 API Key
-              </Button>
-              <Button
-                className="gap-2 h-9"
-                onClick={() => {
-                  setPendingAdvanced(new Set(advancedMembers));
-                  setAdvancedPermOpen(true);
-                }}
-              >
-                <ShieldCheck className="w-4 h-4" />成员高级权限
               </Button>
             </>
           ) : previewRole === "org_admin" && activeTab === "prod" ? (
@@ -1189,6 +1169,19 @@ export default function ApiKeys({ enterprise, role }: Props) {
               onKeyDown={e => { if (e.key === "Enter" && formName.trim()) handleSave(); }}
               autoFocus
             />
+            {/* 高级设置入口 — 仅创建时显示 */}
+            {!editingKey && (
+              <button
+                type="button"
+                className="mt-3 text-xs text-primary hover:text-primary/80 underline underline-offset-2 transition-colors"
+                onClick={() => {
+                  setSimpleDialogOpen(false);
+                  setSheetOpen(true);
+                }}
+              >
+                高级设置（分组、预算、访问限制…）
+              </button>
+            )}
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => { setSimpleDialogOpen(false); setFormName(""); }} disabled={saving}>
