@@ -1,0 +1,1 @@
+ALTER TABLE public.organizations ADD COLUMN IF NOT EXISTS parent_id uuid REFERENCES public.organizations(id) ON DELETE SET NULL;

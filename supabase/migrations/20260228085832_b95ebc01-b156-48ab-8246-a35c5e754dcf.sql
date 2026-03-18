@@ -1,0 +1,1 @@
+CREATE POLICY "Anyone can delete invitation" ON public.invitations FOR DELETE USING (true);
