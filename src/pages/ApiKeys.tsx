@@ -3,6 +3,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { getCurrentPhone } from "@/lib/auth";
 import { useToast } from "@/hooks/use-toast";
+import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -30,6 +31,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import {
   Plus, RefreshCw, Eye, EyeOff, Copy, Check, Pencil, Trash2,
   ToggleLeft, ToggleRight, ChevronDown, Search, X, Building2, Settings, ShieldCheck,
+  Users, FileText, Send, Loader2, ArrowRight, ArrowLeft, CheckCircle, Mail,
 } from "lucide-react";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
@@ -121,6 +123,113 @@ const mergedStatusConfig: Record<MergedStatus, { dot: string; badge: string; lab
   "禁用":    { dot: "bg-gray-300",   badge: "bg-gray-100 text-gray-400 border-gray-200",     label: "禁用" },
 };
 
+// 可搜索下拉选择组件
+interface SearchableSelectOption {
+  value: string;
+  label: string;
+}
+
+interface SearchableSelectProps {
+  options: SearchableSelectOption[];
+  value: string;
+  onValueChange: (value: string) => void;
+  placeholder?: string;
+  className?: string;
+}
+
+function SearchableSelect({ options, value, onValueChange, placeholder = "请选择", className = "" }: SearchableSelectProps) {
+  const [open, setOpen] = useState(false);
+  const [search, setSearch] = useState("");
+  const containerRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  const selectedLabel = options.find(o => o.value === value)?.label || placeholder;
+
+  // 过滤选项
+  const filteredOptions = search
+    ? options.filter(o => o.label.toLowerCase().includes(search.toLowerCase()))
+    : options;
+
+  // 点击外部关闭
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setOpen(false);
+        setSearch("");
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  // 打开时聚焦输入框
+  useEffect(() => {
+    if (open && inputRef.current) {
+      inputRef.current.focus();
+    }
+  }, [open]);
+
+  const handleSelect = (val: string) => {
+    onValueChange(val);
+    setOpen(false);
+    setSearch("");
+  };
+
+  return (
+    <div ref={containerRef} className={cn("relative", className)}>
+      {/* Trigger */}
+      <button
+        type="button"
+        onClick={() => setOpen(!open)}
+        className="flex items-center justify-between gap-1.5 h-9 px-3 w-full rounded-md border border-border bg-background text-sm text-foreground hover:bg-muted/50 transition-colors"
+      >
+        <span className="truncate">{selectedLabel}</span>
+        <ChevronDown className={cn("w-4 h-4 text-muted-foreground shrink-0 transition-transform", open && "rotate-180")} />
+      </button>
+
+      {/* Dropdown */}
+      {open && (
+        <div className="absolute z-50 mt-1 w-full min-w-[200px] bg-background border border-border rounded-md shadow-lg overflow-hidden">
+          {/* Search Input */}
+          <div className="p-2 border-b border-border">
+            <div className="relative">
+              <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+              <input
+                ref={inputRef}
+                type="text"
+                value={search}
+                onChange={e => setSearch(e.target.value)}
+                placeholder="搜索..."
+                className="w-full h-8 pl-8 pr-2 text-sm rounded-md border border-input bg-background focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+              />
+            </div>
+          </div>
+          {/* Options */}
+          <div className="max-h-48 overflow-y-auto py-1">
+            {filteredOptions.length === 0 ? (
+              <div className="px-3 py-2 text-sm text-muted-foreground text-center">无匹配项</div>
+            ) : (
+              filteredOptions.map(option => (
+                <button
+                  key={option.value}
+                  type="button"
+                  onClick={() => handleSelect(option.value)}
+                  className={cn(
+                    "w-full px-3 py-2 text-sm text-left hover:bg-muted transition-colors",
+                    value === option.value && "bg-primary/10 text-primary font-medium"
+                  )}
+                >
+                  {option.label}
+                </button>
+              ))
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 
 export default function ApiKeys({ enterprise, role }: Props) {
   const { toast } = useToast();
@@ -198,6 +307,33 @@ export default function ApiKeys({ enterprise, role }: Props) {
 
   // User names cache (phone -> name)
   const [userNames, setUserNames] = useState<Record<string, string>>({});
+
+  // Batch create state
+  const [batchCreateOpen, setBatchCreateOpen] = useState(false);
+  const [batchStep, setBatchStep] = useState<1 | 2 | 3>(1);
+  const [batchTokenType, setBatchTokenType] = useState<"member" | "dept">("member");
+  const [batchQuota, setBatchQuota] = useState("");
+  const [batchUnlimited, setBatchUnlimited] = useState(true);
+  const [batchExpires, setBatchExpires] = useState("");
+  const [batchModels, setBatchModels] = useState<string[]>([]);
+  const [batchIpWhitelist, setBatchIpWhitelist] = useState("");
+  const [batchMemberList, setBatchMemberList] = useState("");
+  const [batchEmailSubject, setBatchEmailSubject] = useState("【AI网关平台】API Key 已分配 - 请安全提取");
+  const [batchEmailBody, setBatchEmailBody] = useState(`尊敬的合作伙伴：
+
+您好！
+
+Key 配置信息
+令牌类型：成员令牌
+使用配额：无限制
+有效期至：永不过期
+
+[安全提取令牌]
+
+注意事项：`);
+  const [batchSending, setBatchSending] = useState(false);
+  const [batchSuccess, setBatchSuccess] = useState(false);
+  const [batchCreatedCount, setBatchCreatedCount] = useState(0);
 
   const fetchMyKeys = useCallback(async () => {
     if (!phone) return;
@@ -513,7 +649,7 @@ export default function ApiKeys({ enterprise, role }: Props) {
     const filtered = filterFn ? filterFn(keys) : filterKeys(keys);
     const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
     const paged = paginate(filtered, page);
-    const colSpan = 9 + (showCreator ? 1 : 0) + (showOrg ? 1 : 0);
+    const colSpan = 9 + (showCreator ? 3 : 0) + (showOrg ? 1 : 0);
 
     return (
       <div>
@@ -542,7 +678,9 @@ export default function ApiKeys({ enterprise, role }: Props) {
                 </TableHead>
                 <TableHead className="font-medium">已消耗/预算上限</TableHead>
                 {showOrg && <TableHead className="font-medium">部门</TableHead>}
+                {showCreator && <TableHead className="font-medium">部门</TableHead>}
                 {showCreator && <TableHead className="font-medium">成员</TableHead>}
+                {showCreator && <TableHead className="font-medium">分类</TableHead>}
                 <TableHead className="font-medium">
                   <div className="flex items-center gap-1">
                     分组
@@ -597,10 +735,59 @@ export default function ApiKeys({ enterprise, role }: Props) {
                         </span>
                       </TableCell>
                     )}
+                    {/* 部门（仅组织Tab，在成员左边） */}
+                    {showCreator && (
+                      <TableCell>
+                        <span className="text-sm text-muted-foreground">
+                          {organizations.find(o => o.id === k.organization_id)?.name ?? "—"}
+                        </span>
+                      </TableCell>
+                    )}
                     {/* 成员（仅组织Tab） */}
                     {showCreator && (
                       <TableCell>
-                        <span className="text-sm text-muted-foreground">{userNames[k.creator_phone] || k.creator_phone}</span>
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm text-muted-foreground">{userNames[k.creator_phone] || k.creator_phone}</span>
+                          {/* 第一个 key 显示批量分发标签（假数据演示） */}
+                          {k === paged[0] && (
+                            <TooltipProvider>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-blue-50 border border-blue-200 text-xs text-blue-600 cursor-pointer hover:bg-blue-100 transition-colors">
+                                    <Mail className="w-3 h-3" />
+                                    批量分发
+                                  </span>
+                                </TooltipTrigger>
+                                <TooltipContent side="top" className="max-w-xs">
+                                  <div className="space-y-2 p-1">
+                                    <p className="font-medium text-foreground">批量分发信息</p>
+                                    <div className="text-sm text-muted-foreground space-y-1">
+                                      <p>分发邮箱：zhangsan@company.com</p>
+                                      <p>备注名：张三</p>
+                                      <p className="text-xs text-muted-foreground/70">通过批量创建功能分发</p>
+                                    </div>
+                                  </div>
+                                </TooltipContent>
+                              </Tooltip>
+                            </TooltipProvider>
+                          )}
+                        </div>
+                      </TableCell>
+                    )}
+                    {/* 分类（仅组织Tab，企业管理员视角） */}
+                    {showCreator && (
+                      <TableCell>
+                        <Badge 
+                          variant="outline" 
+                          className={cn(
+                            "text-xs",
+                            k === paged[0] 
+                              ? "bg-purple-50 text-purple-700 border-purple-200" 
+                              : "bg-green-50 text-green-700 border-green-200"
+                          )}
+                        >
+                          {k === paged[0] ? "成员类" : "业务类"}
+                        </Badge>
                       </TableCell>
                     )}
                     <TableCell>
@@ -737,82 +924,61 @@ export default function ApiKeys({ enterprise, role }: Props) {
               我的 API Key
             </button>
             <button
-              onClick={() => { setActiveTab("org"); if (selectedOrgId) fetchOrgKeys(); }}
+              onClick={() => { setActiveTab("org"); previewRole === "admin" ? fetchOrgKeys(null) : fetchProdKeys(); }}
               className={`px-3 h-full rounded-md text-sm font-medium transition-all ${
                 activeTab === "org"
                   ? "bg-background shadow-sm text-foreground"
                   : "text-muted-foreground hover:text-foreground"
               }`}
             >
-              {previewRole === "admin" ? "企业 API Key" : "部门 API Key"}
+              {previewRole === "admin" ? "所有 API Key" : "业务 API Key"}
             </button>
             {previewRole === "org_admin" && (
               <button
-                onClick={() => { setActiveTab("prod"); fetchProdKeys(); }}
+                onClick={() => { setActiveTab("prod"); if (selectedOrgId) fetchOrgKeys(); }}
                 className={`px-3 h-full rounded-md text-sm font-medium transition-all ${
                   activeTab === "prod"
                     ? "bg-background shadow-sm text-foreground"
                     : "text-muted-foreground hover:text-foreground"
                 }`}
               >
-                生产 API Key
+                所有 API Key
               </button>
             )}
           </div>
-          {previewRole === "org_admin" && organizations.length > 0 && (
-            <div className="flex items-center gap-1.5">
-              <Building2 className="w-4 h-4 text-muted-foreground" />
-              <OrgTreeSelect
-                orgs={organizations}
-                value={selectedOrgId ?? ""}
-                onValueChange={(val) => {
-                  setSelectedOrgId(val);
-                  setOrgNameFilter("all");
-                  fetchOrgKeys(val);
-                }}
-                showAll={false}
-                placeholder="选择部门..."
-                triggerClassName="w-44 shadow-sm"
-              />
-            </div>
-          )}
-          {/* 筛选器 — 始终显示在行2同一行 */}
-          {/* 企业管理员才显示所属组织筛选 */}
-          {previewRole === "admin" && (
-            <OrgTreeSelect
-              orgs={organizations}
-              value={orgNameFilter}
-              onValueChange={setOrgNameFilter}
-              showAll={true}
-              allLabel="所属部门：全部"
-              triggerClassName="w-44 shadow-sm text-sm"
-            />
-          )}
-          {/* 成员筛选：仅在组织 Tab 下显示 */}
-          {activeTab === "org" && (
-            <Select value={memberFilter} onValueChange={setMemberFilter}>
-              <SelectTrigger className="h-9 w-40 border-border shadow-sm text-sm">
-                <SelectValue placeholder="所属成员" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">所属成员：全部</SelectItem>
-                {orgMembers.map(m => (
-                  <SelectItem key={m.phone} value={m.phone}>
-                    {m.name ? `${m.name} (${m.phone})` : m.phone}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          )}
         </div>
       )}
 
       {/* 行3：创建按钮 + 搜索栏+刷新（右） */}
       <div className="flex items-center justify-between mb-5">
         <div className="flex items-center gap-3">
-          {/* org_admin 在组织 Tab 下：显示配置按钮；prod tab 显示创建按钮；其他情况显示创建按钮 */}
+          {/* org_admin 在业务 Tab 下：显示创建按钮；所有 Key tab 显示配置按钮；其他情况显示创建按钮 */}
           {previewRole === "org_admin" && activeTab === "org" ? (
             <>
+              <Button onClick={openCreateProd} className="gap-2 h-9 bg-primary text-primary-foreground hover:bg-primary/90">
+                <Plus className="w-4 h-4" />创建 API Key
+              </Button>
+              {/* 部门管理员在"业务 API Key" tab 下显示归属部门选择 */}
+              {organizations.length > 0 && (
+                <div className="flex items-center gap-2 ml-2">
+                  <span className="text-sm text-muted-foreground">归属部门：</span>
+                  <OrgTreeSelect
+                    orgs={organizations}
+                    value={selectedOrgId ?? "all"}
+                    onValueChange={(val) => {
+                      setSelectedOrgId(val === "all" ? null : val);
+                      fetchProdKeys(val === "all" ? null : val);
+                    }}
+                    showAll={true}
+                    allLabel="全部"
+                    placeholder="选择部门..."
+                    triggerClassName="w-40 shadow-sm text-sm"
+                  />
+                </div>
+              )}
+            </>
+          ) : previewRole === "org_admin" && activeTab === "prod" ? (
+              <>
               <Button
                 className="gap-2 h-9"
                 onClick={() => {
@@ -829,18 +995,86 @@ export default function ApiKeys({ enterprise, role }: Props) {
               >
                 <Settings className="w-4 h-4" />配置 API Key
               </Button>
+              <Button
+                variant="outline"
+                className="gap-2 h-9"
+                onClick={() => {
+                  setBatchStep(1);
+                  setBatchTokenType("member");
+                  setBatchQuota("");
+                  setBatchUnlimited(true);
+                  setBatchExpires("");
+                  setBatchModels([]);
+                  setBatchIpWhitelist("");
+                  setBatchMemberList("");
+                  setBatchSuccess(false);
+                  setBatchCreatedCount(0);
+                  setBatchCreateOpen(true);
+                }}
+              >
+                <Users className="w-4 h-4" />批量创建
+              </Button>
             </>
-          ) : previewRole === "org_admin" && activeTab === "prod" ? (
-            <Button onClick={openCreateProd} className="gap-2 h-9 bg-primary text-primary-foreground hover:bg-primary/90">
-              <Plus className="w-4 h-4" />创建 API Key
-            </Button>
           ) : previewRole === "admin" && activeTab === "org" ? null : (
-            <Button onClick={openCreate} className="gap-2 h-9">
-              <Plus className="w-4 h-4" />创建 API Key
-            </Button>
+            <>
+              <Button onClick={openCreate} className="gap-2 h-9">
+                <Plus className="w-4 h-4" />创建 API Key
+              </Button>
+              {/* 管理员在"我的 API Key" tab 下显示归属部门选择 */}
+              {activeTab === "my" && (
+                <div className="flex items-center gap-2 ml-2">
+                  <span className="text-sm text-muted-foreground">归属部门：</span>
+                  <OrgTreeSelect
+                    orgs={organizations}
+                    value={selectedOrgId ?? "all"}
+                    onValueChange={(val) => {
+                      setSelectedOrgId(val === "all" ? null : val);
+                    }}
+                    showAll={true}
+                    allLabel="默认组织"
+                    placeholder="选择部门..."
+                    triggerClassName="w-40 shadow-sm text-sm"
+                  />
+                </div>
+              )}
+            </>
           )}
         </div>
         <div className="flex items-center gap-2">
+          {/* 企业管理员/部门管理员在"所有 API Key" tab 下显示部门和成员快速筛选 - 放在名称搜索框左侧 */}
+          {((previewRole === "admin" && activeTab === "org") || (previewRole === "org_admin" && activeTab === "prod")) && (
+            <>
+              {/* 部门筛选 - 可搜索下拉模式 */}
+              <div className="relative">
+                <SearchableSelect
+                  options={[
+                    { value: "all", label: "全部部门" },
+                    ...organizations.map(o => ({ value: o.id, label: o.name }))
+                  ]}
+                  value={orgNameFilter}
+                  onValueChange={setOrgNameFilter}
+                  placeholder="全部部门"
+                  className="w-28"
+                />
+              </div>
+              {/* 成员筛选 - 可搜索下拉模式 */}
+              <div className="relative">
+                <SearchableSelect
+                  options={[
+                    { value: "all", label: "全部成员" },
+                    ...orgMembers.map(m => ({ 
+                      value: m.phone, 
+                      label: m.name ? `${m.name} (${m.phone})` : m.phone 
+                    }))
+                  ]}
+                  value={memberFilter}
+                  onValueChange={setMemberFilter}
+                  placeholder="全部成员"
+                  className="w-28"
+                />
+              </div>
+            </>
+          )}
           {/* 名称 label + 输入框 */}
           <div className="flex items-center gap-1.5">
             <span className="text-sm text-muted-foreground whitespace-nowrap">名称</span>
@@ -867,7 +1101,15 @@ export default function ApiKeys({ enterprise, role }: Props) {
           <Button variant="outline" className="h-9 px-3" onClick={handleReset}>重置</Button>
           {/* 刷新图标 */}
           <button
-            onClick={() => { if (activeTab === "my") fetchMyKeys(); else if (activeTab === "prod") fetchProdKeys(); else fetchOrgKeys(); }}
+            onClick={() => {
+              if (activeTab === "my") {
+                fetchMyKeys();
+              } else if (activeTab === "org") {
+                previewRole === "admin" ? fetchOrgKeys(null) : fetchProdKeys();
+              } else {
+                fetchOrgKeys();
+              }
+            }}
             className="h-9 w-9 flex items-center justify-center rounded-md border border-border hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
             title="刷新"
           >
@@ -888,17 +1130,8 @@ export default function ApiKeys({ enterprise, role }: Props) {
             setPage={setMyPage}
           />
         )}
-        {canSeeOrgTab && activeTab === "org" && (
-          <KeyTable
-            keys={orgKeys}
-            filterFn={(keys) => filterKeys(keys, true)}
-            showCreator={true}
-            showOrg={previewRole === "admin"}
-            page={orgPage}
-            setPage={setOrgPage}
-          />
-        )}
-        {previewRole === "org_admin" && activeTab === "prod" && (
+        {/* 部门管理员视角：业务 API Key (org) -> prodKeys */}
+        {previewRole === "org_admin" && activeTab === "org" && (
           <>
             <KeyTable
               keys={prodKeys}
@@ -912,6 +1145,28 @@ export default function ApiKeys({ enterprise, role }: Props) {
               生产环境专用 Key，未来将支持基于终端用户的精细化限流与审计统计。
             </p>
           </>
+        )}
+        {/* 部门管理员视角：所有 API Key (prod) -> orgKeys */}
+        {previewRole === "org_admin" && activeTab === "prod" && (
+          <KeyTable
+            keys={orgKeys}
+            filterFn={(keys) => filterKeys(keys, true)}
+            showCreator={true}
+            showOrg={false}
+            page={orgPage}
+            setPage={setOrgPage}
+          />
+        )}
+        {/* 企业管理员视角：所有 API Key (org) -> orgKeys */}
+        {previewRole === "admin" && activeTab === "org" && (
+          <KeyTable
+            keys={orgKeys}
+            filterFn={(keys) => filterKeys(keys, true)}
+            showCreator={true}
+            showOrg={true}
+            page={orgPage}
+            setPage={setOrgPage}
+          />
         )}
       </div>
 
@@ -1173,13 +1428,14 @@ export default function ApiKeys({ enterprise, role }: Props) {
             {!editingKey && (
               <button
                 type="button"
-                className="mt-3 text-xs text-primary hover:text-primary/80 underline underline-offset-2 transition-colors"
+                className="mt-3 inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-muted-foreground bg-muted hover:bg-muted/80 rounded-md transition-colors"
                 onClick={() => {
                   setSimpleDialogOpen(false);
                   setSheetOpen(true);
                 }}
               >
-                高级设置（分组、预算、访问限制…）
+                <Settings className="w-3.5 h-3.5" />
+                高级设置
               </button>
             )}
           </div>
@@ -1380,6 +1636,340 @@ export default function ApiKeys({ enterprise, role }: Props) {
             <Button variant="outline" onClick={() => setAdvancedPermOpen(false)}>取消</Button>
             <Button onClick={saveAdvancedPerms}>确定</Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Batch Create Dialog */}
+      <Dialog open={batchCreateOpen} onOpenChange={setBatchCreateOpen}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-hidden flex flex-col p-0">
+          {batchSending ? (
+            <div className="flex flex-col items-center justify-center py-20 px-6">
+              <Loader2 className="w-12 h-12 animate-spin text-primary mb-6" />
+              <p className="text-lg font-medium text-foreground mb-2">正在生成令牌并推送邮件...</p>
+              <p className="text-sm text-muted-foreground">请稍候，不要关闭窗口</p>
+            </div>
+          ) : batchSuccess ? (
+            <div className="flex flex-col items-center justify-center py-16 px-6">
+              <CheckCircle className="w-16 h-16 text-green-500 mb-6" />
+              <p className="text-xl font-semibold text-foreground mb-2">批量创建成功</p>
+              <p className="text-sm text-muted-foreground mb-8">
+                已为 {batchCreatedCount} 位成员创建 API Key 并发送邮件
+              </p>
+              <Button onClick={() => setBatchCreateOpen(false)} className="w-32">确定</Button>
+            </div>
+          ) : (
+            <>
+              {/* Header */}
+              <DialogHeader className="px-6 py-4 border-b border-border">
+                <div className="flex items-center gap-3">
+                  <Users className="w-5 h-5 text-primary" />
+                  <DialogTitle className="text-lg font-semibold">批量创建 API Key</DialogTitle>
+                </div>
+              </DialogHeader>
+
+              {/* Step Indicator */}
+              <div className="px-6 py-4 border-b border-border">
+                <div className="flex items-center justify-center gap-2">
+                  <div className={`flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium ${
+                    batchStep === 1 ? "bg-primary text-primary-foreground" : batchStep > 1 ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground"
+                  }`}>
+                    <Settings className="w-4 h-4" />
+                    配置 API Key
+                  </div>
+                  <ArrowRight className="w-4 h-4 text-muted-foreground" />
+                  <div className={`flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium ${
+                    batchStep === 2 ? "bg-primary text-primary-foreground" : batchStep > 2 ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground"
+                  }`}>
+                    <FileText className="w-4 h-4" />
+                    导入名单
+                  </div>
+                  <ArrowRight className="w-4 h-4 text-muted-foreground" />
+                  <div className={`flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium ${
+                    batchStep === 3 ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"
+                  }`}>
+                    <Send className="w-4 h-4" />
+                    分发配置
+                  </div>
+                </div>
+              </div>
+
+              {/* Content */}
+              <div className="flex-1 overflow-y-auto p-6">
+                {batchStep === 1 && (
+                  <div className="space-y-6">
+                    {/* Info Banner */}
+                    <div className="flex items-start gap-3 p-4 rounded-lg bg-blue-50 border border-blue-200">
+                      <ShieldCheck className="w-5 h-5 text-blue-500 mt-0.5 flex-shrink-0" />
+                      <p className="text-sm text-blue-700">设置这批 API Key 的通用属性，所有成员将使用相同的配置。</p>
+                    </div>
+
+                    {/* Token Type */}
+                    <div className="space-y-3">
+                      <Label className="text-sm font-medium">令牌类型</Label>
+                      <div className="grid grid-cols-2 gap-4">
+                        <label className={`flex flex-col gap-1 p-4 rounded-lg border-2 cursor-pointer transition-colors ${
+                          batchTokenType === "member" ? "border-primary bg-primary/5" : "border-border hover:border-primary/50"
+                        }`}>
+                          <div className="flex items-center gap-2">
+                            <input
+                              type="radio"
+                              name="tokenType"
+                              value="member"
+                              checked={batchTokenType === "member"}
+                              onChange={() => setBatchTokenType("member")}
+                              className="sr-only"
+                            />
+                            <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${
+                              batchTokenType === "member" ? "border-primary" : "border-muted-foreground"
+                            }`}>
+                              {batchTokenType === "member" && <div className="w-2 h-2 rounded-full bg-primary" />}
+                            </div>
+                            <span className="font-medium">成员令牌</span>
+                          </div>
+                          <span className="text-xs text-muted-foreground pl-6">绑定到具体成员，随成员状态变化</span>
+                        </label>
+                        <label className={`flex flex-col gap-1 p-4 rounded-lg border-2 cursor-pointer transition-colors ${
+                          batchTokenType === "dept" ? "border-primary bg-primary/5" : "border-border hover:border-primary/50"
+                        }`}>
+                          <div className="flex items-center gap-2">
+                            <input
+                              type="radio"
+                              name="tokenType"
+                              value="dept"
+                              checked={batchTokenType === "dept"}
+                              onChange={() => setBatchTokenType("dept")}
+                              className="sr-only"
+                            />
+                            <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${
+                              batchTokenType === "dept" ? "border-primary" : "border-muted-foreground"
+                            }`}>
+                              {batchTokenType === "dept" && <div className="w-2 h-2 rounded-full bg-primary" />}
+                            </div>
+                            <span className="font-medium">部门令牌</span>
+                          </div>
+                          <span className="text-xs text-muted-foreground pl-6">不随成员变动失效，适用于业务系统</span>
+                        </label>
+                      </div>
+                    </div>
+
+                    {/* Quota Setting */}
+                    <div className="space-y-3">
+                      <Label className="text-sm font-medium">配额设置</Label>
+                      <div className="flex items-center gap-3">
+                        <span className="text-muted-foreground">¥</span>
+                        <Input
+                          type="number"
+                          placeholder="0.00"
+                          value={batchQuota}
+                          onChange={e => setBatchQuota(e.target.value)}
+                          disabled={batchUnlimited}
+                          className="flex-1"
+                        />
+                        <div className="flex items-center gap-2">
+                          <Switch
+                            checked={batchUnlimited}
+                            onCheckedChange={setBatchUnlimited}
+                          />
+                          <span className="text-sm text-muted-foreground">无限额度</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Expiration */}
+                    <div className="space-y-3">
+                      <Label className="text-sm font-medium">过期时间</Label>
+                      <Input
+                        type="datetime-local"
+                        value={batchExpires}
+                        onChange={e => setBatchExpires(e.target.value)}
+                      />
+                      <div className="flex gap-2">
+                        {["永不过期", "30天", "90天", "1年"].map(label => (
+                          <button
+                            key={label}
+                            type="button"
+                            onClick={() => {
+                              if (label === "永不过期") setBatchExpires("");
+                              else {
+                                const days = label === "30天" ? 30 : label === "90天" ? 90 : 365;
+                                const date = new Date();
+                                date.setDate(date.getDate() + days);
+                                setBatchExpires(date.toISOString().slice(0, 16));
+                              }
+                            }}
+                            className="px-3 py-1.5 text-xs rounded-full border border-border hover:bg-muted transition-colors"
+                          >
+                            {label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Model Limit */}
+                    <div className="space-y-3">
+                      <Label className="text-sm font-medium">模型限制</Label>
+                      <Select value={batchModels.join(",")} onValueChange={val => setBatchModels(val ? val.split(",") : [])}>
+                        <SelectTrigger>
+                          <SelectValue placeholder="留空则支持所有模型" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="">支持所有模型</SelectItem>
+                          <SelectItem value="gpt-4">GPT-4</SelectItem>
+                          <SelectItem value="gpt-3.5">GPT-3.5</SelectItem>
+                          <SelectItem value="claude">Claude</SelectItem>
+                          <SelectItem value="gemini">Gemini</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    {/* IP Whitelist */}
+                    <div className="space-y-3">
+                      <Label className="text-sm font-medium">IP 白名单</Label>
+                      <textarea
+                        value={batchIpWhitelist}
+                        onChange={e => setBatchIpWhitelist(e.target.value)}
+                        placeholder="一行一个 IP，留空不限制"
+                        className="w-full h-20 rounded-md border border-input bg-background px-3 py-2 text-sm resize-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring placeholder:text-muted-foreground"
+                      />
+                    </div>
+                  </div>
+                )}
+
+                {batchStep === 2 && (
+                  <div className="space-y-6">
+                    {/* Info Banner */}
+                    <div className="flex items-start gap-3 p-4 rounded-lg bg-blue-50 border border-blue-200">
+                      <FileText className="w-5 h-5 text-blue-500 mt-0.5 flex-shrink-0" />
+                      <div className="text-sm text-blue-700">
+                        <p>支持批量粘贴邮箱和备注名，格式：邮箱/备注名</p>
+                        <p>每行一个成员，如：zhangsan@company.com/张三</p>
+                      </div>
+                    </div>
+
+                    {/* Member List */}
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between">
+                        <Label className="text-sm font-medium">成员名单</Label>
+                        <span className="text-xs text-muted-foreground">
+                          有效：{batchMemberList.split("\n").filter(line => line.trim() && line.includes("@")).length}
+                        </span>
+                      </div>
+                      <textarea
+                        value={batchMemberList}
+                        onChange={e => setBatchMemberList(e.target.value)}
+                        placeholder={"zhangsan@company.com/张三\nlisi@company.com/李四"}
+                        className="w-full h-48 rounded-md border border-input bg-background px-3 py-2 text-sm resize-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring placeholder:text-muted-foreground"
+                      />
+                    </div>
+                  </div>
+                )}
+
+                {batchStep === 3 && (
+                  <div className="space-y-6">
+                    {/* Pending Users List */}
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between">
+                        <Label className="text-sm font-medium">待发送用户列表</Label>
+                        <span className="text-xs text-muted-foreground">
+                          共 {batchMemberList.split("\n").filter(line => line.trim() && line.includes("@")).length} 人
+                        </span>
+                      </div>
+                      <div className="max-h-32 overflow-y-auto border border-border rounded-lg p-3 space-y-2">
+                        {batchMemberList.split("\n").filter(line => line.trim() && line.includes("@")).map((line, idx) => {
+                          const parts = line.split("/");
+                          const email = parts[0]?.trim();
+                          const name = parts[1]?.trim() || email;
+                          return (
+                            <div key={idx} className="flex items-center gap-2 text-sm">
+                              <div className="w-6 h-6 rounded-full bg-primary/10 flex items-center justify-center text-xs text-primary font-medium">
+                                {name.charAt(0)}
+                              </div>
+                              <span className="text-foreground">{name}</span>
+                              <span className="text-muted-foreground text-xs">({email})</span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    {/* Email Editor */}
+                    <div className="space-y-3">
+                      <Label className="text-sm font-medium">邮件编辑</Label>
+                      <div className="border border-border rounded-lg p-4 space-y-4">
+                        <div className="flex items-center gap-3">
+                          <span className="text-sm text-muted-foreground w-12">主题</span>
+                          <Input
+                            value={batchEmailSubject}
+                            onChange={e => setBatchEmailSubject(e.target.value)}
+                            className="flex-1"
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <div className="flex items-center gap-3">
+                            <span className="text-sm text-muted-foreground w-12">正文</span>
+                          </div>
+                          <textarea
+                            value={batchEmailBody}
+                            onChange={e => setBatchEmailBody(e.target.value)}
+                            className="w-full h-48 rounded-md border border-input bg-background px-3 py-2 text-sm resize-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                          />
+                        </div>
+                        <div className="flex justify-center">
+                          <Button variant="outline" size="sm" className="gap-2">
+                            <CheckCircle className="w-4 h-4" />
+                            安全提取令牌
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Footer */}
+              <div className="px-6 py-4 border-t border-border flex justify-between items-center">
+                <div>
+                  {batchStep > 1 && (
+                    <Button variant="outline" onClick={() => setBatchStep(prev => (prev - 1) as 1 | 2 | 3)} className="gap-2">
+                      <ArrowLeft className="w-4 h-4" />
+                      上一步
+                    </Button>
+                  )}
+                </div>
+                <div className="flex gap-3">
+                  <Button variant="outline" onClick={() => setBatchCreateOpen(false)}>
+                    取消
+                  </Button>
+                  {batchStep < 3 ? (
+                    <Button
+                      onClick={() => setBatchStep(prev => (prev + 1) as 1 | 2 | 3)}
+                      disabled={batchStep === 2 && batchMemberList.split("\n").filter(line => line.trim() && line.includes("@")).length === 0}
+                      className="gap-2"
+                    >
+                      下一步
+                      <ArrowRight className="w-4 h-4" />
+                    </Button>
+                  ) : (
+                    <Button
+                      onClick={async () => {
+                        setBatchSending(true);
+                        // Simulate API call
+                        await new Promise(resolve => setTimeout(resolve, 2000));
+                        setBatchCreatedCount(batchMemberList.split("\n").filter(line => line.trim() && line.includes("@")).length);
+                        setBatchSending(false);
+                        setBatchSuccess(true);
+                      }}
+                      disabled={batchMemberList.split("\n").filter(line => line.trim() && line.includes("@")).length === 0}
+                      className="gap-2"
+                    >
+                      <Send className="w-4 h-4" />
+                      立即发送
+                    </Button>
+                  )}
+                </div>
+              </div>
+            </>
+          )}
         </DialogContent>
       </Dialog>
     </div>
