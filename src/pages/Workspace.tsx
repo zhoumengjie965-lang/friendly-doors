@@ -266,7 +266,12 @@ export default function Workspace() {
           style={{ background: "linear-gradient(135deg, hsl(224,76%,48%), hsl(262,60%,58%))" }}>
           {avatarText}
         </div>
-        <span className="text-sm text-foreground hidden sm:block">{userName || phone}</span>
+        <div className="hidden sm:flex flex-col items-start">
+          <span className="text-sm text-foreground leading-tight">{userName || phone}</span>
+          <span className="text-[10px] text-primary bg-primary/10 rounded px-1.5 py-0 mt-0.5">
+            {enterprise ? "企业模式" : "个人模式"}
+          </span>
+        </div>
         <ChevronDown className={`w-4 h-4 text-muted-foreground transition-transform ${userMenuOpen ? "rotate-180" : ""}`} />
       </button>
 

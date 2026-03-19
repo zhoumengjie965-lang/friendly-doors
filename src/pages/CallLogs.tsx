@@ -9,13 +9,12 @@ import {
 } from "@/components/ui/dialog";
 import {
   RefreshCw, Settings, ChevronDown, ChevronUp, Activity, ClipboardList,
-  Shield, Calendar, X, Users, Building2,
+  Shield, Calendar, X,
 } from "lucide-react";
 import {
   Pagination, PaginationContent, PaginationItem, PaginationLink,
   PaginationNext, PaginationPrevious
 } from "@/components/ui/pagination";
-import OrgTreeSelect from "@/components/OrgTreeSelect";
 
 interface Enterprise { id: string; name: string; enterprise_code: string; }
 interface OrgInfo { id: string; name: string; }
@@ -763,36 +762,31 @@ export default function CallLogs({ enterprise, role, currentOrg, orgList = [] }:
           {(showOrgSelector || showMemberSelector) && (
             <div className="flex items-center gap-2">
               {showOrgSelector && (
-                <div className="flex items-center gap-1.5">
-                  <Building2 className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
-                  <span className="text-xs text-muted-foreground whitespace-nowrap">当前组织</span>
-                  <OrgTreeSelect
-                    orgs={orgOptions}
-                    value={globalOrg}
-                    onValueChange={v => { setGlobalOrg(v); setGlobalMember("all"); }}
-                    showAll={isEnterpriseAdmin}
-                    allLabel="全部组织"
-                    triggerClassName="h-8 w-36 text-xs font-medium"
-                  />
-                </div>
+                <Select value={globalOrg} onValueChange={v => { setGlobalOrg(v); setGlobalMember("all"); }}>
+                  <SelectTrigger className="h-8 w-28 text-xs font-medium border-border bg-background">
+                    <SelectValue placeholder="全部部门" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {isEnterpriseAdmin && <SelectItem value="all">全部部门</SelectItem>}
+                    {orgOptions.map(o => (
+                      <SelectItem key={o.id} value={o.id}>{o.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               )}
 
               {showMemberSelector && (
-                <div className="flex items-center gap-1.5">
-                  <Users className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
-                  <span className="text-xs text-muted-foreground whitespace-nowrap">成员</span>
-                  <Select value={globalMember} onValueChange={setGlobalMember}>
-                    <SelectTrigger className="h-8 w-28 text-xs font-medium border-border bg-background">
-                      <SelectValue placeholder="全部成员" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">全部成员</SelectItem>
-                      {membersForOrg.map(m => (
-                        <SelectItem key={m} value={m}>{m}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
+                <Select value={globalMember} onValueChange={setGlobalMember}>
+                  <SelectTrigger className="h-8 w-28 text-xs font-medium border-border bg-background">
+                    <SelectValue placeholder="全部成员" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">全部成员</SelectItem>
+                    {membersForOrg.map(m => (
+                      <SelectItem key={m} value={m}>{m}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               )}
             </div>
           )}
