@@ -168,10 +168,6 @@ export default function OrgManagement({ enterprise, role }: Props) {
             <Button variant="outline" onClick={() => setShowBudgetDialog(true)} className="gap-2">
               <Sliders className="w-4 h-4" />一键配置预算
             </Button>
-            <Button onClick={() => setCreateOpen(true)} className="gap-2">
-              <Plus className="w-4 h-4" />
-              创建部门
-            </Button>
           </div>
         )}
       </div>
@@ -194,8 +190,14 @@ export default function OrgManagement({ enterprise, role }: Props) {
 
       {/* Table */}
       <div className="bg-card border border-border rounded-xl overflow-hidden">
-        <div className="px-6 py-4 border-b border-border">
+        <div className="px-6 py-4 border-b border-border flex items-center justify-between">
           <h2 className="font-semibold text-foreground">部门列表</h2>
+          {isAdmin && (
+            <Button size="sm" onClick={() => setCreateOpen(true)} className="gap-1.5">
+              <Plus className="w-3.5 h-3.5" />
+              创建部门
+            </Button>
+          )}
         </div>
         {/* Zero-budget alert */}
         {!loading && orgs.some(o => o.monthly_budget == null || o.monthly_budget === 0) && (
