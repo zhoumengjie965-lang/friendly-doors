@@ -27,7 +27,7 @@ import {
   Search, Lock, Building2, Folder, ChevronRight, ChevronDown,
   Users, Key, Plus, MoreHorizontal, Wallet, TrendingUp, BarChart3,
   Sliders, SlidersHorizontal, Pencil, UserCog, Power,
-  Trash2, AlertTriangle, ArrowLeftRight, MoreVertical, AlertCircle,
+  Trash2, AlertTriangle, MoreVertical,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import CreateOrgDialog from "@/components/CreateOrgDialog";
@@ -126,66 +126,6 @@ function maskPhone(phone: string) {
 interface Props {
   enterprise: Enterprise;
   role: string;
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// TransferMemberDialog — mini org tree for moving a member to another dept
-// ─────────────────────────────────────────────────────────────────────────────
-function TransferMemberDialog({
-  open, onOpenChange, orgs, currentOrgId, memberName, onConfirm,
-}: {
-  open: boolean;
-  onOpenChange: (v: boolean) => void;
-  orgs: Org[];
-  currentOrgId: string;
-  memberName: string;
-  onConfirm: (targetOrgId: string) => void;
-}) {
-  const [target, setTarget] = useState<string>("");
-  const candidates = orgs.filter(o => o.id !== currentOrgId && o.status === "active");
-
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-sm">
-        <DialogHeader>
-          <DialogTitle>转移成员</DialogTitle>
-          <DialogDescription>将「{memberName}」转移到目标部门</DialogDescription>
-        </DialogHeader>
-        <div className="space-y-2 py-2 max-h-56 overflow-y-auto">
-          {candidates.length === 0 ? (
-            <p className="text-sm text-muted-foreground text-center py-4">暂无其他可选部门</p>
-          ) : candidates.map(org => (
-            <label
-              key={org.id}
-              className={`flex items-center gap-3 px-3 py-2.5 rounded-lg border cursor-pointer transition-colors ${
-                target === org.id
-                  ? "border-primary bg-primary/5"
-                  : "border-border hover:bg-muted/50"
-              }`}
-            >
-              <input
-                type="radio"
-                className="sr-only"
-                checked={target === org.id}
-                onChange={() => setTarget(org.id)}
-              />
-              <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center shrink-0 transition-colors ${
-                target === org.id ? "border-primary" : "border-muted-foreground/40"
-              }`}>
-                {target === org.id && <div className="w-2 h-2 rounded-full bg-primary" />}
-              </div>
-              <Folder className="w-4 h-4 text-muted-foreground shrink-0" />
-              <span className="text-sm text-foreground">{org.name}</span>
-            </label>
-          ))}
-        </div>
-        <DialogFooter className="gap-2">
-          <Button variant="outline" onClick={() => { onOpenChange(false); setTarget(""); }}>取消</Button>
-          <Button disabled={!target} onClick={() => { onConfirm(target); setTarget(""); }}>确认转移</Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-  );
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -349,13 +289,6 @@ function RootView({ enterprise, role, orgs, loadOrgs }: {
           <h1 className="text-2xl font-bold text-foreground">部门管理</h1>
           <p className="text-muted-foreground mt-1 text-sm">管理企业下的部门单元及预算分配</p>
         </div>
-        {isAdmin && (
-          <div className="flex items-center gap-2">
-            <Button variant="outline" onClick={() => setShowBudgetDialog(true)} className="gap-2">
-              <Sliders className="w-4 h-4" />一键配置预算
-            </Button>
-          </div>
-        )}
       </div>
 
       {/* Stats */}
@@ -430,26 +363,16 @@ function RootView({ enterprise, role, orgs, loadOrgs }: {
         <div className="px-6 py-4 border-b border-border flex items-center justify-between">
           <h2 className="font-semibold text-foreground">部门列表</h2>
           {isAdmin && (
-            <Button size="sm" onClick={() => setCreateOpen(true)} className="gap-1.5">
-              <Plus className="w-3.5 h-3.5" />创建部门
-            </Button>
+            <div className="flex items-center gap-2">
+              <Button variant="outline" size="sm" onClick={() => setShowBudgetDialog(true)} className="gap-1.5">
+                <Sliders className="w-3.5 h-3.5" />一键配置预算
+              </Button>
+              <Button size="sm" onClick={() => setCreateOpen(true)} className="gap-1.5">
+                <Plus className="w-3.5 h-3.5" />创建部门
+              </Button>
+            </div>
           )}
         </div>
-        {!loading && orgs.some(o => o.monthly_budget == null || o.monthly_budget === 0) && (
-          <div className="px-6 pt-4">
-            <div className="flex items-center justify-between gap-3 rounded-lg border border-orange-300 bg-orange-50 dark:border-orange-500/40 dark:bg-orange-500/10 px-4 py-3">
-              <div className="flex items-center gap-2.5">
-                <AlertTriangle className="w-4 h-4 text-orange-500 shrink-0" />
-                <span className="text-sm font-medium text-orange-800 dark:text-orange-300">存在未分配预算的部门，建议为所有部门配置月度预算上限。</span>
-              </div>
-              {isAdmin && (
-                <button className="shrink-0 text-xs font-semibold text-orange-600 dark:text-orange-400 underline underline-offset-2 hover:text-orange-700 dark:hover:text-orange-300 transition-colors" onClick={() => setShowBudgetDialog(true)}>
-                  立即均分
-                </button>
-              )}
-            </div>
-          </div>
-        )}
         {loading ? (
           <div className="flex items-center justify-center py-16">
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
@@ -687,49 +610,59 @@ function RootView({ enterprise, role, orgs, loadOrgs }: {
       {/* 一键配置预算 Dialog */}
       {(() => {
         const n = orgs.length;
-        const pkg = Number(totalPackage);
-        const perBudget = n > 0 && pkg > 0 ? pkg / n : 0;
-        const availableBalance = enterpriseBalance.total - enterpriseBalance.consumed;
+        const monthlyBudget = Number(totalPackage);
+        const [syncDefault, setSyncDefault] = useState(false);
         return (
-          <Dialog open={showBudgetDialog} onOpenChange={(open) => { setShowBudgetDialog(open); if (!open) setTotalPackage(""); }}>
+          <Dialog open={showBudgetDialog} onOpenChange={(open) => { setShowBudgetDialog(open); if (!open) { setTotalPackage(""); setSyncDefault(false); } }}>
             <DialogContent className="sm:max-w-md">
               <DialogHeader>
                 <DialogTitle>一键配置预算</DialogTitle>
-                <DialogDescription>将输入的总金额均分给所有部门，统一设置月度预算上限。</DialogDescription>
+                <DialogDescription>为所有部门统一设置当月预算上限。</DialogDescription>
               </DialogHeader>
               <div className="space-y-4 py-2">
-                {/* 企业可用余额提示 */}
-                <div className="rounded-lg border border-blue-200 bg-blue-50 dark:border-blue-500/30 dark:bg-blue-500/10 p-3">
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="text-muted-foreground">企业可用余额</span>
-                    <span className="font-semibold text-emerald-600 tabular-nums">¥{availableBalance.toLocaleString()}</span>
-                  </div>
-                  <p className="text-xs text-muted-foreground mt-1">提示：建议参考可用余额范围进行分配</p>
-                </div>
                 <div className="space-y-1.5">
-                  <Label htmlFor="total-pkg">要分配的总预算（元）</Label>
-                  <Input id="total-pkg" type="number" placeholder="请输入总金额" value={totalPackage} onChange={(e) => setTotalPackage(e.target.value)} />
+                  <Label htmlFor="total-pkg">当月部门预算上限（元）</Label>
+                  <Input id="total-pkg" type="number" placeholder="请输入当月预算上限" value={totalPackage} onChange={(e) => setTotalPackage(e.target.value)} />
                 </div>
-                {n > 0 && pkg > 0 && (
+                {n > 0 && monthlyBudget > 0 && (
                   <div className="rounded-lg border border-primary/20 bg-primary/5 p-3 text-sm text-foreground">
-                    共 <span className="font-semibold">{n}</span> 个部门，每个部门将分得{" "}
-                    <span className="font-bold text-primary tabular-nums">¥{perBudget.toFixed(2)}</span>/月
+                    共 <span className="font-semibold">{n}</span> 个部门，每个部门将设置为{" "}
+                    <span className="font-bold text-primary tabular-nums">¥{monthlyBudget.toLocaleString()}</span>/月
                   </div>
                 )}
+                {/* 同步为默认月预算 */}
+                <div className="flex items-center gap-2 pt-1">
+                  <input
+                    type="checkbox"
+                    id="sync-default"
+                    checked={syncDefault}
+                    onChange={(e) => setSyncDefault(e.target.checked)}
+                    className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
+                  />
+                  <Label htmlFor="sync-default" className="text-sm font-normal cursor-pointer">
+                    同步为默认月预算（下月生效）
+                  </Label>
+                </div>
               </div>
               <DialogFooter className="gap-2">
-                <Button variant="outline" onClick={() => { setShowBudgetDialog(false); setTotalPackage(""); }}>取消</Button>
-                <Button disabled={distributing || n === 0 || pkg <= 0} onClick={async () => {
+                <Button variant="outline" onClick={() => { setShowBudgetDialog(false); setTotalPackage(""); setSyncDefault(false); }}>取消</Button>
+                <Button disabled={distributing || n === 0 || monthlyBudget <= 0} onClick={async () => {
                   setDistributing(true);
                   try {
-                    await Promise.all(orgs.map(org => supabase.from("organizations").update({ monthly_budget: perBudget } as any).eq("id", org.id)));
+                    // 更新当月预算
+                    await Promise.all(orgs.map(org => supabase.from("organizations").update({ monthly_budget: monthlyBudget } as any).eq("id", org.id)));
+                    // 如果勾选了同步为默认，则更新默认预算字段（mock实现，实际需根据数据库结构调整）
+                    if (syncDefault) {
+                      // TODO: 更新默认月预算字段，供下月使用
+                      console.log("已同步为默认月预算，下月生效");
+                    }
                     setStatsFlashKey(k => k + 1);
-                    toast({ title: `已成功为 ${n} 个部门分配预算`, description: `每个部门 ¥${perBudget.toFixed(2)}/月` });
-                    setShowBudgetDialog(false); setTotalPackage(""); loadOrgs();
+                    toast({ title: `已成功为 ${n} 个部门设置预算`, description: `每个部门 ¥${monthlyBudget.toLocaleString()}/月${syncDefault ? "，已同步为默认预算" : ""}` });
+                    setShowBudgetDialog(false); setTotalPackage(""); setSyncDefault(false); loadOrgs();
                   } catch { toast({ title: "操作失败", variant: "destructive" }); }
                   finally { setDistributing(false); }
                 }}>
-                  {distributing ? "分配中…" : "确认均分"}
+                  {distributing ? "保存中…" : "确认配置"}
                 </Button>
               </DialogFooter>
             </DialogContent>
@@ -784,7 +717,6 @@ function OrgView({ enterprise, role, orgId, orgs, onOrgUpdated }: {
   const [subOrgBudgetInput, setSubOrgBudgetInput] = useState("");
   const [apiKeyBudgetInput, setApiKeyBudgetInput] = useState("");
   const [statsFlashKey, setStatsFlashKey] = useState(0);
-  const [transferMember, setTransferMember] = useState<Member | null>(null);
   const { toast } = useToast();
   const phone = getCurrentPhone();
 
@@ -811,12 +743,20 @@ function OrgView({ enterprise, role, orgId, orgs, onOrgUpdated }: {
   const childCount = childOrgsList.length;
   const hasChildren = childCount > 0;
 
-  // 预算分配计算（mock数据用于展示）
-  const memberBudgetAlloc = members.reduce((s, m) => s + (m.daily_limit ?? 2000) * 30, 0);
-  const subOrgBudgetAlloc = childOrgsList.reduce((s, o) => s + (o.monthly_budget ?? 0), 0);
-  const apiKeyBudgetAlloc = 0; // mock: 业务Key预算
+  // 预算分配计算
+  const membersWithLimit = members.filter(m => m.daily_limit && m.daily_limit > 0);
+  const membersUnlimited = members.filter(m => !m.daily_limit || m.daily_limit === 0);
+  const subOrgsWithBudget = childOrgsList.filter(o => o.monthly_budget && o.monthly_budget > 0);
+  const subOrgsUnlimited = childOrgsList.filter(o => !o.monthly_budget || o.monthly_budget === 0);
+  // mock: 业务Key数据 (假设有业务Key数据)
+  const apiKeyTotal = 1; // mock: 业务Key总数
+  const apiKeyWithBudget = 1; // mock: 有预算限制的业务Key数
+  const apiKeyUnlimited = 0; // mock: 无限预算的业务Key数
+
+  const memberBudgetAlloc = membersWithLimit.reduce((s, m) => s + (m.daily_limit || 0) * 30, 0);
+  const subOrgBudgetAlloc = subOrgsWithBudget.reduce((s, o) => s + (o.monthly_budget || 0), 0);
+  const apiKeyBudgetAlloc = 1000; // mock: 业务Key预算
   const totalAllocated = memberBudgetAlloc + subOrgBudgetAlloc + apiKeyBudgetAlloc;
-  const overAllocated = Math.max(0, totalAllocated - budget);
   const remainingBudget = Math.max(0, budget - totalAllocated);
 
   // 消耗分布计算（mock数据用于展示）
@@ -954,14 +894,6 @@ function OrgView({ enterprise, role, orgId, orgs, onOrgUpdated }: {
     toast({ title: "成员已移除" });
   }
 
-  async function handleTransfer(targetOrgId: string) {
-    if (!transferMember) return;
-    await supabase.from("members").update({ organization_id: targetOrgId } as any).eq("id", transferMember.id);
-    toast({ title: "转移成功", description: `成员已转移到「${orgs.find(o => o.id === targetOrgId)?.name}」` });
-    setTransferMember(null);
-    fetchMembers();
-  }
-
   // Child orgs management functions
   const childOrgs = orgs.filter(o => o.parent_id === orgId);
 
@@ -1040,9 +972,6 @@ function OrgView({ enterprise, role, orgId, orgs, onOrgUpdated }: {
 
   function resetBudgetConfigDialog() {
     setMemberBudgetInput("");
-    setSubOrgBudgetInput("");
-    setApiKeyBudgetInput("");
-    setSubOrgTotalPackage("");
   }
 
   async function processSingleMember(memberPhone: string, memberName: string, memberRole: string, memberLimit: string) {
@@ -1104,11 +1033,6 @@ function OrgView({ enterprise, role, orgId, orgs, onOrgUpdated }: {
           <h1 className="text-2xl font-bold text-foreground">{selectedOrg?.name ?? "部门管理"}</h1>
           <p className="text-muted-foreground text-sm mt-0.5">管理部门成员与预算</p>
         </div>
-        <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" onClick={() => { resetBudgetConfigDialog(); setShowSubOrgBudgetDialog(true); }} className="gap-1.5">
-            <Sliders className="w-3.5 h-3.5" />一键配置预算
-          </Button>
-        </div>
       </div>
 
       {/* 3 overview cards */}
@@ -1130,37 +1054,43 @@ function OrgView({ enterprise, role, orgId, orgs, onOrgUpdated }: {
               <span className="text-muted-foreground">本月已分配</span>
               <span className="font-medium tabular-nums">¥{totalAllocated.toLocaleString()}</span>
             </div>
-            <div className="flex justify-between text-sm">
-              <span className="text-muted-foreground">剩余可分配</span>
-              <span className="font-medium tabular-nums">¥{remainingBudget.toLocaleString()}</span>
-            </div>
           </div>
-          {/* 预算分布 - 条件渲染 */}
-          {(memberBudgetAlloc > 0 || subOrgBudgetAlloc > 0 || apiKeyBudgetAlloc > 0) && (
-            <div className="border-t pt-3">
-              <p className="text-xs font-medium text-muted-foreground mb-2">预算分布</p>
-              <div className="space-y-1.5">
-                {memberBudgetAlloc > 0 && (
-                  <div className="flex justify-between text-sm">
-                    <span className="text-muted-foreground">成员</span>
-                    <span className="font-medium tabular-nums">¥{memberBudgetAlloc.toLocaleString()}</span>
-                  </div>
-                )}
-                {subOrgBudgetAlloc > 0 && (
-                  <div className="flex justify-between text-sm">
-                    <span className="text-muted-foreground">子部门</span>
-                    <span className="font-medium tabular-nums">¥{subOrgBudgetAlloc.toLocaleString()}</span>
-                  </div>
-                )}
-                {apiKeyBudgetAlloc > 0 && (
-                  <div className="flex justify-between text-sm">
-                    <span className="text-muted-foreground">Key</span>
-                    <span className="font-medium tabular-nums">¥{apiKeyBudgetAlloc.toLocaleString()}</span>
-                  </div>
-                )}
+          {/* 预算分布 - 始终显示三项 */}
+          <div className="border-t pt-3">
+            <div className="flex justify-between">
+              {/* 直属成员 */}
+              <div className="flex items-center gap-1">
+                <span className="text-xs text-muted-foreground">直属成员</span>
+                <span className="text-sm font-medium tabular-nums">
+                  {membersWithLimit.length > 0 ? `¥${memberBudgetAlloc.toLocaleString()}` : "无限预算"}
+                </span>
+              </div>
+              {/* 子部门 */}
+              <div className="flex items-center gap-1">
+                <span className="text-xs text-muted-foreground">子部门</span>
+                <span className="text-sm font-medium tabular-nums">
+                  {subOrgsWithBudget.length > 0 ? `¥${subOrgBudgetAlloc.toLocaleString()}` : "无限预算"}
+                </span>
+              </div>
+              {/* 业务Key */}
+              <div className="flex items-center gap-1">
+                <span className="text-xs text-muted-foreground">业务Key</span>
+                <span className="text-sm font-medium tabular-nums">
+                  {apiKeyWithBudget > 0 ? `¥${apiKeyBudgetAlloc.toLocaleString()}` : "无限预算"}
+                </span>
               </div>
             </div>
-          )}
+            {/* 无限预算统计提示 - 只显示子部门和业务Key */}
+            {(subOrgsUnlimited.length > 0 || apiKeyUnlimited > 0) && (
+              <p className="text-xs text-muted-foreground mt-2">
+                目前有
+                {subOrgsUnlimited.length > 0 ? `${subOrgsUnlimited.length}个子部门` : ""}
+                {subOrgsUnlimited.length > 0 && apiKeyUnlimited > 0 ? "、" : ""}
+                {apiKeyUnlimited > 0 ? `${apiKeyUnlimited}个业务Key` : ""}
+                设置为无限预算
+              </p>
+            )}
+          </div>
         </div>
 
         {/* B. 实时消耗 */}
@@ -1186,32 +1116,26 @@ function OrgView({ enterprise, role, orgId, orgs, onOrgUpdated }: {
               {budget > 0 && <Progress value={usageRate} className={`h-1.5 ${usageWarning ? "[&>div]:bg-destructive" : ""}`} />}
             </div>
           </div>
-          {/* 消耗分布 - 条件渲染 */}
-          {(memberConsumedAmt > 0 || subOrgConsumedAmt > 0 || apiKeyConsumedAmt > 0) && (
-            <div className="border-t pt-3">
-              <p className="text-xs font-medium text-muted-foreground mb-2">消耗分布</p>
-              <div className="space-y-1.5">
-                {memberConsumedAmt > 0 && (
-                  <div className="flex justify-between text-sm">
-                    <span className="text-muted-foreground">成员</span>
-                    <span className="font-medium tabular-nums">¥{memberConsumedAmt.toLocaleString()}</span>
-                  </div>
-                )}
-                {subOrgConsumedAmt > 0 && (
-                  <div className="flex justify-between text-sm">
-                    <span className="text-muted-foreground">子部门</span>
-                    <span className="font-medium tabular-nums">¥{subOrgConsumedAmt.toLocaleString()}</span>
-                  </div>
-                )}
-                {apiKeyConsumedAmt > 0 && (
-                  <div className="flex justify-between text-sm">
-                    <span className="text-muted-foreground">Key</span>
-                    <span className="font-medium tabular-nums">¥{apiKeyConsumedAmt.toLocaleString()}</span>
-                  </div>
-                )}
+          {/* 消耗分布 - 始终显示三项 */}
+          <div className="border-t pt-3">
+            <div className="flex justify-between">
+              {/* 直属成员消耗 */}
+              <div className="flex items-center gap-1">
+                <span className="text-xs text-muted-foreground">直属成员</span>
+                <span className="text-sm font-medium tabular-nums">¥{memberConsumedAmt.toLocaleString()}</span>
+              </div>
+              {/* 子部门消耗 */}
+              <div className="flex items-center gap-1">
+                <span className="text-xs text-muted-foreground">子部门</span>
+                <span className="text-sm font-medium tabular-nums">¥{subOrgConsumedAmt.toLocaleString()}</span>
+              </div>
+              {/* 业务Key消耗 */}
+              <div className="flex items-center gap-1">
+                <span className="text-xs text-muted-foreground">业务Key</span>
+                <span className="text-sm font-medium tabular-nums">¥{apiKeyConsumedAmt.toLocaleString()}</span>
               </div>
             </div>
-          )}
+          </div>
         </div>
 
         {/* C. 组织资产 */}
@@ -1270,6 +1194,9 @@ function OrgView({ enterprise, role, orgId, orgs, onOrgUpdated }: {
             <div className="flex items-center gap-2 pb-3">
               {activeTab === "members" ? (
                 <>
+                  <Button variant="outline" size="sm" onClick={() => { resetBudgetConfigDialog(); setShowSubOrgBudgetDialog(true); }} className="gap-1.5">
+                    <Sliders className="w-3.5 h-3.5" />一键配置预算
+                  </Button>
                   <Button size="sm" onClick={() => setShowAdd(true)} className="gap-1.5">
                     <Plus className="w-3.5 h-3.5" />添加成员
                   </Button>
@@ -1344,9 +1271,6 @@ function OrgView({ enterprise, role, orgId, orgs, onOrgUpdated }: {
                           <DropdownMenuContent align="end">
                             <DropdownMenuItem onClick={() => openEdit(m)}>编辑成员</DropdownMenuItem>
                             <DropdownMenuItem onClick={() => toggleMemberStatus(m)}>{m.status === "active" ? "禁用成员" : "启用成员"}</DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => setTransferMember(m)} className="gap-2">
-                              <ArrowLeftRight className="w-3.5 h-3.5" />转移成员
-                            </DropdownMenuItem>
                             <DropdownMenuSeparator />
                             <DropdownMenuItem className="text-destructive focus:text-destructive" onClick={() => openDeleteMemberConfirm(m)}>移除成员</DropdownMenuItem>
                           </DropdownMenuContent>
@@ -1742,28 +1666,7 @@ function OrgView({ enterprise, role, orgId, orgs, onOrgUpdated }: {
 
       {/* 一键配置预算 Dialog */}
       {(() => {
-        const childOrgs = orgs.filter(o => o.parent_id === orgId);
-        const childCount = childOrgs.length;
         const memberCount = members.length;
-        const currentBudget = selectedOrg?.monthly_budget ?? 0;
-        const memberBudget = Math.max(0, Number(memberBudgetInput) || 0);
-        const subOrgBudget = Math.max(0, Number(subOrgBudgetInput) || 0);
-        const apiKeyBudget = Math.max(0, Number(apiKeyBudgetInput) || 0);
-        const totalAllocated = memberBudget + subOrgBudget + apiKeyBudget;
-        const remaining = currentBudget - totalAllocated;
-        const isOverBudget = remaining < 0;
-        const perMemberBudget = memberCount > 0 && memberBudget > 0 ? Math.floor((memberBudget / memberCount) * 100) / 100 : 0;
-        const perSubOrgBudget = childCount > 0 && subOrgBudget > 0 ? Math.floor((subOrgBudget / childCount) * 100) / 100 : 0;
-
-        const handleMemberBudgetEven = () => {
-          if (memberCount === 0 || memberBudget <= 0) return;
-          toast({ title: "已均分预算", description: `当前共${memberCount}人，每人约¥${perMemberBudget.toLocaleString()}` });
-        };
-
-        const handleSubOrgBudgetEven = () => {
-          if (childCount === 0 || subOrgBudget <= 0) return;
-          toast({ title: "已均分预算", description: `当前共${childCount}个子部门，每部门约¥${perSubOrgBudget.toLocaleString()}` });
-        };
 
         const handleNumberInput = (value: string, setter: (v: string) => void) => {
           // 只允许非负数字
@@ -1773,36 +1676,24 @@ function OrgView({ enterprise, role, orgId, orgs, onOrgUpdated }: {
         };
 
         const handleSaveBudget = async () => {
-          if (isOverBudget) return;
+          const dailyLimit = Math.max(0, Number(memberBudgetInput) || 0);
+          if (dailyLimit <= 0 || memberCount === 0) return;
+
           setSubOrgDistributing(true);
-
           try {
-            // 1. 分配子部门预算（只处理有有效 id 的子部门）
-            if (childCount > 0 && subOrgBudget > 0) {
-              const validChildOrgs = childOrgs.filter(o => o.id);
-              if (validChildOrgs.length > 0) {
-                await Promise.all(
-                  validChildOrgs.map(o =>
-                    supabase.from("organizations").update({ monthly_budget: perSubOrgBudget }).eq("id", o.id)
-                  )
-                );
-              }
+            // 为所有成员设置每日预算上限
+            const validMembers = members.filter(m => m.id);
+            if (validMembers.length > 0) {
+              await Promise.all(
+                validMembers.map(m =>
+                  supabase.from("members").update({ daily_limit: dailyLimit }).eq("id", m.id)
+                )
+              );
+              // 更新本地状态
+              setMembers(prev => prev.map(m => ({ ...m, daily_limit: dailyLimit })));
             }
 
-            // 2. 分配成员预算（只处理有有效 id 的成员）
-            if (memberCount > 0 && memberBudget > 0) {
-              const dailyLimit = Math.floor((memberBudget / memberCount / 30) * 100) / 100;
-              const validMembers = members.filter(m => m.id);
-              if (validMembers.length > 0) {
-                await Promise.all(
-                  validMembers.map(m =>
-                    supabase.from("members").update({ daily_limit: dailyLimit }).eq("id", m.id)
-                  )
-                );
-              }
-            }
-
-            toast({ title: "预算配置已保存" });
+            toast({ title: "预算配置已保存", description: `已为 ${memberCount} 位成员设置单日上限 ¥${dailyLimit}` });
             setShowSubOrgBudgetDialog(false);
             resetBudgetConfigDialog();
             onOrgUpdated();
@@ -1820,113 +1711,30 @@ function OrgView({ enterprise, role, orgId, orgs, onOrgUpdated }: {
 
         return (
           <Dialog open={showSubOrgBudgetDialog} onOpenChange={(open) => { if (!open) { setShowSubOrgBudgetDialog(false); resetBudgetConfigDialog(); } }}>
-            <DialogContent className="sm:max-w-lg">
+            <DialogContent className="sm:max-w-md">
               <DialogHeader>
                 <DialogTitle>一键配置预算</DialogTitle>
-                <DialogDescription>为当前部门配置各项预算分配。</DialogDescription>
+                <DialogDescription>为当前部门所有直属成员统一设置每日预算上限。</DialogDescription>
               </DialogHeader>
 
-              {/* 顶部信息卡 - 部门本月总预算 */}
-              <div className="rounded-xl bg-muted/60 p-5">
-                <div className="text-sm text-muted-foreground mb-2">部门本月总预算</div>
-                <div className="text-3xl font-bold text-foreground">¥{currentBudget.toLocaleString()}</div>
-              </div>
-
-              {/* 预算状态提示 */}
-              <div className={`rounded-lg p-3 flex items-center justify-between text-sm ${isOverBudget ? "bg-destructive/10 border border-destructive/30" : "bg-muted/40 border border-muted"}`}>
-                <div className="flex items-center gap-4">
-                  <span className="text-muted-foreground">已分配：<span className="font-medium text-foreground">¥{totalAllocated.toLocaleString()}</span></span>
-                  <span className="text-muted-foreground">剩余可分配：<span className={`font-medium ${isOverBudget ? "text-destructive" : "text-foreground"}`}>¥{remaining.toLocaleString()}</span></span>
-                </div>
-                {isOverBudget && (
-                  <span className="text-destructive text-xs font-medium">当前分配已超出部门预算</span>
+              {/* 直属成员每日预算上限输入 */}
+              <div className="space-y-3 py-2">
+                <Label className="text-sm font-medium">直属成员每日预算上限</Label>
+                <Input
+                  type="text"
+                  inputMode="decimal"
+                  placeholder="输入每人每日预算上限（元）"
+                  value={memberBudgetInput}
+                  onChange={(e) => handleNumberInput(e.target.value, setMemberBudgetInput)}
+                  className="h-10"
+                />
+                {memberCount === 0 ? (
+                  <div className="text-xs text-muted-foreground">当前部门暂无成员</div>
+                ) : (
+                  <div className="text-xs text-muted-foreground">
+                    当前共 {memberCount} 位成员，设置后将统一应用此每日预算上限
+                  </div>
                 )}
-              </div>
-
-              {/* 预算分配区 */}
-              <div className="space-y-6 py-2">
-                {/* 1. 直属成员预算 */}
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <Label className="text-sm font-medium">直属成员预算</Label>
-                    {memberCount > 0 && memberBudget > 0 && (
-                      <span className="text-xs text-primary font-medium">
-                        当前共{memberCount}人，每人约¥{perMemberBudget.toLocaleString()}
-                      </span>
-                    )}
-                  </div>
-                  <div className="flex gap-2">
-                    <Input
-                      type="text"
-                      inputMode="decimal"
-                      placeholder="输入成员预算总额"
-                      value={memberBudgetInput}
-                      onChange={(e) => handleNumberInput(e.target.value, setMemberBudgetInput)}
-                      className="flex-1 h-10"
-                    />
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={handleMemberBudgetEven}
-                      disabled={memberCount === 0 || memberBudget <= 0}
-                      className="h-10 px-4"
-                    >
-                      快速均分
-                    </Button>
-                  </div>
-                  {memberCount === 0 ? (
-                    <div className="text-xs text-muted-foreground">当前部门暂无成员</div>
-                  ) : null}
-                </div>
-
-                {/* 2. 子部门预算 */}
-                <div className={`space-y-2 ${childCount === 0 ? "opacity-50" : ""}`}>
-                  <div className="flex items-center justify-between">
-                    <Label className={`text-sm font-medium ${childCount === 0 ? "text-muted-foreground" : ""}`}>子部门预算</Label>
-                    {childCount > 0 && subOrgBudget > 0 && (
-                      <span className="text-xs text-primary font-medium">
-                        共{childCount}个子部门，每部门约¥{perSubOrgBudget.toLocaleString()}
-                      </span>
-                    )}
-                  </div>
-                  <div className="flex gap-2">
-                    <Input
-                      type="text"
-                      inputMode="decimal"
-                      placeholder={childCount === 0 ? "当前暂无子部门" : "输入子部门预算总额"}
-                      value={subOrgBudgetInput}
-                      onChange={(e) => handleNumberInput(e.target.value, setSubOrgBudgetInput)}
-                      disabled={childCount === 0}
-                      className="flex-1 h-10"
-                    />
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={handleSubOrgBudgetEven}
-                      disabled={childCount === 0 || subOrgBudget <= 0}
-                      className="h-10 px-4"
-                    >
-                      快速均分
-                    </Button>
-                  </div>
-                  {childCount === 0 && (
-                    <div className="text-xs text-muted-foreground">当前暂无子部门</div>
-                  )}
-                </div>
-
-                {/* 3. 业务Key预算 */}
-                <div className="space-y-2">
-                  <Label className="text-sm font-medium">业务Key预算</Label>
-                  <Input
-                    type="text"
-                    inputMode="decimal"
-                    placeholder="输入业务Key预算金额"
-                    value={apiKeyBudgetInput}
-                    onChange={(e) => handleNumberInput(e.target.value, setApiKeyBudgetInput)}
-                    className="h-10"
-                  />
-                  <div className="text-xs text-muted-foreground">用于不绑定成员的业务 Key 调用，直接占用部门预算</div>
-                </div>
               </div>
 
               <DialogFooter className="gap-2 pt-2">
@@ -1934,7 +1742,7 @@ function OrgView({ enterprise, role, orgId, orgs, onOrgUpdated }: {
                   取消
                 </Button>
                 <Button
-                  disabled={subOrgDistributing || isOverBudget || (memberBudget === 0 && subOrgBudget === 0 && apiKeyBudget === 0)}
+                  disabled={subOrgDistributing || memberCount === 0 || !memberBudgetInput || Number(memberBudgetInput) <= 0}
                   onClick={handleSaveBudget}
                   className="h-10 px-6"
                 >
@@ -1945,16 +1753,6 @@ function OrgView({ enterprise, role, orgId, orgs, onOrgUpdated }: {
           </Dialog>
         );
       })()}
-
-      {/* Transfer Member Dialog */}
-      <TransferMemberDialog
-        open={!!transferMember}
-        onOpenChange={(open) => { if (!open) setTransferMember(null); }}
-        orgs={orgs}
-        currentOrgId={orgId}
-        memberName={transferMember ? (memberNames[transferMember.user_phone] ?? maskPhone(transferMember.user_phone)) : ""}
-        onConfirm={handleTransfer}
-      />
 
       {/* ── Child Org Management Dialogs ── */}
       {/* Child Org Budget Sheet */}

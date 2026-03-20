@@ -92,13 +92,14 @@ function maskKey(key: string, show: boolean) {
 }
 
 function formatQuota(used: number, total: number | null) {
-  const usedStr = `¥${used.toFixed(2)}`;
+  const remaining = total === null ? null : Math.max(0, total - used);
+  const remainingStr = remaining === null ? "无限制" : `¥${remaining.toFixed(2)}`;
   const totalStr = total === null ? "无限制" : `¥${total.toFixed(2)}`;
   const pct = total === null || total === 0 ? 0 : Math.min(100, (used / total) * 100);
   return (
     <div className="min-w-[120px]">
       <span className="text-sm font-mono text-foreground">
-        {usedStr} <span className="text-muted-foreground">/ {totalStr}</span>
+        {remainingStr} <span className="text-muted-foreground">/ {totalStr}</span>
       </span>
       {total !== null && (
         <Progress value={pct} className="h-1.5 mt-1 bg-muted" />
@@ -649,7 +650,7 @@ Key 配置信息
     const filtered = filterFn ? filterFn(keys) : filterKeys(keys);
     const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
     const paged = paginate(filtered, page);
-    const colSpan = 9 + (showCreator ? 3 : 0) + (showOrg ? 1 : 0);
+    const colSpan = 9 + ((showOrg || showCreator) ? 1 : 0) + (showCreator ? 2 : 0);
 
     return (
       <div>
@@ -676,9 +677,9 @@ Key 配置信息
                     </DropdownMenu>
                   </div>
                 </TableHead>
-                <TableHead className="font-medium">已消耗/预算上限</TableHead>
-                {showOrg && <TableHead className="font-medium">部门</TableHead>}
-                {showCreator && <TableHead className="font-medium">部门</TableHead>}
+                <TableHead className="font-medium">剩余额度/总额度</TableHead>
+                {/* 部门列：企业管理员视角优先使用showOrg，否则使用showCreator */}
+                {showOrg ? <TableHead className="font-medium">部门</TableHead> : (showCreator && <TableHead className="font-medium">部门</TableHead>)}
                 {showCreator && <TableHead className="font-medium">成员</TableHead>}
                 {showCreator && <TableHead className="font-medium">分类</TableHead>}
                 <TableHead className="font-medium">
@@ -725,24 +726,22 @@ Key 配置信息
                         {ms}
                       </span>
                     </TableCell>
-                    {/* 已消耗/预算上限 */}
+                    {/* 剩余额度/总额度 */}
                     <TableCell>{formatQuota(k.used_quota, k.total_quota)}</TableCell>
-                    {/* 组织（仅企业管理员视角） */}
-                    {showOrg && (
+                    {/* 部门列：企业管理员视角优先使用showOrg，否则使用showCreator */}
+                    {showOrg ? (
                       <TableCell>
                         <span className="text-sm text-muted-foreground">
                           {organizations.find(o => o.id === k.organization_id)?.name ?? "—"}
                         </span>
                       </TableCell>
-                    )}
-                    {/* 部门（仅组织Tab，在成员左边） */}
-                    {showCreator && (
+                    ) : (showCreator && (
                       <TableCell>
                         <span className="text-sm text-muted-foreground">
                           {organizations.find(o => o.id === k.organization_id)?.name ?? "—"}
                         </span>
                       </TableCell>
-                    )}
+                    ))}
                     {/* 成员（仅组织Tab） */}
                     {showCreator && (
                       <TableCell>
@@ -1237,16 +1236,16 @@ Key 配置信息
               </div>
             </div>
 
-            {/* 预算设置 — 普通成员编辑时隐藏 */}
+            {/* 额度设置 — 普通成员编辑时隐藏 */}
             {!(previewRole === "member" && editingKey) && (
             <div>
-              <h3 className="text-sm font-semibold text-foreground mb-4 pb-2 border-b border-border">预算设置</h3>
+              <h3 className="text-sm font-semibold text-foreground mb-4 pb-2 border-b border-border">额度设置</h3>
               <div className="space-y-3">
-                {/* Key 预算上限 — 生产 Key 创建时突出显示 */}
+                {/* Key 额度上限 — 生产 Key 创建时突出显示 */}
                 {creatingProd && (
                   <div className="rounded-lg border border-primary/30 bg-primary/5 p-4 space-y-3">
                     <div className="flex items-center gap-1.5 mb-1">
-                      <span className="text-sm font-bold text-foreground">Key 预算上限</span>
+                      <span className="text-sm font-bold text-foreground">Key 额度上限</span>
                       <span className="text-destructive text-sm">*</span>
                     </div>
                     <div className="flex items-center gap-2">
@@ -1275,13 +1274,13 @@ Key 配置信息
                         <span className="text-xs text-muted-foreground">无限</span>
                       </div>
                     </div>
-                    <p className="text-xs text-primary/70">此预算直接占用本部门整体预算，不关联具体成员。</p>
+                    <p className="text-xs text-primary/70">此额度直接占用本部门整体额度，不关联具体成员。</p>
                   </div>
                 )}
-                {/* 预算上限（非生产Key时正常显示） */}
+                {/* 额度上限（非生产Key时正常显示） */}
                 {!creatingProd && (
                   <div className="grid grid-cols-[100px_1fr] items-center gap-3">
-                    <Label className="text-right text-muted-foreground text-sm">预算上限</Label>
+                    <Label className="text-right text-muted-foreground text-sm">额度上限</Label>
                     <div className="flex items-center gap-2">
                       <span className="text-muted-foreground text-sm font-medium shrink-0">¥</span>
                       <Input
@@ -1300,7 +1299,7 @@ Key 配置信息
                 {/* 无限额度 */}
                 {!creatingProd && (
                   <div className="grid grid-cols-[100px_1fr] items-center gap-3">
-                    <Label className="text-right text-muted-foreground text-sm">无限预算</Label>
+                    <Label className="text-right text-muted-foreground text-sm">无限额度</Label>
                     <Switch checked={formUnlimited} onCheckedChange={setFormUnlimited} />
                   </div>
                 )}
@@ -1499,12 +1498,12 @@ Key 配置信息
               </div>
             </div>
 
-            {/* 预算设置 */}
+            {/* 额度设置 */}
             <div>
-              <h3 className="text-sm font-semibold text-foreground mb-4 pb-2 border-b border-border">预算设置</h3>
+              <h3 className="text-sm font-semibold text-foreground mb-4 pb-2 border-b border-border">额度设置</h3>
               <div className="space-y-3">
                 <div className="grid grid-cols-[100px_1fr] items-center gap-3">
-                  <Label className="text-right text-muted-foreground text-sm">预算上限</Label>
+                  <Label className="text-right text-muted-foreground text-sm">额度上限</Label>
                   <div className="flex items-center gap-2">
                     <span className="text-muted-foreground text-sm font-medium shrink-0">¥</span>
                     <Input
@@ -1517,7 +1516,7 @@ Key 配置信息
                   </div>
                 </div>
                 <div className="grid grid-cols-[100px_1fr] items-center gap-3">
-                  <Label className="text-right text-muted-foreground text-sm">无限预算</Label>
+                  <Label className="text-right text-muted-foreground text-sm">无限额度</Label>
                   <Switch checked={orgConfigUnlimited} onCheckedChange={setOrgConfigUnlimited} />
                 </div>
               </div>

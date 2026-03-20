@@ -715,22 +715,29 @@ export default function ResourceStats({ enterprise }: Props) {
 
       {/* Quota banner — member */}
       {viewRole === "member" && (
-        <div className="mb-4 rounded-lg bg-blue-50 border border-blue-200 px-4 py-3 flex items-center gap-4 flex-wrap">
-          <div className="flex items-center gap-2 shrink-0">
-            <div className="w-7 h-7 rounded-full bg-blue-100 flex items-center justify-center">
-              <Wallet className="w-4 h-4 text-blue-600" />
-            </div>
-            <span className="text-sm font-semibold text-blue-700">实时配额监控</span>
+        <div className="space-y-3">
+          {/* 归属部门 - 只读显示 */}
+          <div className="flex items-center gap-2 text-sm">
+            <span className="text-muted-foreground">归属部门：</span>
+            <span className="font-medium text-foreground">研发一组</span>
           </div>
-          <div className="w-px h-5 bg-blue-200 shrink-0" />
-          <span className="text-sm text-blue-600 shrink-0">
-            今日剩余可用预算/今日预算上限：<span className="font-bold text-blue-800">¥ {(total - consumed).toFixed(2)}</span> / ¥ {total.toFixed(2)}
-          </span>
-          <div className="flex items-center gap-2 flex-1 min-w-[160px]">
-            <div className="flex-1 h-2 rounded-full bg-blue-100 overflow-hidden">
-              <div className="h-full bg-blue-500 rounded-full transition-all" style={{ width: `${consumedPct}%` }} />
+          <div className="rounded-lg bg-blue-50 border border-blue-200 px-4 py-3 flex items-center gap-4 flex-wrap">
+            <div className="flex items-center gap-2 shrink-0">
+              <div className="w-7 h-7 rounded-full bg-blue-100 flex items-center justify-center">
+                <Wallet className="w-4 h-4 text-blue-600" />
+              </div>
+              <span className="text-sm font-semibold text-blue-700">实时配额监控</span>
             </div>
-            <span className="text-xs text-blue-500 shrink-0">{consumedPct}% 已消耗</span>
+            <div className="w-px h-5 bg-blue-200 shrink-0" />
+            <span className="text-sm text-blue-600 shrink-0">
+              今日剩余可用预算/今日预算上限：<span className="font-bold text-blue-800">¥ {(total - consumed).toFixed(2)}</span> / ¥ {total.toFixed(2)}
+            </span>
+            <div className="flex items-center gap-2 flex-1 min-w-[160px]">
+              <div className="flex-1 h-2 rounded-full bg-blue-100 overflow-hidden">
+                <div className="h-full bg-blue-500 rounded-full transition-all" style={{ width: `${consumedPct}%` }} />
+              </div>
+              <span className="text-xs text-blue-500 shrink-0">{consumedPct}% 已消耗</span>
+            </div>
           </div>
         </div>
       )}
