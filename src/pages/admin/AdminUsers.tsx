@@ -30,6 +30,7 @@ interface MemberDetail {
   enterprise_name: string;
   org_name: string | null;
   role: string;
+  remark: string | null;
 }
 
 interface DrawerDetail {
@@ -147,7 +148,7 @@ export default function AdminUsers() {
     // 3. Members
     const { data: membersRaw } = await supabase
       .from("members")
-      .select("id,enterprise_id,organization_id,role")
+      .select("id,enterprise_id,organization_id,role,remark")
       .eq("user_phone", phone);
 
     if (!membersRaw || membersRaw.length === 0) {
@@ -174,6 +175,7 @@ export default function AdminUsers() {
       enterprise_name: entMap[m.enterprise_id] || "未知企业",
       org_name: m.organization_id ? (orgMap[m.organization_id] || null) : null,
       role: m.role,
+      remark: m.remark || null,
     }));
 
     setDrawerDetail({ personal_enterprise_id: personalEntId, personal_balance: personalBalance, members });
@@ -263,20 +265,6 @@ export default function AdminUsers() {
     );
   };
 
-  const ROLE_PRIORITY = ["owner", "org_admin", "member"];
-
-  const roleCell = (ents: EnterpriseRef[]) => {
-    if (ents.length === 0) return <span className="text-muted-foreground/70">个人用户</span>;
-    if (ents.length === 1) return <span className="text-muted-foreground">{roleLabel(ents[0].role)}</span>;
-    const top = ents.slice().sort((a, b) => ROLE_PRIORITY.indexOf(a.role) - ROLE_PRIORITY.indexOf(b.role))[0];
-    return (
-      <span className="flex items-center gap-1 text-muted-foreground">
-        {roleLabel(top.role)}
-        <span className="text-xs bg-muted rounded px-1 text-muted-foreground">+{ents.length - 1}</span>
-      </span>
-    );
-  };
-
   return (
     <div className="p-6 space-y-5">
       <div className="flex items-center justify-between gap-3">
@@ -308,12 +296,12 @@ export default function AdminUsers() {
       </div>
 
       <div className="bg-card border rounded-xl overflow-hidden">
-        <div className="grid grid-cols-[1.5fr_1fr_1fr_1.5fr_1fr_1fr_80px] text-xs font-medium text-muted-foreground border-b">
+        <div className="grid grid-cols-[0.8fr_1fr_1.2fr_1fr_1.5fr_1fr_80px] text-xs font-medium text-muted-foreground border-b">
+          <span className="px-5 py-3">用户ID</span>
+          <span className="px-5 py-3">用户名</span>
           <span className="px-5 py-3">手机号</span>
-          <span className="px-5 py-3">姓名</span>
-          <span className="px-3 py-3 bg-blue-50/60 border-l-2 border-l-blue-200">个人余额</span>
+          <span className="px-3 py-3 bg-blue-50/60 border-l-2 border-l-blue-200">个人空间余额</span>
           <span className="px-5 py-3 bg-amber-50/40">所属企业空间</span>
-          <span className="px-3 py-3 bg-amber-50/40">角色</span>
           <span className="px-5 py-3">注册时间</span>
           <span className="px-3 py-3">操作</span>
         </div>
@@ -326,20 +314,22 @@ export default function AdminUsers() {
           filtered.map((u) => (
             <div
               key={u.id}
-              className="grid grid-cols-[1.5fr_1fr_1fr_1.5fr_1fr_1fr_80px] border-b last:border-0 text-sm items-center"
+              className="grid grid-cols-[0.8fr_1fr_1.2fr_1fr_1.5fr_1fr_80px] border-b last:border-0 text-sm items-center"
             >
+              <span className="text-muted-foreground px-5 py-3.5 font-mono text-xs truncate" title={u.id}>
+                {u.id.slice(0, 8)}…
+              </span>
+              <span className="text-foreground px-5 py-3.5 truncate">{u.name || "—"}</span>
               <div className="flex items-center gap-2 min-w-0 px-5 py-3.5">
                 <span className="font-medium text-foreground truncate">{u.phone}</span>
                 {u.status === "banned" && (
                   <Badge variant="destructive" className="text-xs px-1.5 py-0 shrink-0">已封禁</Badge>
                 )}
               </div>
-              <span className="text-muted-foreground px-5 py-3.5">{u.name || "—"}</span>
               <span className="text-muted-foreground tabular-nums px-3 py-3.5 bg-blue-50/40 border-l-2 border-l-blue-200">
                 ¥{u.personal_balance.toFixed(2)}
               </span>
               <div className="flex items-center min-w-0 px-5 py-3.5 bg-amber-50/30">{enterpriseCell(u.enterprises)}</div>
-              <div className="px-3 py-3.5 bg-amber-50/30">{roleCell(u.enterprises)}</div>
               <span className="text-muted-foreground px-5 py-3.5">
                 {new Date(u.created_at).toLocaleDateString("zh-CN")}
               </span>
@@ -395,7 +385,19 @@ export default function AdminUsers() {
                 <h3 className="text-sm font-semibold text-foreground">基本信息</h3>
 
                 <div className="grid grid-cols-2 gap-x-4 gap-y-2">
-                  {/* 用户名 — top-left */}
+                  {/* 用户ID — top-left */}
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <Label className="text-xs text-muted-foreground">用户ID</Label>
+                      <p className="text-sm mt-0.5 font-mono">{drawerUser.id}</p>
+                    </div>
+                    <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground shrink-0"
+                      onClick={() => { navigator.clipboard.writeText(drawerUser.id); toast({ title: "已复制" }); }}>
+                      <Copy className="w-3.5 h-3.5" />
+                    </Button>
+                  </div>
+
+                  {/* 用户名 — top-right */}
                   <div className="flex items-center justify-between">
                     <div>
                       <Label className="text-xs text-muted-foreground">用户名</Label>
@@ -407,28 +409,20 @@ export default function AdminUsers() {
                     </Button>
                   </div>
 
-                  {/* 手机号 — top-right */}
+                  {/* 手机号 — bottom-left */}
                   <div className="flex items-center justify-between">
                     <div>
                       <Label className="text-xs text-muted-foreground">手机号</Label>
                       <p className="text-sm mt-0.5 font-medium tabular-nums">{drawerUser.phone}</p>
                     </div>
-                    <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground shrink-0"
-                      onClick={() => { navigator.clipboard.writeText(drawerUser.phone); toast({ title: "已复制" }); }}>
-                      <Copy className="w-3.5 h-3.5" />
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="h-7 text-xs text-destructive border-destructive/30 hover:bg-destructive/10 shrink-0"
+                      onClick={() => toast({ title: "功能开发中", description: "解绑手机号功能即将上线" })}
+                    >
+                      解绑
                     </Button>
-                  </div>
-
-                  {/* 账号状态 — bottom-left */}
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <Label className="text-xs text-muted-foreground">账号状态</Label>
-                      <p className="text-sm mt-0.5">{drawerUser.status === "banned" ? "已封禁" : "正常"}</p>
-                    </div>
-                    <Switch
-                      checked={drawerUser.status === "active"}
-                      onCheckedChange={() => handleToggleStatus(drawerUser)}
-                    />
                   </div>
 
                   {/* 密码重置 — bottom-right */}
@@ -497,17 +491,19 @@ export default function AdminUsers() {
                         <p className="text-sm text-muted-foreground/60 italic">未加入任何企业</p>
                       ) : (
                         <div className="border rounded-lg overflow-hidden">
-                          <div className="grid grid-cols-[1fr_1fr_80px_auto] gap-2 px-3 py-2 bg-muted/40 text-xs font-medium text-muted-foreground border-b">
+                          <div className="grid grid-cols-[1fr_1fr_80px_100px_auto] gap-2 px-3 py-2 bg-muted/40 text-xs font-medium text-muted-foreground border-b">
                             <span>企业名称</span>
                             <span>所属组织</span>
                             <span>角色</span>
+                            <span>备注名</span>
                             <span></span>
                           </div>
                           {drawerDetail.members.map((m) => (
-                            <div key={m.id} className="grid grid-cols-[1fr_1fr_80px_auto] gap-2 px-3 py-2.5 border-b last:border-0 text-sm items-center">
+                            <div key={m.id} className="grid grid-cols-[1fr_1fr_80px_100px_auto] gap-2 px-3 py-2.5 border-b last:border-0 text-sm items-center">
                               <span className="truncate font-medium">{m.enterprise_name}</span>
                               <span className="text-muted-foreground truncate">{m.org_name || "—"}</span>
                               <span className="text-muted-foreground text-xs">{roleLabel(m.role)}</span>
+                              <span className="text-muted-foreground text-xs truncate">{m.remark || "—"}</span>
                               <Button
                                 variant="outline"
                                 size="sm"

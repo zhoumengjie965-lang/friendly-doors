@@ -13,9 +13,6 @@ import { Progress } from "@/components/ui/progress";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import {
   ArrowLeft,
-  Wallet,
-  TrendingDown,
-  Key,
   Users,
   Building2,
   CheckCircle,
@@ -25,9 +22,10 @@ import {
   Plus,
   UserCircle,
   Pencil,
-  UserCheck,
-  DollarSign,
-  UserX,
+  Power,
+  ChevronRight,
+  ChevronDown,
+  FolderTree,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { getAdminSession } from "@/lib/adminAuth";
@@ -70,8 +68,11 @@ interface Org {
   admin_phone: string | null;
   monthly_budget: number | null;
   current_month_budget: number | null;
+  parent_id: string | null;
   memberCount?: number;
   adminName?: string | null;
+  children?: Org[];
+  level?: number;
 }
 
 interface Member {
@@ -100,13 +101,24 @@ const RECORD_TYPE_LABELS: Record<string, string> = {
 
 // Demo data for when no real orgs exist yet
 const DEMO_ORGS: Org[] = [
-  { id: "demo-1", name: "技术研发部",   status: "active",   admin_phone: "13800138001", monthly_budget: 20000, current_month_budget: 8400,  memberCount: 12, adminName: "陈志远" },
-  { id: "demo-2", name: "前端工程组",   status: "active",   admin_phone: "13912340001", monthly_budget: 6000,  current_month_budget: 5800,  memberCount: 5,  adminName: "林晓雨" },
-  { id: "demo-3", name: "后端服务组",   status: "active",   admin_phone: "13612340002", monthly_budget: 8000,  current_month_budget: 2100,  memberCount: 6,  adminName: "王磊" },
-  { id: "demo-4", name: "AI算法组",     status: "active",   admin_phone: null,          monthly_budget: null,  current_month_budget: 0,     memberCount: 3,  adminName: null },
-  { id: "demo-5", name: "市场运营部",   status: "active",   admin_phone: "18800110022", monthly_budget: 12000, current_month_budget: 3200,  memberCount: 9,  adminName: "张晴" },
-  { id: "demo-6", name: "华南销售组",   status: "active",   admin_phone: "13311220033", monthly_budget: 5000,  current_month_budget: 4900,  memberCount: 7,  adminName: "刘伟强" },
-  { id: "demo-7", name: "品牌推广组",   status: "disabled", admin_phone: null,          monthly_budget: 4000,  current_month_budget: 0,     memberCount: 4,  adminName: null },
+  { 
+    id: "demo-1", 
+    name: "产品部门", 
+    status: "active", 
+    admin_phone: "13800138001", 
+    monthly_budget: 20000, 
+    current_month_budget: 8400, 
+    parent_id: null,
+    memberCount: 12, 
+    adminName: "陈志远",
+    level: 0,
+    children: [
+      { id: "demo-2", name: "AA", status: "active", admin_phone: "13912340001", monthly_budget: 6000, current_month_budget: 5800, parent_id: "demo-1", memberCount: 5, adminName: "林晓雨", level: 1 },
+      { id: "demo-3", name: "AAA", status: "active", admin_phone: "13612340002", monthly_budget: 8000, current_month_budget: 2100, parent_id: "demo-1", memberCount: 6, adminName: "王磊", level: 1 },
+      { id: "demo-4", name: "部门A", status: "active", admin_phone: null, monthly_budget: null, current_month_budget: 0, parent_id: "demo-1", memberCount: 3, adminName: null, level: 1 },
+      { id: "demo-5", name: "ABV", status: "active", admin_phone: "18800110022", monthly_budget: 12000, current_month_budget: 3200, parent_id: "demo-1", memberCount: 9, adminName: "张晴", level: 1 },
+    ]
+  },
 ];
 const DEMO_MEMBERS: Member[] = [
   { id: "dm-1", user_phone: "13800138001", role: "admin",  status: "active", daily_limit: 500,  organization_id: "demo-1", name: "陈志远" },
@@ -138,7 +150,7 @@ export default function AdminEnterpriseDetail() {
   const [orgs, setOrgs] = useState<Org[]>([]);
   const [members, setMembers] = useState<Member[]>([]);
   const [selectedOrgId, setSelectedOrgId] = useState<string | null>(null);
-  const [orgRightTab, setOrgRightTab] = useState<"members" | "sub-orgs">("members");
+  const [expandedOrgIds, setExpandedOrgIds] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
 
   // Recharge dialog
@@ -160,7 +172,6 @@ export default function AdminEnterpriseDetail() {
   // Edit Member dialog
   const [editMemberOpen, setEditMemberOpen] = useState(false);
   const [editMemberTarget, setEditMemberTarget] = useState<Member | null>(null);
-  const [editMemberAction, setEditMemberAction] = useState<"role" | "limit" | null>(null);
   const [editMemberRole, setEditMemberRole] = useState("member");
   const [editMemberLimit, setEditMemberLimit] = useState("");
   const [editMemberLoading, setEditMemberLoading] = useState(false);
@@ -169,6 +180,11 @@ export default function AdminEnterpriseDetail() {
   const [banOpen, setBanOpen] = useState(false);
   const [banTarget, setBanTarget] = useState<Member | null>(null);
   const [banLoading, setBanLoading] = useState(false);
+
+  // Disable/Enable Org dialog
+  const [disableOrgOpen, setDisableOrgOpen] = useState(false);
+  const [disableOrgTarget, setDisableOrgTarget] = useState<Org | null>(null);
+  const [disableOrgLoading, setDisableOrgLoading] = useState(false);
 
   const fetchAll = async () => {
     if (!id) return;
@@ -189,7 +205,7 @@ export default function AdminEnterpriseDetail() {
       supabase.from("api_keys").select("*", { count: "exact", head: true }).eq("enterprise_id", id),
       supabase.from("members").select("id,user_phone,role,status,daily_limit,organization_id").eq("enterprise_id", id),
       supabase.from("balance_records").select("id,amount,type,operator,remark,created_at").eq("enterprise_id", id).order("created_at", { ascending: false }),
-      supabase.from("organizations").select("id,name,status,admin_phone,monthly_budget,current_month_budget").eq("enterprise_id", id).order("created_at", { ascending: true }),
+      supabase.from("organizations").select("id,name,status,admin_phone,monthly_budget,current_month_budget,parent_id").eq("enterprise_id", id).order("created_at", { ascending: true }),
     ]);
 
     setEnterprise(ent || null);
@@ -220,23 +236,48 @@ export default function AdminEnterpriseDetail() {
         return acc;
       }, {} as Record<string, number>);
 
-      setOrgs((orgData || []).map((o) => ({
+      // Build org tree structure
+      const orgList = (orgData || []).map((o) => ({
         ...o,
         memberCount: orgMemberCount[o.id] || 0,
         adminName: o.admin_phone ? (nameMap[o.admin_phone] || null) : null,
-      })));
+        children: [] as Org[],
+        level: 0,
+      }));
+
+      // Build tree
+      const orgMap = new Map<string, Org>();
+      const rootOrgs: Org[] = [];
+      
+      orgList.forEach(o => orgMap.set(o.id, o));
+      
+      orgList.forEach(o => {
+        if (o.parent_id && orgMap.has(o.parent_id)) {
+          const parent = orgMap.get(o.parent_id)!;
+          parent.children = parent.children || [];
+          parent.children.push(o);
+          o.level = parent.level! + 1;
+        } else {
+          rootOrgs.push(o);
+        }
+      });
+
+      setOrgs(rootOrgs);
+
+      // Auto-expand root orgs
+      setExpandedOrgIds(new Set(rootOrgs.map(o => o.id)));
+
+      // Fall back to demo data if this enterprise has no orgs yet
+      if (!orgData || orgData.length === 0) {
+        setOrgs(DEMO_ORGS);
+        setMembers(DEMO_MEMBERS);
+        setSelectedOrgId("demo-1");
+      } else if (!selectedOrgId && rootOrgs.length > 0) {
+        setSelectedOrgId(rootOrgs[0].id);
+      }
     } else {
       setMembers([]);
       setOrgs(orgData || []);
-    }
-
-    // Fall back to demo data if this enterprise has no orgs yet
-    if (!orgData || orgData.length === 0) {
-      setOrgs(DEMO_ORGS);
-      setMembers(DEMO_MEMBERS);
-      setSelectedOrgId("demo-1");
-    } else if (!selectedOrgId) {
-      setSelectedOrgId(orgData[0].id);
     }
 
     setLoading(false);
@@ -244,18 +285,7 @@ export default function AdminEnterpriseDetail() {
 
   useEffect(() => { fetchAll(); }, [id]);
 
-  // Auto-switch tab when selected org changes
-  useEffect(() => {
-    const currentOrgMembers = members.filter((m) => m.organization_id === selectedOrgId);
-    const currentSubOrgs = orgs.filter((o) => o.id !== selectedOrgId);
-    const currentHasMembers = currentOrgMembers.length > 0;
-    const currentHasSubOrgs = currentSubOrgs.length > 0;
-    if (!currentHasMembers && currentHasSubOrgs) {
-      setOrgRightTab("sub-orgs");
-    } else {
-      setOrgRightTab("members");
-    }
-  }, [selectedOrgId, members, orgs]);
+
 
   const handleRecharge = async () => {
     const amount = parseFloat(rechargeAmount);
@@ -325,17 +355,16 @@ export default function AdminEnterpriseDetail() {
   };
 
   const handleEditMember = async () => {
-    if (!editMemberTarget || !editMemberAction) return;
+    if (!editMemberTarget) return;
     setEditMemberLoading(true);
-    let error: { message: string } | null = null;
-    if (editMemberAction === "role") {
-      const res = await supabase.from("members").update({ role: editMemberRole }).eq("id", editMemberTarget.id);
-      error = res.error;
-    } else if (editMemberAction === "limit") {
-      const limit = editMemberLimit !== "" ? parseFloat(editMemberLimit) : null;
-      const res = await supabase.from("members").update({ daily_limit: limit }).eq("id", editMemberTarget.id);
-      error = res.error;
-    }
+
+    // Update both role and daily_limit
+    const limit = editMemberLimit !== "" ? parseFloat(editMemberLimit) : null;
+    const { error } = await supabase
+      .from("members")
+      .update({ role: editMemberRole, daily_limit: limit })
+      .eq("id", editMemberTarget.id);
+
     setEditMemberLoading(false);
     if (error) {
       toast({ title: "操作失败", description: error.message, variant: "destructive" });
@@ -349,16 +378,36 @@ export default function AdminEnterpriseDetail() {
   const handleBanMember = async () => {
     if (!banTarget) return;
     setBanLoading(true);
-    const [res1, res2] = await Promise.all([
-      supabase.from("members").delete().eq("id", banTarget.id),
-      supabase.from("users").update({ status: "banned" } as never).eq("phone", banTarget.user_phone),
-    ]);
+    const newStatus = banTarget.status === "active" ? "inactive" : "active";
+    const { error } = await supabase
+      .from("members")
+      .update({ status: newStatus })
+      .eq("id", banTarget.id);
     setBanLoading(false);
-    if (res1.error || res2.error) {
-      toast({ title: "操作失败", description: res1.error?.message || res2.error?.message, variant: "destructive" });
+    if (error) {
+      toast({ title: "操作失败", description: error.message, variant: "destructive" });
     } else {
-      toast({ title: "已移除成员并禁用账号" });
+      toast({ title: newStatus === "active" ? "成员已启用" : "成员已禁用" });
       setBanOpen(false);
+      fetchAll();
+    }
+  };
+
+  const handleDisableOrg = async () => {
+    if (!disableOrgTarget) return;
+    setDisableOrgLoading(true);
+    const newStatus = disableOrgTarget.status === "active" ? "inactive" : "active";
+    const { error } = await supabase
+      .from("organizations")
+      .update({ status: newStatus })
+      .eq("id", disableOrgTarget.id);
+    setDisableOrgLoading(false);
+    if (error) {
+      toast({ title: "操作失败", description: error.message, variant: "destructive" });
+    } else {
+      toast({ title: newStatus === "active" ? "组织已启用" : "组织已禁用" });
+      setDisableOrgOpen(false);
+      setDisableOrgTarget(null);
       fetchAll();
     }
   };
@@ -381,37 +430,35 @@ export default function AdminEnterpriseDetail() {
   const certStatus = cert?.status || "uncertified";
   const certCfg = CERT_STATUS_CONFIG[certStatus] || CERT_STATUS_CONFIG.uncertified;
   const orgMembers = members.filter((m) => m.organization_id === selectedOrgId);
-  const selectedOrg = orgs.find((o) => o.id === selectedOrgId);
-  const subOrgs = orgs.filter((o) => o.id !== selectedOrgId);
+  
+  // Helper function to find org in tree
+  const findOrgInTree = (orgList: Org[], id: string): Org | null => {
+    for (const org of orgList) {
+      if (org.id === id) return org;
+      if (org.children) {
+        const found = findOrgInTree(org.children, id);
+        if (found) return found;
+      }
+    }
+    return null;
+  };
+  
+  // Helper function to get all child orgs
+  const getChildOrgs = (org: Org): Org[] => {
+    const children: Org[] = [];
+    if (org.children) {
+      for (const child of org.children) {
+        children.push(child);
+        children.push(...getChildOrgs(child));
+      }
+    }
+    return children;
+  };
+  
+  const selectedOrg = selectedOrgId ? findOrgInTree(orgs, selectedOrgId) : null;
+  const subOrgs = selectedOrg ? getChildOrgs(selectedOrg) : [];
   const hasMembers = orgMembers.length > 0;
   const hasSubOrgs = subOrgs.length > 0;
-
-  const summaryCards = [
-    {
-      label: "可用余额",
-      value: `¥${balanceSummary.balance.toFixed(2)}`,
-      icon: <Wallet className="w-5 h-5" />,
-      color: "text-primary bg-primary/10",
-    },
-    {
-      label: "历史消耗",
-      value: `¥${balanceSummary.total_consumed.toFixed(2)}`,
-      icon: <TrendingDown className="w-5 h-5" />,
-      color: "text-destructive bg-destructive/10",
-    },
-    {
-      label: "API Key 总数",
-      value: String(apiKeyCount),
-      icon: <Key className="w-5 h-5" />,
-      color: "text-secondary-foreground bg-secondary",
-    },
-    {
-      label: "成员总数",
-      value: `${memberCount} 人`,
-      icon: <Users className="w-5 h-5" />,
-      color: "text-primary bg-primary/10",
-    },
-  ];
 
   return (
     <div className="flex flex-col min-h-full">
@@ -431,21 +478,6 @@ export default function AdminEnterpriseDetail() {
       </div>
 
       <div className="flex-1 p-6 space-y-6">
-        {/* Summary Cards */}
-        <div className="grid grid-cols-4 gap-4">
-          {summaryCards.map((card) => (
-            <div key={card.label} className="bg-card border rounded-xl p-4 flex items-center gap-3">
-              <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${card.color}`}>
-                {card.icon}
-              </div>
-              <div>
-                <p className="text-xs text-muted-foreground">{card.label}</p>
-                <p className="text-lg font-semibold text-foreground">{card.value}</p>
-              </div>
-            </div>
-          ))}
-        </div>
-
         {/* Tabs */}
         <Tabs defaultValue="info">
           <TabsList className="bg-muted/50">
@@ -605,259 +637,208 @@ export default function AdminEnterpriseDetail() {
                 <div className="p-8 text-center text-sm text-muted-foreground">该企业暂未创建组织</div>
               ) : (
                 <div className="grid grid-cols-[280px_1fr] min-h-[400px]">
-                  {/* Left: Org list */}
+                  {/* Left: Org Tree */}
                   <div className="border-r">
-                    <div className="px-4 py-3 border-b bg-muted/30">
-                      <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">组织列表 ({orgs.length})</p>
+                    <div className="px-4 py-3 border-b bg-muted/30 flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <FolderTree className="w-4 h-4 text-muted-foreground" />
+                        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">组织架构</p>
+                      </div>
+                      <span className="text-xs text-muted-foreground">{orgs.length} 个部门</span>
                     </div>
                     <div className="overflow-y-auto">
-                      {orgs.map((org) => {
-                        const budget = org.current_month_budget ?? org.monthly_budget;
-                        const consumed = 0;
-                        const usageRatio = budget != null && budget > 0 ? Math.min((consumed / budget) * 100, 100) : 0;
-                        return (
-                          <button
-                            key={org.id}
-                            className={`w-full text-left px-4 py-3.5 border-b last:border-0 transition-colors ${
-                              selectedOrgId === org.id ? "bg-primary/10" : "hover:bg-muted/40"
-                            }`}
-                            onClick={() => setSelectedOrgId(org.id)}
-                          >
-                            {/* Row 1: name + status badge + edit icon */}
-                            <div className="flex items-center justify-between gap-2 mb-1.5">
-                              <p className={`font-semibold text-sm truncate flex-1 ${selectedOrgId === org.id ? "text-primary" : "text-foreground"}`}>
-                                {org.name}
-                              </p>
-                              <Badge
-                                variant={org.status === "active" ? "outline" : "secondary"}
-                                className="text-[10px] px-1.5 py-0 shrink-0"
-                              >
-                                {org.status === "active" ? "已启用" : "已停用"}
-                              </Badge>
-                              <span
-                                role="button"
-                                className="p-1 rounded hover:bg-muted text-muted-foreground hover:text-foreground transition-colors shrink-0"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setEditOrgTarget(org);
-                                  setEditOrgBudget(org.current_month_budget != null ? String(org.current_month_budget) : "");
-                                  setEditOrgDailyLimit("");
-                                  setEditOrgOpen(true);
-                                }}
-                              >
-                                <Pencil className="w-3 h-3" />
-                              </span>
-                            </div>
+                      {(() => {
+                        // Helper function to count total orgs
+                        const countAllOrgs = (orgList: Org[]): number => {
+                          return orgList.reduce((acc, o) => acc + 1 + (o.children?.length || 0), 0);
+                        };
 
-                            {/* Row 2: admin */}
-                            <div className="flex items-center gap-1 mb-1">
-                              <UserCircle className="w-3 h-3 text-muted-foreground shrink-0" />
-                              <span className="text-xs text-muted-foreground truncate">
-                                {org.admin_phone
-                                  ? (org.adminName ? `${org.adminName} · ${maskPhone(org.admin_phone)}` : maskPhone(org.admin_phone))
-                                  : "未设置管理员"}
-                              </span>
-                            </div>
+                        // Recursive render function
+                        const renderOrgTree = (orgList: Org[]) => {
+                          return orgList.map((org) => {
+                            const isExpanded = expandedOrgIds.has(org.id);
+                            const hasChildren = org.children && org.children.length > 0;
+                            const isSelected = selectedOrgId === org.id;
+                            
+                            return (
+                              <div key={org.id}>
+                                <div
+                                  className={`flex items-center gap-1 px-3 py-2.5 border-b hover:bg-muted/30 cursor-pointer transition-colors ${
+                                    isSelected ? "bg-primary/10" : ""
+                                  }`}
+                                  style={{ paddingLeft: `${12 + (org.level || 0) * 16}px` }}
+                                  onClick={() => setSelectedOrgId(org.id)}
+                                >
+                                  {/* Expand/Collapse button */}
+                                  {hasChildren ? (
+                                    <button
+                                      className="p-0.5 rounded hover:bg-muted text-muted-foreground"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        const newExpanded = new Set(expandedOrgIds);
+                                        if (isExpanded) {
+                                          newExpanded.delete(org.id);
+                                        } else {
+                                          newExpanded.add(org.id);
+                                        }
+                                        setExpandedOrgIds(newExpanded);
+                                      }}
+                                    >
+                                      {isExpanded ? (
+                                        <ChevronDown className="w-3.5 h-3.5" />
+                                      ) : (
+                                        <ChevronRight className="w-3.5 h-3.5" />
+                                      )}
+                                    </button>
+                                  ) : (
+                                    <span className="w-5" />
+                                  )}
+                                  
+                                  {/* Org name */}
+                                  <div className="flex-1 min-w-0">
+                                    <p className={`text-sm truncate ${isSelected ? "text-primary font-medium" : "text-foreground"}`}>
+                                      {org.name}
+                                    </p>
+                                  </div>
+                                  
+                                  {/* Status badge */}
+                                  <Badge
+                                    variant={org.status === "active" ? "outline" : "secondary"}
+                                    className="text-[10px] px-1.5 py-0 shrink-0"
+                                  >
+                                    {org.status === "active" ? "正常" : "已禁用"}
+                                  </Badge>
+                                  
+                                  {/* Edit button */}
+                                  <button
+                                    className="p-1 rounded hover:bg-muted text-muted-foreground hover:text-foreground transition-colors shrink-0"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setEditOrgTarget(org);
+                                      setEditOrgBudget(org.current_month_budget != null ? String(org.current_month_budget) : "");
+                                      setEditOrgDailyLimit("");
+                                      setEditOrgOpen(true);
+                                    }}
+                                  >
+                                    <Pencil className="w-3 h-3" />
+                                  </button>
 
-                            {/* Row 3: member count */}
-                            <div className="flex items-center gap-1 mb-1.5">
-                              <Users className="w-3 h-3 text-muted-foreground shrink-0" />
-                              <span className="text-xs text-muted-foreground">{org.memberCount ?? 0} 名成员</span>
-                            </div>
-
-                            {/* Row 4: budget */}
-                            <div className="flex items-center justify-between text-xs text-muted-foreground mb-1">
-                              <span>本月预算</span>
-                              <span className="font-medium text-foreground">
-                                {budget != null ? `¥${budget.toFixed(0)}` : "无限制"}
-                              </span>
-                            </div>
-
-                            {/* Row 5: usage bar */}
-                            {budget != null && budget > 0 && (
-                              <div className="flex items-center gap-2">
-                                <Progress value={usageRatio} className="h-1.5 flex-1" />
-                                <span className="text-[10px] text-muted-foreground w-7 text-right">{usageRatio.toFixed(0)}%</span>
+                                  {/* Disable/Enable button */}
+                                  <button
+                                    className={`p-1 rounded hover:bg-muted transition-colors shrink-0 ${
+                                      org.status === "active"
+                                        ? "text-muted-foreground hover:text-destructive"
+                                        : "text-muted-foreground hover:text-green-600"
+                                    }`}
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setDisableOrgTarget(org);
+                                      setDisableOrgOpen(true);
+                                    }}
+                                    title={org.status === "active" ? "停用组织" : "启用组织"}
+                                  >
+                                    <Power className="w-3 h-3" />
+                                  </button>
+                                </div>
+                                
+                                {/* Render children if expanded */}
+                                {isExpanded && hasChildren && renderOrgTree(org.children!)}
                               </div>
-                            )}
-                          </button>
-                        );
-                      })}
+                            );
+                          });
+                        };
+                        
+                        return renderOrgTree(orgs);
+                      })()}
                     </div>
                   </div>
 
-                  {/* Right: Tabbed panel */}
+                  {/* Right: Member panel */}
                   <div className="flex flex-col">
-                    {/* Header with tabs */}
+                    {/* Header */}
                     <div className="px-5 py-3 border-b bg-muted/30 flex items-center justify-between">
-                      <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
-                        {selectedOrg?.name}
-                      </p>
-                      {hasSubOrgs ? (
-                        <div className="flex items-center gap-0.5 bg-muted rounded-md p-0.5">
-                          <button
-                            onClick={() => setOrgRightTab("members")}
-                            className={`px-3 py-1 text-xs font-medium rounded transition-colors ${
-                              orgRightTab === "members"
-                                ? "bg-background text-foreground shadow-sm"
-                                : "text-muted-foreground hover:text-foreground"
-                            }`}
-                          >
-                            直属成员 {hasMembers ? `(${orgMembers.length})` : "(0)"}
-                          </button>
-                          <button
-                            onClick={() => setOrgRightTab("sub-orgs")}
-                            className={`px-3 py-1 text-xs font-medium rounded transition-colors ${
-                              orgRightTab === "sub-orgs"
-                                ? "bg-background text-foreground shadow-sm"
-                                : "text-muted-foreground hover:text-foreground"
-                            }`}
-                          >
-                            下属子部门 ({subOrgs.length})
-                          </button>
-                        </div>
-                      ) : (
-                        <span className="text-xs text-muted-foreground">
-                          直属成员 ({orgMembers.length})
-                        </span>
-                      )}
+                      <div className="flex items-center gap-2">
+                        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+                          {selectedOrg?.name}
+                        </p>
+                        {hasSubOrgs && (
+                          <span className="text-xs text-muted-foreground">
+                            ({subOrgs.length} 个子部门)
+                          </span>
+                        )}
+                      </div>
+                      <span className="text-xs text-muted-foreground">
+                        直属成员 ({orgMembers.length})
+                      </span>
                     </div>
 
-                    {/* Tab: 直属成员 */}
-                    {orgRightTab === "members" && (
-                      <>
-                        <div className="grid grid-cols-[2fr_1fr_1fr_1fr_100px] gap-3 px-5 py-2.5 bg-muted/20 text-xs font-medium text-muted-foreground border-b">
-                          <span>成员</span>
-                          <span>角色</span>
-                          <span>单日上限</span>
-                          <span>状态</span>
-                          <span>操作</span>
-                        </div>
-                        {orgMembers.length === 0 ? (
-                          <div className="flex-1 flex items-center justify-center p-8 text-sm text-muted-foreground">
-                            该组织暂无成员
+                    {/* Member list */}
+                    <div className="grid grid-cols-[2fr_1fr_1fr_1fr_100px] gap-3 px-5 py-2.5 bg-muted/20 text-xs font-medium text-muted-foreground border-b">
+                      <span>成员</span>
+                      <span>角色</span>
+                      <span>单日上限</span>
+                      <span>状态</span>
+                      <span>操作</span>
+                    </div>
+                    {orgMembers.length === 0 ? (
+                      <div className="flex-1 flex items-center justify-center p-8 text-sm text-muted-foreground">
+                        该组织暂无成员
+                      </div>
+                    ) : (
+                      <div className="overflow-y-auto">
+                        {orgMembers.map((m) => (
+                          <div key={m.id} className="grid grid-cols-[2fr_1fr_1fr_1fr_100px] gap-3 px-5 py-3 border-b last:border-0 text-sm items-center">
+                            <div>
+                              <p className="font-medium text-foreground">{m.name || "用户"}</p>
+                              <p className="text-xs text-muted-foreground">{maskPhone(m.user_phone)}</p>
+                            </div>
+                            <span className="text-xs text-muted-foreground">
+                              {m.role === "admin" ? "部门管理员" : "普通成员"}
+                            </span>
+                            <span className="text-xs text-muted-foreground">
+                              {m.daily_limit != null ? `¥${m.daily_limit}` : "无限制"}
+                            </span>
+                            <span>
+                              <Badge
+                                variant={m.status === "active" ? "outline" : "secondary"}
+                                className="text-xs"
+                              >
+                                {m.status === "active" ? "正常" : "已禁用"}
+                              </Badge>
+                            </span>
+                            <div className="flex items-center gap-1">
+                              {/* Edit button */}
+                              <button
+                                className="p-1.5 rounded hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
+                                title="编辑"
+                                onClick={() => {
+                                  setEditMemberTarget(m);
+                                  setEditMemberRole(m.role);
+                                  setEditMemberLimit(m.daily_limit != null ? String(m.daily_limit) : "");
+                                  setEditMemberOpen(true);
+                                }}
+                              >
+                                <Pencil className="w-3.5 h-3.5" />
+                              </button>
+                              {/* Disable/Enable button */}
+                              <button
+                                className={`p-1.5 rounded hover:bg-muted transition-colors ${
+                                  m.status === "active"
+                                    ? "text-muted-foreground hover:text-destructive"
+                                    : "text-muted-foreground hover:text-green-600"
+                                }`}
+                                title={m.status === "active" ? "禁用" : "启用"}
+                                onClick={() => {
+                                  setBanTarget(m);
+                                  setBanOpen(true);
+                                }}
+                              >
+                                <Power className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
                           </div>
-                        ) : (
-                          <div className="overflow-y-auto">
-                            {orgMembers.map((m) => (
-                              <div key={m.id} className="grid grid-cols-[2fr_1fr_1fr_1fr_100px] gap-3 px-5 py-3 border-b last:border-0 text-sm items-center">
-                                <div>
-                                  <p className="font-medium text-foreground">{m.name || "用户"}</p>
-                                  <p className="text-xs text-muted-foreground">{maskPhone(m.user_phone)}</p>
-                                </div>
-                                <span className="text-xs text-muted-foreground">
-                                  {m.role === "admin" ? "部门管理员" : "普通成员"}
-                                </span>
-                                <span className="text-xs text-muted-foreground">
-                                  {m.daily_limit != null ? `¥${m.daily_limit}` : "无限制"}
-                                </span>
-                                <span>
-                                  <Badge
-                                    variant={m.status === "active" ? "outline" : "secondary"}
-                                    className="text-xs"
-                                  >
-                                    {m.status === "active" ? "正常" : "停用"}
-                                  </Badge>
-                                </span>
-                                <div className="flex items-center gap-1">
-                                  <button
-                                    className="p-1.5 rounded hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
-                                    title="修改角色"
-                                    onClick={() => {
-                                      setEditMemberTarget(m);
-                                      setEditMemberAction("role");
-                                      setEditMemberRole(m.role);
-                                      setEditMemberOpen(true);
-                                    }}
-                                  >
-                                    <UserCheck className="w-3.5 h-3.5" />
-                                  </button>
-                                  <button
-                                    className="p-1.5 rounded hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
-                                    title="修改限额"
-                                    onClick={() => {
-                                      setEditMemberTarget(m);
-                                      setEditMemberAction("limit");
-                                      setEditMemberLimit(m.daily_limit != null ? String(m.daily_limit) : "");
-                                      setEditMemberOpen(true);
-                                    }}
-                                  >
-                                    <DollarSign className="w-3.5 h-3.5" />
-                                  </button>
-                                  <button
-                                    className="p-1.5 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors"
-                                    title="移除并封禁"
-                                    onClick={() => {
-                                      setBanTarget(m);
-                                      setBanOpen(true);
-                                    }}
-                                  >
-                                    <UserX className="w-3.5 h-3.5" />
-                                  </button>
-                                </div>
-                              </div>
-                            ))}
-                          </div>
-                        )}
-                      </>
-                    )}
-
-                    {/* Tab: 下属子部门 */}
-                    {orgRightTab === "sub-orgs" && (
-                      <>
-                        <div className="grid grid-cols-[2fr_1.5fr_1fr_1.2fr] gap-3 px-5 py-2.5 bg-muted/20 text-xs font-medium text-muted-foreground border-b">
-                          <span>部门名称</span>
-                          <span>管理员</span>
-                          <span>本月预算上限</span>
-                          <span>使用率</span>
-                        </div>
-                        {subOrgs.length === 0 ? (
-                          <div className="flex-1 flex items-center justify-center p-8 text-sm text-muted-foreground">
-                            暂无下属子部门
-                          </div>
-                        ) : (
-                          <div className="overflow-y-auto">
-                            {subOrgs.map((o) => {
-                              const budget = o.monthly_budget;
-                              const consumed = o.current_month_budget ?? 0;
-                              const usageRatio = budget && budget > 0 ? Math.min((consumed / budget) * 100, 100) : 0;
-                              return (
-                                <div key={o.id} className="grid grid-cols-[2fr_1.5fr_1fr_1.2fr] gap-3 px-5 py-3 border-b last:border-0 text-sm items-center">
-                                  <div className="flex items-center gap-2">
-                                    <p className="font-medium text-foreground">{o.name}</p>
-                                    <Badge variant={o.status === "active" ? "outline" : "secondary"} className="text-xs">
-                                      {o.status === "active" ? "正常" : "停用"}
-                                    </Badge>
-                                  </div>
-                                  <div>
-                                    {o.admin_phone ? (
-                                      <>
-                                        <p className="text-sm text-foreground">{o.adminName || "用户"}</p>
-                                        <p className="text-xs text-muted-foreground">{maskPhone(o.admin_phone)}</p>
-                                      </>
-                                    ) : (
-                                      <span className="text-xs text-muted-foreground">未设置</span>
-                                    )}
-                                  </div>
-                                  <span className="text-xs text-muted-foreground">
-                                    {budget != null ? `¥${budget.toFixed(0)}` : "无限制"}
-                                  </span>
-                                  <div className="flex items-center gap-2">
-                                    {budget != null && budget > 0 ? (
-                                      <>
-                                        <Progress value={usageRatio} className="h-1.5 flex-1" />
-                                        <span className="text-[10px] text-muted-foreground w-7 text-right">{usageRatio.toFixed(0)}%</span>
-                                      </>
-                                    ) : (
-                                      <span className="text-xs text-muted-foreground">—</span>
-                                    )}
-                                  </div>
-                                </div>
-                              );
-                            })}
-                          </div>
-                        )}
-                      </>
+                        ))}
+                      </div>
                     )}
                   </div>
                 </div>
@@ -948,12 +929,12 @@ export default function AdminEnterpriseDetail() {
         <DialogContent className="sm:max-w-sm">
           <DialogHeader>
             <DialogTitle>
-              {editMemberAction === "role" ? "修改角色" : "修改限额"} · {editMemberTarget?.name || "用户"} {editMemberTarget ? maskPhone(editMemberTarget.user_phone) : ""}
+              编辑成员 · {editMemberTarget?.name || "用户"} {editMemberTarget ? maskPhone(editMemberTarget.user_phone) : ""}
             </DialogTitle>
           </DialogHeader>
-          {editMemberAction === "role" && (
+          <div className="space-y-4">
             <div className="space-y-2">
-              <Label>选择角色</Label>
+              <Label>角色</Label>
               <RadioGroup value={editMemberRole} onValueChange={setEditMemberRole} className="flex gap-4 pt-1">
                 <div className="flex items-center gap-2">
                   <RadioGroupItem value="member" id="role-member" />
@@ -961,14 +942,12 @@ export default function AdminEnterpriseDetail() {
                 </div>
                 <div className="flex items-center gap-2">
                   <RadioGroupItem value="admin" id="role-admin" />
-                  <Label htmlFor="role-admin" className="font-normal cursor-pointer">组织管理员</Label>
+                  <Label htmlFor="role-admin" className="font-normal cursor-pointer">部门管理员</Label>
                 </div>
               </RadioGroup>
             </div>
-          )}
-          {editMemberAction === "limit" && (
             <div className="space-y-1.5">
-              <Label>单日调用金额上限（元，留空表示无限制）</Label>
+              <Label>单日预算上限（元，留空表示无限制）</Label>
               <Input
                 type="number"
                 min="0"
@@ -978,33 +957,61 @@ export default function AdminEnterpriseDetail() {
                 onChange={(e) => setEditMemberLimit(e.target.value)}
               />
             </div>
-          )}
+          </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setEditMemberOpen(false)}>取消</Button>
             <Button onClick={handleEditMember} disabled={editMemberLoading}>
-              {editMemberLoading ? "保存中…" : "确认"}
+              {editMemberLoading ? "保存中…" : "保存"}
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
-      {/* Ban Confirm Dialog */}
+      {/* Disable/Enable Member Confirm Dialog */}
       <AlertDialog open={banOpen} onOpenChange={setBanOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>移除并封禁用户</AlertDialogTitle>
+            <AlertDialogTitle>
+              {banTarget?.status === "active" ? "禁用成员" : "启用成员"}
+            </AlertDialogTitle>
             <AlertDialogDescription>
-              将把 <strong>{banTarget?.name || "用户"} ({banTarget ? maskPhone(banTarget.user_phone) : ""})</strong> 从该组织移除，并在全平台禁用其账号。此操作不可撤销，确认继续？
+              确认要{banTarget?.status === "active" ? "禁用" : "启用"}成员 <strong>{banTarget?.name || "用户"} ({banTarget ? maskPhone(banTarget.user_phone) : ""})</strong> 吗？
+              {banTarget?.status === "active" && " 禁用后该成员将无法继续使用相关功能。"}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>取消</AlertDialogCancel>
             <AlertDialogAction
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              className={banTarget?.status === "active" ? "bg-destructive text-destructive-foreground hover:bg-destructive/90" : ""}
               onClick={handleBanMember}
               disabled={banLoading}
             >
-              {banLoading ? "处理中…" : "确认移除并封禁"}
+              {banLoading ? "处理中…" : (banTarget?.status === "active" ? "确认禁用" : "确认启用")}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Disable/Enable Org Confirm Dialog */}
+      <AlertDialog open={disableOrgOpen} onOpenChange={setDisableOrgOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {disableOrgTarget?.status === "active" ? "禁用组织" : "启用组织"}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              确认要{disableOrgTarget?.status === "active" ? "禁用" : "启用"}组织 <strong>{disableOrgTarget?.name}</strong> 吗？
+              {disableOrgTarget?.status === "active" && " 禁用后该组织成员将无法继续使用相关功能。"}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>取消</AlertDialogCancel>
+            <AlertDialogAction
+              className={disableOrgTarget?.status === "active" ? "bg-destructive text-destructive-foreground hover:bg-destructive/90" : ""}
+              onClick={handleDisableOrg}
+              disabled={disableOrgLoading}
+            >
+              {disableOrgLoading ? "处理中…" : (disableOrgTarget?.status === "active" ? "确认禁用" : "确认启用")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

@@ -8,7 +8,13 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { Search, ExternalLink, Zap, Ban } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { Search, ExternalLink, Zap, Ban, ChevronDown } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { getAdminSession } from "@/lib/adminAuth";
 
@@ -28,6 +34,7 @@ interface Enterprise {
   total_consumed: number;
   org_count: number;
   member_count: number;
+  api_key_count: number;
   admins: AdminInfo[];
 }
 
@@ -92,6 +99,7 @@ export default function AdminEnterprises() {
   const [enterprises, setEnterprises] = useState<Enterprise[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
+  const [certFilter, setCertFilter] = useState<string | null>(null);
 
   // Quick recharge dialog
   const [rechargeTarget, setRechargeTarget] = useState<Enterprise | null>(null);
@@ -115,12 +123,14 @@ export default function AdminEnterprises() {
       { data: orgs },
       { data: members },
       { data: adminMembers },
+      { data: apiKeys },
     ] = await Promise.all([
       supabase.from("enterprise_certifications").select("enterprise_id,status").in("enterprise_id", ids),
       supabase.from("enterprise_balances").select("enterprise_id,balance,total_consumed").in("enterprise_id", ids),
       supabase.from("organizations").select("enterprise_id").in("enterprise_id", ids),
       supabase.from("members").select("enterprise_id").in("enterprise_id", ids),
       supabase.from("members").select("enterprise_id,user_phone").in("enterprise_id", ids).eq("role", "admin"),
+      supabase.from("api_keys").select("enterprise_id").in("enterprise_id", ids),
     ]);
 
     // Fetch user names for admin members + enterprise owners
@@ -152,6 +162,7 @@ export default function AdminEnterprises() {
     const balMap = Object.fromEntries((balances || []).map((b) => [b.enterprise_id, b]));
     const orgCount = (orgs || []).reduce((acc, o) => { acc[o.enterprise_id] = (acc[o.enterprise_id] || 0) + 1; return acc; }, {} as Record<string, number>);
     const memberCount = (members || []).reduce((acc, m) => { acc[m.enterprise_id] = (acc[m.enterprise_id] || 0) + 1; return acc; }, {} as Record<string, number>);
+    const apiKeyCount = (apiKeys || []).reduce((acc, k) => { acc[k.enterprise_id] = (acc[k.enterprise_id] || 0) + 1; return acc; }, {} as Record<string, number>);
 
     setEnterprises(ents.map((e) => ({
       ...e,
@@ -160,6 +171,7 @@ export default function AdminEnterprises() {
       total_consumed: balMap[e.id]?.total_consumed ?? 0,
       org_count: orgCount[e.id] ?? 0,
       member_count: memberCount[e.id] ?? 0,
+      api_key_count: apiKeyCount[e.id] ?? 0,
       admins: adminsMap[e.id] ?? [],
     })));
     setLoading(false);
@@ -194,13 +206,16 @@ export default function AdminEnterprises() {
   };
 
   const filtered = enterprises.filter(
-    (e) =>
-      e.name.includes(search) ||
-      e.owner_phone.includes(search) ||
-      e.enterprise_code.includes(search)
+    (e) => {
+      const matchSearch = e.name.includes(search) ||
+        e.owner_phone.includes(search) ||
+        e.enterprise_code.includes(search);
+      const matchCert = certFilter ? e.cert_status === certFilter : true;
+      return matchSearch && matchCert;
+    }
   );
 
-  const COLS = "grid-cols-[2fr_1.5fr_1fr_1.2fr_1fr_100px_88px]";
+  const COLS = "grid-cols-[2fr_1.5fr_1fr_1.2fr_1fr_80px_100px_88px]";
 
   return (
     <div className="p-6 space-y-5">
@@ -227,9 +242,32 @@ export default function AdminEnterprises() {
         <div className={`grid ${COLS} gap-3 px-5 py-3 bg-muted/50 text-xs font-medium text-muted-foreground border-b`}>
           <span>企业名称</span>
           <span>企业管理员</span>
-          <span>认证状态</span>
+          <DropdownMenu>
+            <DropdownMenuTrigger className="flex items-center gap-1 hover:text-foreground focus:outline-none">
+              认证状态
+              <ChevronDown className="w-3.5 h-3.5" />
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start">
+              <DropdownMenuItem onClick={() => setCertFilter(null)}>
+                {certFilter === null ? "✓ " : "  "}全部
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setCertFilter("uncertified")}>
+                {certFilter === "uncertified" ? "✓ " : "  "}未认证
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setCertFilter("approved")}>
+                {certFilter === "approved" ? "✓ " : "  "}已认证
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setCertFilter("pending")}>
+                {certFilter === "pending" ? "✓ " : "  "}待审核
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setCertFilter("rejected")}>
+                {certFilter === "rejected" ? "✓ " : "  "}未通过
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
           <span>余额 / 历史消耗</span>
-          <span>组织 / 成员</span>
+          <span>部门 / 成员</span>
+          <span>API Key</span>
           <span>注册时间</span>
           <span>操作</span>
         </div>
@@ -268,10 +306,15 @@ export default function AdminEnterprises() {
                   <span className="text-muted-foreground"> / ¥{e.total_consumed.toFixed(2)}</span>
                 </div>
 
-                {/* 组织 / 成员 */}
+                {/* 部门 / 成员 */}
                 <div className="text-xs text-muted-foreground">
-                  <span className="text-foreground font-medium">{e.org_count}</span> 组织 ·{" "}
+                  <span className="text-foreground font-medium">{e.org_count}</span> 部门 ·{" "}
                   <span className="text-foreground font-medium">{e.member_count}</span> 人
+                </div>
+
+                {/* API Key 数量 */}
+                <div className="text-xs text-muted-foreground">
+                  <span className="text-foreground font-medium">{e.api_key_count}</span> 个
                 </div>
 
                 {/* 注册时间 */}
@@ -289,15 +332,6 @@ export default function AdminEnterprises() {
                     onClick={() => navigate(`/admin/enterprises/${e.id}`)}
                   >
                     <ExternalLink className="w-3.5 h-3.5" />
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    className="h-7 w-7 p-0 text-primary hover:text-primary hover:bg-primary/10"
-                    title="手动充值"
-                    onClick={() => { setRechargeTarget(e); setRechargeAmount(""); setRechargeRemark(""); }}
-                  >
-                    <Zap className="w-3.5 h-3.5" />
                   </Button>
                   <Button
                     size="sm"

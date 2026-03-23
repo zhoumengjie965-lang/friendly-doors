@@ -1,321 +1,426 @@
-import {
-  Building2,
-  CreditCard,
-  Wallet,
-  KeyRound,
-  TrendingDown,
-  DollarSign,
-  BarChart2,
-  MousePointerClick,
-} from "lucide-react";
-import {
-  LineChart,
-  Line,
-  AreaChart,
-  Area,
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer,
-} from "recharts";
+import { useState } from "react";
+import { Building2, User, CreditCard, TrendingDown, Wallet, Cpu, BarChart2, MousePointerClick } from "lucide-react";
+import ReactECharts from "echarts-for-react";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { supabase } from "@/integrations/supabase/client";
+import { useEffect } from "react";
 
-// ─── Mock Data ───────────────────────────────────────────────────────────────
+// ─── Types ───────────────────────────────────────────────────────────────
 
-// Generate 30-day date labels
-const THIRTY_DAYS = Array.from({ length: 30 }, (_, i) => {
-  const d = new Date();
-  d.setDate(d.getDate() - (29 - i));
-  return `${d.getMonth() + 1}/${d.getDate()}`;
-});
-
-// 近30天充值趋势 (折线图) — 3k–35k range
-const RECHARGE_TREND = THIRTY_DAYS.map((date, i) => ({
-  date,
-  amount: Math.round(3000 + Math.abs(Math.sin(i * 0.7 + 1) * 18000) + Math.abs(Math.cos(i * 0.4) * 12000)),
-}));
-
-// 平台 Token 消耗趋势 (面积图) — 100k–900k range
-const TOKEN_TREND = THIRTY_DAYS.map((date, i) => ({
-  date,
-  tokens: Math.round(100000 + Math.abs(Math.sin(i * 0.5 + 2) * 450000) + Math.abs(Math.cos(i * 0.3 + 1) * 300000)),
-}));
-
-// 企业消费 TOP 10 (横向柱状图)
-const TOP10_ENTERPRISES = [
-  { name: "星辰科技", amount: 58420 },
-  { name: "未来智能", amount: 47830 },
-  { name: "云图网络", amount: 39600 },
-  { name: "数链信息", amount: 31250 },
-  { name: "智联系统", amount: 27400 },
-  { name: "启明数据", amount: 22100 },
-  { name: "银河创服", amount: 18900 },
-  { name: "鲲鹏互联", amount: 14760 },
-  { name: "瀚海科技", amount: 9320 },
-  { name: "蓬莱云计算", amount: 5480 },
-].reverse(); // reverse so biggest bar is at top
-
-// ─── Metric Card Types ────────────────────────────────────────────────────────
-
-interface MetricCard {
-  label: string;
-  value: string;
-  sub: string;
-  icon: React.ElementType;
-  color: "blue" | "amber";
+interface FinancialStats {
+  totalRecharge: number;
+  totalConsumed: number;
+  balance: number;
 }
 
-const ROW1_CARDS: MetricCard[] = [
-  {
-    label: "签约企业总数",
-    value: "128 家",
-    sub: "平台全量签约企业",
-    icon: Building2,
-    color: "blue",
-  },
-  {
-    label: "累计充值金额",
-    value: "¥1,284,560",
-    sub: "历史累计充值总额",
-    icon: CreditCard,
-    color: "blue",
-  },
-  {
-    label: "资金池可用余额",
-    value: "¥896,320",
-    sub: "充值 − 消耗 = 可用余额",
-    icon: Wallet,
-    color: "blue",
-  },
-  {
-    label: "API Key 总数",
-    value: "2,341 个",
-    sub: "全平台 Key 汇总",
-    icon: KeyRound,
-    color: "blue",
-  },
+interface TopConsumer {
+  id: string;
+  name: string;
+  type: "enterprise" | "personal";
+  amount: number;
+}
+
+interface ModelUsage {
+  model: string;
+  tokens: number;
+}
+
+interface DailyTokenUsage {
+  date: string;
+  [key: string]: string | number;
+}
+
+// ─── Mock Data ───────────────────────────────────────────────────────────
+
+const MOCK_TOP_CONSUMERS: TopConsumer[] = [
+  { id: "ent-001", name: "星辰科技", type: "enterprise", amount: 58420 },
+  { id: "ent-002", name: "未来智能", type: "enterprise", amount: 47830 },
+  { id: "per-001", name: "张明", type: "personal", amount: 39600 },
+  { id: "ent-003", name: "云图网络", type: "enterprise", amount: 31250 },
+  { id: "per-002", name: "李华", type: "personal", amount: 27400 },
+  { id: "ent-004", name: "数链信息", type: "enterprise", amount: 22100 },
+  { id: "per-003", name: "王磊", type: "personal", amount: 18900 },
+  { id: "ent-005", name: "智联系统", type: "enterprise", amount: 14760 },
+  { id: "per-004", name: "刘伟", type: "personal", amount: 9320 },
+  { id: "ent-006", name: "启明数据", type: "enterprise", amount: 5480 },
 ];
 
-const ROW2_CARDS: MetricCard[] = [
-  {
-    label: "总消耗额度",
-    value: "¥388,240",
-    sub: "全平台累计消耗预算",
-    icon: TrendingDown,
-    color: "amber",
-  },
-  {
-    label: "预估成本",
-    value: "¥215,900",
-    sub: "按模型定价折算成本",
-    icon: DollarSign,
-    color: "amber",
-  },
-  {
-    label: "预估毛利率",
-    value: "44.4%",
-    sub: "（消耗 − 成本）/ 消耗",
-    icon: BarChart2,
-    color: "amber",
-  },
-  {
-    label: "总请求次数",
-    value: "8,320,451 次",
-    sub: "全平台历史请求量",
-    icon: MousePointerClick,
-    color: "amber",
-  },
+const MOCK_MODEL_USAGE: ModelUsage[] = [
+  { model: "gpt-4o", tokens: 125000000 },
+  { model: "claude-3.5-sonnet", tokens: 98000000 },
+  { model: "gpt-4-turbo", tokens: 76000000 },
+  { model: "claude-3-opus", tokens: 54000000 },
+  { model: "gemini-1.5-pro", tokens: 42000000 },
+  { model: "gpt-3.5-turbo", tokens: 38000000 },
+  { model: "llama-3-70b", tokens: 29000000 },
+  { model: "mistral-large", tokens: 21000000 },
 ];
 
-// ─── Sub-components ───────────────────────────────────────────────────────────
+// Generate 14-day mock data for stacked area chart
+const generateDailyTokenData = (): DailyTokenUsage[] => {
+  const models = ["gpt-4o", "claude-3.5-sonnet", "gpt-4-turbo", "gemini-1.5-pro", "llama-3-70b"];
+  const colors = ["#f472b6", "#60a5fa", "#a78bfa", "#fb923c", "#4ade80"];
+  
+  return Array.from({ length: 14 }, (_, i) => {
+    const d = new Date();
+    d.setDate(d.getDate() - (13 - i));
+    const dateStr = `${d.getMonth() + 1}/${d.getDate()}`;
+    
+    const row: DailyTokenUsage = { date: dateStr };
+    models.forEach((model) => {
+      row[model] = Math.round(5000000 + Math.random() * 15000000);
+    });
+    return row;
+  });
+};
 
-function StatCard({ card }: { card: MetricCard }) {
-  const Icon = card.icon;
-  const isBlue = card.color === "blue";
+const DAILY_TOKEN_DATA = generateDailyTokenData();
+
+// ─── Sub-components ───────────────────────────────────────────────────────
+
+function MetricCard({ 
+  label, 
+  value, 
+  icon: Icon, 
+  color 
+}: { 
+  label: string; 
+  value: string; 
+  icon: React.ElementType; 
+  color: "blue" | "amber" | "green";
+}) {
+  const colorClasses = {
+    blue: "bg-blue-500/10 text-blue-600",
+    amber: "bg-amber-500/10 text-amber-600",
+    green: "bg-green-500/10 text-green-600",
+  };
+  
   return (
-    <div className="bg-card border border-border rounded-xl p-5 flex flex-col gap-3">
+    <div className="bg-card border rounded-xl p-5 flex flex-col gap-2">
       <div className="flex items-center justify-between">
-        <p className="text-xs text-muted-foreground font-medium">{card.label}</p>
-        <div
-          className={`w-8 h-8 rounded-lg flex items-center justify-center ${
-            isBlue
-              ? "bg-[hsl(224,76%,48%)]/10"
-              : "bg-[hsl(38,92%,50%)]/10"
-          }`}
-        >
-          <Icon
-            className={`h-4 w-4 ${
-              isBlue ? "text-[hsl(224,76%,48%)]" : "text-[hsl(38,92%,40%)]"
-            }`}
-          />
+        <p className="text-xs text-muted-foreground font-medium">{label}</p>
+        <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${colorClasses[color]}`}>
+          <Icon className="h-4 w-4" />
         </div>
       </div>
-      <p className="text-2xl font-bold text-foreground tracking-tight">{card.value}</p>
-      <p className="text-xs text-muted-foreground">{card.sub}</p>
+      <p className="text-2xl font-bold text-foreground tracking-tight">{value}</p>
     </div>
   );
 }
 
-const tooltipStyle = {
-  backgroundColor: "hsl(var(--card))",
-  border: "1px solid hsl(var(--border))",
-  borderRadius: "8px",
-  fontSize: "12px",
-  color: "hsl(var(--foreground))",
-};
+function TopConsumersTable({ data }: { data: TopConsumer[] }) {
+  const formatAmount = (amount: number) => {
+    return `¥${amount.toLocaleString()}`;
+  };
 
-// ─── Main Page ────────────────────────────────────────────────────────────────
+  return (
+    <div className="bg-card border rounded-xl overflow-hidden">
+      <div className="px-5 py-4 border-b">
+        <h2 className="text-sm font-semibold text-foreground">消耗排行榜 TOP 10</h2>
+        <p className="text-xs text-muted-foreground mt-0.5">按累计消耗金额排序</p>
+      </div>
+      <div className="overflow-x-auto">
+        <table className="w-full">
+          <thead>
+            <tr className="bg-muted/40 text-xs text-muted-foreground">
+              <th className="px-5 py-3 text-left font-medium">排名</th>
+              <th className="px-5 py-3 text-left font-medium">名称/ID</th>
+              <th className="px-5 py-3 text-left font-medium">类型</th>
+              <th className="px-5 py-3 text-right font-medium">消耗金额</th>
+            </tr>
+          </thead>
+          <tbody>
+            {data.map((item, index) => (
+              <tr key={item.id} className="border-t text-sm">
+                <td className="px-5 py-3.5">
+                  <span className={`inline-flex items-center justify-center w-6 h-6 rounded-full text-xs font-bold ${
+                    index < 3 ? "bg-amber-100 text-amber-700" : "bg-muted text-muted-foreground"
+                  }`}>
+                    {index + 1}
+                  </span>
+                </td>
+                <td className="px-5 py-3.5">
+                  <div>
+                    <p className="font-medium text-foreground">{item.name}</p>
+                    <p className="text-xs text-muted-foreground font-mono">{item.id}</p>
+                  </div>
+                </td>
+                <td className="px-5 py-3.5">
+                  <div className="flex items-center gap-1.5">
+                    {item.type === "enterprise" ? (
+                      <>
+                        <Building2 className="w-4 h-4 text-blue-500" />
+                        <span className="text-xs text-muted-foreground">企业</span>
+                      </>
+                    ) : (
+                      <>
+                        <User className="w-4 h-4 text-green-500" />
+                        <span className="text-xs text-muted-foreground">个人</span>
+                      </>
+                    )}
+                  </div>
+                </td>
+                <td className="px-5 py-3.5 text-right font-medium text-foreground">
+                  {formatAmount(item.amount)}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+function ModelLeaderboardTable({ data }: { data: ModelUsage[] }) {
+  const formatTokens = (tokens: number) => {
+    if (tokens >= 1000000000) return `${(tokens / 1000000000).toFixed(1)}B`;
+    if (tokens >= 1000000) return `${(tokens / 1000000).toFixed(1)}M`;
+    if (tokens >= 1000) return `${(tokens / 1000).toFixed(1)}K`;
+    return tokens.toString();
+  };
+
+  const maxTokens = Math.max(...data.map(d => d.tokens));
+
+  return (
+    <div className="overflow-x-auto">
+        <table className="w-full">
+          <thead>
+            <tr className="bg-muted/40 text-xs text-muted-foreground">
+              <th className="px-5 py-3 text-left font-medium w-16">排名</th>
+              <th className="px-5 py-3 text-left font-medium">模型名</th>
+              <th className="px-5 py-3 text-right font-medium">Token 量</th>
+            </tr>
+          </thead>
+          <tbody>
+            {data.map((item, index) => (
+              <tr key={item.model} className="border-t text-sm">
+                <td className="px-5 py-3.5">
+                  <span className={`inline-flex items-center justify-center w-6 h-6 rounded-full text-xs font-bold ${
+                    index < 3 ? "bg-purple-100 text-purple-700" : "bg-muted text-muted-foreground"
+                  }`}>
+                    {index + 1}
+                  </span>
+                </td>
+                <td className="px-5 py-3.5">
+                  <span className="font-medium text-foreground font-mono text-sm">{item.model}</span>
+                </td>
+                <td className="px-5 py-3.5">
+                  <div className="flex items-center justify-end gap-3">
+                    <div className="w-32 h-2 bg-muted rounded-full overflow-hidden">
+                      <div 
+                        className="h-full bg-gradient-to-r from-purple-500 to-pink-500 rounded-full"
+                        style={{ width: `${(item.tokens / maxTokens) * 100}%` }}
+                      />
+                    </div>
+                    <span className="text-muted-foreground font-mono text-xs w-12 text-right">
+                      {formatTokens(item.tokens)}
+                    </span>
+                  </div>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+    </div>
+  );
+}
+
+// ─── Main Page ────────────────────────────────────────────────────────────
 
 export default function AdminResourceStats() {
+  const [stats, setStats] = useState<FinancialStats>({
+    totalRecharge: 0,
+    totalConsumed: 0,
+    balance: 0,
+  });
+  const [topConsumers, setTopConsumers] = useState<TopConsumer[]>(MOCK_TOP_CONSUMERS);
+
+  useEffect(() => {
+    fetchFinancialStats();
+  }, []);
+
+  const fetchFinancialStats = async () => {
+    // Fetch total balance from enterprise_balances
+    const { data: balances } = await supabase
+      .from("enterprise_balances")
+      .select("balance, total_consumed");
+    
+    if (balances) {
+      const totalBalance = balances.reduce((sum, b) => sum + (b.balance || 0), 0);
+      const totalConsumed = balances.reduce((sum, b) => sum + (b.total_consumed || 0), 0);
+      
+      // Fetch total recharge from balance_records
+      const { data: records } = await supabase
+        .from("balance_records")
+        .select("amount, type")
+        .eq("type", "recharge");
+      
+      const totalRecharge = (records || []).reduce((sum, r) => sum + (r.amount || 0), 0);
+      
+      setStats({
+        totalRecharge,
+        totalConsumed,
+        balance: totalBalance,
+      });
+    }
+  };
+
+  // ECharts option for stacked bar chart
+  const getStackedBarOption = () => {
+    const models = ["gpt-4o", "claude-3.5-sonnet", "gpt-4-turbo", "gemini-1.5-pro", "llama-3-70b"];
+    const colors = ["#f472b6", "#60a5fa", "#a78bfa", "#fb923c", "#4ade80"];
+
+    return {
+      tooltip: {
+        trigger: "axis" as const,
+        backgroundColor: "rgba(255,255,255,0.95)",
+        borderColor: "#e5e7eb",
+        borderWidth: 1,
+        textStyle: { color: "#374151", fontSize: 12 },
+        formatter: (params: any) => {
+          let total = 0;
+          let items = params.map((p: any) => {
+            total += p.value;
+            return `<span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:${p.color};margin-right:6px;"></span>${p.seriesName}: ${(p.value / 1000000).toFixed(1)}M`;
+          }).join("<br/>");
+          return `<strong>${params[0].axisValue}</strong><br/>${items}<br/><strong>Total: ${(total / 1000000).toFixed(1)}M</strong>`;
+        },
+      },
+      legend: {
+        data: models,
+        bottom: 0,
+        textStyle: { color: "#6b7280", fontSize: 11 },
+      },
+      grid: {
+        left: 50,
+        right: 20,
+        top: 20,
+        bottom: 50,
+      },
+      xAxis: {
+        type: "category" as const,
+        data: DAILY_TOKEN_DATA.map(d => d.date),
+        axisLine: { lineStyle: { color: "#e5e7eb" } },
+        axisLabel: { color: "#6b7280", fontSize: 11 },
+      },
+      yAxis: {
+        type: "value" as const,
+        axisLine: { show: false },
+        axisTick: { show: false },
+        splitLine: { lineStyle: { color: "#f3f4f6" } },
+        axisLabel: {
+          color: "#6b7280",
+          fontSize: 11,
+          formatter: (value: number) => `${(value / 1000000).toFixed(0)}M`,
+        },
+      },
+      series: models.map((model, index) => ({
+        name: model,
+        type: "bar" as const,
+        stack: "Total",
+        barWidth: "50%",
+        itemStyle: { color: colors[index] },
+        data: DAILY_TOKEN_DATA.map(d => d[model]),
+      })),
+    };
+  };
+
   return (
     <div className="p-6 space-y-6 overflow-y-auto">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-xl font-semibold text-foreground">资源统计</h1>
-          <p className="text-sm text-muted-foreground mt-0.5">平台级资源与财务概览（近 30 天）</p>
-        </div>
-        <span className="text-xs text-muted-foreground bg-muted/60 px-3 py-1.5 rounded-full border border-border">
-          近 30 天
-        </span>
+      <div>
+        <h1 className="text-xl font-semibold text-foreground">运营概览</h1>
+        <p className="text-sm text-muted-foreground mt-0.5">平台运营数据总览</p>
       </div>
 
-      {/* Row 1 — Assets & Finance (blue) */}
-      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-        {ROW1_CARDS.map((c) => <StatCard key={c.label} card={c} />)}
-      </div>
+      {/* Tabs */}
+      <Tabs defaultValue="finance" className="w-full">
+        <TabsList className="bg-muted/50">
+          <TabsTrigger value="finance">财务运营</TabsTrigger>
+          <TabsTrigger value="model">模型调用</TabsTrigger>
+        </TabsList>
 
-      {/* Row 2 — Consumption & Efficiency (amber) */}
-      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-        {ROW2_CARDS.map((c) => <StatCard key={c.label} card={c} />)}
-      </div>
-
-      {/* Charts Row — side-by-side */}
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        {/* 充值金额趋势 (折线图) */}
-        <div className="bg-card border border-border rounded-xl p-5">
-          <div className="mb-4">
-            <h2 className="text-sm font-semibold text-foreground">近 30 天充值金额趋势</h2>
-            <p className="text-xs text-muted-foreground mt-0.5">单位：元（¥）</p>
+        {/* Tab 1: 财务运营 */}
+        <TabsContent value="finance" className="mt-6 space-y-6">
+          {/* 核心指标 */}
+          <div className="grid grid-cols-3 gap-4">
+            <MetricCard
+              label="累计充值"
+              value={`¥${stats.totalRecharge.toLocaleString()}`}
+              icon={CreditCard}
+              color="blue"
+            />
+            <MetricCard
+              label="累计消耗"
+              value={`¥${stats.totalConsumed.toLocaleString()}`}
+              icon={TrendingDown}
+              color="amber"
+            />
+            <MetricCard
+              label="资金池余额"
+              value={`¥${stats.balance.toLocaleString()}`}
+              icon={Wallet}
+              color="green"
+            />
           </div>
-          <ResponsiveContainer width="100%" height={220}>
-            <LineChart data={RECHARGE_TREND} margin={{ top: 4, right: 4, left: 0, bottom: 0 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-              <XAxis
-                dataKey="date"
-                tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }}
-                tickLine={false}
-                interval={4}
-              />
-              <YAxis
-                tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }}
-                tickLine={false}
-                axisLine={false}
-                tickFormatter={(v) => `¥${(v / 1000).toFixed(0)}k`}
-              />
-              <Tooltip
-                contentStyle={tooltipStyle}
-                formatter={(v: number) => [`¥${v.toLocaleString()}`, "充值金额"]}
-              />
-              <Line
-                type="monotone"
-                dataKey="amount"
-                stroke="hsl(224,76%,48%)"
-                strokeWidth={2}
-                dot={false}
-                activeDot={{ r: 4 }}
-              />
-            </LineChart>
-          </ResponsiveContainer>
-        </div>
 
-        {/* Token 消耗趋势 (面积图) */}
-        <div className="bg-card border border-border rounded-xl p-5">
-          <div className="mb-4">
-            <h2 className="text-sm font-semibold text-foreground">平台生态 Token 消耗趋势</h2>
-            <p className="text-xs text-muted-foreground mt-0.5">单位：万 Tokens</p>
+          {/* Top 10 消耗排行榜 */}
+          <TopConsumersTable data={topConsumers} />
+        </TabsContent>
+
+        {/* Tab 2: 模型调用 */}
+        <TabsContent value="model" className="mt-6 space-y-6">
+          {/* 核心指标 */}
+          <div className="grid grid-cols-3 gap-4">
+            <MetricCard
+              label="接入模型数"
+              value="8 个"
+              icon={Cpu}
+              color="blue"
+            />
+            <MetricCard
+              label="总 Token 消耗"
+              value="483.2M"
+              icon={BarChart2}
+              color="amber"
+            />
+            <MetricCard
+              label="总请求次数"
+              value="1,284,562 次"
+              icon={MousePointerClick}
+              color="green"
+            />
           </div>
-          <ResponsiveContainer width="100%" height={220}>
-            <AreaChart data={TOKEN_TREND} margin={{ top: 4, right: 4, left: 0, bottom: 0 }}>
-              <defs>
-                <linearGradient id="tokenGrad" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="hsl(38,92%,50%)" stopOpacity={0.3} />
-                  <stop offset="95%" stopColor="hsl(38,92%,50%)" stopOpacity={0} />
-                </linearGradient>
-              </defs>
-              <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-              <XAxis
-                dataKey="date"
-                tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }}
-                tickLine={false}
-                interval={4}
-              />
-              <YAxis
-                tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }}
-                tickLine={false}
-                axisLine={false}
-                tickFormatter={(v) => `${(v / 10000).toFixed(0)}w`}
-              />
-              <Tooltip
-                contentStyle={tooltipStyle}
-                formatter={(v: number) => [`${(v / 10000).toFixed(1)}w`, "Tokens"]}
-              />
-              <Area
-                type="monotone"
-                dataKey="tokens"
-                stroke="hsl(38,92%,40%)"
-                strokeWidth={2}
-                fill="url(#tokenGrad)"
-              />
-            </AreaChart>
-          </ResponsiveContainer>
-        </div>
-      </div>
 
-      {/* Full-width horizontal bar chart — TOP 10 */}
-      <div className="bg-card border border-border rounded-xl p-5">
-        <div className="mb-4">
-          <h2 className="text-sm font-semibold text-foreground">企业消费 TOP 10</h2>
-          <p className="text-xs text-muted-foreground mt-0.5">单位：元（¥），按累计消耗排名</p>
-        </div>
-        <ResponsiveContainer width="100%" height={320}>
-          <BarChart
-            layout="vertical"
-            data={TOP10_ENTERPRISES}
-            margin={{ top: 0, right: 40, left: 0, bottom: 0 }}
-          >
-            <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="hsl(var(--border))" />
-            <XAxis
-              type="number"
-              tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }}
-              tickLine={false}
-              axisLine={false}
-              tickFormatter={(v) => `¥${(v / 1000).toFixed(0)}k`}
+          {/* 堆叠柱状图 */}
+          <div className="bg-card border rounded-xl p-5">
+            <div className="mb-4">
+              <h2 className="text-sm font-semibold text-foreground">模型消耗趋势</h2>
+              <p className="text-xs text-muted-foreground mt-0.5">近 7 天各模型 Token 消耗分布</p>
+            </div>
+            <ReactECharts
+              option={getStackedBarOption()}
+              style={{ height: 320 }}
+              opts={{ renderer: "canvas" }}
             />
-            <YAxis
-              type="category"
-              dataKey="name"
-              width={80}
-              tick={{ fontSize: 11, fill: "hsl(var(--foreground))" }}
-              tickLine={false}
-              axisLine={false}
-            />
-            <Tooltip
-              contentStyle={tooltipStyle}
-              cursor={{ fill: "hsl(var(--muted))" }}
-              formatter={(v: number) => [`¥${v.toLocaleString()}`, "消耗金额"]}
-            />
-            <Bar
-              dataKey="amount"
-              fill="hsl(224,76%,48%)"
-              radius={[0, 4, 4, 0]}
-              maxBarSize={22}
-            />
-          </BarChart>
-        </ResponsiveContainer>
-      </div>
+          </div>
+
+          {/* 模型排行榜 */}
+          <div className="bg-card border rounded-xl overflow-hidden">
+            <div className="px-5 py-4 border-b flex items-center justify-between">
+              <div>
+                <h2 className="text-sm font-semibold text-foreground">模型调用排行榜</h2>
+                <p className="text-xs text-muted-foreground mt-0.5">按 Token 消耗量排序</p>
+              </div>
+              <span className="text-xs text-muted-foreground bg-muted/60 px-3 py-1.5 rounded-full border">
+                按本周统计
+              </span>
+            </div>
+            <ModelLeaderboardTable data={MOCK_MODEL_USAGE} />
+          </div>
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }
