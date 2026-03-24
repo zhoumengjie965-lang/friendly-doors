@@ -6,7 +6,7 @@ import {
 } from "recharts";
 import {
   Wallet, Activity, Database, Zap, BarChart2, CalendarIcon, RefreshCw, LayoutGrid,
-  PieChart as PieChartIcon, Users, Search, Building2, TrendingUp, X,
+  PieChart as PieChartIcon, Users, Search, Building2, TrendingUp, X, ChevronRight,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -459,7 +459,7 @@ export default function ResourceStats({ enterprise }: Props) {
 
   // View mode tabs for org_admin and enterprise_admin
   const [orgAdminViewMode, setOrgAdminViewMode] = useState<"my" | "dept">("my");
-  const [enterpriseAdminViewMode, setEnterpriseAdminViewMode] = useState<"my" | "enterprise">("my");
+  const [enterpriseAdminViewMode, setEnterpriseAdminViewMode] = useState<"my" | "dept" | "enterprise">("my");
 
   // Department context for my view (admin may belong to multiple departments)
   const [orgAdminDeptContext, setOrgAdminDeptContext] = useState("org-1");
@@ -686,6 +686,17 @@ export default function ResourceStats({ enterprise }: Props) {
               我的视图
             </button>
             <button
+              onClick={() => setEnterpriseAdminViewMode("dept")}
+              className={cn(
+                "px-4 py-1.5 rounded-md text-xs font-medium transition-all",
+                enterpriseAdminViewMode === "dept"
+                  ? "bg-background text-foreground shadow-sm"
+                  : "text-muted-foreground hover:text-foreground"
+              )}
+            >
+              部门视图
+            </button>
+            <button
               onClick={() => setEnterpriseAdminViewMode("enterprise")}
               className={cn(
                 "px-4 py-1.5 rounded-md text-xs font-medium transition-all",
@@ -697,15 +708,25 @@ export default function ResourceStats({ enterprise }: Props) {
               企业视图
             </button>
           </div>
-          {/* Department context selector - only show in my view */}
-          {enterpriseAdminViewMode === "my" && (
+          {/* Breadcrumb navigation for drill-down - show below tabs when drilled down */}
+          {enterpriseAdminViewMode === "enterprise" && drillDownOrg && (
+            <div className="flex items-center gap-1 text-sm text-muted-foreground mt-2">
+              <span>企业全部</span>
+              <span>/</span>
+              <span className="font-medium text-foreground cursor-pointer hover:text-primary" onClick={() => setDrillDownOrg(null)}>
+                {mockAllOrgs.find(o => o.id === drillDownOrg)?.name}
+              </span>
+            </div>
+          )}
+          {/* Department context selector - show in my view and dept view */}
+          {(enterpriseAdminViewMode === "my" || enterpriseAdminViewMode === "dept") && (
             <div className="flex items-center gap-2">
-              <span className="text-xs text-muted-foreground">归属部门：</span>
+              <span className="text-xs text-muted-foreground">{enterpriseAdminViewMode === "my" ? "归属部门：" : "选择部门："}</span>
               <OrgTreeSelect
                 orgs={mockAllOrgs}
                 value={enterpriseAdminDeptContext}
                 onValueChange={(v) => setEnterpriseAdminDeptContext(v)}
-                showAll={false}
+                showAll={enterpriseAdminViewMode === "dept"}
                 triggerClassName="h-8 w-36 text-xs"
               />
             </div>
@@ -835,8 +856,34 @@ export default function ResourceStats({ enterprise }: Props) {
         </div>
       )}
 
-      {/* Enterprise financial banner — enterprise view (aggregated) */}
-      {viewRole === "enterprise_admin" && enterpriseAdminViewMode === "enterprise" && committedEnterpriseMember === "" && (
+      {/* Enterprise banner — dept view (aggregated) */}
+      {viewRole === "enterprise_admin" && enterpriseAdminViewMode === "dept" && committedEnterpriseMember === "" && (
+        <div className="mb-4 rounded-lg bg-blue-50 border border-blue-200 px-4 py-3 flex items-center gap-4 flex-wrap">
+          <div className="flex items-center gap-2 shrink-0">
+            <div className="w-7 h-7 rounded-full bg-blue-100 flex items-center justify-center">
+              <Wallet className="w-4 h-4 text-blue-600" />
+            </div>
+            <span className="text-sm font-semibold text-blue-700">部门本月配额监控</span>
+          </div>
+          <div className="w-px h-5 bg-blue-200 shrink-0" />
+          <span className="text-sm text-blue-600 shrink-0">
+            本月剩余可用预算/本月预算上限：
+            <span className="font-bold text-blue-800">
+              ¥ {(orgMonthlyBudget - orgConsumed).toLocaleString("zh-CN", { minimumFractionDigits: 2 })}
+            </span>
+            {" "}/ ¥ {orgMonthlyBudget.toLocaleString("zh-CN", { minimumFractionDigits: 2 })}
+          </span>
+          <div className="flex items-center gap-2 flex-1 min-w-[160px]">
+            <div className="flex-1 h-2 rounded-full bg-blue-100 overflow-hidden">
+              <div className="h-full bg-blue-500 rounded-full transition-all" style={{ width: `${orgConsumedPct}%` }} />
+            </div>
+            <span className="text-xs text-blue-500 shrink-0">{orgConsumedPct}% 已消耗</span>
+          </div>
+        </div>
+      )}
+
+      {/* Enterprise financial banner — enterprise view (aggregated) - hide when drilled down */}
+      {viewRole === "enterprise_admin" && enterpriseAdminViewMode === "enterprise" && committedEnterpriseMember === "" && !drillDownOrg && (
         <div className="mb-4 rounded-lg bg-emerald-50 border border-emerald-200 px-4 py-3 flex items-center gap-4 flex-wrap">
           <div className="flex items-center gap-2 shrink-0">
             <div className="w-7 h-7 rounded-full bg-emerald-100 flex items-center justify-center">
@@ -848,9 +895,6 @@ export default function ResourceStats({ enterprise }: Props) {
           <span className="text-sm text-emerald-700 shrink-0">
             当前余额：<span className="font-bold text-emerald-800">¥ {enterpriseBalance.toLocaleString("zh-CN", { minimumFractionDigits: 2 })}</span>
           </span>
-          <Button variant="outline" size="sm" className="h-7 text-xs px-3 shrink-0 border-emerald-300 text-emerald-700 hover:bg-emerald-100">
-            充值
-          </Button>
         </div>
       )}
 
@@ -877,7 +921,8 @@ export default function ResourceStats({ enterprise }: Props) {
         </div>
       )}
 
-      {/* Metric cards */}
+      {/* Metric cards - hide when enterprise admin is in drill-down view */}
+      {!(viewRole === "enterprise_admin" && enterpriseAdminViewMode === "enterprise" && drillDownOrg) && (
       <div className="grid grid-cols-3 grid-rows-2 gap-4 mb-6" style={{ gridTemplateRows: "auto auto" }}>
         <div className="row-span-2 bg-card border border-border rounded-xl p-6 flex flex-col justify-center">
           <div className="w-12 h-12 rounded-full flex items-center justify-center mb-4"
@@ -962,8 +1007,10 @@ export default function ResourceStats({ enterprise }: Props) {
           </p>
         </div>
       </div>
+      )}
 
-      {/* Chart card */}
+      {/* Chart card - hide in drill-down view */}
+      {!(viewRole === "enterprise_admin" && enterpriseAdminViewMode === "enterprise" && drillDownOrg) && (
       <div className="bg-card border border-border rounded-xl p-6">
         <div className="flex items-center justify-between mb-5">
           <div className="flex items-center gap-4">
@@ -1047,9 +1094,11 @@ export default function ResourceStats({ enterprise }: Props) {
           </BarChart>
         </ResponsiveContainer>
       </div>
+      )}
 
-      {/* org_admin: Member and Sub-dept rank cards - only show in dept view */}
-      {viewRole === "org_admin" && orgAdminViewMode === "dept" && (
+      {/* org_admin & enterprise_admin dept view: Member and Sub-dept rank cards */}
+      {((viewRole === "org_admin" && orgAdminViewMode === "dept") ||
+        (viewRole === "enterprise_admin" && enterpriseAdminViewMode === "dept")) && (
         <div className="mt-4 grid grid-cols-1 lg:grid-cols-2 gap-4">
           {/* Member rank card */}
           <div className="bg-card border border-border rounded-xl p-6">
@@ -1193,10 +1242,30 @@ export default function ResourceStats({ enterprise }: Props) {
               <YAxis
                 dataKey="name"
                 type="category"
-                width={64}
-                tick={{ fontSize: 12, fill: "hsl(var(--muted-foreground))", cursor: "pointer" }}
+                width={80}
                 axisLine={false}
                 tickLine={false}
+                tick={(props: any) => {
+                  const { x, y, payload } = props;
+                  return (
+                    <g transform={`translate(${x},${y + 4})`}>
+                      <text
+                        x={0}
+                        y={0}
+                        textAnchor="end"
+                        fill="hsl(var(--muted-foreground))"
+                        fontSize={12}
+                        className="cursor-pointer hover:fill-primary transition-colors"
+                        onClick={() => {
+                          const orgId = mockAllOrgs.find(o => o.name === payload.value)?.id || "org-1";
+                          setDrillDownOrg(orgId);
+                        }}
+                      >
+                        {payload.value}
+                      </text>
+                    </g>
+                  );
+                }}
               />
               <Tooltip
                 contentStyle={{
@@ -1232,22 +1301,36 @@ export default function ResourceStats({ enterprise }: Props) {
         </div>
       )}
 
-      {/* enterprise_admin: Drill-down department stats view */}
+      {/* enterprise_admin: Drill-down department stats view - same as org_admin dept view */}
       {viewRole === "enterprise_admin" && enterpriseAdminViewMode === "enterprise" && drillDownOrg && (
         <div className="mt-4 space-y-4">
-          {/* Back button and title */}
-          <div className="flex items-center gap-3">
-            <Button
-              variant="outline"
-              size="sm"
-              className="h-8 text-xs"
-              onClick={() => setDrillDownOrg(null)}
-            >
-              ← 返回部门列表
-            </Button>
-            <span className="font-semibold text-foreground">
-              {mockAllOrgs.find(o => o.id === drillDownOrg)?.name} - 部门统计
+          {/* Department quota banner */}
+          <div className="mb-4 rounded-lg bg-blue-50 border border-blue-200 px-4 py-3 flex items-center gap-4 flex-wrap">
+            <div className="flex items-center gap-2 shrink-0">
+              <div className="w-7 h-7 rounded-full bg-blue-100 flex items-center justify-center">
+                <Wallet className="w-4 h-4 text-blue-600" />
+              </div>
+              <span className="text-sm font-semibold text-blue-700">部门本月配额监控</span>
+            </div>
+            <div className="w-px h-5 bg-blue-200 shrink-0" />
+            <span className="text-sm text-blue-600 shrink-0">
+              本月剩余可用预算/本月预算上限：
+              <span className="font-bold text-blue-800">
+                ¥ {mockOrgDataMap[drillDownOrg] ? (orgMonthlyBudget - mockOrgDataMap[drillDownOrg].consumed).toLocaleString("zh-CN", { minimumFractionDigits: 2 }) : "0.00"}
+              </span>
+              {" "}/ ¥ {orgMonthlyBudget.toLocaleString("zh-CN", { minimumFractionDigits: 2 })}
             </span>
+            <div className="flex items-center gap-2 flex-1 min-w-[160px]">
+              <div className="flex-1 h-2 rounded-full bg-blue-100 overflow-hidden">
+                <div
+                  className="h-full bg-blue-500 rounded-full transition-all"
+                  style={{ width: `${mockOrgDataMap[drillDownOrg] ? Math.min((mockOrgDataMap[drillDownOrg].consumed / orgMonthlyBudget) * 100, 100) : 0}%` }}
+                />
+              </div>
+              <span className="text-xs text-blue-500 shrink-0">
+                {mockOrgDataMap[drillDownOrg] ? ((mockOrgDataMap[drillDownOrg].consumed / orgMonthlyBudget) * 100).toFixed(1) : 0}% 已消耗
+              </span>
+            </div>
           </div>
 
           {/* Department stats cards */}
@@ -1316,35 +1399,73 @@ export default function ResourceStats({ enterprise }: Props) {
             </div>
           </div>
 
-          {/* Member rank for this department */}
+          {/* Chart card - Model data analysis */}
           <div className="bg-card border border-border rounded-xl p-6">
-            <div className="flex items-center gap-2 mb-6">
-              <Users className="w-4 h-4 text-muted-foreground" />
-              <span className="font-semibold text-foreground">成员消耗排行榜</span>
-              <span className="text-xs text-muted-foreground ml-1">Top {mockOrgDataMap[drillDownOrg]?.memberRank.length || 0}</span>
+            <div className="flex items-center justify-between mb-5">
+              <div className="flex items-center gap-4">
+                <div className="flex items-center gap-2">
+                  <LayoutGrid className="w-4 h-4 text-muted-foreground" />
+                  <span className="font-semibold text-foreground">模型数据分析</span>
+                </div>
+                <div className="flex items-center bg-muted rounded-lg p-1 h-8">
+                  <button
+                    onClick={() => setActiveSubTab("consumption")}
+                    className={cn(
+                      "px-3 py-1 rounded-md text-xs font-medium transition-all",
+                      activeSubTab === "consumption"
+                        ? "bg-background text-foreground shadow-sm"
+                        : "text-muted-foreground hover:text-foreground"
+                    )}
+                  >
+                    模型消耗分布
+                  </button>
+                  <button
+                    onClick={() => setActiveSubTab("calls")}
+                    className={cn(
+                      "px-3 py-1 rounded-md text-xs font-medium transition-all",
+                      activeSubTab === "calls"
+                        ? "bg-background text-foreground shadow-sm"
+                        : "text-muted-foreground hover:text-foreground"
+                    )}
+                  >
+                    模型调用分布
+                  </button>
+                </div>
+              </div>
+              <div className="flex items-center bg-muted rounded-lg p-1 h-8">
+                {(["hour", "day", "week"] as const).map((g) => (
+                  <button
+                    key={g}
+                    onClick={() => setGranularity(g)}
+                    className={cn(
+                      "px-2.5 py-1 rounded-md text-xs font-medium transition-all",
+                      granularity === g
+                        ? "bg-background text-foreground shadow-sm"
+                        : "text-muted-foreground hover:text-foreground"
+                    )}
+                  >
+                    {g === "hour" ? "按小时" : g === "day" ? "按天" : "按周"}
+                  </button>
+                ))}
+              </div>
             </div>
-            <ResponsiveContainer width="100%" height={240}>
-              <BarChart
-                layout="vertical"
-                data={mockOrgDataMap[drillDownOrg]?.memberRank || []}
-                margin={{ top: 4, right: 80, left: 8, bottom: 4 }}
-                barSize={18}
-              >
-                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" horizontal={false} />
+
+            <ResponsiveContainer width="100%" height={280}>
+              <BarChart data={chartData} margin={{ top: 4, right: 16, left: 0, bottom: 4 }} barSize={20}>
+                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
                 <XAxis
-                  type="number"
-                  tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }}
-                  axisLine={false}
-                  tickLine={false}
-                  tickFormatter={(v) => `¥${v}`}
-                />
-                <YAxis
-                  dataKey="name"
-                  type="category"
-                  width={64}
+                  dataKey="date"
                   tick={{ fontSize: 12, fill: "hsl(var(--muted-foreground))" }}
                   axisLine={false}
                   tickLine={false}
+                />
+                <YAxis
+                  tick={{ fontSize: 12, fill: "hsl(var(--muted-foreground))" }}
+                  axisLine={false}
+                  tickLine={false}
+                  width={50}
+                  tickFormatter={(v) => activeSubTab === "consumption" && v >= 1000 ? `${v / 1000}K` : String(v)}
+                  label={{ value: yLabel, angle: -90, position: "insideLeft", offset: 10, style: { fontSize: 11, fill: "hsl(var(--muted-foreground))" } }}
                 />
                 <Tooltip
                   contentStyle={{
@@ -1353,24 +1474,294 @@ export default function ResourceStats({ enterprise }: Props) {
                     borderRadius: 8,
                     fontSize: 12,
                   }}
-                  formatter={(v: number) => [`¥${v.toFixed(2)}`, "消耗金额"]}
-                  cursor={{ fill: "hsl(var(--muted))" }}
                 />
-                <Bar
-                  dataKey="value"
-                  name="消耗金额"
-                  fill="#60a5fa"
-                  radius={[0, 4, 4, 0]}
-                  label={{ position: "right", fontSize: 11, fill: "hsl(var(--muted-foreground))", formatter: (v: number) => `¥${v.toFixed(2)}` }}
-                />
+                <Legend wrapperStyle={{ paddingTop: 16 }} />
+                <Bar dataKey="claude" name="Claude 3" stackId="a" fill="#4ade80" radius={[0, 0, 0, 0]} />
+                <Bar dataKey="gpt4" name="GPT-4" stackId="a" fill="#60a5fa" radius={[0, 0, 0, 0]} />
+                <Bar dataKey="gemini" name="Gemini Pro" stackId="a" fill="#a78bfa" radius={[4, 4, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
+          </div>
+
+          {/* Member and Sub-dept rank cards */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            {/* Member rank card */}
+            <div className="bg-card border border-border rounded-xl p-6">
+              <div className="flex items-center gap-2 mb-6">
+                <Users className="w-4 h-4 text-muted-foreground" />
+                <span className="font-semibold text-foreground">成员消耗排行榜</span>
+                <span className="text-xs text-muted-foreground ml-1">Top {mockOrgDataMap[drillDownOrg]?.memberRank?.length || 10}</span>
+              </div>
+              <ResponsiveContainer width="100%" height={320}>
+                <BarChart
+                  layout="vertical"
+                  data={mockOrgDataMap[drillDownOrg]?.memberRank || []}
+                  margin={{ top: 4, right: 64, left: 8, bottom: 4 }}
+                  barSize={16}
+                >
+                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" horizontal={false} />
+                  <XAxis
+                    type="number"
+                    tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }}
+                    axisLine={false}
+                    tickLine={false}
+                    tickFormatter={(v) => `¥${v}`}
+                  />
+                  <YAxis
+                    dataKey="name"
+                    type="category"
+                    width={56}
+                    tick={{ fontSize: 12, fill: "hsl(var(--muted-foreground))" }}
+                    axisLine={false}
+                    tickLine={false}
+                  />
+                  <Tooltip
+                    contentStyle={{
+                      backgroundColor: "hsl(var(--background))",
+                      border: "1px solid hsl(var(--border))",
+                      borderRadius: 8,
+                      fontSize: 12,
+                    }}
+                    formatter={(v: number) => [`¥${v.toFixed(2)}`, "消耗金额"]}
+                    cursor={{ fill: "hsl(var(--muted))" }}
+                  />
+                  <Bar
+                    dataKey="value"
+                    name="消耗金额"
+                    fill="#60a5fa"
+                    radius={[0, 4, 4, 0]}
+                    label={{ position: "right", fontSize: 11, fill: "hsl(var(--muted-foreground))", formatter: (v: number) => `¥${v.toFixed(2)}` }}
+                  />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+
+            {/* Sub-department rank card */}
+            <div className="bg-card border border-border rounded-xl p-6">
+              <div className="flex items-center gap-2 mb-6">
+                <Building2 className="w-4 h-4 text-muted-foreground" />
+                <span className="font-semibold text-foreground">子部门消耗排行榜</span>
+                <span className="text-xs text-muted-foreground ml-1">Top {mockSubDeptRankData.length}</span>
+              </div>
+              <ResponsiveContainer width="100%" height={320}>
+                <BarChart
+                  layout="vertical"
+                  data={mockSubDeptRankData}
+                  margin={{ top: 4, right: 64, left: 8, bottom: 4 }}
+                  barSize={16}
+                >
+                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" horizontal={false} />
+                  <XAxis
+                    type="number"
+                    tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }}
+                    axisLine={false}
+                    tickLine={false}
+                    tickFormatter={(v) => `¥${v}`}
+                  />
+                  <YAxis
+                    dataKey="name"
+                    type="category"
+                    width={56}
+                    tick={{ fontSize: 12, fill: "hsl(var(--muted-foreground))" }}
+                    axisLine={false}
+                    tickLine={false}
+                  />
+                  <Tooltip
+                    contentStyle={{
+                      backgroundColor: "hsl(var(--background))",
+                      border: "1px solid hsl(var(--border))",
+                      borderRadius: 8,
+                      fontSize: 12,
+                    }}
+                    formatter={(v: number) => [`¥${v.toFixed(2)}`, "消耗金额"]}
+                    cursor={{ fill: "hsl(var(--muted))" }}
+                  />
+                  <Bar
+                    dataKey="value"
+                    name="消耗金额"
+                    fill="#4ade80"
+                    radius={[0, 4, 4, 0]}
+                    label={{ position: "right", fontSize: 11, fill: "hsl(var(--muted-foreground))", formatter: (v: number) => `¥${v.toFixed(2)}` }}
+                  />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+
+          {/* APIkey analysis - three charts layout */}
+          <div className="mt-4 bg-card border border-border rounded-xl p-6">
+            <div className="flex items-center gap-2 mb-6">
+              <PieChartIcon className="w-4 h-4 text-muted-foreground" />
+              <span className="font-semibold text-foreground">APIkey 调用分析</span>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+              {/* 1. Key type distribution */}
+              <div>
+                <p className="text-sm font-medium text-foreground mb-4">不同类型 Key 消耗占比</p>
+                <div className="flex items-center gap-6">
+                  <div className="relative shrink-0">
+                    <ResponsiveContainer width={160} height={160}>
+                      <PieChart>
+                        <Pie
+                          data={mockKeyTypeDistributionData}
+                          cx="50%"
+                          cy="50%"
+                          innerRadius={52}
+                          outerRadius={76}
+                          paddingAngle={2}
+                          dataKey="value"
+                          strokeWidth={0}
+                        >
+                          {mockKeyTypeDistributionData.map((entry, i) => (
+                            <Cell key={i} fill={entry.color} />
+                          ))}
+                        </Pie>
+                        <Tooltip
+                          contentStyle={{
+                            backgroundColor: "hsl(var(--background))",
+                            border: "1px solid hsl(var(--border))",
+                            borderRadius: 8,
+                            fontSize: 12,
+                          }}
+                          formatter={(v: number) => [`¥${v.toFixed(2)}`, "金额"]}
+                        />
+                      </PieChart>
+                    </ResponsiveContainer>
+                    <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+                      <span className="text-xs text-muted-foreground">总消耗</span>
+                      <span className="text-base font-bold text-foreground">¥598.10</span>
+                    </div>
+                  </div>
+                  <div className="flex-1 space-y-3">
+                    {mockKeyTypeDistributionData.map((item, i) => {
+                      const total = mockKeyTypeDistributionData.reduce((s, d) => s + d.value, 0);
+                      const pct = ((item.value / total) * 100).toFixed(1);
+                      return (
+                        <div key={i} className="flex items-center justify-between gap-2">
+                          <div className="flex items-center gap-2 min-w-0">
+                            <div className="w-2.5 h-2.5 rounded-sm shrink-0" style={{ background: item.color }} />
+                            <span className="text-xs text-muted-foreground truncate">{item.name}</span>
+                          </div>
+                          <div className="flex items-center gap-2 shrink-0">
+                            <span className="text-xs font-medium text-foreground">¥{item.value.toFixed(2)}</span>
+                            <span className="text-xs text-muted-foreground w-10 text-right">{pct}%</span>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+              {/* 2. Top 5 Key consumption ranking */}
+              <div>
+                <p className="text-sm font-medium text-foreground mb-4">Top 5 Key 消耗金额排行</p>
+                <ResponsiveContainer width="100%" height={200}>
+                  <BarChart
+                    layout="vertical"
+                    data={mockTop5KeyRankData}
+                    margin={{ top: 4, right: 80, left: 8, bottom: 4 }}
+                    barSize={18}
+                  >
+                    <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" horizontal={false} />
+                    <XAxis
+                      type="number"
+                      tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }}
+                      axisLine={false}
+                      tickLine={false}
+                      tickFormatter={(v) => `¥${v}`}
+                    />
+                    <YAxis
+                      dataKey="name"
+                      type="category"
+                      width={100}
+                      tick={{ fontSize: 12, fill: "hsl(var(--muted-foreground))" }}
+                      axisLine={false}
+                      tickLine={false}
+                    />
+                    <Tooltip
+                      contentStyle={{
+                        backgroundColor: "hsl(var(--background))",
+                        border: "1px solid hsl(var(--border))",
+                        borderRadius: 8,
+                        fontSize: 12,
+                      }}
+                      formatter={(v: number) => [`¥${v.toFixed(2)}`, "消耗金额"]}
+                      cursor={{ fill: "hsl(var(--muted))" }}
+                    />
+                    <Bar
+                      dataKey="value"
+                      name="消耗金额"
+                      fill="#60a5fa"
+                      radius={[0, 4, 4, 0]}
+                      label={{ position: "right", fontSize: 11, fill: "hsl(var(--muted-foreground))", formatter: (v: number) => `¥${v.toFixed(2)}` }}
+                    />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+              {/* 3. Success rate */}
+              <div>
+                <p className="text-sm font-medium text-foreground mb-4">成功率</p>
+                <div className="flex items-center gap-6">
+                  <div className="relative shrink-0">
+                    <ResponsiveContainer width={160} height={160}>
+                      <PieChart>
+                        <Pie
+                          data={mockDeptSuccessRateData}
+                          cx="50%"
+                          cy="50%"
+                          innerRadius={52}
+                          outerRadius={76}
+                          paddingAngle={2}
+                          dataKey="value"
+                          strokeWidth={0}
+                        >
+                          {mockDeptSuccessRateData.map((entry, i) => (
+                            <Cell key={i} fill={entry.color} />
+                          ))}
+                        </Pie>
+                        <Tooltip
+                          contentStyle={{
+                            backgroundColor: "hsl(var(--background))",
+                            border: "1px solid hsl(var(--border))",
+                            borderRadius: 8,
+                            fontSize: 12,
+                          }}
+                          formatter={(v: number) => [`${v} 次`, "次数"]}
+                        />
+                      </PieChart>
+                    </ResponsiveContainer>
+                    <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+                      <span className="text-xs text-muted-foreground">成功率</span>
+                      <span className="text-base font-bold text-foreground">94.2%</span>
+                    </div>
+                  </div>
+                  <div className="flex-1 space-y-3">
+                    {mockDeptSuccessRateData.map((item, i) => {
+                      const total = mockDeptSuccessRateData.reduce((s, d) => s + d.value, 0);
+                      const pct = ((item.value / total) * 100).toFixed(1);
+                      return (
+                        <div key={i} className="flex items-center justify-between gap-2">
+                          <div className="flex items-center gap-2 min-w-0">
+                            <div className="w-2.5 h-2.5 rounded-sm shrink-0" style={{ background: item.color }} />
+                            <span className="text-xs text-muted-foreground truncate">{item.name}</span>
+                          </div>
+                          <div className="flex items-center gap-2 shrink-0">
+                            <span className="text-xs font-medium text-foreground">{item.value} 次</span>
+                            <span className="text-xs text-muted-foreground w-10 text-right">{pct}%</span>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       )}
 
-      {/* APIkey analysis — member, org_admin & enterprise_admin */}
-      {(viewRole === "member" || viewRole === "org_admin" || viewRole === "enterprise_admin") && (
+      {/* APIkey analysis — member, org_admin & enterprise_admin - hide in drill-down view */}
+      {(viewRole === "member" || viewRole === "org_admin" || (viewRole === "enterprise_admin" && !drillDownOrg)) && (
         <div className="mt-4 bg-card border border-border rounded-xl p-6">
           <div className="flex items-center gap-2 mb-6">
             <PieChartIcon className="w-4 h-4 text-muted-foreground" />
@@ -1379,6 +1770,7 @@ export default function ResourceStats({ enterprise }: Props) {
           <div className={cn(
             "grid gap-8",
             (viewRole === "org_admin" && orgAdminViewMode === "dept") ||
+            (viewRole === "enterprise_admin" && enterpriseAdminViewMode === "dept") ||
             (viewRole === "enterprise_admin" && enterpriseAdminViewMode === "enterprise")
               ? "grid-cols-1 md:grid-cols-3"
               : "grid-cols-1 md:grid-cols-2"
@@ -1493,6 +1885,170 @@ export default function ResourceStats({ enterprise }: Props) {
             ) : viewRole === "org_admin" && orgAdminViewMode === "dept" ? (
               <>
                 {/* Org admin dept view: Three charts layout */}
+                {/* 1. Key type distribution */}
+                <div>
+                  <p className="text-sm font-medium text-foreground mb-4">不同类型 Key 消耗占比</p>
+                  <div className="flex items-center gap-6">
+                    <div className="relative shrink-0">
+                      <ResponsiveContainer width={160} height={160}>
+                        <PieChart>
+                          <Pie
+                            data={mockKeyTypeDistributionData}
+                            cx="50%"
+                            cy="50%"
+                            innerRadius={52}
+                            outerRadius={76}
+                            paddingAngle={2}
+                            dataKey="value"
+                            strokeWidth={0}
+                          >
+                            {mockKeyTypeDistributionData.map((entry, i) => (
+                              <Cell key={i} fill={entry.color} />
+                            ))}
+                          </Pie>
+                          <Tooltip
+                            contentStyle={{
+                              backgroundColor: "hsl(var(--background))",
+                              border: "1px solid hsl(var(--border))",
+                              borderRadius: 8,
+                              fontSize: 12,
+                            }}
+                            formatter={(v: number) => [`¥${v.toFixed(2)}`, "金额"]}
+                          />
+                        </PieChart>
+                      </ResponsiveContainer>
+                      <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+                        <span className="text-xs text-muted-foreground">总消耗</span>
+                        <span className="text-base font-bold text-foreground">¥598.10</span>
+                      </div>
+                    </div>
+                    <div className="flex-1 space-y-3">
+                      {mockKeyTypeDistributionData.map((item, i) => {
+                        const total = mockKeyTypeDistributionData.reduce((s, d) => s + d.value, 0);
+                        const pct = ((item.value / total) * 100).toFixed(1);
+                        return (
+                          <div key={i} className="flex items-center justify-between gap-2">
+                            <div className="flex items-center gap-2 min-w-0">
+                              <div className="w-2.5 h-2.5 rounded-sm shrink-0" style={{ background: item.color }} />
+                              <span className="text-xs text-muted-foreground truncate">{item.name}</span>
+                            </div>
+                            <div className="flex items-center gap-2 shrink-0">
+                              <span className="text-xs font-medium text-foreground">¥{item.value.toFixed(2)}</span>
+                              <span className="text-xs text-muted-foreground w-10 text-right">{pct}%</span>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </div>
+                {/* 2. Top 5 Key consumption ranking */}
+                <div>
+                  <p className="text-sm font-medium text-foreground mb-4">Top 5 Key 消耗金额排行</p>
+                  <ResponsiveContainer width="100%" height={200}>
+                    <BarChart
+                      layout="vertical"
+                      data={mockTop5KeyRankData}
+                      margin={{ top: 4, right: 80, left: 8, bottom: 4 }}
+                      barSize={18}
+                    >
+                      <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" horizontal={false} />
+                      <XAxis
+                        type="number"
+                        tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }}
+                        axisLine={false}
+                        tickLine={false}
+                        tickFormatter={(v) => `¥${v}`}
+                      />
+                      <YAxis
+                        dataKey="name"
+                        type="category"
+                        width={100}
+                        tick={{ fontSize: 12, fill: "hsl(var(--muted-foreground))" }}
+                        axisLine={false}
+                        tickLine={false}
+                      />
+                      <Tooltip
+                        contentStyle={{
+                          backgroundColor: "hsl(var(--background))",
+                          border: "1px solid hsl(var(--border))",
+                          borderRadius: 8,
+                          fontSize: 12,
+                        }}
+                        formatter={(v: number) => [`¥${v.toFixed(2)}`, "消耗金额"]}
+                        cursor={{ fill: "hsl(var(--muted))" }}
+                      />
+                      <Bar
+                        dataKey="value"
+                        name="消耗金额"
+                        fill="#60a5fa"
+                        radius={[0, 4, 4, 0]}
+                        label={{ position: "right", fontSize: 11, fill: "hsl(var(--muted-foreground))", formatter: (v: number) => `¥${v.toFixed(2)}` }}
+                      />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+                {/* 3. Request success rate distribution */}
+                <div>
+                  <p className="text-sm font-medium text-foreground mb-4">请求成功率分布</p>
+                  <div className="flex items-center gap-6">
+                    <div className="relative shrink-0">
+                      <ResponsiveContainer width={160} height={160}>
+                        <PieChart>
+                          <Pie
+                            data={mockDeptSuccessRateData}
+                            cx="50%"
+                            cy="50%"
+                            innerRadius={52}
+                            outerRadius={76}
+                            paddingAngle={2}
+                            dataKey="value"
+                            strokeWidth={0}
+                          >
+                            {mockDeptSuccessRateData.map((entry, i) => (
+                              <Cell key={i} fill={entry.color} />
+                            ))}
+                          </Pie>
+                          <Tooltip
+                            contentStyle={{
+                              backgroundColor: "hsl(var(--background))",
+                              border: "1px solid hsl(var(--border))",
+                              borderRadius: 8,
+                              fontSize: 12,
+                            }}
+                            formatter={(v: number) => [`${v} 次`, "次数"]}
+                          />
+                        </PieChart>
+                      </ResponsiveContainer>
+                      <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+                        <span className="text-xs text-muted-foreground">成功率</span>
+                        <span className="text-base font-bold text-foreground">94.2%</span>
+                      </div>
+                    </div>
+                    <div className="flex-1 space-y-3">
+                      {mockDeptSuccessRateData.map((item, i) => {
+                        const total = mockDeptSuccessRateData.reduce((s, d) => s + d.value, 0);
+                        const pct = ((item.value / total) * 100).toFixed(1);
+                        return (
+                          <div key={i} className="flex items-center justify-between gap-2">
+                            <div className="flex items-center gap-2 min-w-0">
+                              <div className="w-2.5 h-2.5 rounded-sm shrink-0" style={{ background: item.color }} />
+                              <span className="text-xs text-muted-foreground truncate">{item.name}</span>
+                            </div>
+                            <div className="flex items-center gap-2 shrink-0">
+                              <span className="text-xs font-medium text-foreground">{item.value} 次</span>
+                              <span className="text-xs text-muted-foreground w-10 text-right">{pct}%</span>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </div>
+              </>
+            ) : viewRole === "enterprise_admin" && enterpriseAdminViewMode === "dept" ? (
+              <>
+                {/* Enterprise admin dept view: Three charts layout (same as org admin dept view) */}
                 {/* 1. Key type distribution */}
                 <div>
                   <p className="text-sm font-medium text-foreground mb-4">不同类型 Key 消耗占比</p>

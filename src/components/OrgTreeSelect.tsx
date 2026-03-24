@@ -56,7 +56,7 @@ export default function OrgTreeSelect({
 
   const selectedLabel =
     value === "all" || value === ""
-      ? allLabel
+      ? (showAll ? allLabel : placeholder)
       : orgs.find(o => o.id === value)?.name ?? placeholder;
 
   const select = (id: string) => {

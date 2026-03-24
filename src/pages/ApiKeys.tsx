@@ -242,12 +242,14 @@ export default function ApiKeys({ enterprise, role }: Props) {
 
   const [myKeys, setMyKeys] = useState<ApiKey[]>([]);
   const [orgKeys, setOrgKeys] = useState<ApiKey[]>([]);
-  const [prodKeys, setProdKeys] = useState<ApiKey[]>([]);
   const [loading, setLoading] = useState(false);
 
   // Multi-org switching
   const [organizations, setOrganizations] = useState<{ id: string; name: string; parent_id?: string | null }[]>([]);
   const [selectedOrgId, setSelectedOrgId] = useState<string | null>(null);
+  
+  // Member's organization (for member role, read-only display)
+  const [memberOrg, setMemberOrg] = useState<{ id: string; name: string } | null>(null);
 
   // Org-tab member filter
   const [orgMembers, setOrgMembers] = useState<{ phone: string; name: string | null }[]>(MOCK_MEMBERS);
@@ -263,7 +265,6 @@ export default function ApiKeys({ enterprise, role }: Props) {
   // Pagination
   const [myPage, setMyPage] = useState(1);
   const [orgPage, setOrgPage] = useState(1);
-  const [prodPage, setProdPage] = useState(1);
 
   // Production tab state
   const [creatingProd, setCreatingProd] = useState(false);
@@ -410,22 +411,6 @@ Key 配置信息
     setMemberFilter("all");
   }, [canSeeOrgTab, enterprise.id, selectedOrgId]);
 
-  const fetchProdKeys = useCallback(async (orgId?: string | null) => {
-    if (!phone) return;
-    const targetOrgId = orgId !== undefined ? orgId : selectedOrgId;
-    let query = supabase
-      .from("api_keys" as any)
-      .select("*")
-      .eq("enterprise_id", enterprise.id)
-      .eq("creator_phone", phone)
-      .eq("group_name", "生产通道");
-    if (targetOrgId) {
-      query = query.eq("organization_id", targetOrgId);
-    }
-    const { data, error } = await query.order("created_at", { ascending: false });
-    if (!error && data) setProdKeys(data as unknown as ApiKey[]);
-  }, [phone, enterprise.id, selectedOrgId]);
-
   const fetchOrganizations = useCallback(async () => {
     if (!canSeeOrgTab) return;
     const { data } = await supabase
@@ -445,10 +430,33 @@ Key 配置信息
     }
   }, [canSeeOrgTab, enterprise.id, role]);
 
+  // Fetch member's organization (for member role)
+  const fetchMemberOrg = useCallback(async () => {
+    if (previewRole !== "member" || !phone) return;
+    const { data: memberData } = await supabase
+      .from("members")
+      .select("organization_id")
+      .eq("user_phone", phone)
+      .eq("enterprise_id", enterprise.id)
+      .limit(1);
+    if (memberData && memberData[0]?.organization_id) {
+      const { data: orgData } = await supabase
+        .from("organizations")
+        .select("id, name")
+        .eq("id", memberData[0].organization_id)
+        .single();
+      if (orgData) {
+        setMemberOrg(orgData);
+        setSelectedOrgId(orgData.id);
+      }
+    }
+  }, [previewRole, phone, enterprise.id]);
+
   useEffect(() => {
     fetchMyKeys();
     fetchOrganizations();
-  }, [fetchMyKeys, fetchOrganizations]);
+    fetchMemberOrg();
+  }, [fetchMyKeys, fetchOrganizations, fetchMemberOrg]);
 
   const openCreate = () => {
     setEditingKey(null);
@@ -530,7 +538,7 @@ Key 配置信息
         setSheetOpen(false);
         setSimpleDialogOpen(false);
         fetchMyKeys(); fetchOrgKeys();
-        if (creatingProd) { fetchProdKeys(); setCreatingProd(false); }
+        if (creatingProd) { setCreatingProd(false); }
       }
     } else {
       const { error } = await supabase.rpc("create_api_key" as any, {
@@ -545,7 +553,7 @@ Key 配置信息
         setSheetOpen(false);
         setSimpleDialogOpen(false);
         fetchMyKeys(); fetchOrgKeys();
-        if (creatingProd) { fetchProdKeys(); setCreatingProd(false); }
+        if (creatingProd) { setCreatingProd(false); }
       }
     }
     setSaving(false);
@@ -922,16 +930,30 @@ Key 配置信息
             >
               我的 API Key
             </button>
-            <button
-              onClick={() => { setActiveTab("org"); previewRole === "admin" ? fetchOrgKeys(null) : fetchProdKeys(); }}
-              className={`px-3 h-full rounded-md text-sm font-medium transition-all ${
-                activeTab === "org"
-                  ? "bg-background shadow-sm text-foreground"
-                  : "text-muted-foreground hover:text-foreground"
-              }`}
-            >
-              {previewRole === "admin" ? "所有 API Key" : "业务 API Key"}
-            </button>
+            {previewRole === "admin" && (
+              <button
+                onClick={() => { setActiveTab("dept"); if (selectedOrgId) fetchOrgKeys(); }}
+                className={`px-3 h-full rounded-md text-sm font-medium transition-all ${
+                  activeTab === "dept"
+                    ? "bg-background shadow-sm text-foreground"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                部门 API Key
+              </button>
+            )}
+            {previewRole === "admin" && (
+              <button
+                onClick={() => { setActiveTab("org"); fetchOrgKeys(null); }}
+                className={`px-3 h-full rounded-md text-sm font-medium transition-all ${
+                  activeTab === "org"
+                    ? "bg-background shadow-sm text-foreground"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                企业 API Key
+              </button>
+            )}
             {previewRole === "org_admin" && (
               <button
                 onClick={() => { setActiveTab("prod"); if (selectedOrgId) fetchOrgKeys(); }}
@@ -941,7 +963,7 @@ Key 配置信息
                     : "text-muted-foreground hover:text-foreground"
                 }`}
               >
-                所有 API Key
+                部门 API Key
               </button>
             )}
           </div>
@@ -951,32 +973,8 @@ Key 配置信息
       {/* 行3：创建按钮 + 搜索栏+刷新（右） */}
       <div className="flex items-center justify-between mb-5">
         <div className="flex items-center gap-3">
-          {/* org_admin 在业务 Tab 下：显示创建按钮；所有 Key tab 显示配置按钮；其他情况显示创建按钮 */}
-          {previewRole === "org_admin" && activeTab === "org" ? (
-            <>
-              <Button onClick={openCreateProd} className="gap-2 h-9 bg-primary text-primary-foreground hover:bg-primary/90">
-                <Plus className="w-4 h-4" />创建 API Key
-              </Button>
-              {/* 部门管理员在"业务 API Key" tab 下显示归属部门选择 */}
-              {organizations.length > 0 && (
-                <div className="flex items-center gap-2 ml-2">
-                  <span className="text-sm text-muted-foreground">归属部门：</span>
-                  <OrgTreeSelect
-                    orgs={organizations}
-                    value={selectedOrgId ?? "all"}
-                    onValueChange={(val) => {
-                      setSelectedOrgId(val === "all" ? null : val);
-                      fetchProdKeys(val === "all" ? null : val);
-                    }}
-                    showAll={true}
-                    allLabel="全部"
-                    placeholder="选择部门..."
-                    triggerClassName="w-40 shadow-sm text-sm"
-                  />
-                </div>
-              )}
-            </>
-          ) : previewRole === "org_admin" && activeTab === "prod" ? (
+          {/* org_admin 在部门 API Key Tab 下 或 admin 在部门 API Key Tab 下：显示配置按钮、创建按钮、批量创建 */}
+          {((previewRole === "org_admin" && activeTab === "prod") || (previewRole === "admin" && activeTab === "dept")) ? (
               <>
               <Button
                 className="gap-2 h-9"
@@ -993,6 +991,12 @@ Key 配置信息
                 }}
               >
                 <Settings className="w-4 h-4" />配置 API Key
+              </Button>
+              <Button
+                onClick={openCreateProd}
+                className="gap-2 h-9 bg-primary text-primary-foreground hover:bg-primary/90"
+              >
+                <Plus className="w-4 h-4" />创建业务 API Key
               </Button>
               <Button
                 variant="outline"
@@ -1013,14 +1017,35 @@ Key 配置信息
               >
                 <Users className="w-4 h-4" />批量创建
               </Button>
+              {/* 归属部门选择 - 放在批量创建按钮右侧 */}
+              <div className="flex items-center gap-2 ml-2">
+                <span className="text-sm text-muted-foreground">归属部门：</span>
+                <OrgTreeSelect
+                  orgs={organizations}
+                  value={selectedOrgId ?? ""}
+                  onValueChange={(val) => {
+                    setSelectedOrgId(val);
+                  }}
+                  showAll={false}
+                  placeholder="选择部门..."
+                  triggerClassName="w-40 shadow-sm text-sm"
+                />
+              </div>
             </>
           ) : previewRole === "admin" && activeTab === "org" ? null : (
             <>
               <Button onClick={openCreate} className="gap-2 h-9">
                 <Plus className="w-4 h-4" />创建 API Key
               </Button>
+              {/* 普通成员显示只读归属部门 */}
+              {previewRole === "member" && (
+                <div className="flex items-center gap-2 ml-2">
+                  <span className="text-sm text-muted-foreground">归属部门：</span>
+                  <span className="text-sm font-medium text-foreground">{memberOrg?.name ?? "研发一组"}</span>
+                </div>
+              )}
               {/* 管理员在"我的 API Key" tab 下显示归属部门选择 */}
-              {activeTab === "my" && (
+              {activeTab === "my" && previewRole !== "member" && (
                 <div className="flex items-center gap-2 ml-2">
                   <span className="text-sm text-muted-foreground">归属部门：</span>
                   <OrgTreeSelect
@@ -1040,8 +1065,8 @@ Key 配置信息
           )}
         </div>
         <div className="flex items-center gap-2">
-          {/* 企业管理员/部门管理员在"所有 API Key" tab 下显示部门和成员快速筛选 - 放在名称搜索框左侧 */}
-          {((previewRole === "admin" && activeTab === "org") || (previewRole === "org_admin" && activeTab === "prod")) && (
+          {/* 企业管理员在"企业 API Key" tab 下显示部门和成员快速筛选 */}
+          {previewRole === "admin" && activeTab === "org" && (
             <>
               {/* 部门筛选 - 可搜索下拉模式 */}
               <div className="relative">
@@ -1061,9 +1086,9 @@ Key 配置信息
                 <SearchableSelect
                   options={[
                     { value: "all", label: "全部成员" },
-                    ...orgMembers.map(m => ({ 
-                      value: m.phone, 
-                      label: m.name ? `${m.name} (${m.phone})` : m.phone 
+                    ...orgMembers.map(m => ({
+                      value: m.phone,
+                      label: m.name ? `${m.name} (${m.phone})` : m.phone
                     }))
                   ]}
                   value={memberFilter}
@@ -1073,6 +1098,42 @@ Key 配置信息
                 />
               </div>
             </>
+          )}
+          {/* 企业管理员在"部门 API Key" tab 下显示成员筛选 */}
+          {previewRole === "admin" && activeTab === "dept" && (
+            <div className="relative">
+              <SearchableSelect
+                options={[
+                  { value: "all", label: "全部成员" },
+                  ...orgMembers.map(m => ({
+                    value: m.phone,
+                    label: m.name ? `${m.name} (${m.phone})` : m.phone
+                  }))
+                ]}
+                value={memberFilter}
+                onValueChange={setMemberFilter}
+                placeholder="全部成员"
+                className="w-28"
+              />
+            </div>
+          )}
+          {/* 部门管理员在"部门 API Key" tab 下显示成员筛选 */}
+          {previewRole === "org_admin" && activeTab === "prod" && (
+            <div className="relative">
+              <SearchableSelect
+                options={[
+                  { value: "all", label: "全部成员" },
+                  ...orgMembers.map(m => ({
+                    value: m.phone,
+                    label: m.name ? `${m.name} (${m.phone})` : m.phone
+                  }))
+                ]}
+                value={memberFilter}
+                onValueChange={setMemberFilter}
+                placeholder="全部成员"
+                className="w-28"
+              />
+            </div>
           )}
           {/* 名称 label + 输入框 */}
           <div className="flex items-center gap-1.5">
@@ -1103,8 +1164,6 @@ Key 配置信息
             onClick={() => {
               if (activeTab === "my") {
                 fetchMyKeys();
-              } else if (activeTab === "org") {
-                previewRole === "admin" ? fetchOrgKeys(null) : fetchProdKeys();
               } else {
                 fetchOrgKeys();
               }
@@ -1129,23 +1188,7 @@ Key 配置信息
             setPage={setMyPage}
           />
         )}
-        {/* 部门管理员视角：业务 API Key (org) -> prodKeys */}
-        {previewRole === "org_admin" && activeTab === "org" && (
-          <>
-            <KeyTable
-              keys={prodKeys}
-              filterFn={(keys) => filterKeys(keys, false)}
-              showCreator={false}
-              showOrg={false}
-              page={prodPage}
-              setPage={setProdPage}
-            />
-            <p className="text-xs text-muted-foreground mt-4 text-center">
-              生产环境专用 Key，未来将支持基于终端用户的精细化限流与审计统计。
-            </p>
-          </>
-        )}
-        {/* 部门管理员视角：所有 API Key (prod) -> orgKeys */}
+        {/* 部门管理员视角：部门 API Key (prod) -> orgKeys */}
         {previewRole === "org_admin" && activeTab === "prod" && (
           <KeyTable
             keys={orgKeys}
@@ -1156,7 +1199,18 @@ Key 配置信息
             setPage={setOrgPage}
           />
         )}
-        {/* 企业管理员视角：所有 API Key (org) -> orgKeys */}
+        {/* 企业管理员视角：部门 API Key (dept) -> orgKeys */}
+        {previewRole === "admin" && activeTab === "dept" && (
+          <KeyTable
+            keys={orgKeys}
+            filterFn={(keys) => filterKeys(keys, true)}
+            showCreator={true}
+            showOrg={false}
+            page={orgPage}
+            setPage={setOrgPage}
+          />
+        )}
+        {/* 企业管理员视角：企业 API Key (org) -> orgKeys */}
         {previewRole === "admin" && activeTab === "org" && (
           <KeyTable
             keys={orgKeys}
@@ -1249,15 +1303,9 @@ Key 配置信息
                       <span className="text-destructive text-sm">*</span>
                     </div>
                     <div className="flex items-center gap-2">
-                      <Select value={formBudgetType} onValueChange={(v) => setFormBudgetType(v as "monthly" | "daily")}>
-                        <SelectTrigger className="h-9 w-24 shrink-0">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="monthly">月度</SelectItem>
-                          <SelectItem value="daily">单日</SelectItem>
-                        </SelectContent>
-                      </Select>
+                      <div className="h-9 w-24 shrink-0 flex items-center justify-center rounded-md border border-input bg-muted/40 text-sm text-muted-foreground cursor-not-allowed">
+                        月度
+                      </div>
                       <span className="text-muted-foreground text-sm font-medium shrink-0">¥</span>
                       <Input
                         type="number"
