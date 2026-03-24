@@ -54,13 +54,16 @@ const mockTaskLogs = [
 
 // ── Audit logs ──
 const mockAuditLogs = [
-  { time: "2026-03-03 11:20:05", operator: "张三 · 138****8888", org: "技术部", opType: "登录", content: "用户登录成功", result: "成功", ip: "10.244.109.64" },
+  { time: "2026-03-03 11:20:05", operator: "张三 · 138****8888", org: "技术部", opType: "成员设置", content: "邀请成员「王五」加入企业", result: "成功", ip: "10.244.109.64" },
   { time: "2026-03-03 11:05:33", operator: "李四 · 139****9999", org: "产品部", opType: "令牌操作", content: "创建 API Key「生产环境-v2」", result: "成功", ip: "10.244.109.65" },
-  { time: "2026-03-03 10:48:17", operator: "王五 · 135****5555", org: "研发部", opType: "设置变更", content: "修改告警阈值为 ¥500", result: "成功", ip: "10.244.109.66" },
-  { time: "2026-03-03 10:31:44", operator: "张三 · 138****8888", org: "技术部", opType: "登录", content: "登录失败：密码错误（第 2 次）", result: "失败", ip: "10.244.109.64" },
+  { time: "2026-03-03 10:48:17", operator: "王五 · 135****5555", org: "研发部", opType: "企业治理", content: "修改告警阈值为 ¥500", result: "成功", ip: "10.244.109.66" },
+  { time: "2026-03-03 10:31:44", operator: "张三 · 138****8888", org: "技术部", opType: "部门设置", content: "创建部门「后端组」", result: "成功", ip: "10.244.109.64" },
   { time: "2026-03-03 10:12:09", operator: "赵六 · 136****6666", org: "产品部", opType: "令牌操作", content: "禁用 API Key「测试密钥」", result: "成功", ip: "10.244.109.67" },
-  { time: "2026-03-03 09:55:22", operator: "陈七 · 137****7777", org: "研发部", opType: "密码重置", content: "重置账户密码", result: "成功", ip: "10.244.109.68" },
-  { time: "2026-03-03 09:30:01", operator: "李四 · 139****9999", org: "产品部", opType: "设置变更", content: "修改告警方式为「邮件+短信」", result: "成功", ip: "10.244.109.65" },
+  { time: "2026-03-03 09:55:22", operator: "陈七 · 137****7777", org: "研发部", opType: "成员设置", content: "移除成员「周八」", result: "成功", ip: "10.244.109.68" },
+  { time: "2026-03-03 09:30:01", operator: "李四 · 139****9999", org: "产品部", opType: "企业治理", content: "修改告警方式为「邮件+短信」", result: "成功", ip: "10.244.109.65" },
+  { time: "2026-03-03 09:15:18", operator: "张三 · 138****8888", org: "技术部", opType: "部门设置", content: "调整「前端组」部门负责人", result: "成功", ip: "10.244.109.64" },
+  { time: "2026-03-03 08:52:44", operator: "王五 · 135****5555", org: "研发部", opType: "成员设置", content: "修改成员「赵六」角色为管理员", result: "成功", ip: "10.244.109.66" },
+  { time: "2026-03-03 08:30:12", operator: "李四 · 139****9999", org: "产品部", opType: "令牌操作", content: "删除 API Key「旧项目密钥」", result: "成功", ip: "10.244.109.65" },
 ];
 
 // ── APIKey chip colors ──
@@ -98,10 +101,10 @@ function ExecStatusBadge({ status }: { status: string }) {
 // ── Audit type badge ──
 function AuditTypeBadge({ type }: { type: string }) {
   const styles: Record<string, string> = {
-    "登录": "bg-blue-50 text-blue-700 border border-blue-200",
+    "成员设置": "bg-blue-50 text-blue-700 border border-blue-200",
+    "部门设置": "bg-green-50 text-green-700 border border-green-200",
+    "企业治理": "bg-orange-50 text-orange-700 border border-orange-200",
     "令牌操作": "bg-purple-50 text-purple-700 border border-purple-200",
-    "设置变更": "bg-gray-100 text-gray-600 border border-border",
-    "密码重置": "bg-amber-50 text-amber-700 border border-amber-200",
   };
   return (
     <span className={cn("text-xs px-1.5 py-0.5 rounded whitespace-nowrap", styles[type] ?? "bg-muted text-muted-foreground border border-border")}>
@@ -596,10 +599,10 @@ function AuditLogsTab({ globalOrg, globalMember }: {
               <SelectTrigger className="h-9 w-40 text-sm"><SelectValue placeholder="全部类型" /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">全部类型</SelectItem>
-                <SelectItem value="登录">登录</SelectItem>
+                <SelectItem value="成员设置">成员设置</SelectItem>
+                <SelectItem value="部门设置">部门设置</SelectItem>
+                <SelectItem value="企业治理">企业治理</SelectItem>
                 <SelectItem value="令牌操作">令牌操作</SelectItem>
-                <SelectItem value="设置变更">设置变更</SelectItem>
-                <SelectItem value="密码重置">密码重置</SelectItem>
               </SelectContent>
             </Select>
           </div>

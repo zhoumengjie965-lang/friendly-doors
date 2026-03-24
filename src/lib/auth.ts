@@ -163,3 +163,34 @@ export async function createEnterprise(name: string, phone: string) {
 
   return enterprise;
 }
+
+// 创建个人工作空间（localStorage 版本，无需数据库迁移）
+export async function createPersonalWorkspace(phone: string) {
+  const WORKSPACE_KEY = `personal_workspace_${phone}`;
+
+  // 检查是否已存在
+  const existing = localStorage.getItem(WORKSPACE_KEY);
+  if (existing) {
+    return JSON.parse(existing);
+  }
+
+  // 创建个人空间（仅存储在本地）
+  const workspace = {
+    id: `personal_${phone}_${Date.now()}`,
+    user_phone: phone,
+    name: "我的空间",
+    created_at: new Date().toISOString(),
+  };
+
+  // 保存到 localStorage
+  localStorage.setItem(WORKSPACE_KEY, JSON.stringify(workspace));
+
+  return workspace;
+}
+
+// 获取个人工作空间（localStorage 版本）
+export function getPersonalWorkspace(phone: string) {
+  const WORKSPACE_KEY = `personal_workspace_${phone}`;
+  const data = localStorage.getItem(WORKSPACE_KEY);
+  return data ? JSON.parse(data) : null;
+}

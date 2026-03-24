@@ -1,6 +1,6 @@
 import { useEffect, useState, useRef } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
-import { getCurrentPhone, getUserEnterprises, clearCurrentPhone, createEnterprise, joinByCode } from "@/lib/auth";
+import { getCurrentPhone, getUserEnterprises, clearCurrentPhone, createEnterprise, joinByCode, createPersonalWorkspace, getPersonalWorkspace } from "@/lib/auth";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import WorkspaceSidebar from "@/components/WorkspaceSidebar";
 import EnterpriseInfo from "@/pages/EnterpriseInfo";
@@ -10,9 +10,10 @@ import Profile from "@/pages/Profile";
 import ApiKeys from "@/pages/ApiKeys";
 import ResourceStats from "@/pages/ResourceStats";
 import CallLogs from "@/pages/CallLogs";
+import Models from "@/pages/Models";
 import {
-  Building2, Users, Key, Link, TrendingUp, LogOut, ChevronDown,
-  ChevronRight, Copy, Check, Plus, UserPlus, UserCircle
+  Building2, LogOut, ChevronDown,
+  ChevronRight, Check, Plus, UserCircle
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Input } from "@/components/ui/input";
@@ -51,13 +52,11 @@ export default function Workspace() {
   const [loading, setLoading] = useState(true);
   const [showSelector, setShowSelector] = useState(false);
   const [userName, setUserName] = useState<string | null>(null);
+  const [showPersonalWelcomeToast, setShowPersonalWelcomeToast] = useState(false);
 
   // user menu state
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [switchMenuOpen, setSwitchMenuOpen] = useState(false);
-  const [spaceMenuOpen, setSpaceMenuOpen] = useState(false);
-  const [copiedCode, setCopiedCode] = useState(false);
-  const spaceMenuRef = useRef<HTMLDivElement>(null);
   const userMenuRef = useRef<HTMLDivElement>(null);
 
   // modals
@@ -88,21 +87,11 @@ export default function Workspace() {
     setSwitchMenuOpen(false);
   };
 
-  const handleCopyCode = async () => {
-    if (!enterprise) return;
-    await navigator.clipboard.writeText(enterprise.enterprise_code);
-    setCopiedCode(true);
-    setTimeout(() => setCopiedCode(false), 2000);
-  };
-
   useEffect(() => {
     const handleClick = (e: MouseEvent) => {
       if (userMenuRef.current && !userMenuRef.current.contains(e.target as Node)) {
         setUserMenuOpen(false);
         setSwitchMenuOpen(false);
-      }
-      if (spaceMenuRef.current && !spaceMenuRef.current.contains(e.target as Node)) {
-        setSpaceMenuOpen(false);
       }
     };
     document.addEventListener("mousedown", handleClick);
@@ -123,6 +112,13 @@ export default function Workspace() {
     if (userData?.name) setUserName(userData.name);
 
     if (list.length === 0) {
+      // 无企业，检查是否有个人空间
+      let personalWorkspace = getPersonalWorkspace(phone);
+      if (!personalWorkspace) {
+        // 全新用户：自动创建个人空间
+        personalWorkspace = await createPersonalWorkspace(phone);
+        setShowPersonalWelcomeToast(true);
+      }
       setEnterprise(null);
       setLoading(false);
       return;
@@ -232,13 +228,6 @@ export default function Workspace() {
       </div>
     );
   }
-
-  const stats = [
-    { label: "成员数量", value: "—", icon: Users, color: "hsl(224,76%,48%)" },
-    { label: "API 密钥", value: "—", icon: Key, color: "hsl(262,60%,58%)" },
-    { label: "邀请链接", value: "—", icon: Link, color: "hsl(142,70%,45%)" },
-    { label: "本月调用", value: "—", icon: TrendingUp, color: "hsl(32,90%,55%)" },
-  ];
 
   // ── Role label helper ──
   const roleLabel = (r: string) => r === "admin" ? "管理员" : r === "org_admin" ? "部门管理员" : "普通成员";
@@ -379,64 +368,65 @@ export default function Workspace() {
   // ── Onboarding (no enterprise) ──
   if (!enterprise) {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center p-6">
-        <div className="w-full max-w-sm">
-          {/* Icon + Title */}
-          <div className="flex flex-col items-center mb-8">
-            <div className="w-14 h-14 rounded-2xl flex items-center justify-center mb-5"
-              style={{ background: "linear-gradient(135deg, hsl(224,76%,48%), hsl(262,60%,58%))" }}>
-              <svg className="w-7 h-7 text-white" viewBox="0 0 24 24" fill="currentColor">
-                <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" />
-              </svg>
+      <SidebarProvider>
+        <div className="min-h-screen flex w-full">
+          <WorkspaceSidebar
+            enterpriseName="个人空间"
+            enterpriseCode=""
+            isPersonalMode={true}
+          />
+          <main className="flex-1 flex flex-col">
+            {/* 持久 toast 提示 */}
+            {showPersonalWelcomeToast && (
+              <div className="sticky top-0 z-50 bg-gradient-to-r from-blue-500/90 to-purple-500/90 backdrop-blur-sm px-4 py-2.5 flex items-center justify-between shadow-sm">
+                <div className="flex items-center gap-3 text-white">
+                  <div className="w-7 h-7 rounded-full bg-white/20 flex items-center justify-center">
+                    <UserCircle className="w-4 h-4 text-white" />
+                  </div>
+                  <span className="text-sm">
+                    欢迎进入个人空间！如需团队协作，请点击右上角<span className="font-semibold">切换为企业模式</span>
+                  </span>
+                </div>
+                <button
+                  onClick={() => setShowPersonalWelcomeToast(false)}
+                  className="text-white/70 hover:text-white transition-colors p-1"
+                >
+                  <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M18 6L6 18M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+            )}
+            {/* Top bar */}
+            <header className="h-14 border-b border-border bg-background flex items-center px-4 gap-3">
+              <SidebarTrigger className="text-muted-foreground hover:text-foreground" />
+              <div className="h-5 w-px bg-border" />
+              <span className="text-sm text-muted-foreground">AI 网关平台</span>
+              <span className="text-sm text-muted-foreground">/</span>
+              <span className="text-sm font-medium text-foreground">个人空间</span>
+              <div className="flex-1" />
+              <UserMenu />
+            </header>
+
+            {/* Content */}
+            <div className="flex-1 bg-background overflow-auto">
+              {location.pathname === "/workspace/models" || location.pathname === "/workspace" ? (
+                <Models />
+              ) : location.pathname === "/workspace/keys" ? (
+                <ApiKeys enterprise={null} role="member" />
+              ) : location.pathname === "/workspace/stats" ? (
+                <ResourceStats enterprise={null} role="member" />
+              ) : location.pathname === "/workspace/logs" ? (
+                <CallLogs enterprise={null} role="member" currentOrg={null} orgList={[]} />
+              ) : location.pathname === "/workspace/balance" ? (
+                <AccountBalance enterprise={null} role="member" />
+              ) : location.pathname === "/workspace/profile" ? (
+                <Profile />
+              ) : (
+                <Models />
+              )}
             </div>
-            <h1 className="text-2xl font-bold text-foreground">欢迎来到 AI 网关平台</h1>
-            <p className="text-sm text-muted-foreground mt-2">开启您的 AI 之旅，选择适合您的使用方式</p>
-          </div>
-
-          {/* Cards */}
-          <div className="space-y-3">
-            {/* Create Enterprise */}
-            <button
-              onClick={() => setShowCreateEnterprise(true)}
-              className="w-full flex items-center gap-4 p-5 bg-card border border-border rounded-xl hover:border-primary/60 hover:shadow-sm transition-all text-left group"
-            >
-              <div className="w-10 h-10 rounded-lg flex items-center justify-center shrink-0"
-                style={{ background: "linear-gradient(135deg, hsl(224,76%,48%), hsl(262,60%,58%))" }}>
-                <Plus className="w-5 h-5 text-white" />
-              </div>
-              <div className="flex-1">
-                <p className="font-semibold text-foreground group-hover:text-primary transition-colors">创建企业</p>
-                <p className="text-xs text-muted-foreground mt-0.5">适合团队协作，可邀请成员、分配权限</p>
-              </div>
-              <ChevronRight className="w-4 h-4 text-muted-foreground group-hover:text-primary transition-colors" />
-            </button>
-
-            {/* Divider */}
-            <div className="flex items-center gap-3 py-1">
-              <div className="flex-1 h-px bg-border" />
-              <span className="text-xs text-muted-foreground">或</span>
-              <div className="flex-1 h-px bg-border" />
-            </div>
-
-            {/* Personal Mode */}
-            <button
-              disabled
-              className="w-full flex items-center gap-4 p-5 bg-card border border-dashed border-border rounded-xl text-left opacity-60 cursor-not-allowed"
-            >
-              <div className="w-10 h-10 rounded-lg border border-border flex items-center justify-center shrink-0">
-                <UserCircle className="w-5 h-5 text-muted-foreground" />
-              </div>
-              <div className="flex-1">
-                <p className="font-semibold text-foreground">个人模式</p>
-                <p className="text-xs text-muted-foreground mt-0.5">适合独立开发者，快速开始使用</p>
-              </div>
-              <ChevronRight className="w-4 h-4 text-muted-foreground" />
-            </button>
-          </div>
-
-          <p className="text-center text-xs text-muted-foreground mt-8">
-            后续可以在设置中随时切换或创建新的空间
-          </p>
+          </main>
         </div>
 
         {/* Create Enterprise Dialog */}
@@ -487,7 +477,7 @@ export default function Workspace() {
             </div>
           </div>
         )}
-      </div>
+      </SidebarProvider>
     );
   }
 
@@ -518,6 +508,8 @@ export default function Workspace() {
               <AccountBalance enterprise={enterprise} role={role} />
             ) : location.pathname.startsWith("/workspace/dept") ? (
               <DeptManagement enterprise={enterprise} role={role} />
+            ) : location.pathname === "/workspace/models" || location.pathname === "/workspace" ? (
+              <Models />
             ) : location.pathname === "/workspace/keys" ? (
               <ApiKeys enterprise={enterprise} role={role} />
             ) : location.pathname === "/workspace/stats" ? (
@@ -534,68 +526,7 @@ export default function Workspace() {
             ) : location.pathname === "/workspace/profile" ? (
               <Profile />
             ) : (
-              <>
-                <div className="mb-8">
-                  <h1 className="text-2xl font-bold text-foreground">企业概览</h1>
-                  <p className="text-muted-foreground mt-1">
-                    欢迎回来，当前角色：
-                    <span className="font-medium text-primary ml-1">
-                      {role === "admin" ? "管理员" : role === "org_admin" ? "组织管理员" : "成员"}
-                    </span>
-                  </p>
-                </div>
-
-                <div className="bg-card border border-border rounded-xl p-6 mb-6"
-                  style={{ background: "linear-gradient(135deg, hsl(224,76%,48%), hsl(262,60%,58%))" }}>
-                  <div className="flex items-center gap-4">
-                    <div className="w-14 h-14 rounded-xl bg-white/20 flex items-center justify-center">
-                      <Building2 className="w-8 h-8 text-white" />
-                    </div>
-                    <div>
-                      <p className="text-white/70 text-sm">企业名称</p>
-                      <h2 className="text-2xl font-bold text-white">{enterprise.name}</h2>
-                      <p className="text-white/60 text-sm font-mono mt-0.5">企业码：{enterprise.enterprise_code}</p>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-                  {stats.map((stat) => (
-                    <div key={stat.label} className="bg-card border border-border rounded-xl p-5">
-                      <div className="flex items-center justify-between mb-3">
-                        <span className="text-sm text-muted-foreground">{stat.label}</span>
-                        <div className="w-8 h-8 rounded-lg flex items-center justify-center"
-                          style={{ background: `${stat.color}20` }}>
-                          <stat.icon className="w-4 h-4" style={{ color: stat.color }} />
-                        </div>
-                      </div>
-                      <p className="text-2xl font-bold text-foreground">{stat.value}</p>
-                    </div>
-                  ))}
-                </div>
-
-                <div className="mt-6 bg-card border border-border rounded-xl p-6">
-                  <h3 className="font-semibold text-foreground mb-3">快速开始</h3>
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                    {[
-                      { title: "邀请成员", desc: "通过邀请码添加团队成员", icon: Users },
-                      { title: "创建 API 密钥", desc: "生成访问凭证接入 AI 服务", icon: Key },
-                      { title: "查看文档", desc: "了解如何使用 AI 网关", icon: Link },
-                    ].map((item) => (
-                      <div key={item.title}
-                        className="flex items-center gap-3 p-4 rounded-lg bg-muted/50 hover:bg-muted transition-colors cursor-pointer">
-                        <div className="w-9 h-9 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
-                          <item.icon className="w-4 h-4 text-primary" />
-                        </div>
-                        <div>
-                          <p className="text-sm font-medium text-foreground">{item.title}</p>
-                          <p className="text-xs text-muted-foreground">{item.desc}</p>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </>
+              <Models />
             )}
           </div>
         </main>

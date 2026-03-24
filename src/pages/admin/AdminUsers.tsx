@@ -30,7 +30,6 @@ interface MemberDetail {
   enterprise_name: string;
   org_name: string | null;
   role: string;
-  remark: string | null;
 }
 
 interface DrawerDetail {
@@ -148,7 +147,7 @@ export default function AdminUsers() {
     // 3. Members
     const { data: membersRaw } = await supabase
       .from("members")
-      .select("id,enterprise_id,organization_id,role,remark")
+      .select("id,enterprise_id,organization_id,role")
       .eq("user_phone", phone);
 
     if (!membersRaw || membersRaw.length === 0) {
@@ -175,7 +174,6 @@ export default function AdminUsers() {
       enterprise_name: entMap[m.enterprise_id] || "未知企业",
       org_name: m.organization_id ? (orgMap[m.organization_id] || null) : null,
       role: m.role,
-      remark: m.remark || null,
     }));
 
     setDrawerDetail({ personal_enterprise_id: personalEntId, personal_balance: personalBalance, members });
@@ -491,19 +489,17 @@ export default function AdminUsers() {
                         <p className="text-sm text-muted-foreground/60 italic">未加入任何企业</p>
                       ) : (
                         <div className="border rounded-lg overflow-hidden">
-                          <div className="grid grid-cols-[1fr_1fr_80px_100px_auto] gap-2 px-3 py-2 bg-muted/40 text-xs font-medium text-muted-foreground border-b">
+                          <div className="grid grid-cols-[1fr_1fr_80px_auto] gap-2 px-3 py-2 bg-muted/40 text-xs font-medium text-muted-foreground border-b">
                             <span>企业名称</span>
                             <span>所属组织</span>
                             <span>角色</span>
-                            <span>备注名</span>
                             <span></span>
                           </div>
                           {drawerDetail.members.map((m) => (
-                            <div key={m.id} className="grid grid-cols-[1fr_1fr_80px_100px_auto] gap-2 px-3 py-2.5 border-b last:border-0 text-sm items-center">
+                            <div key={m.id} className="grid grid-cols-[1fr_1fr_80px_auto] gap-2 px-3 py-2.5 border-b last:border-0 text-sm items-center">
                               <span className="truncate font-medium">{m.enterprise_name}</span>
                               <span className="text-muted-foreground truncate">{m.org_name || "—"}</span>
                               <span className="text-muted-foreground text-xs">{roleLabel(m.role)}</span>
-                              <span className="text-muted-foreground text-xs truncate">{m.remark || "—"}</span>
                               <Button
                                 variant="outline"
                                 size="sm"

@@ -8,13 +8,14 @@ import {
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from "@/components/ui/collapsible";
 import {
   LayoutGrid, Key, BarChart3, FileText, Building2, Users,
-  ChevronDown, ChevronRight, Wallet, Network, Settings, UserCog
+  ChevronDown, ChevronRight, Wallet, Network, Settings, UserCog, UserCircle
 } from "lucide-react";
 
 interface NavChild { title: string; url: string; icon: React.ElementType }
 interface NavItem { title: string; url?: string; icon: React.ElementType; children?: NavChild[] }
 
-const navItems: NavItem[] = [
+// 企业空间菜单
+const enterpriseNavItems: NavItem[] = [
   { title: "模型广场", url: "/workspace/models", icon: LayoutGrid },
   { title: "API Key", url: "/workspace/keys", icon: Key },
   { title: "资源统计", url: "/workspace/stats", icon: BarChart3 },
@@ -28,13 +29,25 @@ const navItems: NavItem[] = [
   { title: "部门管理", url: "/workspace/dept", icon: Users },
 ];
 
+// 个人空间菜单
+const personalNavItems: NavItem[] = [
+  { title: "模型广场", url: "/workspace/models", icon: LayoutGrid },
+  { title: "API Key", url: "/workspace/keys", icon: Key },
+  { title: "资源统计", url: "/workspace/stats", icon: BarChart3 },
+  { title: "调用日志", url: "/workspace/logs", icon: FileText },
+  { title: "余额充值", url: "/workspace/balance", icon: Wallet },
+  { title: "个人中心", url: "/workspace/profile", icon: UserCircle },
+];
+
 interface Props {
   enterpriseName: string;
   enterpriseCode: string;
+  isPersonalMode?: boolean;
 }
 
-export default function WorkspaceSidebar({ enterpriseName, enterpriseCode }: Props) {
+export default function WorkspaceSidebar({ enterpriseName, enterpriseCode, isPersonalMode }: Props) {
   const location = useLocation();
+  const navItems = isPersonalMode ? personalNavItems : enterpriseNavItems;
 
   const isChildActive = (children?: NavChild[]) =>
     children?.some((c) => location.pathname.startsWith(c.url)) ?? false;
@@ -45,11 +58,15 @@ export default function WorkspaceSidebar({ enterpriseName, enterpriseCode }: Pro
         <div className="flex items-center gap-3">
           <div className="w-9 h-9 rounded-lg flex items-center justify-center shrink-0"
             style={{ background: "linear-gradient(135deg, hsl(224,76%,58%), hsl(262,60%,68%))" }}>
-            <Building2 className="w-5 h-5 text-white" />
+            {isPersonalMode ? (
+              <UserCircle className="w-5 h-5 text-white" />
+            ) : (
+              <Building2 className="w-5 h-5 text-white" />
+            )}
           </div>
           <div className="flex-1 min-w-0">
             <p className="font-semibold text-white text-sm truncate">{enterpriseName}</p>
-            <p className="text-xs text-white/50 font-mono">{enterpriseCode}</p>
+            {!isPersonalMode && <p className="text-xs text-white/50 font-mono">{enterpriseCode}</p>}
           </div>
           <ChevronDown className="w-4 h-4 text-white/40 shrink-0" />
         </div>
