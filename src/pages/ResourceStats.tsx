@@ -133,11 +133,11 @@ const mockKeyTypeDistributionData = [
 
 // Mock data for org_admin dept view: Top 5 Key consumption ranking (key names)
 const mockTop5KeyRankData = [
-  { name: "prod-gpt4-key", value: 188.50 },
-  { name: "claude-opus-key", value: 142.30 },
-  { name: "gemini-pro-key", value: 98.60 },
-  { name: "backup-key-01", value: 76.40 },
-  { name: "test-key-02", value: 92.30 },
+  { name: "prod-gpt4-key", value: 188.50, creator: "张三", department: "研发一组" },
+  { name: "claude-opus-key", value: 142.30, creator: "李四", department: "研发一组" },
+  { name: "gemini-pro-key", value: 98.60, creator: "王五", department: "研发一组" },
+  { name: "backup-key-01", value: 76.40, creator: "赵六", department: "研发一组" },
+  { name: "test-key-02", value: 92.30, creator: "钱七", department: "研发一组" },
 ];
 
 // Mock data for org_admin dept view: Request success rate
@@ -154,11 +154,11 @@ const mockEnterpriseKeyTypeData = [
 
 // Mock data for enterprise_admin enterprise view: Top 5 Key consumption ranking (key names)
 const mockEnterpriseTop5KeyData = [
-  { name: "prod-gpt4-key", value: 188.50 },
-  { name: "claude-opus-key", value: 142.30 },
-  { name: "gemini-pro-key", value: 98.60 },
-  { name: "backup-key-01", value: 76.40 },
-  { name: "test-key-02", value: 92.30 },
+  { name: "prod-gpt4-key", value: 188.50, creator: "张三", department: "研发一组" },
+  { name: "claude-opus-key", value: 142.30, creator: "李思思", department: "产品设计组" },
+  { name: "gemini-pro-key", value: 98.60, creator: "王建国", department: "运营支持组" },
+  { name: "backup-key-01", value: 76.40, creator: "赵明", department: "市场推广组" },
+  { name: "test-key-02", value: 92.30, creator: "钱伟", department: "客户成功组" },
 ];
 
 // Mock data for enterprise_admin enterprise view: Request success rate
@@ -360,6 +360,30 @@ const orgMonthlyBudget = 5000;
 const orgConsumed = 1800;
 
 type ViewRole = "member" | "org_admin" | "enterprise_admin";
+
+// Custom tooltip for Key ranking chart
+interface KeyRankTooltipProps {
+  active?: boolean;
+  payload?: any[];
+  label?: string;
+  data: { name: string; value: number; creator?: string; department?: string }[];
+}
+
+function KeyRankTooltip({ active, payload, label, data }: KeyRankTooltipProps) {
+  if (!active || !payload || !payload.length) return null;
+  const item = data.find(d => d.name === label);
+  return (
+    <div className="bg-background border border-border rounded-lg p-2 text-sm shadow-sm">
+      <p className="font-medium">{label}</p>
+      {item?.creator && (
+        <p className="text-muted-foreground">创建者：{item.creator}</p>
+      )}
+      {item?.department && (
+        <p className="text-muted-foreground">所属部门：{item.department}</p>
+      )}
+    </div>
+  );
+}
 
 interface DonutChartProps {
   title: string;
@@ -1678,16 +1702,7 @@ export default function ResourceStats({ enterprise }: Props) {
                       axisLine={false}
                       tickLine={false}
                     />
-                    <Tooltip
-                      contentStyle={{
-                        backgroundColor: "hsl(var(--background))",
-                        border: "1px solid hsl(var(--border))",
-                        borderRadius: 8,
-                        fontSize: 12,
-                      }}
-                      formatter={(v: number) => [`¥${v.toFixed(2)}`, "消耗金额"]}
-                      cursor={{ fill: "hsl(var(--muted))" }}
-                    />
+                    <Tooltip content={<KeyRankTooltip data={mockTop5KeyRankData} />} cursor={{ fill: "hsl(var(--muted))" }} />
                     <Bar
                       dataKey="value"
                       name="消耗金额"
@@ -1968,16 +1983,7 @@ export default function ResourceStats({ enterprise }: Props) {
                         axisLine={false}
                         tickLine={false}
                       />
-                      <Tooltip
-                        contentStyle={{
-                          backgroundColor: "hsl(var(--background))",
-                          border: "1px solid hsl(var(--border))",
-                          borderRadius: 8,
-                          fontSize: 12,
-                        }}
-                        formatter={(v: number) => [`¥${v.toFixed(2)}`, "消耗金额"]}
-                        cursor={{ fill: "hsl(var(--muted))" }}
-                      />
+                      <Tooltip content={<KeyRankTooltip data={mockTop5KeyRankData} />} cursor={{ fill: "hsl(var(--muted))" }} />
                       <Bar
                         dataKey="value"
                         name="消耗金额"
@@ -2132,16 +2138,7 @@ export default function ResourceStats({ enterprise }: Props) {
                         axisLine={false}
                         tickLine={false}
                       />
-                      <Tooltip
-                        contentStyle={{
-                          backgroundColor: "hsl(var(--background))",
-                          border: "1px solid hsl(var(--border))",
-                          borderRadius: 8,
-                          fontSize: 12,
-                        }}
-                        formatter={(v: number) => [`¥${v.toFixed(2)}`, "消耗金额"]}
-                        cursor={{ fill: "hsl(var(--muted))" }}
-                      />
+                      <Tooltip content={<KeyRankTooltip data={mockTop5KeyRankData} />} cursor={{ fill: "hsl(var(--muted))" }} />
                       <Bar
                         dataKey="value"
                         name="消耗金额"
@@ -2296,16 +2293,7 @@ export default function ResourceStats({ enterprise }: Props) {
                         axisLine={false}
                         tickLine={false}
                       />
-                      <Tooltip
-                        contentStyle={{
-                          backgroundColor: "hsl(var(--background))",
-                          border: "1px solid hsl(var(--border))",
-                          borderRadius: 8,
-                          fontSize: 12,
-                        }}
-                        formatter={(v: number) => [`¥${v.toFixed(2)}`, "消耗金额"]}
-                        cursor={{ fill: "hsl(var(--muted))" }}
-                      />
+                      <Tooltip content={<KeyRankTooltip data={mockEnterpriseTop5KeyData} />} cursor={{ fill: "hsl(var(--muted))" }} />
                       <Bar
                         dataKey="value"
                         name="消耗金额"

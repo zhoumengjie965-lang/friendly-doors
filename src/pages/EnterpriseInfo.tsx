@@ -7,6 +7,12 @@ import { Input } from "@/components/ui/input";
 import { Copy, Pencil, Check, X } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import AdminManageDialog from "@/components/AdminManageDialog";
 import CertificationSection from "@/components/CertificationSection";
 
@@ -20,6 +26,11 @@ interface EnterpriseInfoProps {
   role: string;
 }
 
+interface AdminInfo {
+  phone: string;
+  name: string | null;
+}
+
 export default function EnterpriseInfo({ enterprise, role }: EnterpriseInfoProps) {
   const { toast } = useToast();
   const phone = getCurrentPhone();
@@ -28,10 +39,15 @@ export default function EnterpriseInfo({ enterprise, role }: EnterpriseInfoProps
   const [enterpriseName, setEnterpriseName] = useState(enterprise.name);
   const [editing, setEditing] = useState(false);
   const [editValue, setEditValue] = useState(enterprise.name);
-  const [admins, setAdmins] = useState<string[]>([]);
+  const [admins, setAdmins] = useState<AdminInfo[]>([]);
   const [certStatus, setCertStatus] = useState<string>("uncertified");
   const [adminDialogOpen, setAdminDialogOpen] = useState(false);
   const [createdAt, setCreatedAt] = useState<string>("");
+  
+  // Edit admin name dialog state
+  const [editNameDialogOpen, setEditNameDialogOpen] = useState(false);
+  const [editingAdmin, setEditingAdmin] = useState<AdminInfo | null>(null);
+  const [editNameValue, setEditNameValue] = useState("");
 
   const loadData = async () => {
     // Load enterprise details (for created_at)
@@ -46,13 +62,11 @@ export default function EnterpriseInfo({ enterprise, role }: EnterpriseInfoProps
       setEditValue(ent.name);
     }
 
-    // Load admins
-    const { data: members } = await supabase
-      .from("members")
-      .select("user_phone, role")
-      .eq("enterprise_id", enterprise.id)
-      .eq("role", "admin");
-    setAdmins((members || []).map((m) => m.user_phone));
+    // Mock: 2 admins
+    setAdmins([
+      { phone: "13800138001", name: "张三" },
+      { phone: "13900139002", name: "李四" },
+    ]);
 
     // Load certification
     const { data: cert } = await supabase
@@ -84,6 +98,29 @@ export default function EnterpriseInfo({ enterprise, role }: EnterpriseInfoProps
       setEnterpriseName(editValue.trim());
       setEditing(false);
       toast({ title: "修改成功", description: "企业名称已更新" });
+    }
+  };
+
+  const handleOpenEditName = (admin: AdminInfo) => {
+    setEditingAdmin(admin);
+    setEditNameValue(admin.name || "");
+    setEditNameDialogOpen(true);
+  };
+
+  const handleSaveAdminName = async () => {
+    if (!editingAdmin) return;
+    const { error } = await supabase
+      .from("members")
+      .update({ name: editNameValue.trim() || null })
+      .eq("enterprise_id", enterprise.id)
+      .eq("user_phone", editingAdmin.phone);
+    if (error) {
+      toast({ title: "修改失败", description: error.message, variant: "destructive" });
+    } else {
+      setAdmins(admins.map(a => a.phone === editingAdmin.phone ? { ...a, name: editNameValue.trim() || null } : a));
+      setEditNameDialogOpen(false);
+      setEditingAdmin(null);
+      toast({ title: "修改成功", description: "管理员姓名已更新" });
     }
   };
 
@@ -153,13 +190,24 @@ export default function EnterpriseInfo({ enterprise, role }: EnterpriseInfoProps
             {/* Admins */}
             <div className="rounded-xl border border-border bg-muted/30 px-5 py-4">
               <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2">企业管理员</p>
-              <div className="flex items-center gap-2 flex-wrap">
-                {admins.map((a) => (
-                  <span key={a} className="inline-flex items-center px-3 py-1 rounded-full text-sm font-mono font-semibold text-white"
-                    style={{ background: "linear-gradient(135deg, hsl(224,76%,48%), hsl(262,60%,58%))" }}>
-                    {a}
-                  </span>
-                ))}
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2 flex-wrap">
+                  {admins.map((a) => (
+                    <span
+                      key={a.phone}
+                      className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-sm font-semibold text-white cursor-default"
+                      style={{ background: "linear-gradient(135deg, hsl(224,76%,48%), hsl(262,60%,58%))" }}
+                    >
+                      {a.name ? `${a.name}（${a.phone}）` : a.phone}
+                      {isAdmin && (
+                        <Pencil
+                          className="w-3.5 h-3.5 cursor-pointer hover:opacity-70 transition-opacity"
+                          onClick={(e) => { e.stopPropagation(); handleOpenEditName(a); }}
+                        />
+                      )}
+                    </span>
+                  ))}
+                </div>
                 {isAdmin && (
                   <Button variant="outline" size="sm" onClick={() => setAdminDialogOpen(true)}>
                     管理
@@ -186,6 +234,38 @@ export default function EnterpriseInfo({ enterprise, role }: EnterpriseInfoProps
         currentPhone={phone || ""}
         onUpdate={loadData}
       />
+
+      {/* Edit Admin Name Dialog */}
+      <Dialog open={editNameDialogOpen} onOpenChange={setEditNameDialogOpen}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle>设置管理员姓名</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 pt-2">
+            <div className="space-y-2">
+              <label className="text-sm text-muted-foreground">手机号</label>
+              <p className="text-sm font-medium">{editingAdmin?.phone}</p>
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm text-muted-foreground">姓名</label>
+              <Input
+                value={editNameValue}
+                onChange={(e) => setEditNameValue(e.target.value)}
+                placeholder="请输入管理员姓名"
+                autoFocus
+              />
+            </div>
+            <div className="flex justify-end gap-2 pt-2">
+              <Button variant="outline" onClick={() => setEditNameDialogOpen(false)}>
+                取消
+              </Button>
+              <Button onClick={handleSaveAdminName}>
+                确定
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
