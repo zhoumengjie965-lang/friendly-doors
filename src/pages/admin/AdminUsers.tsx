@@ -251,10 +251,7 @@ export default function AdminUsers() {
           <TooltipContent side="top" className="max-w-xs">
             <ul className="space-y-1 text-xs">
               {ents.map((e) => (
-                <li key={e.id} className="flex items-center gap-2">
-                  <span>{e.name}</span>
-                  <span className="opacity-60">({roleLabel(e.role)})</span>
-                </li>
+                <li key={e.id}>{e.name}</li>
               ))}
             </ul>
           </TooltipContent>
