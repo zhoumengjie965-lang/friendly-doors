@@ -77,38 +77,38 @@ function FilterCombobox({
 
 // ── Mock data ──
 const mockUsageLogs = [
-  { time: "2026-03-03 11:15:44", enterprise: "极光科技", apiKey: "test", group: "default", org: "技术部", member: "张三", type: "错误", model: "mock-error", channel: "Azure", retryChannel: "-", duration: "0s", streaming: "非流", input: 0, output: 0, cost: 0, detail: "Incorrect API key provided." },
-  { time: "2026-03-03 11:14:22", enterprise: "蓝海智能", apiKey: "prod", group: "default", org: "产品部", member: "李四", type: "消费", model: "gpt-4o", channel: "OpenAI", retryChannel: "Azure", duration: "1.2s", streaming: "流式", input: 156, output: 312, cost: 0.003, detail: "Request completed successfully." },
-  { time: "2026-03-03 11:13:01", enterprise: "极光科技", apiKey: "test", group: "dev", org: "技术部", member: "王五", type: "错误", model: "mock-error", channel: "Azure", retryChannel: "OpenAI", duration: "0s", streaming: "非流", input: 0, output: 0, cost: 0, detail: "Rate limit exceeded." },
-  { time: "2026-03-03 11:12:55", enterprise: "云启数字", apiKey: "prod", group: "default", org: "产品部", member: "赵六", type: "消费", model: "claude-3-5-sonnet", channel: "Anthropic", retryChannel: "-", duration: "2.3s", streaming: "流式", input: 240, output: 480, cost: 0.008, detail: "Request completed successfully." },
-  { time: "2026-03-03 11:11:33", enterprise: "蓝海智能", apiKey: "dev-key", group: "dev", org: "研发部", member: "张三", type: "消费", model: "gpt-4o-mini", channel: "OpenAI", retryChannel: "-", duration: "0.8s", streaming: "非流", input: 88, output: 120, cost: 0.001, detail: "Request completed successfully." },
-  { time: "2026-03-03 11:10:14", enterprise: "极光科技", apiKey: "test", group: "default", org: "技术部", member: "李四", type: "错误", model: "mock-error", channel: "Azure", retryChannel: "Anthropic", duration: "0s", streaming: "非流", input: 0, output: 0, cost: 0, detail: "Incorrect API key provided." },
-  { time: "2026-03-03 11:09:02", enterprise: "云启数字", apiKey: "prod", group: "finance", org: "财务部", member: "王五", type: "消费", model: "gpt-4o", channel: "OpenAI", retryChannel: "-", duration: "1.8s", streaming: "流式", input: 320, output: 640, cost: 0.012, detail: "Request completed successfully." },
-  { time: "2026-03-03 11:08:47", enterprise: "蓝海智能", apiKey: "dev-key", group: "dev", org: "研发部", member: "赵六", type: "消费", model: "claude-3-haiku", channel: "Anthropic", retryChannel: "OpenAI", duration: "0.5s", streaming: "非流", input: 64, output: 96, cost: 0.001, detail: "Request completed successfully." },
-  { time: "2026-03-03 11:07:30", enterprise: "极光科技", apiKey: "test", group: "default", org: "技术部", member: "张三", type: "错误", model: "mock-error", channel: "Azure", retryChannel: "-", duration: "0s", streaming: "非流", input: 0, output: 0, cost: 0, detail: "Incorrect API key provided." },
-  { time: "2026-03-03 11:06:15", enterprise: "云启数字", apiKey: "prod", group: "default", org: "产品部", member: "李四", type: "消费", model: "gpt-4o", channel: "OpenAI", retryChannel: "Azure", duration: "1.5s", streaming: "流式", input: 200, output: 400, cost: 0.007, detail: "Request completed successfully." },
+  { time: "2026-03-03 11:15:44", enterprise: "极光科技", apiKey: "test", group: "default", org: "技术部", member: "张三", type: "错误", model: "mock-error", channel: "Azure", retryChannel: "-", duration: "0s", streaming: "非流", input: 0, output: 0, cost: 0, detail: "Incorrect API key provided.", isPersonal: false },
+  { time: "2026-03-03 11:14:22", enterprise: "蓝海智能", apiKey: "prod", group: "default", org: "产品部", member: "李四", type: "消费", model: "gpt-4o", channel: "OpenAI", retryChannel: "Azure", duration: "1.2s", streaming: "流式", input: 156, output: 312, cost: 0.003, detail: "Request completed successfully.", isPersonal: false },
+  { time: "2026-03-03 11:13:01", enterprise: "个人", apiKey: "test", group: "dev", org: "-", member: "王五", type: "错误", model: "mock-error", channel: "Azure", retryChannel: "OpenAI", duration: "0s", streaming: "非流", input: 0, output: 0, cost: 0, detail: "Rate limit exceeded.", isPersonal: true },
+  { time: "2026-03-03 11:12:55", enterprise: "云启数字", apiKey: "prod", group: "default", org: "产品部", member: "赵六", type: "消费", model: "claude-3-5-sonnet", channel: "Anthropic", retryChannel: "-", duration: "2.3s", streaming: "流式", input: 240, output: 480, cost: 0.008, detail: "Request completed successfully.", isPersonal: false },
+  { time: "2026-03-03 11:11:33", enterprise: "个人", apiKey: "dev-key", group: "dev", org: "-", member: "张三", type: "消费", model: "gpt-4o-mini", channel: "OpenAI", retryChannel: "-", duration: "0.8s", streaming: "非流", input: 88, output: 120, cost: 0.001, detail: "Request completed successfully.", isPersonal: true },
+  { time: "2026-03-03 11:10:14", enterprise: "极光科技", apiKey: "test", group: "default", org: "技术部", member: "李四", type: "错误", model: "mock-error", channel: "Azure", retryChannel: "Anthropic", duration: "0s", streaming: "非流", input: 0, output: 0, cost: 0, detail: "Incorrect API key provided.", isPersonal: false },
+  { time: "2026-03-03 11:09:02", enterprise: "云启数字", apiKey: "prod", group: "finance", org: "财务部", member: "王五", type: "消费", model: "gpt-4o", channel: "OpenAI", retryChannel: "-", duration: "1.8s", streaming: "流式", input: 320, output: 640, cost: 0.012, detail: "Request completed successfully.", isPersonal: false },
+  { time: "2026-03-03 11:08:47", enterprise: "个人", apiKey: "dev-key", group: "dev", org: "-", member: "赵六", type: "消费", model: "claude-3-haiku", channel: "Anthropic", retryChannel: "OpenAI", duration: "0.5s", streaming: "非流", input: 64, output: 96, cost: 0.001, detail: "Request completed successfully.", isPersonal: true },
+  { time: "2026-03-03 11:07:30", enterprise: "极光科技", apiKey: "test", group: "default", org: "技术部", member: "张三", type: "错误", model: "mock-error", channel: "Azure", retryChannel: "-", duration: "0s", streaming: "非流", input: 0, output: 0, cost: 0, detail: "Incorrect API key provided.", isPersonal: false },
+  { time: "2026-03-03 11:06:15", enterprise: "云启数字", apiKey: "prod", group: "default", org: "产品部", member: "李四", type: "消费", model: "gpt-4o", channel: "OpenAI", retryChannel: "Azure", duration: "1.5s", streaming: "流式", input: 200, output: 400, cost: 0.007, detail: "Request completed successfully.", isPersonal: false },
 ];
 
 const mockTaskLogs = [
-  { submitTime: "2026-03-03 10:19:16", cost: "1401 秒", enterprise: "极光科技", org: "技术部", member: "张三", model: "Suno v3", channel: "官方API", type: "生成歌词", taskId: "13b57429c9714eb7ab078f5622490531", execStatus: "失败", progress: "-", detail: "读取响应超时，请检查网络连接后重试" },
-  { submitTime: "2026-03-03 09:55:02", cost: "403 秒", enterprise: "蓝海智能", org: "产品部", member: "李四", model: "Suno v3", channel: "代理", type: "生成音乐", taskId: "a4c82e13f0b347d9ac1562ef83720104", execStatus: "已完成", progress: "100%", detail: "生成完成" },
-  { submitTime: "2026-03-03 09:30:11", cost: "1523 秒", enterprise: "云启数字", org: "研发部", member: "王五", model: "Suno v3", channel: "官方API", type: "生成歌词", taskId: "7f3d9c21b0e54a8d913047cf25816b93", execStatus: "失败", progress: "-", detail: "服务暂时不可用" },
-  { submitTime: "2026-03-03 09:10:44", cost: "338 秒", enterprise: "蓝海智能", org: "产品部", member: "赵六", model: "Suno v4", channel: "Azure", type: "风格转换", taskId: "b8e51f62d3c04719a270583c946d17f5", execStatus: "已完成", progress: "100%", detail: "转换完成" },
-  { submitTime: "2026-03-03 08:48:30", cost: "1295 秒", enterprise: "极光科技", org: "财务部", member: "张三", model: "Suno v3", channel: "官方API", type: "生成歌词", taskId: "c6a703e89d1b42f0b58349a71c24fe62", execStatus: "失败", progress: "-", detail: "读取响应超时，请检查网络连接后重试" },
-  { submitTime: "2026-03-03 08:20:05", cost: "129 秒", enterprise: "蓝海智能", org: "研发部", member: "李四", model: "Midjourney v6", channel: "代理", type: "文生图", taskId: "d1e4f9a02b3c47e8b912765c034fd821", execStatus: "已完成", progress: "100%", detail: "图像生成完成，分辨率 1024×1024" },
-  { submitTime: "2026-03-03 08:05:33", cost: "进行中", enterprise: "云启数字", org: "技术部", member: "王五", model: "Stable Diffusion XL", channel: "Azure", type: "图生图", taskId: "e2f5g8h01c4d57f9c023876d145ge932", execStatus: "进行中", progress: "47%", detail: "正在渲染第 3/6 步" },
-  { submitTime: "2026-03-03 07:55:12", cost: "396 秒", enterprise: "极光科技", org: "技术部", member: "赵六", model: "Midjourney v6", channel: "官方API", type: "图像变体", taskId: "f3g6h9i12d5e68a0d134987e256hf043", execStatus: "已完成", progress: "100%", detail: "四宫格变体生成完成" },
+  { submitTime: "2026-03-03 10:19:16", cost: "1401 秒", enterprise: "极光科技", org: "技术部", member: "张三", model: "Suno v3", channel: "官方API", type: "生成歌词", taskId: "13b57429c9714eb7ab078f5622490531", execStatus: "失败", progress: "-", detail: "读取响应超时，请检查网络连接后重试", isPersonal: false },
+  { submitTime: "2026-03-03 09:55:02", cost: "403 秒", enterprise: "蓝海智能", org: "产品部", member: "李四", model: "Suno v3", channel: "代理", type: "生成音乐", taskId: "a4c82e13f0b347d9ac1562ef83720104", execStatus: "已完成", progress: "100%", detail: "生成完成", isPersonal: false },
+  { submitTime: "2026-03-03 09:30:11", cost: "1523 秒", enterprise: "个人", org: "-", member: "王五", model: "Suno v3", channel: "官方API", type: "生成歌词", taskId: "7f3d9c21b0e54a8d913047cf25816b93", execStatus: "失败", progress: "-", detail: "服务暂时不可用", isPersonal: true },
+  { submitTime: "2026-03-03 09:10:44", cost: "338 秒", enterprise: "蓝海智能", org: "产品部", member: "赵六", model: "Suno v4", channel: "Azure", type: "风格转换", taskId: "b8e51f62d3c04719a270583c946d17f5", execStatus: "已完成", progress: "100%", detail: "转换完成", isPersonal: false },
+  { submitTime: "2026-03-03 08:48:30", cost: "1295 秒", enterprise: "极光科技", org: "财务部", member: "张三", model: "Suno v3", channel: "官方API", type: "生成歌词", taskId: "c6a703e89d1b42f0b58349a71c24fe62", execStatus: "失败", progress: "-", detail: "读取响应超时，请检查网络连接后重试", isPersonal: false },
+  { submitTime: "2026-03-03 08:20:05", cost: "129 秒", enterprise: "个人", org: "-", member: "李四", model: "Midjourney v6", channel: "代理", type: "文生图", taskId: "d1e4f9a02b3c47e8b912765c034fd821", execStatus: "已完成", progress: "100%", detail: "图像生成完成，分辨率 1024×1024", isPersonal: true },
+  { submitTime: "2026-03-03 08:05:33", cost: "进行中", enterprise: "云启数字", org: "技术部", member: "王五", model: "Stable Diffusion XL", channel: "Azure", type: "图生图", taskId: "e2f5g8h01c4d57f9c023876d145ge932", execStatus: "进行中", progress: "47%", detail: "正在渲染第 3/6 步", isPersonal: false },
+  { submitTime: "2026-03-03 07:55:12", cost: "396 秒", enterprise: "极光科技", org: "技术部", member: "赵六", model: "Midjourney v6", channel: "官方API", type: "图像变体", taskId: "f3g6h9i12d5e68a0d134987e256hf043", execStatus: "已完成", progress: "100%", detail: "四宫格变体生成完成", isPersonal: false },
 ];
 
 const mockAuditLogs = [
-  { time: "2026-03-03 11:30:05", enterprise: "极光科技", operator: "超级管理员 · 130****0001", org: "技术部", opType: "企业审核", content: "审核通过企业「极光科技」实名认证", result: "成功" },
-  { time: "2026-03-03 11:15:22", enterprise: "蓝海智能", operator: "运营专员 · 131****0002", org: "产品部", opType: "账户充值", content: "为企业「蓝海智能」充值 ¥5,000.00", result: "成功" },
-  { time: "2026-03-03 10:58:44", enterprise: "-", operator: "超级管理员 · 130****0001", org: "-", opType: "登录", content: "管理员登录后台", result: "成功" },
-  { time: "2026-03-03 10:40:17", enterprise: "云启数字", operator: "运营专员 · 132****0003", org: "市场部", opType: "用户封禁", content: "封禁用户「139****9999」，原因：违规使用", result: "成功" },
-  { time: "2026-03-03 10:22:09", enterprise: "极光科技", operator: "运营专员 · 131****0002", org: "研发部", opType: "令牌操作", content: "批量删除企业「极光科技」过期 API Key（共 3 条）", result: "成功" },
-  { time: "2026-03-03 10:05:33", enterprise: "-", operator: "超级管理员 · 130****0001", org: "-", opType: "设置变更", content: "修改平台全局限速阈值为 1000 RPM", result: "成功" },
-  { time: "2026-03-03 09:47:01", enterprise: "蓝海智能", operator: "运营专员 · 132****0003", org: "产品部", opType: "企业审核", content: "拒绝企业「蓝海智能」变更申请，原因：材料不全", result: "成功" },
-  { time: "2026-03-03 09:30:18", enterprise: "-", operator: "运营专员 · 131****0002", org: "-", opType: "登录", content: "登录失败：密码错误（第 1 次）", result: "失败" },
+  { time: "2026-03-03 11:30:05", enterprise: "极光科技", operator: "超级管理员 · 130****0001", org: "技术部", opType: "企业审核", content: "审核通过企业「极光科技」实名认证", result: "成功", isPersonal: false },
+  { time: "2026-03-03 11:15:22", enterprise: "蓝海智能", operator: "运营专员 · 131****0002", org: "产品部", opType: "账户充值", content: "为企业「蓝海智能」充值 ¥5,000.00", result: "成功", isPersonal: false },
+  { time: "2026-03-03 10:58:44", enterprise: "-", operator: "超级管理员 · 130****0001", org: "-", opType: "登录", content: "管理员登录后台", result: "成功", isPersonal: true },
+  { time: "2026-03-03 10:40:17", enterprise: "云启数字", operator: "运营专员 · 132****0003", org: "市场部", opType: "用户封禁", content: "封禁用户「139****9999」，原因：违规使用", result: "成功", isPersonal: false },
+  { time: "2026-03-03 10:22:09", enterprise: "极光科技", operator: "运营专员 · 131****0002", org: "研发部", opType: "令牌操作", content: "批量删除企业「极光科技」过期 API Key（共 3 条）", result: "成功", isPersonal: false },
+  { time: "2026-03-03 10:05:33", enterprise: "-", operator: "超级管理员 · 130****0001", org: "-", opType: "设置变更", content: "修改平台全局限速阈值为 1000 RPM", result: "成功", isPersonal: true },
+  { time: "2026-03-03 09:47:01", enterprise: "蓝海智能", operator: "运营专员 · 132****0003", org: "产品部", opType: "企业审核", content: "拒绝企业「蓝海智能」变更申请，原因：材料不全", result: "成功", isPersonal: false },
+  { time: "2026-03-03 09:30:18", enterprise: "-", operator: "运营专员 · 131****0002", org: "-", opType: "登录", content: "登录失败：密码错误（第 1 次）", result: "失败", isPersonal: true },
 ];
 
 const mockMembers: Member[] = [
@@ -224,12 +224,14 @@ function PaginationFooter({
 }
 
 // ── Tab 1: 调用日志 ──
-function CallLogsTab({ globalEnterpriseId, globalOrgId, globalMember, enterprises, organizations }: {
+function CallLogsTab({ globalEnterpriseId, globalOrgId, globalMember, enterprises, organizations, filterMode, searchKeyword }: {
   globalEnterpriseId: string;
   globalOrgId: string;
   globalMember: string;
   enterprises: Enterprise[];
   organizations: Organization[];
+  filterMode: FilterMode;
+  searchKeyword: string;
 }) {
   const navigate = useNavigate();
   const [page, setPage] = useState(1);
@@ -256,6 +258,17 @@ function CallLogsTab({ globalEnterpriseId, globalOrgId, globalMember, enterprise
   };
 
   const filtered = mockUsageLogs.filter(r => {
+    // 根据 filterMode 过滤
+    if (filterMode === "personal" && !r.isPersonal) return false;
+    if (filterMode === "enterprise" && r.isPersonal) return false;
+    // 搜索关键字筛选（用户名/手机号）
+    if (searchKeyword.trim()) {
+      const keyword = searchKeyword.toLowerCase();
+      const matchName = r.member.toLowerCase().includes(keyword);
+      const matchPhone = r.apiKey.toLowerCase().includes(keyword);
+      if (!matchName && !matchPhone) return false;
+    }
+    // 企业级筛选
     if (globalEnterpriseId && selectedEnterpriseName && r.enterprise !== selectedEnterpriseName) return false;
     if (globalOrgId && selectedOrgName && r.org !== selectedOrgName) return false;
     if (globalMember && selectedMemberName && r.member !== selectedMemberName) return false;
@@ -415,12 +428,14 @@ function CallLogsTab({ globalEnterpriseId, globalOrgId, globalMember, enterprise
 }
 
 // ── Tab 2: 任务日志 ──
-function TaskLogsTab({ globalEnterpriseId, globalOrgId, globalMember, enterprises, organizations }: {
+function TaskLogsTab({ globalEnterpriseId, globalOrgId, globalMember, enterprises, organizations, filterMode, searchKeyword }: {
   globalEnterpriseId: string;
   globalOrgId: string;
   globalMember: string;
   enterprises: Enterprise[];
   organizations: Organization[];
+  filterMode: FilterMode;
+  searchKeyword: string;
 }) {
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
@@ -439,6 +454,16 @@ function TaskLogsTab({ globalEnterpriseId, globalOrgId, globalMember, enterprise
   const selectedMemberName = mockMembers.find(m => m.id === globalMember)?.name ?? "";
 
   const filtered = mockTaskLogs.filter(r => {
+    // 根据 filterMode 过滤
+    if (filterMode === "personal" && !r.isPersonal) return false;
+    if (filterMode === "enterprise" && r.isPersonal) return false;
+    // 搜索关键字筛选（用户名/手机号）
+    if (searchKeyword.trim()) {
+      const keyword = searchKeyword.toLowerCase();
+      const matchName = r.member.toLowerCase().includes(keyword);
+      if (!matchName) return false;
+    }
+    // 企业级筛选
     if (globalEnterpriseId && selectedEnterpriseName && r.enterprise !== selectedEnterpriseName) return false;
     if (globalOrgId && selectedOrgName && r.org !== selectedOrgName) return false;
     if (globalMember && selectedMemberName && r.member !== selectedMemberName) return false;
@@ -618,10 +643,12 @@ function TaskLogsTab({ globalEnterpriseId, globalOrgId, globalMember, enterprise
 }
 
 // ── Tab 3: 审计日志 ──
-function AuditLogsTab({ globalEnterpriseId, globalMember, enterprises }: {
+function AuditLogsTab({ globalEnterpriseId, globalMember, enterprises, filterMode, searchKeyword }: {
   globalEnterpriseId: string;
   globalMember: string;
   enterprises: Enterprise[];
+  filterMode: FilterMode;
+  searchKeyword: string;
 }) {
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
@@ -632,6 +659,16 @@ function AuditLogsTab({ globalEnterpriseId, globalMember, enterprises }: {
   const selectedMemberName = mockMembers.find(m => m.id === globalMember)?.name ?? "";
 
   const filtered = mockAuditLogs.filter(r => {
+    // 根据 filterMode 过滤
+    if (filterMode === "personal" && !r.isPersonal) return false;
+    if (filterMode === "enterprise" && r.isPersonal) return false;
+    // 搜索关键字筛选（用户名/手机号）
+    if (searchKeyword.trim()) {
+      const keyword = searchKeyword.toLowerCase();
+      const matchOperator = r.operator.toLowerCase().includes(keyword);
+      if (!matchOperator) return false;
+    }
+    // 企业级筛选
     if (globalEnterpriseId && selectedEnterpriseName && r.enterprise !== selectedEnterpriseName && r.enterprise !== "-") return false;
     if (globalMember && selectedMemberName && !r.operator.toLowerCase().includes(selectedMemberName.toLowerCase())) return false;
     if (filterOperator.trim() && !r.operator.toLowerCase().includes(filterOperator.toLowerCase())) return false;
@@ -712,12 +749,16 @@ function AuditLogsTab({ globalEnterpriseId, globalMember, enterprises }: {
 }
 
 // ── Main ──
+type FilterMode = "all" | "personal" | "enterprise";
+
 export default function AdminCallLogs() {
   const [enterprises, setEnterprises] = useState<Enterprise[]>([]);
   const [organizations, setOrganizations] = useState<Organization[]>([]);
   const [globalEnterpriseId, setGlobalEnterpriseId] = useState("");
   const [globalOrgId, setGlobalOrgId] = useState("");
   const [globalMember, setGlobalMember] = useState("");
+  const [filterMode, setFilterMode] = useState<FilterMode>("all");
+  const [searchKeyword, setSearchKeyword] = useState("");
 
   useEffect(() => {
     supabase.from("enterprises").select("id, name").order("name")
@@ -731,11 +772,22 @@ export default function AdminCallLogs() {
     : organizations;
 
   const hasGlobalFilter = !!(globalEnterpriseId || globalOrgId || globalMember);
+  const hasSearchFilter = !!searchKeyword.trim();
 
   const handleGlobalReset = () => {
     setGlobalEnterpriseId("");
     setGlobalOrgId("");
     setGlobalMember("");
+    setSearchKeyword("");
+  };
+
+  const handleFilterModeChange = (mode: FilterMode) => {
+    setFilterMode(mode);
+    // 切换模式时清空所有筛选
+    setGlobalEnterpriseId("");
+    setGlobalOrgId("");
+    setGlobalMember("");
+    setSearchKeyword("");
   };
 
   return (
@@ -760,35 +812,70 @@ export default function AdminCallLogs() {
           </TabsList>
 
           <div className="flex items-center gap-2">
-            <FilterCombobox
-              items={enterprises}
-              value={globalEnterpriseId}
-              onChange={v => { setGlobalEnterpriseId(v); setGlobalOrgId(""); }}
-              placeholder="所属企业"
-              emptyText="未找到企业"
-              width="w-40"
-            />
-            <FilterCombobox
-              items={availableOrgs}
-              value={globalOrgId}
-              onChange={setGlobalOrgId}
-              placeholder="所属组织"
-              emptyText={globalEnterpriseId ? "该企业暂无组织" : "未找到组织"}
-              width="w-36"
-            />
-            <FilterCombobox
-              items={mockMembers}
-              value={globalMember}
-              onChange={setGlobalMember}
-              placeholder="所属成员"
-              emptyText="未找到成员"
-              width="w-36"
-            />
-            {hasGlobalFilter && (
-              <Button size="sm" variant="ghost" className="h-9 gap-1 text-muted-foreground hover:text-foreground px-2" onClick={handleGlobalReset}>
-                <X className="w-3.5 h-3.5" />
-                <span className="text-xs">重置</span>
-              </Button>
+            {/* 条件筛选框 */}
+            <Select value={filterMode} onValueChange={v => handleFilterModeChange(v as FilterMode)}>
+              <SelectTrigger className="h-9 w-32 text-sm">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">全部</SelectItem>
+                <SelectItem value="personal">个人用户</SelectItem>
+                <SelectItem value="enterprise">企业成员</SelectItem>
+              </SelectContent>
+            </Select>
+
+            {/* 全部/个人用户：显示搜索框 */}
+            {(filterMode === "all" || filterMode === "personal") && (
+              <>
+                <Input
+                  className="h-9 w-48 text-sm"
+                  placeholder="搜索用户名/手机号"
+                  value={searchKeyword}
+                  onChange={e => setSearchKeyword(e.target.value)}
+                />
+                {hasSearchFilter && (
+                  <Button size="sm" variant="ghost" className="h-9 gap-1 text-muted-foreground hover:text-foreground px-2" onClick={() => setSearchKeyword("")}>
+                    <X className="w-3.5 h-3.5" />
+                    <span className="text-xs">重置</span>
+                  </Button>
+                )}
+              </>
+            )}
+
+            {/* 企业成员：显示企业-组织-成员联选框 */}
+            {filterMode === "enterprise" && (
+              <>
+                <FilterCombobox
+                  items={enterprises}
+                  value={globalEnterpriseId}
+                  onChange={v => { setGlobalEnterpriseId(v); setGlobalOrgId(""); }}
+                  placeholder="所属企业"
+                  emptyText="未找到企业"
+                  width="w-40"
+                />
+                <FilterCombobox
+                  items={availableOrgs}
+                  value={globalOrgId}
+                  onChange={setGlobalOrgId}
+                  placeholder="所属组织"
+                  emptyText={globalEnterpriseId ? "该企业暂无组织" : "未找到组织"}
+                  width="w-36"
+                />
+                <FilterCombobox
+                  items={mockMembers}
+                  value={globalMember}
+                  onChange={setGlobalMember}
+                  placeholder="所属成员"
+                  emptyText="未找到成员"
+                  width="w-36"
+                />
+                {hasGlobalFilter && (
+                  <Button size="sm" variant="ghost" className="h-9 gap-1 text-muted-foreground hover:text-foreground px-2" onClick={handleGlobalReset}>
+                    <X className="w-3.5 h-3.5" />
+                    <span className="text-xs">重置</span>
+                  </Button>
+                )}
+              </>
             )}
           </div>
         </div>
@@ -799,6 +886,8 @@ export default function AdminCallLogs() {
             globalMember={globalMember}
             enterprises={enterprises}
             organizations={organizations}
+            filterMode={filterMode}
+            searchKeyword={searchKeyword}
           />
         </TabsContent>
         <TabsContent value="task" className="mt-4">
@@ -808,6 +897,8 @@ export default function AdminCallLogs() {
             globalMember={globalMember}
             enterprises={enterprises}
             organizations={organizations}
+            filterMode={filterMode}
+            searchKeyword={searchKeyword}
           />
         </TabsContent>
         <TabsContent value="audit" className="mt-4">
@@ -815,6 +906,8 @@ export default function AdminCallLogs() {
             globalEnterpriseId={globalEnterpriseId}
             globalMember={globalMember}
             enterprises={enterprises}
+            filterMode={filterMode}
+            searchKeyword={searchKeyword}
           />
         </TabsContent>
       </Tabs>

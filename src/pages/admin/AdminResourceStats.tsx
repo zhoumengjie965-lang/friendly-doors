@@ -18,6 +18,7 @@ interface TopConsumer {
   name: string;
   type: "enterprise" | "personal";
   amount: number;
+  tokens: number;
 }
 
 interface ModelUsage {
@@ -33,16 +34,16 @@ interface DailyTokenUsage {
 // ─── Mock Data ───────────────────────────────────────────────────────────
 
 const MOCK_TOP_CONSUMERS: TopConsumer[] = [
-  { id: "ent-001", name: "星辰科技", type: "enterprise", amount: 58420 },
-  { id: "ent-002", name: "未来智能", type: "enterprise", amount: 47830 },
-  { id: "per-001", name: "张明", type: "personal", amount: 39600 },
-  { id: "ent-003", name: "云图网络", type: "enterprise", amount: 31250 },
-  { id: "per-002", name: "李华", type: "personal", amount: 27400 },
-  { id: "ent-004", name: "数链信息", type: "enterprise", amount: 22100 },
-  { id: "per-003", name: "王磊", type: "personal", amount: 18900 },
-  { id: "ent-005", name: "智联系统", type: "enterprise", amount: 14760 },
-  { id: "per-004", name: "刘伟", type: "personal", amount: 9320 },
-  { id: "ent-006", name: "启明数据", type: "enterprise", amount: 5480 },
+  { id: "ent-001", name: "星辰科技", type: "enterprise", amount: 58420, tokens: 12450000 },
+  { id: "ent-002", name: "未来智能", type: "enterprise", amount: 47830, tokens: 10200000 },
+  { id: "per-001", name: "张明", type: "personal", amount: 39600, tokens: 8500000 },
+  { id: "ent-003", name: "云图网络", type: "enterprise", amount: 31250, tokens: 6700000 },
+  { id: "per-002", name: "李华", type: "personal", amount: 27400, tokens: 5900000 },
+  { id: "ent-004", name: "数链信息", type: "enterprise", amount: 22100, tokens: 4800000 },
+  { id: "per-003", name: "王磊", type: "personal", amount: 18900, tokens: 4100000 },
+  { id: "ent-005", name: "智联系统", type: "enterprise", amount: 14760, tokens: 3200000 },
+  { id: "per-004", name: "刘伟", type: "personal", amount: 9320, tokens: 2000000 },
+  { id: "ent-006", name: "启明数据", type: "enterprise", amount: 5480, tokens: 1200000 },
 ];
 
 const MOCK_MODEL_USAGE: ModelUsage[] = [
