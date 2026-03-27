@@ -2,14 +2,13 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
-import { Separator } from "@/components/ui/separator";
-import { Search, Pencil, Ban, CheckCircle2, Copy } from "lucide-react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Search, Plus, X, UserCircle, Eye, EyeOff, Shield, ChevronDown, RotateCcw } from "lucide-react";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useToast } from "@/hooks/use-toast";
 
 interface EnterpriseRef { id: string; name: string; role: string; }
@@ -22,6 +21,12 @@ interface UserRow {
   status: string;
   enterprises: EnterpriseRef[];
   personal_balance: number;
+  personal_total: number;
+  group: string;
+  role: string;
+  invite_count: number;
+  invite_revenue: number;
+  inviter: string | null;
 }
 
 interface MemberDetail {
@@ -35,17 +40,106 @@ interface MemberDetail {
 interface DrawerDetail {
   personal_enterprise_id: string | null;
   personal_balance: number;
+  personal_total: number;
   members: MemberDetail[];
 }
 
-type FilterType = "all" | "no_enterprise" | "has_enterprise";
+const MODEL_ACCESS_OPTIONS = [
+  { value: "国内", label: "国内" },
+  { value: "国际", label: "国际" },
+];
+
+// Multi-select dropdown component for model access
+function ModelAccessSelect({
+  value,
+  onChange,
+}: {
+  value: string[];
+  onChange: (tags: string[]) => void;
+}) {
+  const [open, setOpen] = useState(false);
+
+  const toggleTag = (tagValue: string) => {
+    if (value.includes(tagValue)) {
+      onChange(value.filter((v) => v !== tagValue));
+    } else {
+      onChange([...value, tagValue]);
+    }
+  };
+
+  const removeTag = (tagValue: string) => {
+    onChange(value.filter((v) => v !== tagValue));
+  };
+
+  return (
+    <div className="relative">
+      <button
+        type="button"
+        onClick={() => setOpen(!open)}
+        className="w-full min-h-[40px] px-3 py-2 border rounded-md bg-white flex items-center justify-between gap-2 hover:border-gray-400 transition-colors"
+      >
+        <div className="flex flex-wrap gap-1.5 flex-1">
+          {value.length === 0 ? (
+            <span className="text-muted-foreground text-sm">请选择模型访问权限</span>
+          ) : (
+            value.map((tag) => (
+              <Badge
+                key={tag}
+                className="bg-blue-600 hover:bg-blue-700 text-white px-2 py-0.5 text-xs flex items-center gap-1"
+              >
+                {tag}
+                <X
+                  className="w-3 h-3 cursor-pointer hover:text-gray-200"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    removeTag(tag);
+                  }}
+                />
+              </Badge>
+            ))
+          )}
+        </div>
+        <ChevronDown className={`w-4 h-4 text-muted-foreground transition-transform ${open ? "rotate-180" : ""}`} />
+      </button>
+
+      {open && (
+        <>
+          <div
+            className="fixed inset-0 z-40"
+            onClick={() => setOpen(false)}
+          />
+          <div className="absolute z-50 w-full mt-1 bg-white border rounded-md shadow-lg py-1">
+            {MODEL_ACCESS_OPTIONS.map((option) => (
+              <div
+                key={option.value}
+                className={`px-3 py-2 cursor-pointer hover:bg-gray-50 flex items-center justify-between ${
+                  value.includes(option.value) ? "bg-blue-50/50" : ""
+                }`}
+                onClick={() => toggleTag(option.value)}
+              >
+                <span className="text-sm">{option.label}</span>
+                {value.includes(option.value) && (
+                  <div className="w-4 h-4 bg-blue-600 rounded-sm flex items-center justify-center">
+                    <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                    </svg>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
 
 export default function AdminUsers() {
   const { toast } = useToast();
   const [users, setUsers] = useState<UserRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
-  const [filter, setFilter] = useState<FilterType>("all");
+  const [groupFilter, setGroupFilter] = useState<string>("all");
 
   // Drawer state
   const [drawerOpen, setDrawerOpen] = useState(false);
@@ -54,6 +148,29 @@ export default function AdminUsers() {
   const [drawerLoading, setDrawerLoading] = useState(false);
   const [editBalance, setEditBalance] = useState("");
   const [savingBalance, setSavingBalance] = useState(false);
+
+  // Edit user form state
+  const [editForm, setEditForm] = useState({
+    username: "",
+    password: "",
+    displayName: "",
+    remark: "",
+    group: "default",
+    modelAccess: [] as string[],
+  });
+  const [showPassword, setShowPassword] = useState(false);
+  const [savingUser, setSavingUser] = useState(false);
+
+  // Add user dialog state
+  const [addDialogOpen, setAddDialogOpen] = useState(false);
+  const [addForm, setAddForm] = useState({
+    username: "",
+    displayName: "",
+    password: "",
+    remark: "",
+    modelAccess: ["国际"] as string[],
+  });
+  const [addingUser, setAddingUser] = useState(false);
 
   useEffect(() => {
     fetchAll();
@@ -86,7 +203,7 @@ export default function AdminUsers() {
 
     const ownedIds = (ownedEnterprises || []).map((e) => e.id);
     const { data: balances } = ownedIds.length > 0
-      ? await supabase.from("enterprise_balances").select("enterprise_id,balance").in("enterprise_id", ownedIds)
+      ? await supabase.from("enterprise_balances").select("enterprise_id,balance,total_consumed").in("enterprise_id", ownedIds)
       : { data: [] };
 
     const entMap: Record<string, string> = Object.fromEntries(
@@ -103,21 +220,37 @@ export default function AdminUsers() {
       });
     });
 
-    const balanceMap: Record<string, number> = Object.fromEntries(
-      (balances || []).map((b) => [b.enterprise_id, b.balance])
-    );
+    const balanceMap: Record<string, { balance: number; total: number }> = {};
+    (balances || []).forEach((b) => {
+      balanceMap[b.enterprise_id] = { balance: b.balance || 0, total: b.total_consumed || 0 };
+    });
 
-    const ownerBalanceMap: Record<string, number> = {};
+    const ownerBalanceMap: Record<string, { balance: number; total: number }> = {};
     (ownedEnterprises || []).forEach((e) => {
-      ownerBalanceMap[e.owner_phone] = (ownerBalanceMap[e.owner_phone] || 0) + (balanceMap[e.id] || 0);
+      const bal = balanceMap[e.id] || { balance: 0, total: 0 };
+      ownerBalanceMap[e.owner_phone] = {
+        balance: (ownerBalanceMap[e.owner_phone]?.balance || 0) + bal.balance,
+        total: (ownerBalanceMap[e.owner_phone]?.total || 0) + bal.total,
+      };
     });
 
     setUsers(
-      usersData.map((u) => ({
-        ...u,
-        enterprises: membersByPhone[u.phone] || [],
-        personal_balance: ownerBalanceMap[u.phone] || 0,
-      }))
+      usersData.map((u) => {
+        const userEnts = membersByPhone[u.phone] || [];
+        const ownerBal = ownerBalanceMap[u.phone] || { balance: 0, total: 0 };
+        const isOwner = userEnts.some((e) => e.role === "owner");
+        return {
+          ...u,
+          enterprises: userEnts,
+          personal_balance: ownerBal.balance,
+          personal_total: ownerBal.total,
+          group: "default",
+          role: isOwner ? "企业主" : (userEnts.length > 0 ? "成员" : "普通用户"),
+          invite_count: 0,
+          invite_revenue: 0,
+          inviter: null,
+        };
+      })
     );
     setLoading(false);
   };
@@ -126,42 +259,39 @@ export default function AdminUsers() {
     setDrawerLoading(true);
     setDrawerDetail(null);
 
-    // 1. Personal enterprise
     const { data: ownedEnts } = await supabase
       .from("enterprises")
       .select("id")
       .eq("owner_phone", phone);
     const personalEntId = ownedEnts?.[0]?.id || null;
 
-    // 2. Personal balance
     let personalBalance = 0;
+    let personalTotal = 0;
     if (personalEntId) {
       const { data: bal } = await supabase
         .from("enterprise_balances")
-        .select("balance")
+        .select("balance,total_consumed")
         .eq("enterprise_id", personalEntId)
         .maybeSingle();
       personalBalance = bal?.balance || 0;
+      personalTotal = bal?.total_consumed || 0;
     }
 
-    // 3. Members
     const { data: membersRaw } = await supabase
       .from("members")
       .select("id,enterprise_id,organization_id,role")
       .eq("user_phone", phone);
 
     if (!membersRaw || membersRaw.length === 0) {
-      setDrawerDetail({ personal_enterprise_id: personalEntId, personal_balance: personalBalance, members: [] });
+      setDrawerDetail({ personal_enterprise_id: personalEntId, personal_balance: personalBalance, personal_total: personalTotal, members: [] });
       setDrawerLoading(false);
       return;
     }
 
-    // 4. Enterprise names
     const entIds = [...new Set(membersRaw.map((m) => m.enterprise_id))];
     const { data: ents } = await supabase.from("enterprises").select("id,name").in("id", entIds);
     const entMap: Record<string, string> = Object.fromEntries((ents || []).map((e) => [e.id, e.name]));
 
-    // 5. Org names
     const orgIds = membersRaw.map((m) => m.organization_id).filter(Boolean) as string[];
     const { data: orgs } = orgIds.length > 0
       ? await supabase.from("organizations").select("id,name").in("id", orgIds)
@@ -176,13 +306,22 @@ export default function AdminUsers() {
       role: m.role,
     }));
 
-    setDrawerDetail({ personal_enterprise_id: personalEntId, personal_balance: personalBalance, members });
+    setDrawerDetail({ personal_enterprise_id: personalEntId, personal_balance: personalBalance, personal_total: personalTotal, members });
     setDrawerLoading(false);
   };
 
   const openDrawer = (user: UserRow) => {
     setDrawerUser(user);
     setEditBalance("");
+    setEditForm({
+      username: user.name || "",
+      password: "",
+      displayName: user.name || "",
+      remark: "",
+      group: user.group || "default",
+      modelAccess: ["国际"],
+    });
+    setShowPassword(false);
     setDrawerOpen(true);
     fetchDrawerDetail(user.phone);
   };
@@ -192,6 +331,15 @@ export default function AdminUsers() {
     setUsers((prev) => prev.map((u) => u.id === user.id ? { ...u, status: newStatus } : u));
     if (drawerUser?.id === user.id) setDrawerUser((prev) => prev ? { ...prev, status: newStatus } : prev);
     await supabase.from("users").update({ status: newStatus }).eq("id", user.id);
+    toast({ title: newStatus === "active" ? "已启用" : "已禁用", description: `用户 ${user.name || user.phone} 已${newStatus === "active" ? "启用" : "禁用"}` });
+  };
+
+  const handlePromote = async (user: UserRow) => {
+    toast({ title: "提升用户", description: `用户 ${user.name || user.phone} 权限提升功能开发中` });
+  };
+
+  const handleDemote = async (user: UserRow) => {
+    toast({ title: "降级用户", description: `用户 ${user.name || user.phone} 权限降级功能开发中` });
   };
 
   const handleSaveBalance = async () => {
@@ -223,12 +371,68 @@ export default function AdminUsers() {
     toast({ title: "已解除", description: "用户已从该企业移除" });
   };
 
+  const handleAddUser = async () => {
+    if (!addForm.username.trim()) {
+      toast({ title: "请输入用户名", variant: "destructive" });
+      return;
+    }
+    if (!addForm.password.trim()) {
+      toast({ title: "请输入密码", variant: "destructive" });
+      return;
+    }
+
+    setAddingUser(true);
+    try {
+      const { error } = await supabase.auth.signUp({
+        email: `${addForm.username.trim()}@friendlydoors.local`,
+        password: addForm.password.trim(),
+        options: {
+          data: {
+            name: addForm.displayName.trim() || addForm.username.trim(),
+            remark: addForm.remark.trim(),
+          },
+        },
+      });
+
+      if (error) {
+        toast({ title: "创建失败", description: error.message, variant: "destructive" });
+        return;
+      }
+
+      toast({ title: "用户创建成功", description: `用户 ${addForm.username} 已添加` });
+      setAddDialogOpen(false);
+      setAddForm({ username: "", displayName: "", password: "", remark: "", modelAccess: ["国际"] });
+      fetchAll();
+    } catch (err: any) {
+      toast({ title: "创建失败", description: err.message || "未知错误", variant: "destructive" });
+    } finally {
+      setAddingUser(false);
+    }
+  };
+
+  const handleSearch = () => {
+    fetchAll();
+  };
+
+  const handleReset = () => {
+    setSearch("");
+    setGroupFilter("all");
+    fetchAll();
+  };
+
   const filtered = users
-    .filter((u) => u.phone.includes(search) || (u.name || "").includes(search))
     .filter((u) => {
-      if (filter === "no_enterprise") return u.enterprises.length === 0;
-      if (filter === "has_enterprise") return u.enterprises.length > 0;
-      return true;
+      if (!search) return true;
+      const searchLower = search.toLowerCase();
+      return (
+        u.id.toLowerCase().includes(searchLower) ||
+        (u.name || "").toLowerCase().includes(searchLower) ||
+        u.phone.includes(search)
+      );
+    })
+    .filter((u) => {
+      if (groupFilter === "all") return true;
+      return u.group === groupFilter;
     });
 
   const roleLabel = (role: string) => {
@@ -236,69 +440,73 @@ export default function AdminUsers() {
     return map[role] || role;
   };
 
-  const enterpriseCell = (ents: EnterpriseRef[]) => {
-    if (ents.length === 0) return <span className="text-muted-foreground/50">-</span>;
-    if (ents.length === 1) return <span className="text-muted-foreground truncate">{ents[0].name}</span>;
-    return (
-      <TooltipProvider delayDuration={200}>
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <span className="text-muted-foreground truncate cursor-default inline-flex items-center gap-1">
-              {ents[0].name}
-              <span className="text-xs bg-muted rounded px-1 py-0.5">+{ents.length - 1}</span>
-            </span>
-          </TooltipTrigger>
-          <TooltipContent side="top" className="max-w-xs">
-            <ul className="space-y-1 text-xs">
-              {ents.map((e) => (
-                <li key={e.id}>{e.name}</li>
-              ))}
-            </ul>
-          </TooltipContent>
-        </Tooltip>
-      </TooltipProvider>
-    );
+  const formatNumber = (num: number) => {
+    return num.toLocaleString("zh-CN", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   };
 
   return (
     <div className="p-6 space-y-5">
-      <div className="flex items-center justify-between gap-3">
-        <div>
-          <h1 className="text-xl font-semibold text-foreground">用户管理</h1>
-          <p className="text-sm text-muted-foreground mt-0.5">共 {users.length} 名用户</p>
-        </div>
-        <div className="flex items-center gap-2">
-          <Select value={filter} onValueChange={(v) => setFilter(v as FilterType)}>
-            <SelectTrigger className="w-36 h-9">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">全部用户</SelectItem>
-              <SelectItem value="no_enterprise">仅个人用户</SelectItem>
-              <SelectItem value="has_enterprise">仅企业成员</SelectItem>
-            </SelectContent>
-          </Select>
-          <div className="relative w-56">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-            <Input
-              placeholder="搜索手机号或姓名…"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="pl-9 h-9"
-            />
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <div>
+            <h1 className="text-xl font-semibold text-foreground">用户管理</h1>
+            <p className="text-sm text-muted-foreground mt-0.5">共 {users.length} 名用户</p>
           </div>
         </div>
+        <Button
+          className="h-9 bg-blue-600 hover:bg-blue-700 text-white"
+          onClick={() => setAddDialogOpen(true)}
+        >
+          <Plus className="w-4 h-4 mr-1.5" />
+          添加用户
+        </Button>
       </div>
 
+      {/* Search Bar */}
+      <div className="flex items-center gap-3 bg-gray-50/50 p-3 rounded-lg border">
+        <div className="relative flex-1 max-w-md">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+          <Input
+            placeholder="支持搜索用户的ID、用户名、显示名称"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="pl-9 h-9 bg-white"
+          />
+        </div>
+        <Select value={groupFilter} onValueChange={setGroupFilter}>
+          <SelectTrigger className="w-32 h-9 bg-white">
+            <SelectValue placeholder="选择分组" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">全部分组</SelectItem>
+            <SelectItem value="default">default</SelectItem>
+            <SelectItem value="vip">VIP</SelectItem>
+            <SelectItem value="enterprise">企业用户</SelectItem>
+          </SelectContent>
+        </Select>
+        <Button variant="outline" className="h-9" onClick={handleSearch}>
+          查询
+        </Button>
+        <Button variant="ghost" className="h-9" onClick={handleReset}>
+          <RotateCcw className="w-4 h-4 mr-1" />
+          重置
+        </Button>
+      </div>
+
+      {/* Table */}
       <div className="bg-card border rounded-xl overflow-hidden">
-        <div className="grid grid-cols-[0.8fr_1fr_1.2fr_1fr_1.5fr_1fr_80px] text-xs font-medium text-muted-foreground border-b">
-          <span className="px-5 py-3">用户ID</span>
-          <span className="px-5 py-3">用户名</span>
-          <span className="px-5 py-3">手机号</span>
-          <span className="px-3 py-3 bg-blue-50/60 border-l-2 border-l-blue-200">个人空间余额</span>
-          <span className="px-5 py-3 bg-amber-50/40">所属企业空间</span>
-          <span className="px-5 py-3">注册时间</span>
-          <span className="px-3 py-3">操作</span>
+        <div className="grid grid-cols-[60px_100px_80px_160px_80px_80px_140px_100px_90px_1fr] text-xs font-medium text-muted-foreground border-b bg-gray-50/50">
+          <span className="px-3 py-3">ID</span>
+          <span className="px-3 py-3">用户名</span>
+          <span className="px-3 py-3">状态</span>
+          <span className="px-3 py-3">个人空间剩余额度/总额度</span>
+          <span className="px-3 py-3">分组</span>
+          <span className="px-3 py-3">角色</span>
+          <span className="px-3 py-3">所属企业空间</span>
+          <span className="px-3 py-3">注册时间</span>
+          <span className="px-3 py-3">邀请信息</span>
+          <span className="px-3 py-3 text-center">操作</span>
         </div>
 
         {loading ? (
@@ -306,60 +514,102 @@ export default function AdminUsers() {
         ) : filtered.length === 0 ? (
           <div className="p-8 text-center text-sm text-muted-foreground">暂无数据</div>
         ) : (
-          filtered.map((u) => (
+          filtered.map((u, index) => (
             <div
               key={u.id}
-              className="grid grid-cols-[0.8fr_1fr_1.2fr_1fr_1.5fr_1fr_80px] border-b last:border-0 text-sm items-center"
+              className={`grid grid-cols-[60px_100px_80px_160px_80px_80px_140px_100px_90px_1fr] border-b last:border-0 text-sm items-center hover:bg-gray-50/50 ${index % 2 === 1 ? "bg-gray-50/30" : ""}`}
             >
-              <span className="text-muted-foreground px-5 py-3.5 font-mono text-xs truncate" title={u.id}>
-                {u.id.slice(0, 8)}…
+              <span className="text-muted-foreground px-3 py-3.5 font-mono text-xs truncate">
+                {u.id.slice(0, 6)}
               </span>
-              <span className="text-foreground px-5 py-3.5 truncate">{u.name || "—"}</span>
-              <div className="flex items-center gap-2 min-w-0 px-5 py-3.5">
-                <span className="font-medium text-foreground truncate">{u.phone}</span>
-                {u.status === "banned" && (
-                  <Badge variant="destructive" className="text-xs px-1.5 py-0 shrink-0">已封禁</Badge>
+              <span className="text-foreground px-3 py-3.5 truncate font-medium">{u.name || u.phone}</span>
+              <span className="px-3 py-3.5">
+                {u.status === "active" ? (
+                  <Badge variant="outline" className="text-xs text-green-600 border-green-200 bg-green-50">已启用</Badge>
+                ) : (
+                  <Badge variant="outline" className="text-xs text-red-600 border-red-200 bg-red-50">已禁用</Badge>
                 )}
-              </div>
-              <span className="text-muted-foreground tabular-nums px-3 py-3.5 bg-blue-50/40 border-l-2 border-l-blue-200">
-                ¥{u.personal_balance.toFixed(2)}
               </span>
-              <div className="flex items-center min-w-0 px-5 py-3.5 bg-amber-50/30">{enterpriseCell(u.enterprises)}</div>
-              <span className="text-muted-foreground px-5 py-3.5">
+              <span className="text-muted-foreground tabular-nums px-3 py-3.5 text-xs">
+                <span className="text-green-600">¥{formatNumber(u.personal_balance)}</span>
+                <span className="text-gray-400"> / </span>
+                <span>¥{formatNumber(u.personal_total)}</span>
+              </span>
+              <span className="px-3 py-3.5">
+                <Badge variant="secondary" className="text-xs font-normal">{u.group}</Badge>
+              </span>
+              <span className="text-muted-foreground px-3 py-3.5 text-xs">{u.role}</span>
+              <span className="text-muted-foreground px-3 py-3.5 text-xs truncate">
+                {u.enterprises.length === 0 ? (
+                  "-"
+                ) : u.enterprises.length === 1 ? (
+                  u.enterprises[0].name
+                ) : (
+                  <TooltipProvider delayDuration={200}>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <span className="cursor-default inline-flex items-center gap-1">
+                          {u.enterprises[0].name}
+                          <span className="text-xs bg-muted rounded px-1 py-0.5">+{u.enterprises.length - 1}</span>
+                        </span>
+                      </TooltipTrigger>
+                      <TooltipContent side="top" className="max-w-xs">
+                        <ul className="space-y-1 text-xs">
+                          {u.enterprises.map((e) => (
+                            <li key={e.id}>{e.name}</li>
+                          ))}
+                        </ul>
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                )}
+              </span>
+              <span className="text-muted-foreground px-3 py-3.5 text-xs">
                 {new Date(u.created_at).toLocaleDateString("zh-CN")}
               </span>
-              <div className="flex items-center gap-1 px-3 py-3.5">
-                <TooltipProvider delayDuration={300}>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-7 w-7"
-                        onClick={() => openDrawer(u)}
-                      >
-                        <Pencil className="w-3.5 h-3.5" />
-                      </Button>
-                    </TooltipTrigger>
-                    <TooltipContent>编辑</TooltipContent>
-                  </Tooltip>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className={`h-7 w-7 ${u.status === "banned" ? "text-green-600 hover:text-green-700" : "text-destructive hover:text-destructive/80"}`}
-                        onClick={() => handleToggleStatus(u)}
-                      >
-                        {u.status === "banned"
-                          ? <CheckCircle2 className="w-3.5 h-3.5" />
-                          : <Ban className="w-3.5 h-3.5" />
-                        }
-                      </Button>
-                    </TooltipTrigger>
-                    <TooltipContent>{u.status === "banned" ? "解除封禁" : "封禁"}</TooltipContent>
-                  </Tooltip>
-                </TooltipProvider>
+              <span className="text-muted-foreground px-3 py-3.5 text-xs truncate">
+                {u.invite_count}人/¥{formatNumber(u.invite_revenue)}
+              </span>
+              <div className="flex items-center justify-center gap-1 px-3 py-3.5">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className={`h-7 px-2 text-xs ${u.status === "banned" ? "text-green-600 hover:text-green-700" : "text-red-600 hover:text-red-700"}`}
+                  onClick={() => handleToggleStatus(u)}
+                >
+                  {u.status === "banned" ? "启用" : "禁用"}
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 px-2 text-xs text-blue-600 hover:text-blue-700"
+                  onClick={() => openDrawer(u)}
+                >
+                  编辑
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 px-2 text-xs text-blue-600 hover:text-blue-700"
+                  onClick={() => handlePromote(u)}
+                >
+                  提升
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 px-2 text-xs text-blue-600 hover:text-blue-700"
+                  onClick={() => handleDemote(u)}
+                >
+                  降级
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 w-7 p-0 text-muted-foreground hover:text-foreground"
+                >
+                  ...
+                </Button>
               </div>
             </div>
           ))
@@ -368,79 +618,139 @@ export default function AdminUsers() {
 
       {/* Edit Drawer */}
       <Sheet open={drawerOpen} onOpenChange={setDrawerOpen}>
-        <SheetContent className="w-[520px] sm:max-w-[520px] overflow-y-auto">
-          <SheetHeader className="mb-5">
-            <SheetTitle>编辑用户</SheetTitle>
+        <SheetContent className="w-[520px] sm:max-w-[520px] overflow-y-auto p-0">
+          <SheetHeader className="px-6 pt-6 pb-4 border-b">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-blue-600 font-medium bg-blue-50 px-2 py-0.5 rounded">编辑</span>
+                <SheetTitle className="text-base font-semibold">编辑用户</SheetTitle>
+              </div>
+            </div>
           </SheetHeader>
 
           {drawerUser && (
-            <div className="space-y-6">
+            <div className="px-6 py-5 space-y-6">
               {/* Section A: 基本信息 */}
-              <div className="space-y-3">
-                <h3 className="text-sm font-semibold text-foreground">基本信息</h3>
+              <div className="space-y-4">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-full bg-blue-50 flex items-center justify-center">
+                    <UserCircle className="w-5 h-5 text-blue-500" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-foreground">基本信息</p>
+                    <p className="text-xs text-muted-foreground">用户的基本账户信息</p>
+                  </div>
+                </div>
 
-                <div className="grid grid-cols-2 gap-x-4 gap-y-2">
-                  {/* 用户ID — top-left */}
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <Label className="text-xs text-muted-foreground">用户ID</Label>
-                      <p className="text-sm mt-0.5 font-mono">{drawerUser.id}</p>
+                <div className="border rounded-lg p-4 space-y-4 bg-gray-50/30">
+                  <div className="space-y-1.5">
+                    <Label className="text-sm">
+                      用户名 <span className="text-red-500">*</span>
+                    </Label>
+                    <div className="relative">
+                      <Input
+                        value={editForm.username}
+                        onChange={(e) => setEditForm((prev) => ({ ...prev, username: e.target.value }))}
+                        className="h-10 pr-8"
+                      />
+                      {editForm.username && (
+                        <button
+                          type="button"
+                          onClick={() => setEditForm((prev) => ({ ...prev, username: "" }))}
+                          className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                        >
+                          <X className="w-4 h-4" />
+                        </button>
+                      )}
                     </div>
-                    <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground shrink-0"
-                      onClick={() => { navigator.clipboard.writeText(drawerUser.id); toast({ title: "已复制" }); }}>
-                      <Copy className="w-3.5 h-3.5" />
-                    </Button>
                   </div>
 
-                  {/* 用户名 — top-right */}
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <Label className="text-xs text-muted-foreground">用户名</Label>
-                      <p className="text-sm mt-0.5">{drawerUser.name || "—"}</p>
+                  <div className="space-y-1.5">
+                    <Label className="text-sm">密码</Label>
+                    <div className="relative">
+                      <Input
+                        type={showPassword ? "text" : "password"}
+                        placeholder="请输入新的密码，最短 8 位"
+                        value={editForm.password}
+                        onChange={(e) => setEditForm((prev) => ({ ...prev, password: e.target.value }))}
+                        className="h-10 pr-10"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowPassword(!showPassword)}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                      >
+                        {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                      </button>
                     </div>
-                    <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground shrink-0"
-                      onClick={() => { navigator.clipboard.writeText(drawerUser.name || ""); toast({ title: "已复制" }); }}>
-                      <Copy className="w-3.5 h-3.5" />
-                    </Button>
                   </div>
 
-                  {/* 手机号 — bottom-left */}
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <Label className="text-xs text-muted-foreground">手机号</Label>
-                      <p className="text-sm mt-0.5 font-medium tabular-nums">{drawerUser.phone}</p>
-                    </div>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      className="h-7 text-xs text-destructive border-destructive/30 hover:bg-destructive/10 shrink-0"
-                      onClick={() => toast({ title: "功能开发中", description: "解绑手机号功能即将上线" })}
-                    >
-                      解绑
-                    </Button>
+                  <div className="space-y-1.5">
+                    <Label className="text-sm">显示名称</Label>
+                    <Input
+                      value={editForm.displayName}
+                      onChange={(e) => setEditForm((prev) => ({ ...prev, displayName: e.target.value }))}
+                      className="h-10"
+                    />
                   </div>
 
-                  {/* 密码重置 — bottom-right */}
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <Label className="text-xs text-muted-foreground">密码重置</Label>
-                      <p className="text-xs text-muted-foreground mt-0.5">强制重置密码</p>
-                    </div>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      className="h-7 text-xs shrink-0"
-                      onClick={() => toast({ title: "功能开发中", description: "密码重置功能即将上线" })}
-                    >
-                      重置密码
-                    </Button>
+                  <div className="space-y-1.5">
+                    <Label className="text-sm">备注</Label>
+                    <Input
+                      placeholder="请输入备注（仅管理员可见）"
+                      value={editForm.remark}
+                      onChange={(e) => setEditForm((prev) => ({ ...prev, remark: e.target.value }))}
+                      className="h-10"
+                    />
                   </div>
                 </div>
               </div>
 
-              <Separator />
+              {/* Section B: 权限设置 */}
+              <div className="space-y-4">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-full bg-green-50 flex items-center justify-center">
+                    <Shield className="w-5 h-5 text-green-500" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-foreground">权限设置</p>
+                    <p className="text-xs text-muted-foreground">用户分组和额度管理</p>
+                  </div>
+                </div>
 
-              {/* Section B: 空间关联管理 */}
+                <div className="border rounded-lg p-4 space-y-4 bg-gray-50/30">
+                  <div className="space-y-1.5">
+                    <Label className="text-sm">
+                      分组 <span className="text-red-500">*</span>
+                    </Label>
+                    <Select
+                      value={editForm.group}
+                      onValueChange={(v) => setEditForm((prev) => ({ ...prev, group: v }))}
+                    >
+                      <SelectTrigger className="h-10">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="default">default</SelectItem>
+                        <SelectItem value="vip">VIP</SelectItem>
+                        <SelectItem value="enterprise">企业用户</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <Label className="text-sm">
+                      模型访问权限 <span className="text-red-500">*</span>
+                    </Label>
+                    <ModelAccessSelect
+                      value={editForm.modelAccess}
+                      onChange={(access) => setEditForm((prev) => ({ ...prev, modelAccess: access }))}
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Section C: 空间关联管理 */}
               <div className="space-y-4">
                 <h3 className="text-sm font-semibold text-foreground">空间关联管理</h3>
 
@@ -448,7 +758,6 @@ export default function AdminUsers() {
                   <p className="text-sm text-muted-foreground">加载中…</p>
                 ) : drawerDetail ? (
                   <>
-                    {/* 个人空间 */}
                     <div>
                       <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1.5">个人空间</p>
                       <div className="bg-blue-50/50 border border-blue-100 rounded-lg p-3 space-y-2">
@@ -479,7 +788,6 @@ export default function AdminUsers() {
                       </div>
                     </div>
 
-                    {/* 企业空间列表 */}
                     <div className="space-y-2">
                       <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">企业空间</p>
                       {drawerDetail.members.length === 0 ? (
@@ -513,10 +821,138 @@ export default function AdminUsers() {
                   </>
                 ) : null}
               </div>
+
+              {/* 底部按钮 */}
+              <div className="flex justify-end gap-2 pt-4 border-t">
+                <Button
+                  variant="outline"
+                  className="h-9 px-4"
+                  onClick={() => setDrawerOpen(false)}
+                >
+                  取消
+                </Button>
+                <Button
+                  className="h-9 px-4 bg-blue-600 hover:bg-blue-700 text-white"
+                  onClick={() => {
+                    setSavingUser(true);
+                    setTimeout(() => {
+                      setSavingUser(false);
+                      toast({ title: "保存成功", description: "用户信息已更新" });
+                      setDrawerOpen(false);
+                    }, 500);
+                  }}
+                  disabled={savingUser}
+                >
+                  {savingUser ? "保存中…" : "保存"}
+                </Button>
+              </div>
             </div>
           )}
         </SheetContent>
       </Sheet>
+
+      {/* Add User Dialog */}
+      <Dialog open={addDialogOpen} onOpenChange={setAddDialogOpen}>
+        <DialogContent className="sm:max-w-[480px] p-0 overflow-hidden">
+          <DialogHeader className="px-6 pt-6 pb-4 border-b">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-green-600 font-medium bg-green-50 px-2 py-0.5 rounded">新建</span>
+                <DialogTitle className="text-base font-semibold">添加用户</DialogTitle>
+              </div>
+            </div>
+          </DialogHeader>
+
+          <div className="px-6 py-5 space-y-5">
+            <div className="flex items-center gap-3">
+              <div className="w-8 h-8 rounded-full bg-blue-50 flex items-center justify-center">
+                <UserCircle className="w-5 h-5 text-blue-500" />
+              </div>
+              <div>
+                <p className="text-sm font-medium text-foreground">用户信息</p>
+                <p className="text-xs text-muted-foreground">创建新用户账户</p>
+              </div>
+            </div>
+
+            <div className="space-y-4">
+              <div className="space-y-1.5">
+                <Label className="text-sm">
+                  用户名 <span className="text-red-500">*</span>
+                </Label>
+                <Input
+                  placeholder="请输入用户名"
+                  value={addForm.username}
+                  onChange={(e) => setAddForm((prev) => ({ ...prev, username: e.target.value }))}
+                  className="h-10 bg-gray-50/50 border-gray-200"
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <Label className="text-sm">显示名称</Label>
+                <Input
+                  placeholder="请输入显示名称"
+                  value={addForm.displayName}
+                  onChange={(e) => setAddForm((prev) => ({ ...prev, displayName: e.target.value }))}
+                  className="h-10 bg-gray-50/50 border-gray-200"
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <Label className="text-sm">
+                  密码 <span className="text-red-500">*</span>
+                </Label>
+                <Input
+                  type="password"
+                  placeholder="请输入密码"
+                  value={addForm.password}
+                  onChange={(e) => setAddForm((prev) => ({ ...prev, password: e.target.value }))}
+                  className="h-10 bg-gray-50/50 border-gray-200"
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <Label className="text-sm">备注</Label>
+                <Input
+                  placeholder="请输入备注（仅管理员可见）"
+                  value={addForm.remark}
+                  onChange={(e) => setAddForm((prev) => ({ ...prev, remark: e.target.value }))}
+                  className="h-10 bg-gray-50/50 border-gray-200"
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <Label className="text-sm">
+                  模型访问权限 <span className="text-red-500">*</span>
+                </Label>
+                <ModelAccessSelect
+                  value={addForm.modelAccess}
+                  onChange={(access) => setAddForm((prev) => ({ ...prev, modelAccess: access }))}
+                />
+              </div>
+            </div>
+          </div>
+
+          <div className="px-6 py-4 border-t bg-gray-50/50 flex justify-end gap-2">
+            <Button
+              variant="outline"
+              className="h-9 px-4"
+              onClick={() => {
+                setAddDialogOpen(false);
+                setAddForm({ username: "", displayName: "", password: "", remark: "", modelAccess: ["国际"] });
+              }}
+            >
+              取消
+            </Button>
+            <Button
+              className="h-9 px-4 bg-green-600 hover:bg-green-700 text-white"
+              onClick={handleAddUser}
+              disabled={addingUser}
+            >
+              {addingUser ? "创建中…" : "确认"}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

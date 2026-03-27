@@ -14,9 +14,101 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Search, ExternalLink, Zap, Ban, ChevronDown } from "lucide-react";
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Search, ExternalLink, Zap, Ban, ChevronDown, Plus, X, Pencil } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { getAdminSession } from "@/lib/adminAuth";
+
+const MODEL_ACCESS_OPTIONS = [
+  { value: "国内", label: "国内" },
+  { value: "国际", label: "国际" },
+];
+
+// Multi-select dropdown component for model access
+function ModelAccessSelect({
+  value,
+  onChange,
+}: {
+  value: string[];
+  onChange: (tags: string[]) => void;
+}) {
+  const [open, setOpen] = useState(false);
+
+  const toggleTag = (tagValue: string) => {
+    if (value.includes(tagValue)) {
+      onChange(value.filter((v) => v !== tagValue));
+    } else {
+      onChange([...value, tagValue]);
+    }
+  };
+
+  const removeTag = (tagValue: string) => {
+    onChange(value.filter((v) => v !== tagValue));
+  };
+
+  return (
+    <div className="relative">
+      <button
+        type="button"
+        onClick={() => setOpen(!open)}
+        className="w-full min-h-[40px] px-3 py-2 border rounded-md bg-white flex items-center justify-between gap-2 hover:border-gray-400 transition-colors"
+      >
+        <div className="flex flex-wrap gap-1.5 flex-1">
+          {value.length === 0 ? (
+            <span className="text-muted-foreground text-sm">请选择模型访问权限</span>
+          ) : (
+            value.map((tag) => (
+              <Badge
+                key={tag}
+                className="bg-blue-600 hover:bg-blue-700 text-white px-2 py-0.5 text-xs flex items-center gap-1"
+              >
+                {tag}
+                <X
+                  className="w-3 h-3 cursor-pointer hover:text-gray-200"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    removeTag(tag);
+                  }}
+                />
+              </Badge>
+            ))
+          )}
+        </div>
+        <ChevronDown className={`w-4 h-4 text-muted-foreground transition-transform ${open ? "rotate-180" : ""}`} />
+      </button>
+
+      {open && (
+        <>
+          <div
+            className="fixed inset-0 z-40"
+            onClick={() => setOpen(false)}
+          />
+          <div className="absolute z-50 w-full mt-1 bg-white border rounded-md shadow-lg py-1">
+            {MODEL_ACCESS_OPTIONS.map((option) => (
+              <div
+                key={option.value}
+                className={`px-3 py-2 cursor-pointer hover:bg-gray-50 flex items-center justify-between ${
+                  value.includes(option.value) ? "bg-blue-50/50" : ""
+                }`}
+                onClick={() => toggleTag(option.value)}
+              >
+                <span className="text-sm">{option.label}</span>
+                {value.includes(option.value) && (
+                  <div className="w-4 h-4 bg-blue-600 rounded-sm flex items-center justify-center">
+                    <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                    </svg>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
 
 interface AdminInfo {
   phone: string;
@@ -106,6 +198,25 @@ export default function AdminEnterprises() {
   const [rechargeAmount, setRechargeAmount] = useState("");
   const [rechargeRemark, setRechargeRemark] = useState("");
   const [rechargeLoading, setRechargeLoading] = useState(false);
+
+  // Add enterprise dialog state
+  const [addDialogOpen, setAddDialogOpen] = useState(false);
+  const [addForm, setAddForm] = useState({
+    enterpriseName: "",
+    adminPhone: "",
+    modelAccess: ["国际"] as string[],
+  });
+  const [addingEnterprise, setAddingEnterprise] = useState(false);
+
+  // Edit enterprise sheet state
+  const [editSheetOpen, setEditSheetOpen] = useState(false);
+  const [editTarget, setEditTarget] = useState<Enterprise | null>(null);
+  const [editForm, setEditForm] = useState({
+    name: "",
+    group: "default",
+    modelAccess: ["国际"] as string[],
+  });
+  const [savingEnterprise, setSavingEnterprise] = useState(false);
 
   const fetchData = async () => {
     setLoading(true);
@@ -215,15 +326,90 @@ export default function AdminEnterprises() {
     }
   );
 
+  const handleAddEnterprise = async () => {
+    if (!addForm.enterpriseName.trim()) {
+      toast({ title: "请输入企业名称", variant: "destructive" });
+      return;
+    }
+    if (!addForm.adminPhone.trim()) {
+      toast({ title: "请输入企业管理员手机号/用户ID", variant: "destructive" });
+      return;
+    }
+
+    setAddingEnterprise(true);
+    try {
+      // 验证管理员是否存在
+      const { data: userData, error: userError } = await supabase
+        .from("users")
+        .select("phone")
+        .or(`phone.eq.${addForm.adminPhone.trim()},id.eq.${addForm.adminPhone.trim()}`)
+        .maybeSingle();
+
+      if (userError || !userData) {
+        toast({ title: "管理员不存在", description: "请检查手机号或用户ID是否正确", variant: "destructive" });
+        setAddingEnterprise(false);
+        return;
+      }
+
+      // 创建企业
+      const { data: enterpriseData, error: enterpriseError } = await supabase
+        .from("enterprises")
+        .insert({
+          name: addForm.enterpriseName.trim(),
+          owner_phone: userData.phone,
+        })
+        .select()
+        .single();
+
+      if (enterpriseError) {
+        toast({ title: "创建失败", description: enterpriseError.message, variant: "destructive" });
+        setAddingEnterprise(false);
+        return;
+      }
+
+      // 创建企业余额记录
+      await supabase.from("enterprise_balances").insert({
+        enterprise_id: enterpriseData.id,
+        balance: 0,
+        total_consumed: 0,
+      });
+
+      // 将管理员添加为成员
+      await supabase.from("members").insert({
+        enterprise_id: enterpriseData.id,
+        user_phone: userData.phone,
+        role: "owner",
+      });
+
+      toast({ title: "企业创建成功", description: `企业「${addForm.enterpriseName}」已添加` });
+      setAddDialogOpen(false);
+      setAddForm({ enterpriseName: "", adminPhone: "", modelAccess: ["国际"] });
+      fetchData(); // 刷新企业列表
+    } catch (err: any) {
+      toast({ title: "创建失败", description: err.message || "未知错误", variant: "destructive" });
+    } finally {
+      setAddingEnterprise(false);
+    }
+  };
+
   const COLS = "grid-cols-[2fr_1.5fr_1fr_1.2fr_1fr_80px_100px_88px]";
 
   return (
     <div className="p-6 space-y-5">
       {/* Header */}
       <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-xl font-semibold text-foreground">企业管理</h1>
-          <p className="text-sm text-muted-foreground mt-0.5">共 {enterprises.length} 家企业</p>
+        <div className="flex items-center gap-3">
+          <div>
+            <h1 className="text-xl font-semibold text-foreground">企业管理</h1>
+            <p className="text-sm text-muted-foreground mt-0.5">共 {enterprises.length} 家企业</p>
+          </div>
+          <Button
+            className="h-9 bg-blue-600 hover:bg-blue-700 text-white"
+            onClick={() => setAddDialogOpen(true)}
+          >
+            <Plus className="w-4 h-4 mr-1.5" />
+            添加企业
+          </Button>
         </div>
         <div className="relative w-64">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
@@ -336,6 +522,23 @@ export default function AdminEnterprises() {
                   <Button
                     size="sm"
                     variant="ghost"
+                    className="h-7 w-7 p-0 text-muted-foreground hover:text-blue-600 hover:bg-blue-50"
+                    title="编辑企业"
+                    onClick={() => {
+                      setEditTarget(e);
+                      setEditForm({
+                        name: e.name,
+                        group: "default",
+                        modelAccess: ["国际"],
+                      });
+                      setEditSheetOpen(true);
+                    }}
+                  >
+                    <Pencil className="w-3.5 h-3.5" />
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="ghost"
                     className="h-7 w-7 p-0 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
                     title="禁用企业"
                     onClick={() => toast({ title: "功能开发中", description: "禁用企业功能即将上线" })}
@@ -388,6 +591,184 @@ export default function AdminEnterprises() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Add Enterprise Dialog */}
+      <Dialog open={addDialogOpen} onOpenChange={setAddDialogOpen}>
+        <DialogContent className="sm:max-w-[480px] p-0 overflow-hidden">
+          <DialogHeader className="px-6 pt-6 pb-4 border-b">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-green-600 font-medium bg-green-50 px-2 py-0.5 rounded">新建</span>
+                <DialogTitle className="text-base font-semibold">添加企业</DialogTitle>
+              </div>
+            </div>
+          </DialogHeader>
+
+          <div className="px-6 py-5 space-y-5">
+            {/* 表单字段 */}
+            <div className="space-y-4">
+              {/* 企业名称 */}
+              <div className="space-y-1.5">
+                <Label className="text-sm">
+                  企业名称 <span className="text-red-500">*</span>
+                </Label>
+                <Input
+                  placeholder="请输入企业名称"
+                  value={addForm.enterpriseName}
+                  onChange={(e) => setAddForm((prev) => ({ ...prev, enterpriseName: e.target.value }))}
+                  className="h-10 bg-gray-50/50 border-gray-200"
+                />
+              </div>
+
+              {/* 企业管理员 */}
+              <div className="space-y-1.5">
+                <Label className="text-sm">
+                  企业管理员 <span className="text-red-500">*</span>
+                </Label>
+                <Input
+                  placeholder="请输入手机号或用户ID"
+                  value={addForm.adminPhone}
+                  onChange={(e) => setAddForm((prev) => ({ ...prev, adminPhone: e.target.value }))}
+                  className="h-10 bg-gray-50/50 border-gray-200"
+                />
+              </div>
+
+              {/* 模型访问权限 */}
+              <div className="space-y-1.5">
+                <Label className="text-sm">
+                  模型访问权限 <span className="text-red-500">*</span>
+                </Label>
+                <ModelAccessSelect
+                  value={addForm.modelAccess}
+                  onChange={(access) => setAddForm((prev) => ({ ...prev, modelAccess: access }))}
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* 底部按钮 */}
+          <div className="px-6 py-4 border-t bg-gray-50/50 flex justify-end gap-2">
+            <Button
+              variant="outline"
+              className="h-9 px-4"
+              onClick={() => {
+                setAddDialogOpen(false);
+                setAddForm({ enterpriseName: "", adminPhone: "", modelAccess: ["国际"] });
+              }}
+            >
+              取消
+            </Button>
+            <Button
+              className="h-9 px-4 bg-green-600 hover:bg-green-700 text-white"
+              onClick={handleAddEnterprise}
+              disabled={addingEnterprise}
+            >
+              {addingEnterprise ? "创建中…" : "确认"}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Enterprise Sheet */}
+      <Sheet open={editSheetOpen} onOpenChange={setEditSheetOpen}>
+        <SheetContent className="sm:max-w-md p-0 overflow-hidden">
+          <SheetHeader className="px-6 pt-6 pb-4 border-b">
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-blue-600 font-medium bg-blue-50 px-2 py-0.5 rounded">编辑</span>
+              <SheetTitle className="text-base font-semibold">编辑企业</SheetTitle>
+            </div>
+          </SheetHeader>
+
+          <div className="px-6 py-5 space-y-5">
+            {/* 企业名称 */}
+            <div className="space-y-1.5">
+              <Label className="text-sm">
+                企业名称 <span className="text-red-500">*</span>
+              </Label>
+              <Input
+                placeholder="请输入企业名称"
+                value={editForm.name}
+                onChange={(e) => setEditForm((prev) => ({ ...prev, name: e.target.value }))}
+                className="h-10 bg-gray-50/50 border-gray-200"
+              />
+            </div>
+
+            {/* 分组 */}
+            <div className="space-y-1.5">
+              <Label className="text-sm">
+                分组 <span className="text-red-500">*</span>
+              </Label>
+              <Select
+                value={editForm.group}
+                onValueChange={(value) => setEditForm((prev) => ({ ...prev, group: value }))}
+              >
+                <SelectTrigger className="h-10 bg-gray-50/50 border-gray-200">
+                  <SelectValue placeholder="选择分组" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="default">default</SelectItem>
+                  <SelectItem value="vip">vip</SelectItem>
+                  <SelectItem value="enterprise">enterprise</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* 模型访问权限 */}
+            <div className="space-y-1.5">
+              <Label className="text-sm">
+                模型访问权限 <span className="text-red-500">*</span>
+              </Label>
+              <ModelAccessSelect
+                value={editForm.modelAccess}
+                onChange={(access) => setEditForm((prev) => ({ ...prev, modelAccess: access }))}
+              />
+            </div>
+          </div>
+
+          {/* 底部按钮 */}
+          <div className="absolute bottom-0 left-0 right-0 px-6 py-4 border-t bg-gray-50/50 flex justify-end gap-2">
+            <Button
+              variant="outline"
+              className="h-9 px-4"
+              onClick={() => setEditSheetOpen(false)}
+            >
+              取消
+            </Button>
+            <Button
+              className="h-9 px-4 bg-blue-600 hover:bg-blue-700 text-white"
+              onClick={async () => {
+                if (!editTarget || !editForm.name.trim()) {
+                  toast({ title: "请输入企业名称", variant: "destructive" });
+                  return;
+                }
+                setSavingEnterprise(true);
+                try {
+                  const { error } = await supabase
+                    .from("enterprises")
+                    .update({ name: editForm.name.trim() })
+                    .eq("id", editTarget.id);
+
+                  if (error) {
+                    toast({ title: "保存失败", description: error.message, variant: "destructive" });
+                  } else {
+                    toast({ title: "保存成功", description: `企业「${editForm.name}」已更新` });
+                    setEditSheetOpen(false);
+                    setEditTarget(null);
+                    fetchData();
+                  }
+                } catch (err: any) {
+                  toast({ title: "保存失败", description: err.message || "未知错误", variant: "destructive" });
+                } finally {
+                  setSavingEnterprise(false);
+                }
+              }}
+              disabled={savingEnterprise}
+            >
+              {savingEnterprise ? "保存中…" : "保存"}
+            </Button>
+          </div>
+        </SheetContent>
+      </Sheet>
     </div>
   );
 }
