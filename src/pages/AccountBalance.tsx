@@ -21,6 +21,7 @@ interface BalanceData {
   enterprise_id: string;
   balance: number;
   total_consumed: number;
+  total_recharge: number;
   request_count: number;
   alert_threshold: number | null;
   alert_email: string | null;
@@ -75,6 +76,14 @@ export default function AccountBalance({ enterprise, role }: Props) {
 
     if (error) { console.error(error); return; }
 
+    // Fetch total recharge amount from balance_records
+    const { data: records } = await (supabase as any)
+      .from("balance_records")
+      .select("amount")
+      .eq("enterprise_id", enterprise.id);
+    
+    const totalRecharge = (records || []).reduce((sum: number, r: any) => sum + (r.amount || 0), 0);
+
     if (!data) {
       // init
       const { data: inserted } = await (supabase as any)
@@ -82,9 +91,9 @@ export default function AccountBalance({ enterprise, role }: Props) {
         .insert({ enterprise_id: enterprise.id })
         .select()
         .single();
-      setBalanceData(inserted);
+      setBalanceData({ ...inserted, total_recharge: totalRecharge });
     } else {
-      setBalanceData(data);
+      setBalanceData({ ...data, total_recharge: totalRecharge });
       setAlertMethod(data.alert_method ?? "email");
       setAlertThreshold(data.alert_threshold != null ? String(data.alert_threshold) : "");
       setAlertEmail(data.alert_email ?? "");
@@ -243,7 +252,7 @@ export default function AccountBalance({ enterprise, role }: Props) {
                 <Activity className="w-3.5 h-3.5 text-white/60" />
                 <span className="text-white/60 text-xs">累计充值</span>
               </div>
-              <p className="text-xl font-semibold">{balanceData?.request_count ?? 0}</p>
+              <p className="text-xl font-semibold">¥{(balanceData?.total_recharge ?? 0).toFixed(2)}</p>
             </div>
           </div>
 

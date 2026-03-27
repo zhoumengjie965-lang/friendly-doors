@@ -1,9 +1,13 @@
 import { useState } from "react";
-import { CreditCard, TrendingDown, Wallet, Cpu, BarChart2, MousePointerClick, Layers, Zap, Database, Activity, Globe, Banknote, Coins, FileKey, HardDrive, Clock, BrainCircuit } from "lucide-react";
+import { CreditCard, TrendingDown, Wallet, Cpu, BarChart2, MousePointerClick, Layers, Zap, Database, Activity, Globe, Banknote, Coins, FileKey, HardDrive, Clock, BrainCircuit, CalendarIcon } from "lucide-react";
 import ReactECharts from "echarts-for-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { supabase } from "@/integrations/supabase/client";
 import { useEffect } from "react";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Calendar } from "@/components/ui/calendar";
+import { Button } from "@/components/ui/button";
+import { format, differenceInDays } from "date-fns";
 
 // ─── Types ───────────────────────────────────────────────────────────────
 
@@ -42,6 +46,19 @@ const MOCK_TOP_CONSUMERS: TopConsumer[] = [
   { id: "ent-008", name: "智慧云端", amount: 3200 },
   { id: "ent-009", name: "数字先锋", amount: 2100 },
   { id: "ent-010", name: "未来视界", amount: 1500 },
+];
+
+const MOCK_TOP_USERS: TopConsumer[] = [
+  { id: "usr-001", name: "张三", amount: 12580 },
+  { id: "usr-002", name: "李四", amount: 9860 },
+  { id: "usr-003", name: "王五", amount: 7240 },
+  { id: "usr-004", name: "赵六", amount: 5890 },
+  { id: "usr-005", name: "钱七", amount: 4320 },
+  { id: "usr-006", name: "孙八", amount: 3680 },
+  { id: "usr-007", name: "周九", amount: 2950 },
+  { id: "usr-008", name: "吴十", amount: 2180 },
+  { id: "usr-009", name: "郑十一", amount: 1650 },
+  { id: "usr-010", name: "陈十二", amount: 980 },
 ];
 
 const MOCK_MODEL_USAGE: ModelUsage[] = [
@@ -183,49 +200,59 @@ function StatsCard({ title, titleIcon: TitleIcon, stats }: StatsCardProps) {
   );
 }
 
-function TopConsumersTable({ data }: { data: TopConsumer[] }) {
+function TopConsumersList({ 
+  title, 
+  data 
+}: { 
+  title: string;
+  data: TopConsumer[];
+}) {
   const formatAmount = (amount: number) => {
     return `¥${amount.toLocaleString()}`;
   };
 
+  const maxAmount = Math.max(...data.map(d => d.amount));
+
   return (
-    <div className="bg-card border rounded-xl overflow-hidden">
+    <div className="bg-card border rounded-xl overflow-hidden flex flex-col h-full">
       <div className="px-5 py-4 border-b">
-        <h2 className="text-sm font-semibold text-foreground">企业消耗排行榜 TOP 10</h2>
-        <p className="text-xs text-muted-foreground mt-0.5">按累计消耗金额排序</p>
+        <h2 className="text-sm font-semibold text-foreground">{title}</h2>
       </div>
-      <div className="overflow-x-auto">
-        <table className="w-full">
-          <thead>
-            <tr className="bg-muted/40 text-xs text-muted-foreground">
-              <th className="px-5 py-3 text-left font-medium">排名</th>
-              <th className="px-5 py-3 text-left font-medium">名称/ID</th>
-              <th className="px-5 py-3 text-right font-medium">消耗金额</th>
-            </tr>
-          </thead>
-          <tbody>
-            {data.map((item, index) => (
-              <tr key={item.id} className="border-t text-sm">
-                <td className="px-5 py-3.5">
-                  <span className={`inline-flex items-center justify-center w-6 h-6 rounded-full text-xs font-bold ${
-                    index < 3 ? "bg-amber-100 text-amber-700" : "bg-muted text-muted-foreground"
-                  }`}>
-                    {index + 1}
-                  </span>
-                </td>
-                <td className="px-5 py-3.5">
-                  <div>
-                    <p className="font-medium text-foreground">{item.name}</p>
-                    <p className="text-xs text-muted-foreground font-mono">{item.id}</p>
-                  </div>
-                </td>
-                <td className="px-5 py-3.5 text-right font-medium text-foreground">
-                  {formatAmount(item.amount)}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+      <div className="flex-1 overflow-y-auto">
+        {data.map((item, index) => (
+          <div 
+            key={item.id} 
+            className="flex items-center gap-4 px-5 py-3 border-b last:border-b-0 hover:bg-muted/20 transition-colors"
+          >
+            {/* 排名 */}
+            <span className={`inline-flex items-center justify-center w-5 h-5 rounded-full text-xs font-medium flex-shrink-0 ${
+              index < 3 
+                ? "bg-amber-100 text-amber-700" 
+                : "bg-muted text-muted-foreground"
+            }`}>
+              {index + 1}
+            </span>
+            
+            {/* 名称/ID */}
+            <div className="flex-shrink-0 w-20">
+              <p className="text-sm font-medium text-foreground truncate">{item.name}</p>
+              <p className="text-xs text-muted-foreground font-mono">{item.id}</p>
+            </div>
+            
+            {/* 条形图 */}
+            <div className="flex-1 h-6 bg-muted/50 rounded-full overflow-hidden">
+              <div 
+                className="h-full bg-gradient-to-r from-blue-400 to-blue-500 rounded-full transition-all duration-500"
+                style={{ width: `${(item.amount / maxAmount) * 100}%` }}
+              />
+            </div>
+            
+            {/* 金额 */}
+            <span className="text-sm font-semibold text-foreground flex-shrink-0 w-20 text-right">
+              {formatAmount(item.amount)}
+            </span>
+          </div>
+        ))}
       </div>
     </div>
   );
@@ -297,9 +324,14 @@ export default function AdminResourceStats() {
     balance: 0,
   });
   const [topConsumers, setTopConsumers] = useState<TopConsumer[]>(MOCK_TOP_CONSUMERS);
+  const [topUsers, setTopUsers] = useState<TopConsumer[]>(MOCK_TOP_USERS);
   const [modelAnalysisTab, setModelAnalysisTab] = useState<"consumption" | "calls">("consumption");
   const [daysRange, setDaysRange] = useState<7 | 14 | 30>(14);
   const [leaderboardDaysRange, setLeaderboardDaysRange] = useState<7 | 14 | 30>(14);
+  const [dateRange, setDateRange] = useState<{ from: Date; to: Date }>({
+    from: new Date(new Date().setDate(new Date().getDate() - 13)),
+    to: new Date(),
+  });
 
   useEffect(() => {
     fetchFinancialStats();
@@ -480,8 +512,23 @@ export default function AdminResourceStats() {
     };
   };
 
+  // Generate consumption trend data by date range
+  const generateConsumptionTrendByDateRange = (from: Date, to: Date) => {
+    const days = differenceInDays(to, from) + 1;
+    return Array.from({ length: days }, (_, i) => {
+      const d = new Date(from);
+      d.setDate(d.getDate() + i);
+      const dateStr = `${d.getMonth() + 1}/${d.getDate()}`;
+      return {
+        date: dateStr,
+        consumption: Math.round(8000 + Math.random() * 4000),
+      };
+    });
+  };
+
   // ECharts option for consumption trend area chart
   const getConsumptionTrendOption = () => {
+    const data = generateConsumptionTrendByDateRange(dateRange.from, dateRange.to);
     return {
       tooltip: {
         trigger: "axis" as const,
@@ -503,7 +550,7 @@ export default function AdminResourceStats() {
       xAxis: {
         type: "category" as const,
         boundaryGap: false,
-        data: CONSUMPTION_TREND_DATA.map(d => d.date),
+        data: data.map(d => d.date),
         axisLine: { lineStyle: { color: "#e5e7eb" } },
         axisLabel: { color: "#6b7280", fontSize: 11 },
       },
@@ -524,7 +571,7 @@ export default function AdminResourceStats() {
         smooth: true,
         symbol: "circle",
         symbolSize: 6,
-        data: CONSUMPTION_TREND_DATA.map(d => d.consumption),
+        data: data.map(d => d.consumption),
         lineStyle: {
           color: "#3b82f6",
           width: 2,
@@ -590,9 +637,47 @@ export default function AdminResourceStats() {
 
           {/* 平台消费趋势 */}
           <div className="bg-card border rounded-xl p-5">
-            <div className="mb-4">
-              <h2 className="text-sm font-semibold text-foreground">平台消费趋势</h2>
-              <p className="text-xs text-muted-foreground mt-0.5">近 14 天平台消费金额变化</p>
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <h2 className="text-sm font-semibold text-foreground">平台消费趋势</h2>
+                <p className="text-xs text-muted-foreground mt-0.5">平台消费金额变化趋势</p>
+              </div>
+              {/* 日期范围选择器 */}
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" size="sm" className="h-8 text-xs gap-2">
+                    <CalendarIcon className="h-3.5 w-3.5" />
+                    {dateRange.from ? (
+                      dateRange.to ? (
+                        <>
+                          {format(dateRange.from, "yyyy-MM-dd")} ~ {format(dateRange.to, "yyyy-MM-dd")}
+                        </>
+                      ) : (
+                        format(dateRange.from, "yyyy-MM-dd")
+                      )
+                    ) : (
+                      <span>选择日期范围</span>
+                    )}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="end">
+                  <Calendar
+                    initialFocus
+                    mode="range"
+                    defaultMonth={dateRange.from}
+                    selected={{
+                      from: dateRange.from,
+                      to: dateRange.to,
+                    }}
+                    onSelect={(range) => {
+                      if (range?.from && range?.to) {
+                        setDateRange({ from: range.from, to: range.to });
+                      }
+                    }}
+                    numberOfMonths={2}
+                  />
+                </PopoverContent>
+              </Popover>
             </div>
             <ReactECharts
               option={getConsumptionTrendOption()}
@@ -601,8 +686,11 @@ export default function AdminResourceStats() {
             />
           </div>
 
-          {/* Top 10 消耗排行榜 */}
-          <TopConsumersTable data={topConsumers} />
+          {/* 消耗排行榜 - 企业和个人 */}
+          <div className="grid grid-cols-2 gap-4">
+            <TopConsumersList title="企业消耗排行榜 TOP 10" data={topConsumers} />
+            <TopConsumersList title="个人消耗排行榜 TOP 10" data={topUsers} />
+          </div>
         </TabsContent>
 
         {/* Tab 2: 模型调用 */}
