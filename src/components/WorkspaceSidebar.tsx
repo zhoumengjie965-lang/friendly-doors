@@ -8,7 +8,8 @@ import {
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from "@/components/ui/collapsible";
 import {
   LayoutGrid, Key, BarChart3, FileText, Building2, Users,
-  ChevronDown, ChevronRight, Wallet, Network, Settings, UserCog, UserCircle
+  ChevronDown, ChevronRight, Wallet, Network, Settings, UserCog, UserCircle,
+  Receipt
 } from "lucide-react";
 
 interface NavChild { title: string; url: string; icon: React.ElementType }
@@ -24,6 +25,7 @@ const enterpriseNavItems: NavItem[] = [
     title: "企业管理", icon: Building2, children: [
       { title: "企业信息", url: "/workspace/enterprise/info", icon: Settings },
       { title: "账户余额", url: "/workspace/enterprise/balance", icon: Wallet },
+      { title: "费用账单", url: "/workspace/enterprise/bills", icon: Receipt },
     ],
   },
   { title: "部门管理", url: "/workspace/dept", icon: Users },
