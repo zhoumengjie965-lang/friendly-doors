@@ -301,27 +301,35 @@ function MonthPicker({ value, onChange, placeholder }: { value: string; onChange
   );
 }
 
-// 日期范围选择器组件
+// 日期范围选择器组件（限制同一个月内选择）
 function DayRangePicker({ startDate, endDate, onChange }: { startDate: Date; endDate: Date; onChange: (start: Date, end: Date) => void }) {
   const [open, setOpen] = useState(false);
   const [viewDate, setViewDate] = useState(startDate);
   const [tempStart, setTempStart] = useState<Date | null>(null);
   const [hoverDate, setHoverDate] = useState<Date | null>(null);
 
+  // 锁定月份：已选起始日期后，日历锁定在该月
+  const lockedMonth = tempStart ? new Date(tempStart.getFullYear(), tempStart.getMonth(), 1) : null;
+
   const daysInMonth = eachDayOfInterval({
-    start: startOfMonth(viewDate),
-    end: endOfMonth(viewDate),
+    start: startOfMonth(lockedMonth || viewDate),
+    end: endOfMonth(lockedMonth || viewDate),
   });
 
-  const handlePrevMonth = () => setViewDate(addMonths(viewDate, -1));
-  const handleNextMonth = () => setViewDate(addMonths(viewDate, 1));
+  const handlePrevMonth = () => { if (!lockedMonth) setViewDate(addMonths(viewDate, -1)); };
+  const handleNextMonth = () => { if (!lockedMonth) setViewDate(addMonths(viewDate, 1)); };
 
   const handleSelectDate = (date: Date) => {
     if (!tempStart) {
       setTempStart(date);
+      // 选了起始日期后，锁定到该月份
+      setViewDate(new Date(date.getFullYear(), date.getMonth(), 1));
     } else {
-      const start = tempStart < date ? tempStart : date;
-      const end = tempStart < date ? date : tempStart;
+      // 约束结束日期不超过同月的最后一天
+      const monthEnd = endOfMonth(tempStart);
+      const constrainedEnd = date > monthEnd ? monthEnd : date;
+      const start = tempStart < constrainedEnd ? tempStart : constrainedEnd;
+      const end = tempStart < constrainedEnd ? constrainedEnd : tempStart;
       onChange(start, end);
       setTempStart(null);
       setOpen(false);
@@ -330,8 +338,11 @@ function DayRangePicker({ startDate, endDate, onChange }: { startDate: Date; end
 
   const isInRange = (date: Date) => {
     if (tempStart && hoverDate) {
-      const start = tempStart < hoverDate ? tempStart : hoverDate;
-      const end = tempStart < hoverDate ? hoverDate : tempStart;
+      // 悬浮范围也限制在同月内
+      const monthEnd = endOfMonth(tempStart);
+      const clampedHover = hoverDate > monthEnd ? monthEnd : hoverDate;
+      const start = tempStart < clampedHover ? tempStart : clampedHover;
+      const end = tempStart < clampedHover ? clampedHover : tempStart;
       return date >= start && date <= end;
     }
     return date >= startDate && date <= endDate;
@@ -405,8 +416,8 @@ export default function ExpenseBills({}: Props) {
   // 时间范围筛选（Filtering）
   const [detailStartDate, setDetailStartDate] = useState<Date>(new Date("2025-04-01"));
   const [detailEndDate, setDetailEndDate] = useState<Date>(new Date("2025-04-30"));
-  // 统计粒度（Grouping）：month=按月, day=按天
-  const [grain, setGrain] = useState<"month" | "day">("month");
+  // 统计粒度（Grouping）：summary=汇总(无时间维度), day=按天展开
+  const [grain, setGrain] = useState<"summary" | "day">("summary");
   // 维度复选框（Dimension Grouping）
   const [selectedDimensions, setSelectedDimensions] = useState<ShareDimension[]>(["model"]);
   // 导出记录弹窗
@@ -471,12 +482,10 @@ export default function ExpenseBills({}: Props) {
     filteredDetails.forEach(item => {
       const date = new Date(item.timestamp);
 
-      // 根据统计粒度生成时间键
-      const timeKey = grain === "month"
-        ? format(date, "yyyy-MM")
+      // 根据统计粒度生成时间键：汇总=无时间维度，按天展开=按天
+      const timeKey = grain === "summary"
+        ? ""
         : format(date, "yyyy-MM-dd");
-
-      // 生成唯一键：时间 + 选中的维度组合
       const keyParts = [timeKey];
       selectedDimensions.forEach(dim => {
         keyParts.push(`${dim}:${item[dim]}`);
@@ -517,19 +526,6 @@ export default function ExpenseBills({}: Props) {
     });
   }, [selectedDimensions, grain, detailStartDate, detailEndDate]);
 
-  // 计算合计行
-  const totals = useMemo(() => {
-    return shareData.reduce(
-      (acc, item) => ({
-        requestCount: acc.requestCount + item.requestCount,
-        inputTokens: acc.inputTokens + item.inputTokens,
-        outputTokens: acc.outputTokens + item.outputTokens,
-        amount: acc.amount + item.amount,
-      }),
-      { requestCount: 0, inputTokens: 0, outputTokens: 0, amount: 0 }
-    );
-  }, [shareData]);
-
   // 切换维度
   const toggleDimension = (dim: ShareDimension) => {
     setSelectedDimensions(prev =>
@@ -545,28 +541,34 @@ export default function ExpenseBills({}: Props) {
       <div className="space-y-4">
         {/* 面包屑 */}
         <div className="text-sm text-muted-foreground flex items-center gap-1">
-          <button onClick={handleBack} className="hover:text-foreground">费用账单</button>
-          <span>/</span>
           <button onClick={handleBack} className="hover:text-foreground">月结算单</button>
           <span>/</span>
           <span className="text-foreground font-medium">账单明细</span>
         </div>
 
-        {/* 筛选栏 - 第一行：时间范围筛选 + 账单信息 */}
+        {/* 筛选栏 - 第一行：视图切换 + 账单信息 */}
         <Card>
           <CardContent className="p-4">
             <div className="flex items-center gap-4 flex-wrap">
-              {/* 时间范围选择器 */}
+              {/* 视图切换 */}
               <div className="flex items-center gap-2">
-                <span className="text-xs text-muted-foreground">时间范围:</span>
-                <DayRangePicker
-                  startDate={detailStartDate}
-                  endDate={detailEndDate}
-                  onChange={(start, end) => {
-                    setDetailStartDate(start);
-                    setDetailEndDate(end);
-                  }}
-                />
+                <span className="text-xs text-muted-foreground">账单视图:</span>
+                <Tabs value={viewType} onValueChange={(v) => setViewType(v as "detail" | "share")}>
+                  <TabsList className="h-8">
+                    <TabsTrigger value="detail" className="text-xs px-3">明细</TabsTrigger>
+                    <TabsTrigger value="share" className="text-xs px-3 flex items-center gap-1">
+                      分摊
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <HelpCircle className="w-3 h-3 text-muted-foreground cursor-help" />
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          <p className="text-xs">可多选维度，按所选维度聚合统计数据</p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </TabsTrigger>
+                  </TabsList>
+                </Tabs>
               </div>
 
               <div className="flex-1" />
@@ -590,80 +592,100 @@ export default function ExpenseBills({}: Props) {
           </CardContent>
         </Card>
 
-        {/* 筛选栏 - 第二行：视图切换 + 统计粒度 + 维度选择 */}
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center gap-4 flex-wrap">
-              {/* 视图切换 */}
-              <div className="flex items-center gap-2">
-                <span className="text-xs text-muted-foreground">账单视图:</span>
-                <Tabs value={viewType} onValueChange={(v) => setViewType(v as "detail" | "share")}>
-                  <TabsList className="h-8">
-                    <TabsTrigger value="detail" className="text-xs px-3">明细</TabsTrigger>
-                    <TabsTrigger value="share" className="text-xs px-3">分摊</TabsTrigger>
-                  </TabsList>
-                </Tabs>
+        {/* 筛选栏 - 第二行：仅分摊视图显示（时间范围 + 统计粒度 + 维度选择） */}
+        {viewType === "share" && (
+          <Card>
+            <CardContent className="p-4">
+              <div className="flex items-center gap-4 flex-wrap">
+                {/* 时间范围选择器 */}
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-muted-foreground">时间范围:</span>
+                  <DayRangePicker
+                    startDate={detailStartDate}
+                    endDate={detailEndDate}
+                    onChange={(start, end) => {
+                      setDetailStartDate(start);
+                      setDetailEndDate(end);
+                    }}
+                  />
+                </div>
+
+                {/* 统计粒度选择 */}
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-muted-foreground">展示粒度:</span>
+                  <Select value={grain} onValueChange={(v) => setGrain(v as "summary" | "day")}>
+                    <SelectTrigger className="w-[110px] h-8 text-xs">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="summary" className="text-xs">汇总</SelectItem>
+                      <SelectItem value="day" className="text-xs">按天展开</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* 分摊维度选择 */}
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-muted-foreground">分摊维度:</span>
+                  <div className="flex items-center gap-2">
+                    {(Object.keys(dimensionLabels) as ShareDimension[]).map(dim => (
+                      <label key={dim} className="flex items-center gap-1 cursor-pointer">
+                        <Checkbox
+                          checked={selectedDimensions.includes(dim)}
+                          onCheckedChange={() => toggleDimension(dim)}
+                          className="w-3.5 h-3.5"
+                        />
+                        <span className="text-xs">{dimensionLabels[dim]}</span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="flex-1" />
+
+                {/* 查看导出记录按钮 */}
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-8 text-xs"
+                  onClick={() => setExportDialogOpen(true)}
+                >
+                  查看导出记录
+                </Button>
+
+                {/* 导出按钮 */}
+                <Button
+                  size="sm"
+                  className="h-8 text-xs gap-1 bg-blue-600 hover:bg-blue-700 text-white"
+                >
+                  <Download className="w-3.5 h-3.5" />
+                  导出
+                </Button>
               </div>
+            </CardContent>
+          </Card>
+        )}
 
-              {/* 分摊视图：统计粒度 + 维度选择 */}
-              {viewType === "share" && (
-                <>
-                  {/* 统计粒度选择 */}
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs text-muted-foreground">统计粒度:</span>
-                    <Select value={grain} onValueChange={(v) => setGrain(v as "month" | "day")}>
-                      <SelectTrigger className="w-[90px] h-8 text-xs">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="month" className="text-xs">按月</SelectItem>
-                        <SelectItem value="day" className="text-xs">按天</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  {/* 分摊维度选择 */}
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs text-muted-foreground">分摊维度:</span>
-                    <div className="flex items-center gap-2">
-                      {(Object.keys(dimensionLabels) as ShareDimension[]).map(dim => (
-                        <label key={dim} className="flex items-center gap-1 cursor-pointer">
-                          <Checkbox
-                            checked={selectedDimensions.includes(dim)}
-                            onCheckedChange={() => toggleDimension(dim)}
-                            className="w-3.5 h-3.5"
-                          />
-                          <span className="text-xs">{dimensionLabels[dim]}</span>
-                        </label>
-                      ))}
-                    </div>
-                  </div>
-                </>
-              )}
-
-              <div className="flex-1" />
-
-              {/* 查看导出记录按钮 */}
-              <Button
-                variant="ghost"
-                size="sm"
-                className="h-8 text-xs"
-                onClick={() => setExportDialogOpen(true)}
-              >
-                查看导出记录
-              </Button>
-
-              {/* 导出按钮 - 明细和分摊视图都显示 */}
-              <Button
-                size="sm"
-                className="h-8 text-xs gap-1 bg-blue-600 hover:bg-blue-700 text-white"
-              >
-                <Download className="w-3.5 h-3.5" />
-                导出
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
+        {/* 明细视图的导出按钮行 */}
+        {viewType === "detail" && (
+          <div className="flex justify-end gap-2">
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-8 text-xs"
+              onClick={() => setExportDialogOpen(true)}
+            >
+              查看导出记录
+            </Button>
+            <Button
+              size="sm"
+              className="h-8 text-xs gap-1 bg-blue-600 hover:bg-blue-700 text-white"
+            >
+              <Download className="w-3.5 h-3.5" />
+              导出
+            </Button>
+          </div>
+        )}
 
         {/* 导出记录弹窗 */}
         <Dialog open={exportDialogOpen} onOpenChange={setExportDialogOpen}>
@@ -764,8 +786,10 @@ export default function ExpenseBills({}: Props) {
                       </>
                     ) : (
                       <>
-                        {/* 固定时间列 */}
-                        <TableHead className="text-xs font-medium whitespace-nowrap">时间</TableHead>
+                        {/* 固定时间列（仅按天展开时显示） */}
+                        {grain === "day" && (
+                          <TableHead className="text-xs font-medium whitespace-nowrap">时间</TableHead>
+                        )}
                         {/* 动态维度列 */}
                         {selectedDimensions.map(dim => (
                           <TableHead key={dim} className="text-xs font-medium whitespace-nowrap">
@@ -858,8 +882,10 @@ export default function ExpenseBills({}: Props) {
                       {/* 数据行 */}
                       {shareData.map((item, idx) => (
                         <TableRow key={idx} className="hover:bg-slate-50/50">
-                          {/* 固定时间列 */}
-                          <TableCell className="text-xs whitespace-nowrap">{item.timeKey}</TableCell>
+                          {/* 固定时间列（仅按天展开时显示） */}
+                          {grain === "day" && (
+                            <TableCell className="text-xs whitespace-nowrap">{item.timeKey}</TableCell>
+                          )}
                           {/* 动态维度列 */}
                           {selectedDimensions.map(dim => (
                             <TableCell key={dim} className="text-xs whitespace-nowrap">
@@ -877,24 +903,6 @@ export default function ExpenseBills({}: Props) {
                           <TableCell className="text-xs text-right whitespace-nowrap font-bold">{formatAmount(item.amount)}</TableCell>
                         </TableRow>
                       ))}
-                      {/* 合计行 */}
-                      <TableRow className="bg-slate-50 font-medium border-t-2 border-slate-200">
-                        {/* 时间列占位 */}
-                        <TableCell className="text-xs font-bold whitespace-nowrap">合计</TableCell>
-                        {/* 动态维度列占位 */}
-                        {selectedDimensions.map(dim => (
-                          <TableCell key={dim} className="text-xs whitespace-nowrap"></TableCell>
-                        ))}
-                        {/* 合计统计列 */}
-                        <TableCell className="text-xs text-right whitespace-nowrap font-bold">{totals.requestCount}</TableCell>
-                        <TableCell className="text-xs whitespace-nowrap">
-                          <div className="space-y-0.5">
-                            <div>输入: {totals.inputTokens.toLocaleString()}</div>
-                            <div>输出: {totals.outputTokens.toLocaleString()}</div>
-                          </div>
-                        </TableCell>
-                        <TableCell className="text-xs text-right whitespace-nowrap font-bold">{formatAmount(totals.amount)}</TableCell>
-                      </TableRow>
                     </>
                   )}
                 </TableBody>
@@ -910,9 +918,7 @@ export default function ExpenseBills({}: Props) {
   return (
     <div className="space-y-4">
       {/* 面包屑 */}
-      <div className="text-sm text-muted-foreground">
-        费用账单 / <span className="text-foreground font-medium">月结算单</span>
-      </div>
+      <div className="text-sm text-foreground font-medium">月结算单</div>
 
       {/* 月结算单列表 */}
       <Card>
@@ -921,7 +927,7 @@ export default function ExpenseBills({}: Props) {
           <div className="flex items-center justify-between p-4 border-b">
             {/* 账期选择器 - 左侧 */}
             <div className="flex items-center gap-2">
-              <span className="text-sm text-muted-foreground">时间:</span>
+              <span className="text-sm text-muted-foreground">账期:</span>
               <MonthPicker
                 value={startPeriod}
                 onChange={setStartPeriod}
@@ -953,10 +959,8 @@ export default function ExpenseBills({}: Props) {
               <Table>
                 <TableHeader>
                   <TableRow className="bg-slate-50 hover:bg-slate-50">
-                    <TableHead className="text-xs font-medium whitespace-nowrap">结算单号</TableHead>
                     <TableHead className="text-xs font-medium whitespace-nowrap">账期</TableHead>
-                    <TableHead className="text-xs font-medium whitespace-nowrap">企业名称</TableHead>
-                    <TableHead className="text-xs font-medium whitespace-nowrap">企业ID</TableHead>
+                    <TableHead className="text-xs font-medium whitespace-nowrap">账户主体</TableHead>
                     <TableHead className="text-xs font-medium text-right whitespace-nowrap">
                       <Tooltip>
                         <TooltipTrigger className="flex items-center justify-end gap-1 cursor-help">
@@ -975,15 +979,12 @@ export default function ExpenseBills({}: Props) {
                           <HelpCircle className="w-3 h-3 text-muted-foreground" />
                         </TooltipTrigger>
                         <TooltipContent>
-                          <p className="text-xs">合同折扣或系统性调减</p>
+                          <p className="text-xs">本账期内已在账单中直接抵扣的模型费用优惠（不包含次月返现及退款）</p>
                         </TooltipContent>
                       </Tooltip>
                     </TableHead>
-                    <TableHead className="text-xs font-medium text-right whitespace-nowrap">应付金额</TableHead>
-                    <TableHead className="text-xs font-medium text-right whitespace-nowrap">已支付金额</TableHead>
-                    <TableHead className="text-xs font-medium text-right whitespace-nowrap">本期退款金额</TableHead>
-                    <TableHead className="text-xs font-medium text-right whitespace-nowrap">本期充值金额</TableHead>
-                    <TableHead className="text-xs font-medium text-right whitespace-nowrap">期末可用余额</TableHead>
+                    <TableHead className="text-xs font-medium text-right whitespace-nowrap">实际消耗金额</TableHead>
+                    <TableHead className="text-xs font-medium whitespace-nowrap">结算单号</TableHead>
                     <TableHead className="text-xs font-medium text-center whitespace-nowrap">操作</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -991,21 +992,15 @@ export default function ExpenseBills({}: Props) {
                   {paginatedBills.length > 0 ? (
                     paginatedBills.map((bill) => (
                       <TableRow key={bill.id} className="hover:bg-slate-50/50">
-                        <TableCell className="text-xs font-mono whitespace-nowrap">{bill.id}</TableCell>
                         <TableCell className="text-xs whitespace-nowrap">{bill.period}</TableCell>
-                        <TableCell className="text-xs whitespace-nowrap">{bill.enterpriseName}</TableCell>
-                        <TableCell className="text-xs text-muted-foreground font-mono whitespace-nowrap">{bill.enterpriseId}</TableCell>
+                        <TableCell className="text-xs whitespace-nowrap">
+                          {bill.enterpriseName}
+                          <span className="block text-[10px] text-muted-foreground font-normal">{bill.enterpriseId}</span>
+                        </TableCell>
                         <TableCell className="text-xs text-right whitespace-nowrap">{formatAmount(bill.consumptionAmount)}</TableCell>
-                        <TableCell className="text-xs text-right whitespace-nowrap text-green-600">-{formatAmount(bill.discountAmount)}</TableCell>
-                        <TableCell className="text-xs text-right whitespace-nowrap">{formatAmount(bill.payableAmount)}</TableCell>
+                        <TableCell className="text-xs text-right whitespace-nowrap text-green-600">{formatAmount(bill.discountAmount)}</TableCell>
                         <TableCell className="text-xs text-right whitespace-nowrap">{formatAmount(bill.paidAmount)}</TableCell>
-                        <TableCell className="text-xs text-right whitespace-nowrap text-green-600">
-                          {bill.refundAmount > 0 ? `-${formatAmount(bill.refundAmount)}` : "-"}
-                        </TableCell>
-                        <TableCell className="text-xs text-right whitespace-nowrap text-green-600">
-                          {bill.rechargeAmount > 0 ? `+${formatAmount(bill.rechargeAmount)}` : "-"}
-                        </TableCell>
-                        <TableCell className="text-xs text-right whitespace-nowrap">{formatAmount(bill.endingBalance)}</TableCell>
+                        <TableCell className="text-xs font-mono whitespace-nowrap">{bill.id}</TableCell>
                         <TableCell className="text-center whitespace-nowrap">
                           <Button
                             variant="ghost"
@@ -1021,7 +1016,7 @@ export default function ExpenseBills({}: Props) {
                     ))
                   ) : (
                     <TableRow>
-                      <TableCell colSpan={12} className="text-center py-12 text-muted-foreground">
+                      <TableCell colSpan={8} className="text-center py-12 text-muted-foreground">
                         <div className="flex flex-col items-center gap-2">
                           <FileText className="w-8 h-8 text-muted-foreground/50" />
                           <p className="text-sm">没有找到需要的数据哦~</p>

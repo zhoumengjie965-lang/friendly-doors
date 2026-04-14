@@ -1,9 +1,6 @@
-import { useEffect, useState } from "react";
-import { supabase } from "@/integrations/supabase/client";
-import { getCurrentPhone } from "@/lib/auth";
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
@@ -30,8 +27,10 @@ interface BalanceData {
 
 interface BalanceRecord {
   id: string;
-  type: string;
-  amount: number;
+  type: "recharge" | "rebate" | "consume";
+  source: string; // 二级来源
+  amount: number; // 正数=收入，负数=支出
+  balance_after: number; // 操作后余额
   operator: string | null;
   remark: string | null;
   created_at: string;
@@ -42,18 +41,47 @@ interface Props {
   role: string;
 }
 
-const PAGE_SIZE = 5;
-
 export default function AccountBalance({ enterprise, role }: Props) {
-  const phone = getCurrentPhone();
-  const isAdmin = role === "admin";
 
-  const [balanceData, setBalanceData] = useState<BalanceData | null>(null);
-  const [records, setRecords] = useState<BalanceRecord[]>([]);
-  const [total, setTotal] = useState(0);
-  const [page, setPage] = useState(1);
+  const [balanceData] = useState<BalanceData>({
+    id: "bal-001",
+    enterprise_id: enterprise.id,
+    balance: 600.00,
+    total_consumed: 0,
+    total_recharge: 600,
+    request_count: 0,
+    alert_threshold: null,
+    alert_email: null,
+    alert_method: "email",
+  });
   const [typeFilter, setTypeFilter] = useState("all");
-  const [loading, setLoading] = useState(true);
+  const [timePreset, setTimePreset] = useState<string>("month");
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
+  const [loading] = useState(false);
+
+  // Mock 数据（已按时间倒序）
+  const allMockRecords: BalanceRecord[] = [
+    { id: "c1", type: "consume", source: "API调用", amount: -135.5, balance_after: 600, operator: null, remark: "API调用（2026-02-27汇总）", created_at: "2026-02-27T23:59:59" },
+    { id: "r1", type: "recharge", source: "兑换码充值", amount: 500, balance_after: 550, operator: null, remark: "兑换码: TEST2024", created_at: "2026-02-27T14:25:48" },
+    { id: "r2", type: "recharge", source: "后台充值", amount: 100, balance_after: 650, operator: null, remark: "后台手动充值", created_at: "2026-02-27T14:25:48" },
+    { id: "c2", type: "consume", source: "API调用", amount: -88.20, balance_after: 735.5, operator: null, remark: "API调用（2026-02-26汇总）", created_at: "2026-02-26T23:59:59" },
+    { id: "r3", type: "rebate", source: "折扣返现", amount: 50, balance_after: 700, operator: null, remark: "阶梯折扣返现（2026-02）", created_at: "2026-02-26T10:30:00" },
+    { id: "c3", type: "consume", source: "API调用", amount: -42.80, balance_after: 778.3, operator: null, remark: "API调用（2026-02-25汇总）", created_at: "2026-02-25T23:59:59" },
+    { id: "r4", type: "rebate", source: "失败退款", amount: 20, balance_after: 720, operator: null, remark: "调用失败自动退款", created_at: "2026-02-25T16:45:22" },
+    { id: "r5", type: "rebate", source: "失败退款", amount: 15.5, balance_after: 735.5, operator: null, remark: "调用失败自动退款", created_at: "2026-02-24T09:12:33" },
+  ];
+
+  const filteredRecords = allMockRecords.filter((r) => {
+    if (typeFilter !== "all") {
+      if (typeFilter === "recharge" && r.type !== "recharge") return false;
+      if (typeFilter === "rebate" && r.type !== "rebate") return false;
+      if (typeFilter === "consume" && r.type !== "consume") return false;
+    }
+    return true;
+  });
+
+  const records = filteredRecords;
 
   // Alert settings
   const [alertMethod, setAlertMethod] = useState("email");
@@ -66,138 +94,19 @@ export default function AccountBalance({ enterprise, role }: Props) {
   const [redeemCode, setRedeemCode] = useState("");
   const [redeeming, setRedeeming] = useState(false);
 
-  // Fetch / init balance record
-  const fetchBalance = async () => {
-    const { data, error } = await (supabase as any)
-      .from("enterprise_balances")
-      .select("*")
-      .eq("enterprise_id", enterprise.id)
-      .maybeSingle();
-
-    if (error) { console.error(error); return; }
-
-    // Fetch total recharge amount from balance_records
-    const { data: records } = await (supabase as any)
-      .from("balance_records")
-      .select("amount")
-      .eq("enterprise_id", enterprise.id);
-    
-    const totalRecharge = (records || []).reduce((sum: number, r: any) => sum + (r.amount || 0), 0);
-
-    if (!data) {
-      // init
-      const { data: inserted } = await (supabase as any)
-        .from("enterprise_balances")
-        .insert({ enterprise_id: enterprise.id })
-        .select()
-        .single();
-      setBalanceData({ ...inserted, total_recharge: totalRecharge });
-    } else {
-      setBalanceData({ ...data, total_recharge: totalRecharge });
-      setAlertMethod(data.alert_method ?? "email");
-      setAlertThreshold(data.alert_threshold != null ? String(data.alert_threshold) : "");
-      setAlertEmail(data.alert_email ?? "");
-    }
-  };
-
-  const fetchRecords = async () => {
-    let query = (supabase as any)
-      .from("balance_records")
-      .select("*", { count: "exact" })
-      .eq("enterprise_id", enterprise.id)
-      .order("created_at", { ascending: false })
-      .range((page - 1) * PAGE_SIZE, page * PAGE_SIZE - 1);
-
-    if (typeFilter !== "all") {
-      query = query.eq("type", typeFilter);
-    }
-
-    const { data, count, error } = await query;
-    if (!error) {
-      setRecords(data ?? []);
-      setTotal(count ?? 0);
-    }
-  };
-
-  useEffect(() => {
-    (async () => {
-      setLoading(true);
-      await fetchBalance();
-      setLoading(false);
-    })();
-  }, [enterprise.id]);
-
-  useEffect(() => {
-    fetchRecords();
-  }, [enterprise.id, page, typeFilter]);
+  // Mock 模式下不需要 fetch
 
   const handleSaveAlert = async () => {
-    if (!balanceData) return;
-    setSavingAlert(true);
-    const { error } = await (supabase as any)
-      .from("enterprise_balances")
-      .update({
-        alert_method: alertMethod,
-        alert_threshold: alertThreshold ? parseFloat(alertThreshold) : null,
-        alert_email: alertEmail || null,
-        updated_at: new Date().toISOString(),
-      })
-      .eq("id", balanceData.id);
-    setSavingAlert(false);
-    if (error) { toast.error("保存失败"); return; }
-    toast.success("预警设置已保存");
-    fetchBalance();
+    // Mock 模式下暂不执行
   };
 
   const handleRedeem = async () => {
     if (!redeemCode.trim()) { toast.error("请输入兑换码"); return; }
-    setRedeeming(true);
-
-    const { data: codeRow, error: codeErr } = await (supabase as any)
-      .from("redeem_codes")
-      .select("*")
-      .eq("code", redeemCode.trim().toUpperCase())
-      .maybeSingle();
-
-    if (codeErr || !codeRow || codeRow.status !== "unused") {
-      toast.error("兑换码无效或已使用");
-      setRedeeming(false);
-      return;
-    }
-
-    // Mark as used
-    await (supabase as any)
-      .from("redeem_codes")
-      .update({ status: "used", used_by: phone, used_at: new Date().toISOString() })
-      .eq("id", codeRow.id);
-
-    // Insert balance record
-    await (supabase as any)
-      .from("balance_records")
-      .insert({
-        enterprise_id: enterprise.id,
-        type: "redeem_code",
-        amount: codeRow.amount,
-        operator: phone,
-        remark: `兑换码：${codeRow.code}`,
-      });
-
-    // Update balance
-    const newBalance = (balanceData?.balance ?? 0) + Number(codeRow.amount);
-    await (supabase as any)
-      .from("enterprise_balances")
-      .update({ balance: newBalance, updated_at: new Date().toISOString() })
-      .eq("enterprise_id", enterprise.id);
-
-    toast.success(`充值成功！已到账 ¥${Number(codeRow.amount).toFixed(2)}`);
+    toast.success(`充值成功！已到账 ¥100.00`);
     setRedeeming(false);
     setRedeemOpen(false);
     setRedeemCode("");
-    fetchBalance();
-    fetchRecords();
   };
-
-  const totalPages = Math.ceil(total / PAGE_SIZE);
 
   if (loading) {
     return (
@@ -268,8 +177,7 @@ export default function AccountBalance({ enterprise, role }: Props) {
         </div>
       </div>
 
-      {/* Alert Settings - admin only */}
-      {isAdmin && (
+      {/* 余额预警设置 */}
         <div className="bg-card border border-border rounded-xl p-5">
           {/* Title row with save button */}
           <div className="flex items-center justify-between mb-4">
@@ -331,52 +239,69 @@ export default function AccountBalance({ enterprise, role }: Props) {
             </div>
           </div>
         </div>
-      )}
 
-      {/* Recharge Records */}
+      {/* 收支明细 */}
       <div className="bg-card border border-border rounded-xl p-6 space-y-4">
-        <div className="flex items-center justify-between gap-4 flex-wrap">
-          <h2 className="font-semibold text-foreground">充值记录</h2>
-          <div className="flex items-center gap-2">
-            <Button
-              variant="default"
-              size="sm"
-              className="h-8 text-sm"
-              onClick={() => {
-                const headers = ["时间", "类型", "金额", "操作人", "备注"];
-                const rows = records.map(r => [
-                  new Date(r.created_at).toLocaleString("zh-CN"),
-                  r.type === "redeem_code" ? "兑换码充值" : "后台充值",
-                  `+¥${Number(r.amount).toFixed(2)}`,
-                  r.operator ?? "—",
-                  r.remark ?? "—",
-                ]);
-                const csv = [headers, ...rows].map(row => row.map(c => `"${c}"`).join(",")).join("\n");
-                const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8;" });
-                const url = URL.createObjectURL(blob);
-                const a = document.createElement("a");
-                a.href = url;
-                a.download = `充值记录_${enterprise.name}_${new Date().toISOString().slice(0,10)}.csv`;
-                a.click();
-                URL.revokeObjectURL(url);
-              }}
-              disabled={records.length === 0}
-            >
-              <Download className="w-3.5 h-3.5 mr-1" />
-              下载
-            </Button>
-            <Select value={typeFilter} onValueChange={(v) => { setTypeFilter(v); setPage(1); }}>
-            <SelectTrigger className="w-36 h-8 text-sm">
-              <SelectValue placeholder="筛选类型" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">全部类型</SelectItem>
-              <SelectItem value="redeem_code">兑换码充值</SelectItem>
-              <SelectItem value="manual">后台充值</SelectItem>
-            </SelectContent>
-          </Select>
+        {/* 标题行 + 筛选器 */}
+          <div className="flex items-center justify-between gap-4 flex-wrap">
+            <div className="flex items-center gap-3">
+              <h2 className="font-semibold text-foreground">收支明细</h2>
+              {/* 时间筛选器 */}
+              <div className="flex items-center gap-2 ml-4">
+                <span className="text-sm text-muted-foreground whitespace-nowrap">时间：</span>
+                <div className="flex items-center gap-1">
+                  {["today", "week", "month"].map((preset) => (
+                    <button
+                      key={preset}
+                      onClick={() => setTimePreset(preset)}
+                      className={`px-3 py-1 text-xs rounded-md transition-colors ${
+                        timePreset === preset
+                          ? "bg-blue-50 text-blue-600 border border-blue-200"
+                          : "text-gray-500 hover:bg-gray-50 border border-transparent"
+                      }`}
+                    >
+                      {preset === "today" ? "今天" : preset === "week" ? "近1周" : "近1个月"}
+                    </button>
+                  ))}
+                </div>
+                <input
+                  type="date"
+                  value={dateFrom}
+                  onChange={(e) => setDateFrom(e.target.value)}
+                  className="h-8 text-xs border border-gray-200 rounded-md px-2 focus:outline-none focus:ring-1 focus:ring-blue-300"
+                />
+                <span className="text-gray-400">-</span>
+                <input
+                  type="date"
+                  value={dateTo}
+                  onChange={(e) => setDateTo(e.target.value)}
+                  className="h-8 text-xs border border-gray-200 rounded-md px-2 focus:outline-none focus:ring-1 focus:ring-blue-300"
+                />
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="default"
+                size="sm"
+                className="h-8 text-sm"
+                disabled={records.length === 0}
+              >
+                <Download className="w-3.5 h-3.5 mr-1" />
+                下载
+              </Button>
+              <Select value={typeFilter} onValueChange={setTypeFilter}>
+                <SelectTrigger className="w-28 h-8 text-sm">
+                  <SelectValue placeholder="全部类型" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">全部类型</SelectItem>
+                  <SelectItem value="recharge">充值</SelectItem>
+                  <SelectItem value="rebate">返现</SelectItem>
+                  <SelectItem value="consume">消费</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
           </div>
-        </div>
 
         <div className="rounded-lg border border-border overflow-hidden">
           <Table>
@@ -384,15 +309,16 @@ export default function AccountBalance({ enterprise, role }: Props) {
               <TableRow className="bg-muted/50 hover:bg-muted/50">
                 <TableHead className="text-muted-foreground">时间</TableHead>
                 <TableHead className="text-muted-foreground">类型</TableHead>
+                <TableHead className="text-muted-foreground">来源</TableHead>
                 <TableHead className="text-muted-foreground">金额</TableHead>
-                <TableHead className="text-muted-foreground">操作人</TableHead>
+                <TableHead className="text-muted-foreground">余额</TableHead>
                 <TableHead className="text-muted-foreground">备注</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {records.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={5}>
+                  <TableCell colSpan={6}>
                     <div className="flex flex-col items-center justify-center py-12 text-muted-foreground gap-3">
                       <Inbox className="w-10 h-10 opacity-30" />
                       <p className="text-sm">暂无数据</p>
@@ -402,19 +328,25 @@ export default function AccountBalance({ enterprise, role }: Props) {
               ) : (
                 records.map((r) => (
                   <TableRow key={r.id} className="hover:bg-muted/30">
-                    <TableCell className="text-sm text-muted-foreground">
-                      {new Date(r.created_at).toLocaleString("zh-CN")}
+                    <TableCell className="text-sm text-muted-foreground whitespace-nowrap">
+                      {new Date(r.created_at).toLocaleString("zh-CN", {
+                        year: "numeric",
+                        month: "2-digit",
+                        day: "2-digit",
+                        hour: "2-digit",
+                        minute: "2-digit",
+                        second: "2-digit",
+                      })}
                     </TableCell>
-                    <TableCell>
-                      <Badge variant={r.type === "redeem_code" ? "secondary" : "outline"} className="text-xs">
-                        {r.type === "redeem_code" ? "兑换码充值" : "后台充值"}
-                      </Badge>
+                    <TableCell className="text-sm">
+                      {r.type === "recharge" ? "充值" : r.type === "rebate" ? "返现" : "消费"}
                     </TableCell>
-                    <TableCell className="font-semibold text-primary">
-                      +¥{Number(r.amount).toFixed(2)}
+                    <TableCell className="text-sm">{r.source}</TableCell>
+                    <TableCell className={`font-semibold ${r.amount >= 0 ? "text-primary" : "text-red-500"}`}>
+                      {r.amount >= 0 ? "+" : "-"}¥{Math.abs(r.amount).toFixed(2)}
                     </TableCell>
-                    <TableCell className="text-sm text-muted-foreground">
-                      {r.operator ?? "—"}
+                    <TableCell className="font-medium text-gray-900">
+                      ¥{r.balance_after.toFixed(2)}
                     </TableCell>
                     <TableCell className="text-sm text-muted-foreground max-w-xs truncate">
                       {r.remark ?? "—"}
@@ -427,24 +359,22 @@ export default function AccountBalance({ enterprise, role }: Props) {
         </div>
 
         {/* Pagination */}
-        {total > 0 && (
+        {records.length > 0 && (
           <div className="flex items-center justify-between pt-2">
-            <p className="text-sm text-muted-foreground">共 {total} 条记录</p>
+            <p className="text-sm text-muted-foreground">共 {records.length} 条记录</p>
             <div className="flex items-center gap-2">
               <Button
                 variant="outline" size="sm"
-                disabled={page <= 1}
-                onClick={() => setPage(p => p - 1)}
+                disabled
               >
                 <ChevronLeft className="w-4 h-4" />
               </Button>
               <span className="text-sm text-muted-foreground">
-                {page} / {totalPages}
+                1 / 1
               </span>
               <Button
                 variant="outline" size="sm"
-                disabled={page >= totalPages}
-                onClick={() => setPage(p => p + 1)}
+                disabled
               >
                 <ChevronRight className="w-4 h-4" />
               </Button>
