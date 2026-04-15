@@ -14,6 +14,17 @@ import {
   Network,
   Layers,
   Settings,
+  Activity,
+  LayoutDashboard,
+  Key,
+  Wallet,
+  UserCog,
+  Home,
+  Globe,
+  FileQuestion,
+  Info,
+  Monitor,
+  MessageSquare,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import AdminDashboard from "./AdminDashboard";
@@ -26,14 +37,128 @@ import AdminChannels from "./AdminChannels";
 import AdminModelDeploy from "./AdminModelDeploy";
 import AdminSettings from "./AdminSettings";
 import AdminEnterpriseDetail from "./AdminEnterpriseDetail";
-import AdminResourceStats from "./AdminResourceStats";
+import AdminChannelMonitor from "./AdminChannelMonitor";
+import AdminSystemDataDashboard from "./AdminSystemDataDashboard";
 
-const NAV_GROUPS = [
+// 一级菜单页面（空页面）
+function AdminHome() {
+  return (
+    <div className="p-6">
+      <h1 className="text-xl font-semibold mb-4">首页</h1>
+      <p className="text-muted-foreground">首页功能开发中...</p>
+    </div>
+  );
+}
+
+function AdminModelSquare() {
+  return (
+    <div className="p-6">
+      <h1 className="text-xl font-semibold mb-4">模型广场</h1>
+      <p className="text-muted-foreground">模型广场功能开发中...</p>
+    </div>
+  );
+}
+
+function AdminDocs() {
+  return (
+    <div className="p-6">
+      <h1 className="text-xl font-semibold mb-4">文档</h1>
+      <p className="text-muted-foreground">文档功能开发中...</p>
+    </div>
+  );
+}
+
+function AdminAbout() {
+  return (
+    <div className="p-6">
+      <h1 className="text-xl font-semibold mb-4">关于</h1>
+      <p className="text-muted-foreground">关于页面开发中...</p>
+    </div>
+  );
+}
+
+// 聊天模块（空页面）
+function AdminDrillGround() {
+  return (
+    <div className="p-6">
+      <h1 className="text-xl font-semibold mb-4">操练场</h1>
+      <p className="text-muted-foreground">操练场功能开发中...</p>
+    </div>
+  );
+}
+
+function AdminChat() {
+  return (
+    <div className="p-6">
+      <h1 className="text-xl font-semibold mb-4">聊天</h1>
+      <p className="text-muted-foreground">聊天功能开发中...</p>
+    </div>
+  );
+}
+
+// 控制台子模块（空页面）
+function AdminDataDashboard() {
+  return (
+    <div className="p-6">
+      <h1 className="text-xl font-semibold mb-4">数据看板</h1>
+      <p className="text-muted-foreground">数据看板功能开发中...</p>
+    </div>
+  );
+}
+
+function AdminTokenManagement() {
+  return (
+    <div className="p-6">
+      <h1 className="text-xl font-semibold mb-4">令牌管理</h1>
+      <p className="text-muted-foreground">令牌管理功能开发中...</p>
+    </div>
+  );
+}
+
+function AdminWalletManagement() {
+  return (
+    <div className="p-6">
+      <h1 className="text-xl font-semibold mb-4">钱包管理</h1>
+      <p className="text-muted-foreground">钱包管理功能开发中...</p>
+    </div>
+  );
+}
+
+function AdminPersonalSettings() {
+  return (
+    <div className="p-6">
+      <h1 className="text-xl font-semibold mb-4">个人设置</h1>
+      <p className="text-muted-foreground">个人设置功能开发中...</p>
+    </div>
+  );
+}
+
+// 顶部一级菜单
+const TOP_NAV_ITEMS = [
+  { label: "首页", path: "/admin/home", icon: Home },
+  { label: "系统数据看板", path: "/admin/system-dashboard", icon: BarChart3 },
+  { label: "控制台", path: "/admin/console", icon: LayoutDashboard },
+  { label: "模型广场", path: "/admin/model-square", icon: Globe },
+  { label: "文档", path: "/admin/docs", icon: FileQuestion },
+  { label: "关于", path: "/admin/about", icon: Info },
+];
+
+// 控制台二级菜单（左侧边栏）
+const CONSOLE_NAV_GROUPS = [
+  {
+    label: "聊天",
+    items: [
+      { label: "操练场", icon: Monitor, path: "drill-ground" },
+      { label: "聊天", icon: MessageSquare, path: "chat" },
+    ],
+  },
   {
     label: "控制台",
     items: [
-      { label: "运营概览", icon: BarChart3, path: "resource-stats" },
-      { label: "调用日志", icon: FileText, path: "call-logs" },
+      { label: "数据看板", icon: LayoutDashboard, path: "data-dashboard" },
+      { label: "令牌管理", icon: Key, path: "token-management" },
+      { label: "钱包管理", icon: Wallet, path: "wallet-management" },
+      { label: "个人设置", icon: UserCog, path: "personal-settings" },
     ],
   },
   {
@@ -42,6 +167,8 @@ const NAV_GROUPS = [
       { label: "企业管理", icon: Building2, path: "enterprises" },
       { label: "用户管理", icon: Users, path: "users" },
       { label: "兑换码管理", icon: Ticket, path: "billing" },
+      { label: "调用日志", icon: FileText, path: "call-logs" },
+      { label: "渠道监控", icon: Activity, path: "channel-monitor" },
     ],
   },
   {
@@ -55,18 +182,11 @@ const NAV_GROUPS = [
   },
 ];
 
-export default function AdminLayout() {
-  const navigate = useNavigate();
+// 控制台布局（带左侧边栏）
+function ConsoleLayout() {
   const location = useLocation();
+  const navigate = useNavigate();
   const session = getAdminSession();
-
-  useEffect(() => {
-    if (!session) {
-      navigate("/admin/login", { replace: true });
-    }
-  }, [session, navigate]);
-
-  if (!session) return null;
 
   const handleLogout = () => {
     adminLogout();
@@ -74,29 +194,21 @@ export default function AdminLayout() {
   };
 
   return (
-    <div className="min-h-screen flex bg-muted/20">
-      {/* Sidebar */}
-      <aside className="w-60 shrink-0 bg-card border-r flex flex-col">
-        {/* Logo */}
-        <div className="h-14 flex items-center gap-2.5 px-4 border-b">
-          <div className="w-7 h-7 rounded-lg bg-primary flex items-center justify-center">
-            <Shield className="w-4 h-4 text-primary-foreground" />
-          </div>
-          <span className="font-semibold text-sm text-foreground">运营管理后台</span>
-        </div>
-
+    <div className="flex flex-1 min-w-0">
+      {/* 控制台左侧边栏 */}
+      <aside className="w-56 shrink-0 bg-card border-r flex flex-col">
         {/* Nav */}
         <nav className="flex-1 p-3 overflow-y-auto space-y-4">
-          {NAV_GROUPS.map((group) => (
+          {CONSOLE_NAV_GROUPS.map((group) => (
             <div key={group.label}>
               <p className="px-3 mb-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/60">{group.label}</p>
               <div className="space-y-0.5">
                 {group.items.map((item) => {
-                  const active = location.pathname === `/admin/${item.path}`;
+                  const active = location.pathname === `/admin/console/${item.path}`;
                   return (
                     <NavLink
                       key={item.path}
-                      to={`/admin/${item.path}`}
+                      to={`/admin/console/${item.path}`}
                       className={`flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm transition-colors ${
                         active
                           ? "bg-primary text-primary-foreground font-medium"
@@ -118,10 +230,10 @@ export default function AdminLayout() {
         <div className="p-3 border-t">
           <div className="flex items-center gap-2 px-3 py-2 mb-1">
             <div className="w-7 h-7 rounded-full bg-primary/10 flex items-center justify-center text-primary text-xs font-bold shrink-0">
-              {session.name?.[0] || session.phone.slice(-2)}
+              {session?.name?.[0] || session?.phone.slice(-2)}
             </div>
             <div className="min-w-0 flex-1">
-              <p className="text-xs font-medium text-foreground truncate">{session.name || session.phone}</p>
+              <p className="text-xs font-medium text-foreground truncate">{session?.name || session?.phone}</p>
               <p className="text-xs text-muted-foreground">管理员</p>
             </div>
           </div>
@@ -137,10 +249,12 @@ export default function AdminLayout() {
         </div>
       </aside>
 
-      {/* Main */}
-      <main className="flex-1 flex flex-col min-w-0">
+      {/* 控制台内容区 */}
+      <main className="flex-1 flex flex-col min-w-0 overflow-y-auto">
         <Routes>
-          <Route index element={<Navigate to="resource-stats" replace />} />
+          <Route index element={<Navigate to="drill-ground" replace />} />
+          <Route path="drill-ground" element={<AdminDrillGround />} />
+          <Route path="chat" element={<AdminChat />} />
           <Route path="dashboard" element={<AdminDashboard />} />
           <Route path="enterprises" element={<AdminEnterprises />} />
           <Route path="enterprises/:id" element={<AdminEnterpriseDetail />} />
@@ -151,10 +265,86 @@ export default function AdminLayout() {
           <Route path="model-deploy" element={<AdminModelDeploy />} />
           <Route path="settings" element={<AdminSettings />} />
           <Route path="call-logs" element={<AdminCallLogs />} />
-          <Route path="resource-stats" element={<AdminResourceStats />} />
-          <Route path="*" element={<Navigate to="resource-stats" replace />} />
+          <Route path="channel-monitor" element={<AdminChannelMonitor />} />
+          <Route path="data-dashboard" element={<AdminDataDashboard />} />
+          <Route path="token-management" element={<AdminTokenManagement />} />
+          <Route path="wallet-management" element={<AdminWalletManagement />} />
+          <Route path="personal-settings" element={<AdminPersonalSettings />} />
+          <Route path="*" element={<Navigate to="data-dashboard" replace />} />
         </Routes>
       </main>
+    </div>
+  );
+}
+
+export default function AdminLayout() {
+  const navigate = useNavigate();
+  const location = useLocation();
+  const session = getAdminSession();
+
+  useEffect(() => {
+    if (!session) {
+      navigate("/admin/login", { replace: true });
+    }
+  }, [session, navigate]);
+
+  if (!session) return null;
+
+  return (
+    <div className="min-h-screen flex flex-col bg-muted/20">
+      {/* 顶部一级导航栏 */}
+      <header className="h-14 bg-card border-b flex items-center justify-between px-4 shrink-0">
+        <div className="flex items-center gap-6">
+          {/* Logo */}
+          <div className="flex items-center gap-2">
+            <div className="w-7 h-7 rounded-lg bg-primary flex items-center justify-center">
+              <Shield className="w-4 h-4 text-primary-foreground" />
+            </div>
+            <span className="font-semibold text-sm text-foreground">Token Switch</span>
+          </div>
+
+          {/* 顶部导航菜单 */}
+          <nav className="flex items-center gap-1">
+            {TOP_NAV_ITEMS.map((item) => {
+              const isActive = item.path === "/admin/console" 
+                ? location.pathname.startsWith("/admin/console")
+                : location.pathname === item.path;
+              return (
+                <NavLink
+                  key={item.path}
+                  to={item.path}
+                  className={`px-3 py-1.5 rounded-md text-sm transition-colors ${
+                    isActive
+                      ? "bg-primary text-primary-foreground font-medium"
+                      : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                  }`}
+                >
+                  {item.label}
+                </NavLink>
+              );
+            })}
+          </nav>
+        </div>
+      </header>
+
+      {/* 主体内容区 */}
+      <div className="flex-1 flex min-w-0 overflow-hidden">
+        <Routes>
+          {/* 控制台页面（带左侧边栏） */}
+          <Route path="console/*" element={<ConsoleLayout />} />
+          
+          {/* 其他一级菜单页面（无左侧边栏） */}
+          <Route path="home" element={<div className="flex-1 overflow-y-auto"><AdminHome /></div>} />
+          <Route path="system-dashboard" element={<div className="flex-1 overflow-y-auto"><AdminSystemDataDashboard /></div>} />
+          <Route path="model-square" element={<div className="flex-1 overflow-y-auto"><AdminModelSquare /></div>} />
+          <Route path="docs" element={<div className="flex-1 overflow-y-auto"><AdminDocs /></div>} />
+          <Route path="about" element={<div className="flex-1 overflow-y-auto"><AdminAbout /></div>} />
+          
+          {/* 默认跳转 */}
+          <Route index element={<Navigate to="system-dashboard" replace />} />
+          <Route path="*" element={<Navigate to="system-dashboard" replace />} />
+        </Routes>
+      </div>
     </div>
   );
 }

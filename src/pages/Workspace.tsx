@@ -235,7 +235,7 @@ export default function Workspace() {
 
   // ── Identity description ──
   const identityDesc = enterprise
-    ? [enterprise.name, currentOrg?.name, roleLabel(role)].filter(Boolean).join(" · ")
+    ? `当前企业：${enterprise.name}`
     : null;
 
   // ── Avatar initials ──
@@ -257,7 +257,7 @@ export default function Workspace() {
           {avatarText}
         </div>
         <div className="hidden sm:flex flex-col items-start">
-          <span className="text-sm text-foreground leading-tight">{userName || phone}</span>
+          <span className="text-sm text-foreground leading-tight">用户展示名</span>
           <span className="text-[10px] text-primary bg-primary/10 rounded px-1.5 py-0 mt-0.5">
             {enterprise ? "企业模式" : "个人模式"}
           </span>
@@ -274,8 +274,8 @@ export default function Workspace() {
               {avatarText}
             </div>
             <div className="min-w-0">
-              <p className="text-sm font-semibold text-foreground truncate">{userName || `用户${phone?.slice(-4)}`}</p>
-              <p className="text-xs text-muted-foreground truncate">{phone}</p>
+              <p className="text-sm font-semibold text-foreground truncate">用户展示名</p>
+              <p className="text-xs text-muted-foreground truncate">用户ID：18217795009</p>
               {identityDesc && (
                 <p className="text-[11px] text-primary bg-primary/8 rounded px-1.5 py-0.5 mt-1 truncate">{identityDesc}</p>
               )}

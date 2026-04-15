@@ -16,7 +16,9 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Search, ExternalLink, Zap, Ban, ChevronDown, Plus, X, Pencil } from "lucide-react";
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem } from "@/components/ui/command";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Check, Search, ExternalLink, Zap, Ban, ChevronDown, Plus, X, Pencil } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { getAdminSession } from "@/lib/adminAuth";
 
@@ -24,6 +26,60 @@ const MODEL_ACCESS_OPTIONS = [
   { value: "国内", label: "国内" },
   { value: "国际", label: "国际" },
 ];
+
+// 分组可搜索下拉选择器
+const GROUP_OPTIONS = [
+  { value: "basic", name: "basic", remark: "试用客户", discountChannels: "gemini高速折扣通道 (x0.75)、grok高速折扣通道 (x0.85)、openai高速折扣通道 (x0.85)" },
+  { value: "openai-basic", name: "openai-basic", remark: "正式客户", discountChannels: "openai高速折扣通道 (x0.85)" },
+  { value: "grok-fast", name: "grok-fast", remark: "正式客户", discountChannels: "grok高速折扣通道 (x0.85)" },
+  { value: "claudetest", name: "claude-test", remark: "正式客户", discountChannels: "claude高速折扣通道 (x0.85)" },
+  { value: "vip-ep", name: "vip-ep", remark: "正式客户", discountChannels: "gemini高速折扣通道 (x0.75)、grok高速折扣通道 (x0.85)" },
+  { value: "suno", name: "suno", remark: "正式客户", discountChannels: "suno高速折扣通道 (x0.8)" },
+  { value: "gemini-fast", name: "gemini-fast", remark: "正式客户", discountChannels: "gemini高速折扣通道 (x0.75)" },
+  { value: "vip-dp", name: "vip-dp", remark: "互联内结客户", discountChannels: "gemini高速折扣通道 (x0.75)、grok高速折扣通道 (x0.85)、claude高速折扣通道 (x0.85)" },
+];
+
+function GroupCombobox({ value, onChange }: { value: string; onChange: (value: string) => void }) {
+  const [open, setOpen] = useState(false);
+  const selected = GROUP_OPTIONS.find((g) => g.value === value);
+  const displayText = selected
+    ? `${selected.name} (${selected.remark})`
+    : "请选择分组";
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <button className="flex h-10 w-full items-center justify-between rounded-md border border-gray-200 bg-gray-50/50 px-3 py-2 text-sm hover:bg-gray-100">
+          <span className={value ? "" : "text-muted-foreground"}>{displayText}</span>
+          <ChevronDown className="h-4 w-4 opacity-50" />
+        </button>
+      </PopoverTrigger>
+      <PopoverContent className="p-0 w-[320px]" align="start">
+        <Command shouldFilter>
+          <CommandInput placeholder="搜索分组..." />
+          <CommandEmpty>未找到匹配的分组</CommandEmpty>
+          <CommandGroup>
+            {GROUP_OPTIONS.map((group) => {
+              return (
+                <CommandItem
+                  key={group.value}
+                  value={group.name}
+                  onSelect={() => {
+                    onChange(group.value);
+                    setOpen(false);
+                  }}
+                >
+                  <Check className={`mr-2 h-4 w-4 ${value === group.value ? "opacity-100" : "opacity-0"}`} />
+                  <span>{group.name} ({group.remark})</span>
+                </CommandItem>
+              );
+            })}
+          </CommandGroup>
+        </Command>
+      </PopoverContent>
+    </Popover>
+  );
+}
 
 // Multi-select dropdown component for model access
 function ModelAccessSelect({
@@ -698,19 +754,15 @@ export default function AdminEnterprises() {
               <Label className="text-sm">
                 分组 <span className="text-red-500">*</span>
               </Label>
-              <Select
+              <GroupCombobox
                 value={editForm.group}
-                onValueChange={(value) => setEditForm((prev) => ({ ...prev, group: value }))}
-              >
-                <SelectTrigger className="h-10 bg-gray-50/50 border-gray-200">
-                  <SelectValue placeholder="选择分组" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="default">default</SelectItem>
-                  <SelectItem value="vip">vip</SelectItem>
-                  <SelectItem value="enterprise">enterprise</SelectItem>
-                </SelectContent>
-              </Select>
+                onChange={(value) => setEditForm((prev) => ({ ...prev, group: value }))}
+              />
+              {editForm.group && (
+                <p className="text-xs text-muted-foreground mt-1">
+                  对应令牌分组：{GROUP_OPTIONS.find((g) => g.value === editForm.group)?.discountChannels}
+                </p>
+              )}
             </div>
 
             {/* 模型访问权限 */}
