@@ -108,20 +108,26 @@ function formatQuota(used: number, total: number | null) {
   );
 }
 
-type MergedStatus = "正常" | "预算不足" | "已过期" | "禁用";
+type MergedStatus = "启用" | "禁用";
 
 function getMergedStatus(k: ApiKey): MergedStatus {
   if (k.status === "disabled") return "禁用";
-  if (k.expires_at && new Date(k.expires_at) < new Date()) return "已过期";
-  if (k.total_quota !== null && k.used_quota >= k.total_quota) return "预算不足";
-  return "正常";
+  return "启用";
+}
+
+// 检查 key 是否过期
+function isExpired(k: ApiKey): boolean {
+  return !!(k.expires_at && new Date(k.expires_at) < new Date());
+}
+
+// 检查 key 是否预算不足
+function isBudgetExceeded(k: ApiKey): boolean {
+  return !!(k.total_quota !== null && k.used_quota >= k.total_quota);
 }
 
 const mergedStatusConfig: Record<MergedStatus, { dot: string; badge: string; label: string }> = {
-  "正常":    { dot: "bg-green-500",  badge: "bg-green-50 text-green-700 border-green-200",   label: "正常" },
-  "预算不足":{ dot: "bg-orange-500", badge: "bg-orange-50 text-orange-700 border-orange-200",label: "预算不足" },
-  "已过期":  { dot: "bg-gray-400",   badge: "bg-gray-100 text-gray-500 border-gray-200",     label: "已过期" },
-  "禁用":    { dot: "bg-gray-300",   badge: "bg-gray-100 text-gray-400 border-gray-200",     label: "禁用" },
+  "启用":    { dot: "bg-green-500",  badge: "bg-green-50 text-green-700 border-green-200",   label: "启用" },
+  "禁用":    { dot: "bg-red-500",    badge: "bg-transparent text-foreground border-transparent", label: "禁用" },
 };
 
 // 可搜索下拉选择组件
@@ -677,9 +683,7 @@ Key 配置信息
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="start">
                         <DropdownMenuCheckboxItem checked={statusFilter === "all"} onCheckedChange={() => setStatusFilter("all")}>全部</DropdownMenuCheckboxItem>
-                        <DropdownMenuCheckboxItem checked={statusFilter === "正常"} onCheckedChange={() => setStatusFilter("正常")}>正常</DropdownMenuCheckboxItem>
-                        <DropdownMenuCheckboxItem checked={statusFilter === "预算不足"} onCheckedChange={() => setStatusFilter("预算不足")}>预算不足</DropdownMenuCheckboxItem>
-                        <DropdownMenuCheckboxItem checked={statusFilter === "已过期"} onCheckedChange={() => setStatusFilter("已过期")}>已过期</DropdownMenuCheckboxItem>
+                        <DropdownMenuCheckboxItem checked={statusFilter === "启用"} onCheckedChange={() => setStatusFilter("启用")}>启用</DropdownMenuCheckboxItem>
                         <DropdownMenuCheckboxItem checked={statusFilter === "禁用"} onCheckedChange={() => setStatusFilter("禁用")}>禁用</DropdownMenuCheckboxItem>
                       </DropdownMenuContent>
                     </DropdownMenu>
@@ -729,10 +733,24 @@ Key 配置信息
                     <TableCell className="font-medium text-foreground">{k.name}</TableCell>
                     {/* 状态（合并） */}
                     <TableCell>
-                      <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full border text-xs font-medium ${msCfg.badge}`}>
-                        <span className={`w-1.5 h-1.5 rounded-full ${msCfg.dot}`} />
-                        {ms}
-                      </span>
+                      <div className="flex items-center gap-1.5">
+                        <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full border text-xs font-medium ${msCfg.badge}`}>
+                          <span className={`w-1.5 h-1.5 rounded-full ${msCfg.dot}`} />
+                          {ms}
+                        </span>
+                        {/* 过期标签 */}
+                        {isExpired(k) && (
+                          <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-red-100 text-red-600 border border-red-200">
+                            已过期
+                          </span>
+                        )}
+                        {/* 预算不足标签 */}
+                        {!isExpired(k) && isBudgetExceeded(k) && (
+                          <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-orange-100 text-orange-600 border border-orange-200">
+                            预算不足
+                          </span>
+                        )}
+                      </div>
                     </TableCell>
                     {/* 剩余额度/总额度 */}
                     <TableCell>{formatQuota(k.used_quota, k.total_quota)}</TableCell>
@@ -818,9 +836,16 @@ Key 配置信息
                       }
                     </TableCell>
                     <TableCell>
-                      <span className="text-sm text-muted-foreground">
-                        {k.expires_at ? format(new Date(k.expires_at), "yyyy-MM-dd HH:mm") : "永不过期"}
-                      </span>
+                      {k.expires_at ? (
+                        <span className={cn(
+                          "text-sm",
+                          new Date(k.expires_at) < new Date() ? "text-destructive font-medium" : "text-muted-foreground"
+                        )}>
+                          {format(new Date(k.expires_at), "yyyy-MM-dd HH:mm")}
+                        </span>
+                      ) : (
+                        <span className="text-sm text-muted-foreground">永不过期</span>
+                      )}
                     </TableCell>
                     <TableCell>
                       <span className="text-xs text-muted-foreground">{format(new Date(k.created_at), "yyyy-MM-dd HH:mm")}</span>
