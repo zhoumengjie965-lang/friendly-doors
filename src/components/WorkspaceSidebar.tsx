@@ -9,7 +9,7 @@ import { Collapsible, CollapsibleTrigger, CollapsibleContent } from "@/component
 import {
   LayoutGrid, Key, BarChart3, FileText, Building2, Users,
   ChevronDown, ChevronRight, Wallet, Network, Settings, UserCog, UserCircle,
-  Receipt
+  Receipt, UserPlus
 } from "lucide-react";
 
 interface NavChild { title: string; url: string; icon: React.ElementType }
@@ -29,6 +29,7 @@ const enterpriseNavItems: NavItem[] = [
     ],
   },
   { title: "部门管理", url: "/workspace/dept", icon: Users },
+  { title: "成员管理", url: "/workspace/members", icon: UserPlus },
 ];
 
 // 个人空间菜单

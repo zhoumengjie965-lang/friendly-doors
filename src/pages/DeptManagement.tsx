@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { getCurrentPhone } from "@/lib/auth";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
@@ -27,12 +27,13 @@ import {
   Search, Lock, Building2, Folder, ChevronRight, ChevronDown,
   Users, Key, Plus, MoreHorizontal, Wallet, TrendingUp, BarChart3,
   Sliders, SlidersHorizontal, Pencil, UserCog, Power,
-  Trash2, AlertTriangle, MoreVertical,
+  Trash2, AlertTriangle, MoreVertical, X,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import CreateOrgDialog from "@/components/CreateOrgDialog";
 import OrgBudgetSheet from "@/components/OrgBudgetSheet";
 import InlineBudgetEdit from "@/components/InlineBudgetEdit";
+import { cn } from "@/lib/utils";
 
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -147,7 +148,14 @@ function RootView({ enterprise, role, orgs, loadOrgs }: {
   const [editOrg, setEditOrg] = useState<Org | null>(null);
   const [editName, setEditName] = useState("");
   const [setAdminOrg, setSetAdminOrg] = useState<Org | null>(null);
-  const [newAdminPhone, setNewAdminPhone] = useState("");
+  // 已设定的管理员（从数据库加载）
+  const [currentAdminPhones, setCurrentAdminPhones] = useState<string[]>([]);
+  // 新选择待添加的管理员
+  const [pendingAdminPhones, setPendingAdminPhones] = useState<string[]>([]);
+  const [adminSearchQuery, setAdminSearchQuery] = useState("");
+  const [adminSearchResults, setAdminSearchResults] = useState<{ phone: string; name: string }[]>([]);
+  const [showAdminDropdown, setShowAdminDropdown] = useState(false);
+  const adminDropdownRef = useRef<HTMLDivElement>(null);
   const [saving, setSaving] = useState(false);
   const [showBudgetDialog, setShowBudgetDialog] = useState(false);
   const [totalPackage, setTotalPackage] = useState("");
@@ -184,18 +192,34 @@ function RootView({ enterprise, role, orgs, loadOrgs }: {
 
   useEffect(() => { load(); }, [enterprise.id]);
 
+  // 点击外部关闭管理员下拉框
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (adminDropdownRef.current && !adminDropdownRef.current.contains(event.target as Node)) {
+        setShowAdminDropdown(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
   const orgCount = orgs.length;
   const memberCount = members.length;
 
   // Disable confirm dialog state
   const [disableConfirmOrg, setDisableConfirmOrg] = useState<Org | null>(null);
+  const [enableConfirmOrg, setEnableConfirmOrg] = useState<Org | null>(null);
 
   const toggleStatus = async (org: Org, skipConfirm = false) => {
     const newStatus = org.status === "active" ? "disabled" : "active";
 
-    // Show confirm dialog when disabling (not enabling)
+    // Show confirm dialog when disabling or enabling
     if (newStatus === "disabled" && !skipConfirm) {
       setDisableConfirmOrg(org);
+      return;
+    }
+    if (newStatus === "active" && !skipConfirm) {
+      setEnableConfirmOrg(org);
       return;
     }
 
@@ -219,6 +243,12 @@ function RootView({ enterprise, role, orgs, loadOrgs }: {
     if (!disableConfirmOrg) return;
     setDisableConfirmOrg(null);
     await toggleStatus(disableConfirmOrg, true);
+  };
+
+  const confirmEnable = async () => {
+    if (!enableConfirmOrg) return;
+    setEnableConfirmOrg(null);
+    await toggleStatus(enableConfirmOrg, true);
   };
 
   const handleDelete = async () => {
@@ -265,9 +295,14 @@ function RootView({ enterprise, role, orgs, loadOrgs }: {
     if (!setAdminOrg) return;
     setSaving(true);
     try {
-      const phone = newAdminPhone === "__none__" ? null : newAdminPhone;
-      await supabase.from("organizations").update({ admin_phone: phone } as any).eq("id", setAdminOrg.id);
-      if (phone) {
+      // 合并当前管理员和待添加的管理员
+      const allAdminPhones = [...currentAdminPhones, ...pendingAdminPhones];
+      // 取第一个作为 admin_phone（保持兼容性）
+      const primaryPhone = allAdminPhones.length > 0 ? allAdminPhones[0] : null;
+      await supabase.from("organizations").update({ admin_phone: primaryPhone } as any).eq("id", setAdminOrg.id);
+      
+      // 批量设置管理员角色（当前 + 新添加的）
+      for (const phone of allAdminPhones) {
         const existingMember = members.find(m => m.user_phone === phone);
         if (existingMember) {
           await supabase.from("members").update({ role: "org_admin", organization_id: setAdminOrg.id } as any)
@@ -275,7 +310,7 @@ function RootView({ enterprise, role, orgs, loadOrgs }: {
         }
       }
       toast({ title: "部门管理员已更新" });
-      setSetAdminOrg(null); setNewAdminPhone("");
+      setSetAdminOrg(null); setCurrentAdminPhones([]); setPendingAdminPhones([]); setAdminSearchQuery(""); setShowAdminDropdown(false);
       loadOrgs();
     } catch { toast({ title: "操作失败", variant: "destructive" }); }
     finally { setSaving(false); }
@@ -451,7 +486,7 @@ function RootView({ enterprise, role, orgs, loadOrgs }: {
                           <DropdownMenuItem onClick={() => { setEditOrg(org); setEditName(org.name); }} className="gap-2">
                             <Pencil className="w-3.5 h-3.5" /> 编辑部门名称
                           </DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => { setSetAdminOrg(org); setNewAdminPhone(org.admin_phone || "__none__"); }} className="gap-2">
+                          <DropdownMenuItem onClick={() => { setSetAdminOrg(org); setCurrentAdminPhones(org.admin_phone ? [org.admin_phone] : []); setPendingAdminPhones([]); setAdminSearchQuery(""); setShowAdminDropdown(false); }} className="gap-2">
                             <UserCog className="w-3.5 h-3.5" /> 设置管理员
                           </DropdownMenuItem>
                           {isAdmin && (
@@ -500,100 +535,175 @@ function RootView({ enterprise, role, orgs, loadOrgs }: {
       </Dialog>
 
       {/* Set Admin Dialog */}
-      <Dialog open={!!setAdminOrg} onOpenChange={(o) => { if (!o) setSetAdminOrg(null); }}>
-        <DialogContent className="sm:max-w-sm">
+      <Dialog open={!!setAdminOrg} onOpenChange={(o) => { if (!o) { setSetAdminOrg(null); setCurrentAdminPhones([]); setPendingAdminPhones([]); setAdminSearchQuery(""); setShowAdminDropdown(false); } }}>
+        <DialogContent className="sm:max-w-2xl">
           <DialogHeader><DialogTitle>设置部门管理员</DialogTitle></DialogHeader>
           <div className="space-y-4 py-2">
-            <div className="space-y-2">
-              <Label>选择管理员</Label>
-              <Select value={newAdminPhone} onValueChange={setNewAdminPhone}>
-                <SelectTrigger><SelectValue placeholder="请选择" /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="__none__">不指定（默认企业管理员）</SelectItem>
-                  {members.filter(m => m.user_phone).map(m => (
-                    <SelectItem key={m.user_phone} value={m.user_phone}>
-                      {userMap[m.user_phone] ? `${userMap[m.user_phone]} - ${m.user_phone.slice(0,3)}****${m.user_phone.slice(-4)}` : `${m.user_phone.slice(0,3)}****${m.user_phone.slice(-4)}`}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <p className="text-xs text-muted-foreground">不指定时，该部门默认由企业管理员管理</p>
+            {/* 左右分栏：左侧搜索选择，右侧已选择 */}
+            <div className="grid grid-cols-2 gap-4">
+              {/* 左侧：搜索和可选成员 */}
+              <div className="space-y-2" ref={adminDropdownRef}>
+                <Label>可选成员</Label>
+                <div className="relative">
+                  <Input 
+                    placeholder="搜索姓名或手机号" 
+                    value={adminSearchQuery}
+                    onChange={(e) => {
+                      const value = e.target.value;
+                      setAdminSearchQuery(value);
+                      setShowAdminDropdown(true);
+                      // 搜索成员（排除已设定和已选择的）
+                      const excludedPhones = [...currentAdminPhones, ...pendingAdminPhones];
+                      const results = members
+                        .filter(m => m.user_phone && !excludedPhones.includes(m.user_phone))
+                        .filter(m => 
+                          userMap[m.user_phone]?.includes(value) || 
+                          m.user_phone.includes(value)
+                        )
+                        .slice(0, 8);
+                      setAdminSearchResults(results.map(m => ({ 
+                        phone: m.user_phone, 
+                        name: userMap[m.user_phone] || m.user_phone 
+                      })));
+                    }}
+                    onFocus={() => {
+                      setShowAdminDropdown(true);
+                      // 显示可用成员（排除已设定和已选择的）
+                      const excludedPhones = [...currentAdminPhones, ...pendingAdminPhones];
+                      const results = members
+                        .filter(m => m.user_phone && !excludedPhones.includes(m.user_phone))
+                        .slice(0, 8);
+                      setAdminSearchResults(results.map(m => ({ 
+                        phone: m.user_phone, 
+                        name: userMap[m.user_phone] || m.user_phone 
+                      })));
+                    }}
+                  />
+                  {/* 下拉搜索结果 */}
+                  {showAdminDropdown && (
+                    <div className="absolute top-full left-0 right-0 mt-1 rounded-md border border-border bg-popover shadow-md z-50 max-h-48 overflow-y-auto">
+                      {adminSearchResults.length === 0 ? (
+                        <div className="px-3 py-2 text-xs text-muted-foreground">
+                          {adminSearchQuery.trim() === "" ? "暂无可添加的成员" : "未找到匹配的成员"}
+                        </div>
+                      ) : (
+                        adminSearchResults.map(({ phone, name }) => (
+                          <button
+                            key={phone}
+                            className="w-full px-3 py-2 text-left hover:bg-muted flex items-center gap-2 text-sm"
+                            onClick={() => {
+                              setPendingAdminPhones([...pendingAdminPhones, phone]);
+                              setAdminSearchQuery("");
+                              setShowAdminDropdown(false);
+                            }}
+                          >
+                            <span className="font-medium">{name}</span>
+                            <span className="text-muted-foreground text-xs">
+                              {phone.replace(/(\d{3})\d{4}(\d{4})/, '$1****$2')}
+                            </span>
+                          </button>
+                        ))
+                      )}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* 右侧：已选择待添加 */}
+              <div className="space-y-2">
+                <Label>已选择 ({pendingAdminPhones.length})</Label>
+                <div className="rounded-md border border-border bg-muted/30 h-40 overflow-y-auto">
+                  {pendingAdminPhones.length === 0 ? (
+                    <div className="flex items-center justify-center h-full text-sm text-muted-foreground">点击左侧成员添加</div>
+                  ) : (
+                    <div className="divide-y">
+                      {pendingAdminPhones.map(phone => (
+                        <div key={phone} className="flex items-center justify-between px-3 py-2 bg-background">
+                          <div className="flex flex-col">
+                            <span className="font-medium text-sm">{userMap[phone] || phone.replace(/(\d{3})\d{4}(\d{4})/, '$1****$2')}</span>
+                            <span className="text-muted-foreground text-xs">{phone.replace(/(\d{3})\d{4}(\d{4})/, '$1****$2')}</span>
+                          </div>
+                          <button
+                            onClick={() => {
+                              setPendingAdminPhones(pendingAdminPhones.filter(p => p !== phone));
+                            }}
+                            className="p-1 hover:text-destructive hover:bg-destructive/10 rounded transition-colors"
+                            title="移除"
+                          >
+                            <X className="w-4 h-4" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
             </div>
-            <div className="flex gap-3">
-              <Button variant="outline" className="flex-1" onClick={() => setSetAdminOrg(null)}>取消</Button>
-              <Button className="flex-1" onClick={handleSetAdmin} disabled={saving || !newAdminPhone}>{saving ? "保存中..." : "确认"}</Button>
+
+            {/* 下方：已设定的管理员 */}
+            <div className="space-y-2 pt-2 border-t">
+              <Label>已设定管理员 ({currentAdminPhones.length})</Label>
+              {currentAdminPhones.length === 0 ? (
+                <div className="text-sm text-muted-foreground py-2">暂未设定管理员</div>
+              ) : (
+                <div className="rounded-md border border-border divide-y">
+                  {currentAdminPhones.map(phone => (
+                    <div key={phone} className="flex items-center justify-between px-3 py-2">
+                      <div className="flex items-center gap-2">
+                        <span className="font-medium text-sm">{userMap[phone] || phone.replace(/(\d{3})\d{4}(\d{4})/, '$1****$2')}</span>
+                        <span className="text-muted-foreground text-xs">{phone.replace(/(\d{3})\d{4}(\d{4})/, '$1****$2')}</span>
+                      </div>
+                      <button
+                        onClick={() => {
+                          setCurrentAdminPhones(currentAdminPhones.filter(p => p !== phone));
+                        }}
+                        className="p-1 hover:text-destructive hover:bg-destructive/10 rounded transition-colors"
+                        title="移除管理员权限"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div className="flex gap-3 pt-2">
+              <Button variant="outline" className="flex-1" onClick={() => { setSetAdminOrg(null); setCurrentAdminPhones([]); setPendingAdminPhones([]); setAdminSearchQuery(""); setShowAdminDropdown(false); }}>取消</Button>
+              <Button className="flex-1" onClick={handleSetAdmin} disabled={saving}>{saving ? "保存中..." : "确认"}</Button>
             </div>
           </div>
         </DialogContent>
       </Dialog>
 
-      {/* Delete Confirm - Case 1: Can delete (no resources) */}
-      <AlertDialog open={!!deleteOrg} onOpenChange={(o) => { if (!o) setDeleteOrg(null); }}>
-        <AlertDialogContent className="max-w-sm">
-          <AlertDialogHeader>
-            <AlertDialogTitle>删除部门「{deleteOrg?.name}」？</AlertDialogTitle>
-            <AlertDialogDescription className="text-sm text-muted-foreground">
-              该部门当前无成员和资源，删除后不可恢复。
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter className="gap-2 mt-4">
-            <AlertDialogCancel>取消</AlertDialogCancel>
-            <AlertDialogAction onClick={handleDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
-              删除
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-
-      {/* Cannot Delete - Case 2: Has resources */}
-      <AlertDialog open={!!cannotDeleteOrg} onOpenChange={(o) => { if (!o) setCannotDeleteOrg(null); }}>
-        <AlertDialogContent className="max-w-sm">
-          <AlertDialogHeader>
-            <AlertDialogTitle>该部门暂无法删除</AlertDialogTitle>
-            <AlertDialogDescription className="text-sm text-muted-foreground">
-              部门「{cannotDeleteOrg?.name}」仍存在成员、API Key 或子部门，请先清理后再删除。
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter className="mt-4">
-            <AlertDialogAction onClick={() => setCannotDeleteOrg(null)}>
-              知道了
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-
-      {/* Disable Confirm Dialog */}
+      {/* Disable Department Confirm Dialog */}
       <AlertDialog open={!!disableConfirmOrg} onOpenChange={(o) => { if (!o) setDisableConfirmOrg(null); }}>
         <AlertDialogContent className="max-w-md">
           <AlertDialogHeader>
             <AlertDialogTitle className="flex items-center gap-2">
-              <AlertTriangle className="w-5 h-5 text-destructive" />
+              <span className="text-lg">🚫</span>
               确认禁用部门「{disableConfirmOrg?.name}」？
             </AlertDialogTitle>
           </AlertDialogHeader>
-          <div className="space-y-3 py-2">
-            <p className="text-sm text-muted-foreground">禁用后将产生以下影响：</p>
-            <ul className="space-y-2 text-sm">
-              <li className="flex items-start gap-2">
-                <span className="text-destructive mt-1.5">•</span>
-                <span>所有 API Key 将立即停止调用</span>
-              </li>
-              <li className="flex items-start gap-2">
-                <span className="text-destructive mt-1.5">•</span>
-                <span>该部门成员无法创建新 Key 或使用资源</span>
-              </li>
-              <li className="flex items-start gap-2">
-                <span className="text-destructive mt-1.5">•</span>
-                <span>当前进行中的请求可能会失败</span>
-              </li>
-              <li className="flex items-start gap-2">
-                <span className="text-destructive mt-1.5">•</span>
-                <span>历史数据仍可查看，后续可重新启用</span>
-              </li>
-            </ul>
-          </div>
-          <div className="rounded-lg bg-destructive/10 border border-destructive/20 p-3 text-sm text-destructive font-medium">
-            是否继续？
+          <div className="space-y-4 py-2">
+            <p className="text-sm font-medium text-foreground">
+              禁用后，该部门下所有 API Key 将立即停止调用，成员将无法使用本部门资源。
+            </p>
+
+            <div className="rounded-lg border border-border bg-muted/40 p-3 space-y-2 text-sm">
+              <div className="flex items-center gap-2">
+                <span className="text-muted-foreground shrink-0">受影响成员：</span>
+                <span className="font-medium text-foreground">{disableConfirmOrg?.memberCount ?? 0} 人</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-muted-foreground shrink-0">受影响 Key：</span>
+                <span className="font-medium text-foreground">— 个</span>
+              </div>
+            </div>
+
+            <p className="text-xs text-muted-foreground bg-muted/50 p-2 rounded">
+              注：历史数据仍可查看，后续可重新「启用」以恢复该部门的所有功能。
+            </p>
           </div>
           <AlertDialogFooter className="gap-2 mt-4">
             <AlertDialogCancel>取消</AlertDialogCancel>
@@ -602,6 +712,123 @@ function RootView({ enterprise, role, orgs, loadOrgs }: {
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
               确认禁用
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Enable Department Confirm Dialog */}
+      <AlertDialog open={!!enableConfirmOrg} onOpenChange={(o) => { if (!o) setEnableConfirmOrg(null); }}>
+        <AlertDialogContent className="max-w-md">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <span className="text-lg">ℹ️</span>
+              确认启用部门「{enableConfirmOrg?.name}」？
+            </AlertDialogTitle>
+          </AlertDialogHeader>
+          <div className="space-y-4 py-2">
+            <p className="text-sm font-medium text-foreground">
+              启用后，该部门下所有成员将恢复资源访问权限，名下 API Key 同步恢复可用。
+            </p>
+
+            <div className="rounded-lg border border-border bg-muted/40 p-3 space-y-2 text-sm">
+              <div className="flex items-center gap-2">
+                <span className="text-muted-foreground shrink-0">部门名称：</span>
+                <span className="font-medium text-foreground">{enableConfirmOrg?.name}</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-muted-foreground shrink-0">涉及成员：</span>
+                <span className="font-medium text-foreground">{enableConfirmOrg?.memberCount ?? 0} 人</span>
+              </div>
+            </div>
+
+            <p className="text-xs text-muted-foreground bg-muted/50 p-2 rounded">
+              注：开启后，请检查该部门的剩余预算及配额是否充足。
+            </p>
+          </div>
+          <AlertDialogFooter className="gap-2 mt-4">
+            <AlertDialogCancel>取消</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmEnable}>
+              确认启用
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Delete Department Confirm - Case 1: Can delete (no resources) */}
+      <AlertDialog open={!!deleteOrg} onOpenChange={(o) => { if (!o) setDeleteOrg(null); }}>
+        <AlertDialogContent className="max-w-md">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <span className="text-lg">⚠️</span>
+              确认删除部门「{deleteOrg?.name}」？
+            </AlertDialogTitle>
+          </AlertDialogHeader>
+          <div className="space-y-4 py-2">
+            <p className="text-sm font-medium text-foreground">
+              删除后，该部门及其关联的所有配额数据将被永久清除，且无法恢复。
+            </p>
+
+            <div className="rounded-lg border border-border bg-muted/40 p-3 space-y-2 text-sm">
+              <div className="flex items-center gap-2">
+                <span className="text-muted-foreground shrink-0">部门名称：</span>
+                <span className="font-medium text-foreground">{deleteOrg?.name}</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-muted-foreground shrink-0">当前状态：</span>
+                <span className="font-medium text-foreground">无成员、无活跃 Key</span>
+              </div>
+            </div>
+
+            <p className="text-xs text-muted-foreground bg-muted/50 p-2 rounded">
+              注：删除后，历史消耗记录仍将保留用于统计审计。
+            </p>
+          </div>
+          <AlertDialogFooter className="gap-2 mt-4">
+            <AlertDialogCancel>取消</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              确认删除
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Cannot Delete Department - Case 2: Has resources */}
+      <AlertDialog open={!!cannotDeleteOrg} onOpenChange={(o) => { if (!o) setCannotDeleteOrg(null); }}>
+        <AlertDialogContent className="max-w-md">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <span className="text-lg">⚠️</span>
+              该部门暂无法删除
+            </AlertDialogTitle>
+          </AlertDialogHeader>
+          <div className="space-y-4 py-2">
+            <p className="text-sm font-medium text-foreground">
+              部门「{cannotDeleteOrg?.name}」仍存在关联资源，请先完成清理后再尝试删除。
+            </p>
+
+            <div className="rounded-lg border border-border bg-muted/40 p-3 space-y-2 text-sm">
+              <div className="flex items-center gap-2">
+                <span className="text-muted-foreground shrink-0">待清理成员：</span>
+                <span className="font-medium text-foreground">{cannotDeleteOrg?.memberCount ?? 0} 人</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-muted-foreground shrink-0">活跃 API Key：</span>
+                <span className="font-medium text-foreground">— 个</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-muted-foreground shrink-0">下级子部门：</span>
+                <span className="font-medium text-foreground">— 个</span>
+              </div>
+            </div>
+
+            <p className="text-xs text-muted-foreground bg-muted/50 p-2 rounded">
+              提示：请先在"成员管理"中移除成员，或在"Key管理"中注销相关 Key。
+            </p>
+          </div>
+          <AlertDialogFooter className="mt-4">
+            <AlertDialogAction onClick={() => setCannotDeleteOrg(null)}>
+              知道了
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -700,10 +927,23 @@ function OrgView({ enterprise, role, orgId, orgs, onOrgUpdated }: {
   const [bulkRole, setBulkRole] = useState("member");
   const [bulkLimit, setBulkLimit] = useState("2000");
   const [saving, setSaving] = useState(false);
+  // 用户池导入相关状态
+  const [userPool, setUserPool] = useState<{ id: string; phone: string; name: string; uid: string }[]>([]);
+  const [memberUidMap, setMemberUidMap] = useState<Record<string, string>>({}); // phone -> uid
+  const [selectedUserIds, setSelectedUserIds] = useState<string[]>([]);
+  const [userPoolSearch, setUserPoolSearch] = useState("");
+  const [importRole, setImportRole] = useState("member");
+  const [importLimit, setImportLimit] = useState("");
   // Sub-dept creation
   const [showCreateSubOrg, setShowCreateSubOrg] = useState(false);
   const [subOrgName, setSubOrgName] = useState("");
   const [subOrgBudget, setSubOrgBudget] = useState("");
+  const [subOrgAdminPhones, setSubOrgAdminPhones] = useState<string[]>([]);
+  const [adminSearchQuery, setAdminSearchQuery] = useState("");
+  const [adminSearchResults, setAdminSearchResults] = useState<{ phone: string; name: string; role?: string; isAdmin?: boolean; isOrgAdmin?: boolean }[]>([]);
+  const [showAdminDropdown, setShowAdminDropdown] = useState(false);
+  const adminSearchRef = useRef<HTMLDivElement>(null);
+  const [enterpriseMembers, setEnterpriseMembers] = useState<{ user_phone: string; role: string; organization_id: string | null }[]>([]);
   // Budget batch dialog
   const [showBudgetDialog, setShowBudgetDialog] = useState(false);
   const [memberDailyLimit, setMemberDailyLimit] = useState("");
@@ -720,6 +960,17 @@ function OrgView({ enterprise, role, orgId, orgs, onOrgUpdated }: {
   const { toast } = useToast();
   const phone = getCurrentPhone();
 
+  // 点击外部关闭管理员搜索下拉框
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (adminSearchRef.current && !adminSearchRef.current.contains(event.target as Node)) {
+        setShowAdminDropdown(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
   // Tab state
   const [activeTab, setActiveTab] = useState<"members" | "suborgs">("members");
 
@@ -728,10 +979,18 @@ function OrgView({ enterprise, role, orgId, orgs, onOrgUpdated }: {
   const [childEditOrg, setChildEditOrg] = useState<Org | null>(null);
   const [childEditName, setChildEditName] = useState("");
   const [childSetAdminOrg, setChildSetAdminOrg] = useState<Org | null>(null);
-  const [childNewAdminPhone, setChildNewAdminPhone] = useState("");
+  // 已设定的管理员（从数据库加载）
+  const [childCurrentAdminPhones, setChildCurrentAdminPhones] = useState<string[]>([]);
+  // 新选择待添加的管理员
+  const [childPendingAdminPhones, setChildPendingAdminPhones] = useState<string[]>([]);
+  const [childAdminSearchQuery, setChildAdminSearchQuery] = useState("");
+  const [childAdminSearchResults, setChildAdminSearchResults] = useState<{ phone: string; name: string }[]>([]);
+  const [childShowAdminDropdown, setChildShowAdminDropdown] = useState(false);
+  const childAdminDropdownRef = useRef<HTMLDivElement>(null);
   const [childDeleteOrg, setChildDeleteOrg] = useState<Org | null>(null);
   const [childCannotDeleteOrg, setChildCannotDeleteOrg] = useState<Org | null>(null);
   const [childDisableOrg, setChildDisableOrg] = useState<Org | null>(null);
+  const [childEnableOrg, setChildEnableOrg] = useState<Org | null>(null);
   const [childSaving, setChildSaving] = useState(false);
 
   const selectedOrg = orgs.find(o => o.id === orgId);
@@ -770,6 +1029,17 @@ function OrgView({ enterprise, role, orgId, orgs, onOrgUpdated }: {
   const usageWarning = usageRate >= 90;
 
   useEffect(() => { fetchMembers(); }, [orgId]);
+
+  // 点击外部关闭子部门管理员下拉框
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (childAdminDropdownRef.current && !childAdminDropdownRef.current.contains(event.target as Node)) {
+        setChildShowAdminDropdown(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
 
   async function fetchMembers() {
     setLoading(true);
@@ -903,6 +1173,10 @@ function OrgView({ enterprise, role, orgId, orgs, onOrgUpdated }: {
       setChildDisableOrg(org);
       return;
     }
+    if (newStatus === "active" && !skipConfirm) {
+      setChildEnableOrg(org);
+      return;
+    }
     const { error } = await supabase.from("organizations").update({ status: newStatus } as any).eq("id", org.id);
     if (error) { toast({ title: "操作失败", variant: "destructive" }); return; }
     toast({ title: newStatus === "active" ? "已启用" : "已禁用" });
@@ -913,6 +1187,12 @@ function OrgView({ enterprise, role, orgId, orgs, onOrgUpdated }: {
     if (!childDisableOrg) return;
     setChildDisableOrg(null);
     await handleChildOrgToggleStatus(childDisableOrg, true);
+  };
+
+  const confirmChildEnable = async () => {
+    if (!childEnableOrg) return;
+    setChildEnableOrg(null);
+    await handleChildOrgToggleStatus(childEnableOrg, true);
   };
 
   const handleChildOrgDelete = async () => {
@@ -954,10 +1234,22 @@ function OrgView({ enterprise, role, orgId, orgs, onOrgUpdated }: {
     if (!childSetAdminOrg) return;
     setChildSaving(true);
     try {
-      const phone = childNewAdminPhone === "__none__" ? null : childNewAdminPhone;
-      await supabase.from("organizations").update({ admin_phone: phone } as any).eq("id", childSetAdminOrg.id);
+      // 合并当前管理员和待添加的管理员
+      const allAdminPhones = [...childCurrentAdminPhones, ...childPendingAdminPhones];
+      // 取第一个作为 admin_phone（保持兼容性）
+      const primaryPhone = allAdminPhones.length > 0 ? allAdminPhones[0] : null;
+      await supabase.from("organizations").update({ admin_phone: primaryPhone } as any).eq("id", childSetAdminOrg.id);
+      
+      // 批量设置管理员角色
+      for (const phone of allAdminPhones) {
+        const existingMember = members.find(m => m.user_phone === phone);
+        if (existingMember) {
+          await supabase.from("members").update({ role: "org_admin", organization_id: childSetAdminOrg.id } as any)
+            .eq("user_phone", phone).eq("enterprise_id", enterprise.id);
+        }
+      }
       toast({ title: "部门管理员已更新" });
-      setChildSetAdminOrg(null); setChildNewAdminPhone("");
+      setChildSetAdminOrg(null); setChildCurrentAdminPhones([]); setChildPendingAdminPhones([]); setChildAdminSearchQuery(""); setChildShowAdminDropdown(false);
       onOrgUpdated();
     } catch { toast({ title: "操作失败", variant: "destructive" }); }
     finally { setChildSaving(false); }
@@ -968,6 +1260,25 @@ function OrgView({ enterprise, role, orgId, orgs, onOrgUpdated }: {
   function resetAddDialog() {
     setAddPhone(""); setAddName(""); setAddRole("member"); setAddLimit("2000");
     setBulkText(""); setBulkRole("member"); setBulkLimit("2000"); setAddMode("single");
+    setSelectedUserIds([]); setUserPoolSearch(""); setImportRole("member"); setImportLimit("");
+  }
+
+  // 加载用户池数据
+  async function loadUserPool() {
+    const { data } = await supabase.from("users").select("id, phone, name");
+    if (data) {
+      const usersWithUid = (data as { id: string; phone: string; name: string }[]).map(u => ({
+        ...u,
+        uid: `UID:${u.id.slice(0, 8).toUpperCase()}`,
+      }));
+      setUserPool(usersWithUid);
+      // 创建 phone -> uid 映射
+      const uidMap: Record<string, string> = {};
+      usersWithUid.forEach((u) => {
+        uidMap[u.phone] = u.uid;
+      });
+      setMemberUidMap(uidMap);
+    }
   }
 
   function resetBudgetConfigDialog() {
@@ -1197,8 +1508,8 @@ function OrgView({ enterprise, role, orgId, orgs, onOrgUpdated }: {
                   <Button variant="outline" size="sm" onClick={() => { resetBudgetConfigDialog(); setShowSubOrgBudgetDialog(true); }} className="gap-1.5">
                     <Sliders className="w-3.5 h-3.5" />一键配置预算
                   </Button>
-                  <Button size="sm" onClick={() => setShowAdd(true)} className="gap-1.5">
-                    <Plus className="w-3.5 h-3.5" />添加成员
+                  <Button size="sm" onClick={() => { loadUserPool(); setShowAdd(true); }} className="gap-1.5">
+                    <Plus className="w-3.5 h-3.5" />导入成员
                   </Button>
                 </>
               ) : (
@@ -1240,7 +1551,7 @@ function OrgView({ enterprise, role, orgId, orgs, onOrgUpdated }: {
                 </TableHeader>
                 <TableBody>
                   {members.length === 0 && pendingInvites.length === 0 ? (
-                    <TableRow><TableCell colSpan={7} className="text-center text-muted-foreground py-10">暂无成员，点击"添加成员"开始</TableCell></TableRow>
+                    <TableRow><TableCell colSpan={7} className="text-center text-muted-foreground py-10">暂无成员，点击"导入成员"从用户池添加</TableCell></TableRow>
                   ) : members.map((m) => (
                     <TableRow key={m.id}>
                       <TableCell>
@@ -1372,28 +1683,43 @@ function OrgView({ enterprise, role, orgId, orgs, onOrgUpdated }: {
                           </Badge>
                         </td>
                         <td className="px-6 py-4 text-right">
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                              <Button variant="outline" size="sm" className="gap-1 h-7 text-xs px-3">
-                                管理 <ChevronDown className="w-3 h-3" />
-                              </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end" className="w-44">
-                              <DropdownMenuItem onClick={() => { setChildEditOrg(org); setChildEditName(org.name); }} className="gap-2">
-                                <Pencil className="w-3.5 h-3.5" /> 编辑部门名称
-                              </DropdownMenuItem>
-                              <DropdownMenuItem onClick={() => { setChildSetAdminOrg(org); setChildNewAdminPhone(org.admin_phone || "__none__"); }} className="gap-2">
-                                <UserCog className="w-3.5 h-3.5" /> 设置管理员
-                              </DropdownMenuItem>
-                              <DropdownMenuSeparator />
-                              <DropdownMenuItem onClick={() => handleChildOrgToggleStatus(org)} className="gap-2">
-                                <Power className="w-3.5 h-3.5" />{org.status === "active" ? "禁用部门" : "启用部门"}
-                              </DropdownMenuItem>
-                              <DropdownMenuItem onClick={() => checkChildOrgDelete(org)} className="gap-2 text-destructive focus:text-destructive" disabled={org.name === "默认组织"}>
-                                <Trash2 className="w-3.5 h-3.5" /> 删除部门
-                              </DropdownMenuItem>
-                            </DropdownMenuContent>
-                          </DropdownMenu>
+                          <div className="flex items-center justify-end gap-1">
+                            {/* 设置管理员 */}
+                            <button
+                              onClick={() => { setChildSetAdminOrg(org); setChildCurrentAdminPhones(org.admin_phone ? [org.admin_phone] : []); setChildPendingAdminPhones([]); setChildAdminSearchQuery(""); setChildShowAdminDropdown(false); }}
+                              className="w-8 h-8 rounded flex items-center justify-center text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors"
+                              title="设置管理员"
+                            >
+                              <UserCog className="w-4 h-4" />
+                            </button>
+                            {/* 编辑部门名称 */}
+                            <button
+                              onClick={() => { setChildEditOrg(org); setChildEditName(org.name); }}
+                              className="w-8 h-8 rounded flex items-center justify-center text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors"
+                              title="编辑部门名称"
+                            >
+                              <Pencil className="w-4 h-4" />
+                            </button>
+                            {/* 更多操作（禁用/删除） */}
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <button
+                                  className="w-8 h-8 rounded flex items-center justify-center text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors"
+                                  title="更多操作"
+                                >
+                                  <MoreHorizontal className="w-4 h-4" />
+                                </button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end" className="w-36">
+                                <DropdownMenuItem onClick={() => handleChildOrgToggleStatus(org)} className="gap-2">
+                                  <Power className="w-3.5 h-3.5" />{org.status === "active" ? "禁用部门" : "启用部门"}
+                                </DropdownMenuItem>
+                                <DropdownMenuItem onClick={() => checkChildOrgDelete(org)} className="gap-2 text-destructive focus:text-destructive" disabled={org.name === "默认组织"}>
+                                  <Trash2 className="w-3.5 h-3.5" /> 删除部门
+                                </DropdownMenuItem>
+                              </DropdownMenuContent>
+                            </DropdownMenu>
+                          </div>
                         </td>
                       </tr>
                     ))}
@@ -1405,35 +1731,36 @@ function OrgView({ enterprise, role, orgId, orgs, onOrgUpdated }: {
         </CardContent>
       </Card>
 
-      {/* Delete Member Confirm Dialog */}
+      {/* Remove Member Confirm Dialog */}
       <AlertDialog open={!!deleteMemberConfirm} onOpenChange={(o) => { if (!o) { setDeleteMemberConfirm(null); setDeleteMemberApiKeyCount(0); } }}>
         <AlertDialogContent className="max-w-md">
           <AlertDialogHeader>
             <AlertDialogTitle className="flex items-center gap-2">
-              <AlertTriangle className="w-5 h-5 text-destructive" />
-              确认删除该成员？
+              <span className="text-lg">⚠️</span>
+              {deleteMemberConfirm && `确认从当前部门移除成员「${memberNames[deleteMemberConfirm.user_phone] ?? "—"}」？`}
             </AlertDialogTitle>
           </AlertDialogHeader>
-          <div className="space-y-3 py-2">
-            <p className="text-sm text-muted-foreground">
-              删除后，该成员将无法访问平台，其创建的 API Key 将被自动禁用，且无法恢复。剩余预算将自动回收至部门，调用记录仍保留用于统计。
+          <div className="space-y-4 py-2">
+            <p className="text-sm text-foreground">
+              移除后，该成员将无法再使用本部门的资源，其名下本部门 Key 将立即失效且不可恢复。
             </p>
+
             <div className="rounded-lg border border-border bg-muted/40 p-3 space-y-2 text-sm">
               <div className="flex items-center gap-2">
-                <span className="text-muted-foreground shrink-0">• 成员：</span>
+                <span className="text-muted-foreground shrink-0">成员：</span>
                 <span className="font-medium text-foreground">
-                  {deleteMemberConfirm ? (memberNames[deleteMemberConfirm.user_phone] ?? "—") : "—"}
+                  {deleteMemberConfirm ? `${memberNames[deleteMemberConfirm.user_phone] ?? "—"} (${memberUidMap[deleteMemberConfirm.user_phone] ?? "UID:—"})` : "—"}
                 </span>
               </div>
               <div className="flex items-center gap-2">
-                <span className="text-muted-foreground shrink-0">• 当前所属部门：</span>
+                <span className="text-muted-foreground shrink-0">当前部门：</span>
                 <span className="font-medium text-foreground">{selectedOrg?.name ?? "—"}</span>
               </div>
-              <div className="flex items-center gap-2">
-                <span className="text-muted-foreground shrink-0">• 名下 API Key：</span>
-                <span className="font-medium text-foreground">{deleteMemberApiKeyCount} 个</span>
-              </div>
             </div>
+
+            <p className="text-xs text-muted-foreground bg-muted/50 p-2 rounded">
+              注：该成员在"成员管理"中依然保留，可在其他部门继续使用。
+            </p>
           </div>
           <AlertDialogFooter className="gap-2 mt-4">
             <AlertDialogCancel onClick={() => { setDeleteMemberConfirm(null); setDeleteMemberApiKeyCount(0); }}>
@@ -1443,7 +1770,7 @@ function OrgView({ enterprise, role, orgId, orgs, onOrgUpdated }: {
               onClick={confirmRemoveMember}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
-              确认删除
+              确认移除
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -1451,15 +1778,34 @@ function OrgView({ enterprise, role, orgId, orgs, onOrgUpdated }: {
 
       {/* Disable Member Confirm Dialog */}
       <AlertDialog open={!!disableMemberConfirm} onOpenChange={(o) => { if (!o) setDisableMemberConfirm(null); }}>
-        <AlertDialogContent className="max-w-sm">
+        <AlertDialogContent className="max-w-md">
           <AlertDialogHeader>
-            <AlertDialogTitle>确认禁用成员「{disableMemberConfirm ? (memberNames[disableMemberConfirm.user_phone] ?? disableMemberConfirm.user_phone) : ""}」？</AlertDialogTitle>
-            <AlertDialogDescription className="text-sm text-muted-foreground">
-              禁用后，该成员将无法继续调用 API 和使用资源，正在调用的key将立即失效。
-            </AlertDialogDescription>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <span className="text-lg">🚫</span>
+              {disableMemberConfirm && `确认禁用成员「${memberNames[disableMemberConfirm.user_phone] ?? "—"}」在本部门的权限？`}
+            </AlertDialogTitle>
           </AlertDialogHeader>
-          <div className="rounded-lg bg-destructive/10 border border-destructive/20 p-3 text-sm text-destructive font-medium">
-            是否继续？
+          <div className="space-y-4 py-2">
+            <p className="text-sm text-foreground">
+              禁用后，该成员将无法调用本部门的资源，所有 API Key 将立即停止调用，重新启用后可恢复。
+            </p>
+
+            <div className="rounded-lg border border-border bg-muted/40 p-3 space-y-2 text-sm">
+              <div className="flex items-center gap-2">
+                <span className="text-muted-foreground shrink-0">成员：</span>
+                <span className="font-medium text-foreground">
+                  {disableMemberConfirm ? `${memberNames[disableMemberConfirm.user_phone] ?? "—"} (${memberUidMap[disableMemberConfirm.user_phone] ?? "UID:—"})` : "—"}
+                </span>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-muted-foreground shrink-0">当前部门：</span>
+                <span className="font-medium text-foreground">{selectedOrg?.name ?? "—"}</span>
+              </div>
+            </div>
+
+            <p className="text-xs text-muted-foreground bg-muted/50 p-2 rounded">
+              注：此操作仅针对当前部门生效，不影响其在其他部门的权限。
+            </p>
           </div>
           <AlertDialogFooter className="gap-2 mt-4">
             <AlertDialogCancel>取消</AlertDialogCancel>
@@ -1514,103 +1860,412 @@ function OrgView({ enterprise, role, orgId, orgs, onOrgUpdated }: {
         </DialogContent>
       </Dialog>
 
-      {/* Add Member Dialog */}
+      {/* Import Member Dialog - 从用户池导入 */}
       <Dialog open={showAdd} onOpenChange={(open) => { setShowAdd(open); if (!open) resetAddDialog(); }}>
-        <DialogContent className="sm:max-w-lg">
+        <DialogContent className="sm:max-w-2xl">
           <DialogHeader>
-            <div className="flex items-center justify-between">
-              <DialogTitle>添加成员</DialogTitle>
-              <div className="flex rounded-md border border-input overflow-hidden text-xs mr-6">
-                <button type="button" onClick={() => setAddMode("single")} className={`px-3 py-1 transition-colors ${addMode === "single" ? "bg-primary text-primary-foreground" : "bg-background text-muted-foreground hover:bg-muted"}`}>单个添加</button>
-                <button type="button" onClick={() => setAddMode("bulk")} className={`px-3 py-1 transition-colors border-l border-input ${addMode === "bulk" ? "bg-primary text-primary-foreground" : "bg-background text-muted-foreground hover:bg-muted"}`}>批量导入</button>
-              </div>
-            </div>
+            <DialogTitle>导入成员</DialogTitle>
           </DialogHeader>
           <div className="space-y-4 py-2">
-            {addMode === "single" ? (
-              <>
-                <div className="grid grid-cols-3 gap-2">
-                  <Input placeholder="手机号" value={addPhone} onChange={(e) => setAddPhone(e.target.value)} />
-                  <Input placeholder="姓名（必填）" value={addName} onChange={(e) => setAddName(e.target.value)} />
-                  <Select value={addRole} onValueChange={setAddRole}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent><SelectItem value="member">普通成员</SelectItem><SelectItem value="org_admin">部门管理员</SelectItem></SelectContent>
-                  </Select>
+            {/* 用户池选择 - 左右分栏 */}
+            <div className="grid grid-cols-2 gap-4">
+              {/* 左侧：可选成员列表 */}
+              <div className="space-y-2">
+                <Label className="text-xs text-muted-foreground">从用户池选择成员</Label>
+                <Input 
+                  placeholder="搜索姓名或手机号" 
+                  value={userPoolSearch} 
+                  onChange={(e) => setUserPoolSearch(e.target.value)}
+                  className="text-sm"
+                />
+                <div className="rounded-md border border-border bg-muted/30 p-2 h-52 overflow-y-auto">
+                  {userPool
+                    .filter(u => 
+                      u.name?.includes(userPoolSearch) || 
+                      u.phone?.includes(userPoolSearch) || 
+                      !userPoolSearch
+                    )
+                    .filter(u => !members.some(m => m.user_phone === u.phone)) // 过滤已在本部门的成员
+                    .length === 0 ? (
+                    <div className="text-center py-4 text-xs text-muted-foreground">
+                      暂无可导入的成员
+                    </div>
+                  ) : (
+                    userPool
+                      .filter(u => 
+                        u.name?.includes(userPoolSearch) || 
+                        u.phone?.includes(userPoolSearch) || 
+                        !userPoolSearch
+                      )
+                      .filter(u => !members.some(m => m.user_phone === u.phone))
+                      .map((user) => (
+                        <label 
+                          key={user.id} 
+                          className="flex items-center gap-2 py-2 px-1 hover:bg-muted/50 rounded cursor-pointer"
+                        >
+                          <input
+                            type="checkbox"
+                            checked={selectedUserIds.includes(user.id)}
+                            onChange={(e) => {
+                              if (e.target.checked) {
+                                setSelectedUserIds([...selectedUserIds, user.id]);
+                              } else {
+                                setSelectedUserIds(selectedUserIds.filter(id => id !== user.id));
+                              }
+                            }}
+                            className="rounded border-gray-300"
+                          />
+                          <div className="flex-1 min-w-0">
+                            <span className="text-sm font-medium">{user.name || "—"}</span>
+                            <span className="text-xs text-muted-foreground ml-2">{user.phone?.replace(/(\d{3})\d{4}(\d{4})/, "$1****$2")}</span>
+                          </div>
+                        </label>
+                      ))
+                  )}
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="add-limit">单日上限（元）</Label>
-                  <Input id="add-limit" type="number" value={addLimit} onChange={(e) => setAddLimit(e.target.value)} placeholder="2000" />
-                </div>
-              </>
-            ) : (
-              <>
-                <Textarea placeholder={"每行一人，格式：姓名 手机号\n例如：\n张三 13800000001\n李四,13900000002"} value={bulkText} onChange={(e) => setBulkText(e.target.value)} className="min-h-[100px] font-mono text-sm" />
-                <p className="text-xs text-muted-foreground">支持空格或逗号分隔姓名和手机号，每行一人</p>
-                <div className="flex items-center gap-3">
-                  <div className="flex items-center gap-2 flex-1">
-                    <span className="text-xs text-muted-foreground shrink-0">统一角色</span>
-                    <Select value={bulkRole} onValueChange={setBulkRole}>
-                      <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
-                      <SelectContent><SelectItem value="member">普通成员</SelectItem><SelectItem value="org_admin">部门管理员</SelectItem></SelectContent>
-                    </Select>
+              </div>
+
+              {/* 右侧：已选择成员列表 */}
+              <div className="space-y-2">
+                <Label className="text-xs text-muted-foreground">已选择名单</Label>
+                <div className="rounded-md border border-border bg-muted/30 h-52 overflow-hidden flex flex-col">
+                  {/* 头部：数量和清空按钮 */}
+                  <div className="flex items-center justify-between px-3 py-2 border-b border-border/50 bg-muted/50">
+                    <span className="text-xs text-muted-foreground">
+                      已选择 {selectedUserIds.length} 人
+                    </span>
+                    {selectedUserIds.length > 0 && (
+                      <button
+                        onClick={() => setSelectedUserIds([])}
+                        className="text-xs text-blue-600 hover:text-blue-700 hover:underline"
+                      >
+                        清空已选
+                      </button>
+                    )}
                   </div>
-                  <div className="flex items-center gap-2 flex-1">
-                    <span className="text-xs text-muted-foreground shrink-0">单日上限</span>
-                    <Input type="number" className="h-8 text-xs" value={bulkLimit} onChange={(e) => setBulkLimit(e.target.value)} placeholder="2000" />
-                  </div>
-                </div>
-                {bulkParsed.length > 0 && (
-                  <div className="rounded-md border border-border bg-muted/30 p-2 space-y-1 max-h-36 overflow-y-auto">
-                    {bulkParsed.map((m, i) => (
-                      <div key={i} className="flex items-center justify-between text-xs gap-2">
-                        <span className="font-medium truncate">{m.name}</span>
-                        <span className="text-muted-foreground shrink-0">{m.phone || "—"}</span>
-                        <span className={m.valid ? "text-green-600 shrink-0" : "text-destructive shrink-0"}>{m.valid ? "✓ 正确" : `✗ ${m.reason}`}</span>
+                  {/* 列表内容 */}
+                  <div className="flex-1 overflow-y-auto p-2">
+                    {selectedUserIds.length === 0 ? (
+                      <div className="text-center py-8 text-xs text-muted-foreground">
+                        尚未选择成员
                       </div>
-                    ))}
+                    ) : (
+                      userPool
+                        .filter(u => selectedUserIds.includes(u.id))
+                        .map((user) => (
+                          <div 
+                            key={user.id} 
+                            className="flex items-center justify-between py-2 px-1 hover:bg-muted/50 rounded"
+                          >
+                            <div className="flex items-center gap-2 flex-1 min-w-0">
+                              <span className="text-sm font-medium truncate">{user.name || "—"}</span>
+                            </div>
+                            <button
+                              onClick={() => setSelectedUserIds(selectedUserIds.filter(id => id !== user.id))}
+                              className="text-muted-foreground hover:text-red-500 p-1"
+                            >
+                              <X className="w-4 h-4" />
+                            </button>
+                          </div>
+                        ))
+                    )}
                   </div>
-                )}
-              </>
-            )}
+                </div>
+              </div>
+            </div>
+
+            {/* 角色和限额设置 */}
+            <div className="grid grid-cols-2 gap-4 pt-2 border-t">
+              <div className="space-y-1.5">
+                <Label className="text-xs">角色</Label>
+                <Select value={importRole} onValueChange={setImportRole}>
+                  <SelectTrigger className="text-sm"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="member">普通成员</SelectItem>
+                    <SelectItem value="org_admin">部门管理员</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs">单日上限（元）</Label>
+                <Input 
+                  type="number" 
+                  value={importLimit} 
+                  onChange={(e) => setImportLimit(e.target.value)} 
+                  placeholder="不填默认为无限制" 
+                  className="text-sm"
+                />
+              </div>
+            </div>
+
+            {/* 说明 */}
+            <div className="text-xs text-muted-foreground bg-muted/50 p-2 rounded">
+              <p>• 只能导入尚未分配至本部门的成员</p>
+              <p>• 如需添加新成员，请先在"成员管理"页面创建</p>
+            </div>
           </div>
           <DialogFooter className="gap-2">
             <Button variant="outline" onClick={() => { setShowAdd(false); resetAddDialog(); }}>取消</Button>
-            <Button onClick={addMode === "single" ? addMember : addBulkMembers} disabled={saving}>{saving ? "添加中…" : "添加"}</Button>
+            <Button 
+              onClick={async () => {
+                if (selectedUserIds.length === 0) {
+                  toast({ title: "请至少选择一位成员", variant: "destructive" });
+                  return;
+                }
+                setSaving(true);
+                let added = 0;
+                for (const userId of selectedUserIds) {
+                  const user = userPool.find(u => u.id === userId);
+                  if (user) {
+                    const { data: existing } = await supabase
+                      .from("members")
+                      .select("id")
+                      .eq("enterprise_id", enterprise.id)
+                      .eq("user_phone", user.phone)
+                      .eq("organization_id", orgId)
+                      .maybeSingle();
+                    if (!existing) {
+                      await supabase.from("members").insert({
+                        enterprise_id: enterprise.id,
+                        organization_id: orgId,
+                        user_phone: user.phone,
+                        role: importRole,
+                        daily_limit: Number(importLimit) || 2000,
+                        status: "active",
+                      });
+                      added++;
+                    }
+                  }
+                }
+                toast({ title: "导入成功", description: `已导入 ${added} 位成员到本部门` });
+                setSaving(false);
+                setShowAdd(false);
+                resetAddDialog();
+                fetchMembers();
+              }} 
+              disabled={saving || selectedUserIds.length === 0}
+            >
+              {saving ? "导入中…" : `导入 (${selectedUserIds.length})`}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
       {/* Create Sub-dept Dialog */}
-      <Dialog open={showCreateSubOrg} onOpenChange={(open) => { setShowCreateSubOrg(open); if (!open) { setSubOrgName(""); setSubOrgBudget(""); } }}>
+      <Dialog open={showCreateSubOrg} onOpenChange={(open) => { setShowCreateSubOrg(open); if (!open) { setSubOrgName(""); setSubOrgBudget(""); setSubOrgAdminPhones([]); setAdminSearchQuery(""); setAdminSearchResults([]); setShowAdminDropdown(false); } }}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>创建子部门</DialogTitle>
-            <DialogDescription>在当前部门下创建下属子部门，子部门共享月度预算限制。</DialogDescription>
+            <DialogDescription>填写以下信息创建新的子部门</DialogDescription>
           </DialogHeader>
-          <div className="space-y-4 py-2">
-            <div className="space-y-1.5">
+          <div className="space-y-5 py-2">
+            {/* 子部门名称 */}
+            <div className="space-y-2">
               <Label htmlFor="sub-name">子部门名称 <span className="text-destructive">*</span></Label>
-              <Input id="sub-name" placeholder="如：华东销售组" value={subOrgName} onChange={(e) => setSubOrgName(e.target.value)} />
+              <Input id="sub-name" placeholder="请输入子部门名称" value={subOrgName} onChange={(e) => setSubOrgName(e.target.value)} />
             </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="sub-budget">本月预算上限（元）</Label>
+            {/* 默认月预算 */}
+            <div className="space-y-2">
+              <Label htmlFor="sub-budget">默认月预算（元/月）</Label>
               <Input id="sub-budget" type="number" placeholder="留空表示不限制" value={subOrgBudget} onChange={(e) => setSubOrgBudget(e.target.value)} />
             </div>
+            {/* 设置子部门管理员 */}
+            <div className="space-y-2" ref={adminSearchRef}>
+              <Label>设置子部门管理员</Label>
+              <div className="relative">
+                {/* Tag 展示区域 + 搜索输入 */}
+                <div 
+                  className={cn(
+                    "min-h-[38px] rounded-md border border-input bg-background px-2 py-1.5 flex flex-wrap gap-1.5 items-center cursor-text",
+                    subOrgAdminPhones.length >= 3 && "bg-muted/50 cursor-not-allowed"
+                  )}
+                  onClick={() => {
+                    if (subOrgAdminPhones.length < 3) {
+                      setShowAdminDropdown(true);
+                      document.getElementById("admin-search-input")?.focus();
+                    }
+                  }}
+                >
+                  {subOrgAdminPhones.map(phone => (
+                    <Badge key={phone} variant="secondary" className="gap-1 px-2 py-0.5">
+                      <span className="max-w-[120px] truncate">
+                        {memberNames[phone] || phone.replace(/(\d{3})\d{4}(\d{4})/, '$1****$2')}
+                      </span>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          const newSelected = subOrgAdminPhones.filter(p => p !== phone);
+                          setSubOrgAdminPhones(newSelected);
+                          // 重新计算可用成员列表
+                          const results = userPool
+                            .filter((m: { phone: string }) => !newSelected.includes(m.phone))
+                            .slice(0, 10);
+                          setAdminSearchResults(results.map((m: { phone: string }) => {
+                            const memberInfo = enterpriseMembers.find(em => em.user_phone === m.phone);
+                            return { 
+                              phone: m.phone, 
+                              name: memberNames[m.phone] || m.phone,
+                              isAdmin: memberInfo?.role === 'admin',
+                              isOrgAdmin: memberInfo?.role === 'org_admin'
+                            };
+                          }));
+                        }}
+                        className="ml-1 hover:text-red-500"
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
+                    </Badge>
+                  ))}
+                  {subOrgAdminPhones.length < 3 ? (
+                    <input
+                      id="admin-search-input"
+                      type="text"
+                      placeholder={subOrgAdminPhones.length === 0 ? "搜索姓名或手机号" : ""}
+                      value={adminSearchQuery}
+                      onChange={(e) => {
+                        const value = e.target.value;
+                        setAdminSearchQuery(value);
+                        setShowAdminDropdown(true);
+                        // 搜索全企业成员（从 userPool 中搜索）
+                        const results = userPool.filter((m: { phone: string }) => 
+                          !subOrgAdminPhones.includes(m.phone) &&
+                          (memberNames[m.phone]?.includes(value) || 
+                           m.phone.includes(value))
+                        ).slice(0, 10);
+                        setAdminSearchResults(results.map((m: { phone: string }) => {
+                          const memberInfo = enterpriseMembers.find(em => em.user_phone === m.phone);
+                          const isAdmin = memberInfo?.role === 'admin';
+                          const isOrgAdmin = memberInfo?.role === 'org_admin';
+                          return { 
+                            phone: m.phone, 
+                            name: memberNames[m.phone] || m.phone,
+                            isAdmin,
+                            isOrgAdmin
+                          };
+                        }));
+                      }}
+                      onFocus={async () => {
+                        setShowAdminDropdown(true);
+                        // 加载企业成员数据（如果还没有加载）
+                        if (enterpriseMembers.length === 0) {
+                          const { data } = await supabase.from("members").select("user_phone, role, organization_id").eq("enterprise_id", enterprise.id);
+                          if (data) setEnterpriseMembers(data as any);
+                        }
+                        // 显示所有可用成员（过滤掉已选择的）
+                        const results = userPool
+                          .filter((m: { phone: string }) => !subOrgAdminPhones.includes(m.phone))
+                          .slice(0, 10);
+                        setAdminSearchResults(results.map((m: { phone: string }) => {
+                          const memberInfo = enterpriseMembers.find(em => em.user_phone === m.phone);
+                          const isAdmin = memberInfo?.role === 'admin';
+                          const isOrgAdmin = memberInfo?.role === 'org_admin';
+                          return { 
+                            phone: m.phone, 
+                            name: memberNames[m.phone] || m.phone,
+                            isAdmin,
+                            isOrgAdmin
+                          };
+                        }));
+                      }}
+                      className="flex-1 min-w-[80px] bg-transparent border-none outline-none text-sm py-0.5"
+                    />
+                  ) : (
+                    <span className="text-xs text-muted-foreground">每个部门最多设置 3 名管理员</span>
+                  )}
+                </div>
+                
+                {/* 下拉搜索结果 */}
+                {showAdminDropdown && subOrgAdminPhones.length < 3 && (
+                  <div className="absolute top-full left-0 right-0 mt-1 rounded-md border border-border bg-popover shadow-md z-50 max-h-48 overflow-y-auto">
+                    {adminSearchResults.length === 0 ? (
+                      <div className="px-3 py-2 text-xs text-muted-foreground">
+                        {adminSearchQuery.trim() === "" ? "暂无可选成员" : "未找到匹配的成员"}
+                      </div>
+                    ) : (
+                      adminSearchResults.map(({ phone, name, isAdmin, isOrgAdmin }) => (
+                        <button
+                          key={phone}
+                          className="w-full px-3 py-2 text-left hover:bg-muted flex items-center justify-between text-sm"
+                          onClick={() => {
+                            setSubOrgAdminPhones([...subOrgAdminPhones, phone]);
+                            setAdminSearchQuery("");
+                            // 重新计算可用成员列表
+                            const newSelected = [...subOrgAdminPhones, phone];
+                            const results = userPool
+                              .filter((m: { phone: string }) => !newSelected.includes(m.phone))
+                              .slice(0, 10);
+                            setAdminSearchResults(results.map((m: { phone: string }) => {
+                              const memberInfo = enterpriseMembers.find(em => em.user_phone === m.phone);
+                              return { 
+                                phone: m.phone, 
+                                name: memberNames[m.phone] || m.phone,
+                                isAdmin: memberInfo?.role === 'admin',
+                                isOrgAdmin: memberInfo?.role === 'org_admin'
+                              };
+                            }));
+                          }}
+                        >
+                          <div className="flex items-center gap-2">
+                            <span className="font-medium">{name}</span>
+                            <span className="text-muted-foreground text-xs">
+                              {phone.replace(/(\d{3})\d{4}(\d{4})/, '$1****$2')}
+                            </span>
+                          </div>
+                          {(isAdmin || isOrgAdmin) && (
+                            <Badge variant="secondary" className="text-[10px] h-5 px-1.5">
+                              {isAdmin ? '企业管理员' : '部门管理员'}
+                            </Badge>
+                          )}
+                        </button>
+                      ))
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
           </div>
-          <DialogFooter className="gap-2">
+          <DialogFooter className="gap-2 pt-4">
             <Button variant="outline" onClick={() => setShowCreateSubOrg(false)}>取消</Button>
             <Button onClick={async () => {
               if (!subOrgName.trim()) { toast({ title: "请输入子部门名称", variant: "destructive" }); return; }
-              const { error } = await supabase.from("organizations").insert({
+              
+              // 1. 创建子部门
+              const { data: newOrg, error: orgError } = await supabase.from("organizations").insert({
                 enterprise_id: enterprise.id,
                 name: subOrgName.trim(),
                 monthly_budget: subOrgBudget ? Number(subOrgBudget) : null,
                 parent_id: orgId,
                 status: "active",
-              } as any);
-              if (error) { toast({ title: "创建失败", variant: "destructive" }); return; }
+              } as any).select().single();
+              
+              if (orgError || !newOrg) { toast({ title: "创建失败", variant: "destructive" }); return; }
+              
+              // 2. 将选中的管理员批量设为部门管理员（穿透逻辑）
+              for (const adminPhone of subOrgAdminPhones) {
+                const isExistingMember = members.some(m => m.user_phone === adminPhone);
+                if (isExistingMember) {
+                  // 已是本部门成员，更新角色
+                  await supabase.from("members")
+                    .update({ role: "org_admin" } as any)
+                    .eq("enterprise_id", enterprise.id)
+                    .eq("organization_id", orgId)
+                    .eq("user_phone", adminPhone);
+                } else {
+                  // 非本部门成员，先关联再设角色
+                  await supabase.from("members").insert({
+                    enterprise_id: enterprise.id,
+                    organization_id: orgId,
+                    user_phone: adminPhone,
+                    role: "org_admin",
+                    daily_limit: 2000,
+                    status: "active",
+                  } as any);
+                }
+              }
+              
               toast({ title: "子部门创建成功", description: subOrgName.trim() });
-              setShowCreateSubOrg(false); setSubOrgName(""); setSubOrgBudget("");
+              setShowCreateSubOrg(false); setSubOrgName(""); setSubOrgBudget(""); setSubOrgAdminPhones([]);
+              setAdminSearchQuery(""); setAdminSearchResults([]); setShowAdminDropdown(false);
               setStatsFlashKey(k => k + 1);
               onOrgUpdated();
             }}>创建</Button>
@@ -1776,46 +2431,256 @@ function OrgView({ enterprise, role, orgId, orgs, onOrgUpdated }: {
       </Dialog>
 
       {/* Child Org Set Admin Dialog */}
-      <Dialog open={!!childSetAdminOrg} onOpenChange={(o) => { if (!o) setChildSetAdminOrg(null); }}>
-        <DialogContent className="sm:max-w-sm">
+      <Dialog open={!!childSetAdminOrg} onOpenChange={(o) => { if (!o) { setChildSetAdminOrg(null); setChildCurrentAdminPhones([]); setChildPendingAdminPhones([]); setChildAdminSearchQuery(""); setChildShowAdminDropdown(false); } }}>
+        <DialogContent className="sm:max-w-2xl">
           <DialogHeader><DialogTitle>设置部门管理员</DialogTitle></DialogHeader>
           <div className="space-y-4 py-2">
-            <div className="space-y-2">
-              <Label>选择管理员</Label>
-              <Select value={childNewAdminPhone} onValueChange={setChildNewAdminPhone}>
-                <SelectTrigger><SelectValue placeholder="请选择" /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="__none__">不指定（默认企业管理员）</SelectItem>
-                  {members.filter(m => m.user_phone).map(m => (
-                    <SelectItem key={m.user_phone} value={m.user_phone}>
-                      {memberNames[m.user_phone] ? `${memberNames[m.user_phone]} - ${m.user_phone.slice(0,3)}****${m.user_phone.slice(-4)}` : `${m.user_phone.slice(0,3)}****${m.user_phone.slice(-4)}`}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <p className="text-xs text-muted-foreground">不指定时，该部门默认由企业管理员管理</p>
+            {/* 左右分栏：左侧搜索选择，右侧已选择 */}
+            <div className="grid grid-cols-2 gap-4">
+              {/* 左侧：搜索和可选成员 */}
+              <div className="space-y-2" ref={childAdminDropdownRef}>
+                <Label>可选成员</Label>
+                <div className="relative">
+                  <Input 
+                    placeholder="搜索姓名或手机号" 
+                    value={childAdminSearchQuery}
+                    onChange={(e) => {
+                      const value = e.target.value;
+                      setChildAdminSearchQuery(value);
+                      setChildShowAdminDropdown(true);
+                      // 搜索成员（排除已设定和已选择的）
+                      const excludedPhones = [...childCurrentAdminPhones, ...childPendingAdminPhones];
+                      const results = members
+                        .filter(m => m.user_phone && !excludedPhones.includes(m.user_phone))
+                        .filter(m => 
+                          memberNames[m.user_phone]?.includes(value) || 
+                          m.user_phone.includes(value)
+                        )
+                        .slice(0, 8);
+                      setChildAdminSearchResults(results.map(m => ({ 
+                        phone: m.user_phone, 
+                        name: memberNames[m.user_phone] || m.user_phone 
+                      })));
+                    }}
+                    onFocus={() => {
+                      setChildShowAdminDropdown(true);
+                      // 显示可用成员（排除已设定和已选择的）
+                      const excludedPhones = [...childCurrentAdminPhones, ...childPendingAdminPhones];
+                      const results = members
+                        .filter(m => m.user_phone && !excludedPhones.includes(m.user_phone))
+                        .slice(0, 8);
+                      setChildAdminSearchResults(results.map(m => ({ 
+                        phone: m.user_phone, 
+                        name: memberNames[m.user_phone] || m.user_phone 
+                      })));
+                    }}
+                  />
+                  {/* 下拉搜索结果 */}
+                  {childShowAdminDropdown && (
+                    <div className="absolute top-full left-0 right-0 mt-1 rounded-md border border-border bg-popover shadow-md z-50 max-h-48 overflow-y-auto">
+                      {childAdminSearchResults.length === 0 ? (
+                        <div className="px-3 py-2 text-xs text-muted-foreground">
+                          {childAdminSearchQuery.trim() === "" ? "暂无可添加的成员" : "未找到匹配的成员"}
+                        </div>
+                      ) : (
+                        childAdminSearchResults.map(({ phone, name }) => (
+                          <button
+                            key={phone}
+                            className="w-full px-3 py-2 text-left hover:bg-muted flex items-center gap-2 text-sm"
+                            onClick={() => {
+                              setChildPendingAdminPhones([...childPendingAdminPhones, phone]);
+                              setChildAdminSearchQuery("");
+                              setChildShowAdminDropdown(false);
+                            }}
+                          >
+                            <span className="font-medium">{name}</span>
+                            <span className="text-muted-foreground text-xs">
+                              {phone.replace(/(\d{3})\d{4}(\d{4})/, '$1****$2')}
+                            </span>
+                          </button>
+                        ))
+                      )}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* 右侧：已选择待添加 */}
+              <div className="space-y-2">
+                <Label>已选择 ({childPendingAdminPhones.length})</Label>
+                <div className="rounded-md border border-border bg-muted/30 h-40 overflow-y-auto">
+                  {childPendingAdminPhones.length === 0 ? (
+                    <div className="flex items-center justify-center h-full text-sm text-muted-foreground">点击左侧成员添加</div>
+                  ) : (
+                    <div className="divide-y">
+                      {childPendingAdminPhones.map(phone => (
+                        <div key={phone} className="flex items-center justify-between px-3 py-2 bg-background">
+                          <div className="flex flex-col">
+                            <span className="font-medium text-sm">{memberNames[phone] || phone.replace(/(\d{3})\d{4}(\d{4})/, '$1****$2')}</span>
+                            <span className="text-muted-foreground text-xs">{phone.replace(/(\d{3})\d{4}(\d{4})/, '$1****$2')}</span>
+                          </div>
+                          <button
+                            onClick={() => {
+                              setChildPendingAdminPhones(childPendingAdminPhones.filter(p => p !== phone));
+                            }}
+                            className="p-1 hover:text-destructive hover:bg-destructive/10 rounded transition-colors"
+                            title="移除"
+                          >
+                            <X className="w-4 h-4" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
             </div>
-            <div className="flex gap-3">
-              <Button variant="outline" className="flex-1" onClick={() => setChildSetAdminOrg(null)}>取消</Button>
-              <Button className="flex-1" onClick={handleChildOrgSetAdmin} disabled={childSaving || !childNewAdminPhone}>{childSaving ? "保存中..." : "确认"}</Button>
+
+            {/* 下方：已设定的管理员 */}
+            <div className="space-y-2 pt-2 border-t">
+              <Label>已设定管理员 ({childCurrentAdminPhones.length})</Label>
+              {childCurrentAdminPhones.length === 0 ? (
+                <div className="text-sm text-muted-foreground py-2">暂未设定管理员</div>
+              ) : (
+                <div className="rounded-md border border-border divide-y">
+                  {childCurrentAdminPhones.map(phone => (
+                    <div key={phone} className="flex items-center justify-between px-3 py-2">
+                      <div className="flex items-center gap-2">
+                        <span className="font-medium text-sm">{memberNames[phone] || phone.replace(/(\d{3})\d{4}(\d{4})/, '$1****$2')}</span>
+                        <span className="text-muted-foreground text-xs">{phone.replace(/(\d{3})\d{4}(\d{4})/, '$1****$2')}</span>
+                      </div>
+                      <button
+                        onClick={() => {
+                          setChildCurrentAdminPhones(childCurrentAdminPhones.filter(p => p !== phone));
+                        }}
+                        className="p-1 hover:text-destructive hover:bg-destructive/10 rounded transition-colors"
+                        title="移除管理员权限"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div className="flex gap-3 pt-2">
+              <Button variant="outline" className="flex-1" onClick={() => { setChildSetAdminOrg(null); setChildCurrentAdminPhones([]); setChildPendingAdminPhones([]); setChildAdminSearchQuery(""); setChildShowAdminDropdown(false); }}>取消</Button>
+              <Button className="flex-1" onClick={handleChildOrgSetAdmin} disabled={childSaving}>{childSaving ? "保存中..." : "确认"}</Button>
             </div>
           </div>
         </DialogContent>
       </Dialog>
 
+      {/* Child Org Disable Confirm Dialog */}
+      <AlertDialog open={!!childDisableOrg} onOpenChange={(o) => { if (!o) setChildDisableOrg(null); }}>
+        <AlertDialogContent className="max-w-md">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <span className="text-lg">🚫</span>
+              确认禁用部门「{childDisableOrg?.name}」？
+            </AlertDialogTitle>
+          </AlertDialogHeader>
+          <div className="space-y-4 py-2">
+            <p className="text-sm font-medium text-foreground">
+              禁用后，该部门下所有 API Key 将立即停止调用，成员将无法使用本部门资源。
+            </p>
+
+            <div className="rounded-lg border border-border bg-muted/40 p-3 space-y-2 text-sm">
+              <div className="flex items-center gap-2">
+                <span className="text-muted-foreground shrink-0">受影响成员：</span>
+                <span className="font-medium text-foreground">{childDisableOrg?.memberCount ?? 0} 人</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-muted-foreground shrink-0">受影响 Key：</span>
+                <span className="font-medium text-foreground">— 个</span>
+              </div>
+            </div>
+
+            <p className="text-xs text-muted-foreground bg-muted/50 p-2 rounded">
+              注：历史数据仍可查看，后续可重新「启用」以恢复该部门的所有功能。
+            </p>
+          </div>
+          <AlertDialogFooter className="gap-2 mt-4">
+            <AlertDialogCancel>取消</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmChildDisable} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              确认禁用
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Child Org Enable Confirm Dialog */}
+      <AlertDialog open={!!childEnableOrg} onOpenChange={(o) => { if (!o) setChildEnableOrg(null); }}>
+        <AlertDialogContent className="max-w-md">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <span className="text-lg">ℹ️</span>
+              确认启用部门「{childEnableOrg?.name}」？
+            </AlertDialogTitle>
+          </AlertDialogHeader>
+          <div className="space-y-4 py-2">
+            <p className="text-sm font-medium text-foreground">
+              启用后，该部门下所有成员将恢复资源访问权限，名下 API Key 同步恢复可用。
+            </p>
+
+            <div className="rounded-lg border border-border bg-muted/40 p-3 space-y-2 text-sm">
+              <div className="flex items-center gap-2">
+                <span className="text-muted-foreground shrink-0">部门名称：</span>
+                <span className="font-medium text-foreground">{childEnableOrg?.name}</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-muted-foreground shrink-0">涉及成员：</span>
+                <span className="font-medium text-foreground">{childEnableOrg?.memberCount ?? 0} 人</span>
+              </div>
+            </div>
+
+            <p className="text-xs text-muted-foreground bg-muted/50 p-2 rounded">
+              注：开启后，请检查该部门的剩余预算及配额是否充足。
+            </p>
+          </div>
+          <AlertDialogFooter className="gap-2 mt-4">
+            <AlertDialogCancel>取消</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmChildEnable}>
+              确认启用
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
       {/* Child Org Delete Dialog */}
       <AlertDialog open={!!childDeleteOrg} onOpenChange={(o) => { if (!o) setChildDeleteOrg(null); }}>
-        <AlertDialogContent className="max-w-sm">
+        <AlertDialogContent className="max-w-md">
           <AlertDialogHeader>
-            <AlertDialogTitle>删除部门「{childDeleteOrg?.name}」？</AlertDialogTitle>
-            <AlertDialogDescription className="text-sm text-muted-foreground">
-              该部门当前无成员和资源，删除后不可恢复。
-            </AlertDialogDescription>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <span className="text-lg">⚠️</span>
+              确认删除部门「{childDeleteOrg?.name}」？
+            </AlertDialogTitle>
           </AlertDialogHeader>
+          <div className="space-y-4 py-2">
+            <p className="text-sm font-medium text-foreground">
+              删除后，该部门及其关联的所有配额数据将被永久清除，且无法恢复。
+            </p>
+
+            <div className="rounded-lg border border-border bg-muted/40 p-3 space-y-2 text-sm">
+              <div className="flex items-center gap-2">
+                <span className="text-muted-foreground shrink-0">部门名称：</span>
+                <span className="font-medium text-foreground">{childDeleteOrg?.name}</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-muted-foreground shrink-0">当前状态：</span>
+                <span className="font-medium text-foreground">无成员、无活跃 Key</span>
+              </div>
+            </div>
+
+            <p className="text-xs text-muted-foreground bg-muted/50 p-2 rounded">
+              注：删除后，历史消耗记录仍将保留用于统计审计。
+            </p>
+          </div>
           <AlertDialogFooter className="gap-2 mt-4">
             <AlertDialogCancel>取消</AlertDialogCancel>
             <AlertDialogAction onClick={handleChildOrgDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
-              删除
+              确认删除
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -1823,45 +2688,39 @@ function OrgView({ enterprise, role, orgId, orgs, onOrgUpdated }: {
 
       {/* Child Org Cannot Delete Dialog */}
       <AlertDialog open={!!childCannotDeleteOrg} onOpenChange={(o) => { if (!o) setChildCannotDeleteOrg(null); }}>
-        <AlertDialogContent className="max-w-sm">
-          <AlertDialogHeader>
-            <AlertDialogTitle>该部门暂无法删除</AlertDialogTitle>
-            <AlertDialogDescription className="text-sm text-muted-foreground">
-              部门「{childCannotDeleteOrg?.name}」仍存在成员、API Key 或子部门，请先清理后再删除。
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter className="mt-4">
-            <AlertDialogAction onClick={() => setChildCannotDeleteOrg(null)}>知道了</AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-
-      {/* Child Org Disable Confirm Dialog */}
-      <AlertDialog open={!!childDisableOrg} onOpenChange={(o) => { if (!o) setChildDisableOrg(null); }}>
         <AlertDialogContent className="max-w-md">
           <AlertDialogHeader>
             <AlertDialogTitle className="flex items-center gap-2">
-              <AlertTriangle className="w-5 h-5 text-destructive" />
-              确认禁用部门「{childDisableOrg?.name}」？
+              <span className="text-lg">⚠️</span>
+              该部门暂无法删除
             </AlertDialogTitle>
           </AlertDialogHeader>
-          <div className="space-y-3 py-2">
-            <p className="text-sm text-muted-foreground">禁用后将产生以下影响：</p>
-            <ul className="space-y-2 text-sm">
-              <li className="flex items-start gap-2"><span className="text-destructive mt-1.5">•</span><span>所有 API Key 将立即停止调用</span></li>
-              <li className="flex items-start gap-2"><span className="text-destructive mt-1.5">•</span><span>该部门成员无法创建新 Key 或使用资源</span></li>
-              <li className="flex items-start gap-2"><span className="text-destructive mt-1.5">•</span><span>当前进行中的请求可能会失败</span></li>
-              <li className="flex items-start gap-2"><span className="text-destructive mt-1.5">•</span><span>历史数据仍可查看，后续可重新启用</span></li>
-            </ul>
+          <div className="space-y-4 py-2">
+            <p className="text-sm font-medium text-foreground">
+              部门「{childCannotDeleteOrg?.name}」仍存在关联资源，请先完成清理后再尝试删除。
+            </p>
+
+            <div className="rounded-lg border border-border bg-muted/40 p-3 space-y-2 text-sm">
+              <div className="flex items-center gap-2">
+                <span className="text-muted-foreground shrink-0">待清理成员：</span>
+                <span className="font-medium text-foreground">{childCannotDeleteOrg?.memberCount ?? 0} 人</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-muted-foreground shrink-0">活跃 API Key：</span>
+                <span className="font-medium text-foreground">— 个</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-muted-foreground shrink-0">下级子部门：</span>
+                <span className="font-medium text-foreground">— 个</span>
+              </div>
+            </div>
+
+            <p className="text-xs text-muted-foreground bg-muted/50 p-2 rounded">
+              提示：请先在"成员管理"中移除成员，或在"Key管理"中注销相关 Key。
+            </p>
           </div>
-          <div className="rounded-lg bg-destructive/10 border border-destructive/20 p-3 text-sm text-destructive font-medium">
-            是否继续？
-          </div>
-          <AlertDialogFooter className="gap-2 mt-4">
-            <AlertDialogCancel>取消</AlertDialogCancel>
-            <AlertDialogAction onClick={confirmChildDisable} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
-              确认禁用
-            </AlertDialogAction>
+          <AlertDialogFooter className="mt-4">
+            <AlertDialogAction onClick={() => setChildCannotDeleteOrg(null)}>知道了</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
@@ -1892,7 +2751,14 @@ export default function DeptManagement({ enterprise, role }: Props) {
   const [editOrg, setEditOrg] = useState<Org | null>(null);
   const [editName, setEditName] = useState("");
   const [setAdminOrg, setSetAdminOrg] = useState<Org | null>(null);
-  const [newAdminPhone, setNewAdminPhone] = useState("");
+  // 已设定的管理员（从数据库加载）
+  const [currentAdminPhones, setCurrentAdminPhones] = useState<string[]>([]);
+  // 新选择待添加的管理员
+  const [pendingAdminPhones, setPendingAdminPhones] = useState<string[]>([]);
+  const [adminSearchQuery, setAdminSearchQuery] = useState("");
+  const [adminSearchResults, setAdminSearchResults] = useState<{ phone: string; name: string }[]>([]);
+  const [showAdminDropdown, setShowAdminDropdown] = useState(false);
+  const adminDropdownRef = useRef<HTMLDivElement>(null);
   const [saving, setSaving] = useState(false);
   const [disableConfirmOrg, setDisableConfirmOrg] = useState<Org | null>(null);
 
@@ -1908,6 +2774,17 @@ export default function DeptManagement({ enterprise, role }: Props) {
     for (const u of (usersRes.data || [])) { if (u.phone) map[u.phone] = u.name || ""; }
     setUserMap(map);
   };
+
+  // 点击外部关闭管理员下拉框
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (adminDropdownRef.current && !adminDropdownRef.current.contains(event.target as Node)) {
+        setShowAdminDropdown(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
 
   // Organization management handlers
   const toggleOrgStatus = async (org: Org, skipConfirm = false) => {
@@ -1971,9 +2848,14 @@ export default function DeptManagement({ enterprise, role }: Props) {
     if (!setAdminOrg) return;
     setSaving(true);
     try {
-      const phone = newAdminPhone === "__none__" ? null : newAdminPhone;
-      await supabase.from("organizations").update({ admin_phone: phone } as any).eq("id", setAdminOrg.id);
-      if (phone) {
+      // 合并当前管理员和待添加的管理员
+      const allAdminPhones = [...currentAdminPhones, ...pendingAdminPhones];
+      // 取第一个作为 admin_phone（保持兼容性）
+      const primaryPhone = allAdminPhones.length > 0 ? allAdminPhones[0] : null;
+      await supabase.from("organizations").update({ admin_phone: primaryPhone } as any).eq("id", setAdminOrg.id);
+      
+      // 批量设置管理员角色
+      for (const phone of allAdminPhones) {
         const existingMember = members.find(m => m.user_phone === phone);
         if (existingMember) {
           await supabase.from("members").update({ role: "org_admin", organization_id: setAdminOrg.id } as any)
@@ -1981,7 +2863,7 @@ export default function DeptManagement({ enterprise, role }: Props) {
         }
       }
       toast({ title: "部门管理员已更新" });
-      setSetAdminOrg(null); setNewAdminPhone("");
+      setSetAdminOrg(null); setCurrentAdminPhones([]); setPendingAdminPhones([]); setAdminSearchQuery(""); setShowAdminDropdown(false);
       loadOrgs();
     } catch { toast({ title: "操作失败", variant: "destructive" }); }
     finally { setSaving(false); }
@@ -2124,7 +3006,7 @@ export default function DeptManagement({ enterprise, role }: Props) {
                   <Pencil className="w-3.5 h-3.5" /> 编辑部门名称
                 </DropdownMenuItem>
                 <DropdownMenuItem
-                  onClick={(e) => { e.stopPropagation(); loadMembers(); setSetAdminOrg(node); setNewAdminPhone(node.admin_phone || "__none__"); }}
+                  onClick={(e) => { e.stopPropagation(); loadMembers(); setSetAdminOrg(node); setCurrentAdminPhones(node.admin_phone ? [node.admin_phone] : []); setPendingAdminPhones([]); setAdminSearchQuery(""); setShowAdminDropdown(false); }}
                   className="gap-2 text-xs"
                 >
                   <UserCog className="w-3.5 h-3.5" /> 设置管理员
@@ -2288,28 +3170,142 @@ export default function DeptManagement({ enterprise, role }: Props) {
       </Dialog>
 
       {/* Set Admin Dialog */}
-      <Dialog open={!!setAdminOrg} onOpenChange={(o) => { if (!o) setSetAdminOrg(null); }}>
-        <DialogContent className="sm:max-w-sm">
+      <Dialog open={!!setAdminOrg} onOpenChange={(o) => { if (!o) { setSetAdminOrg(null); setCurrentAdminPhones([]); setPendingAdminPhones([]); setAdminSearchQuery(""); setShowAdminDropdown(false); } }}>
+        <DialogContent className="sm:max-w-2xl">
           <DialogHeader><DialogTitle>设置部门管理员</DialogTitle></DialogHeader>
           <div className="space-y-4 py-2">
-            <div className="space-y-2">
-              <Label>选择管理员</Label>
-              <Select value={newAdminPhone} onValueChange={setNewAdminPhone}>
-                <SelectTrigger><SelectValue placeholder="请选择" /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="__none__">不指定（默认企业管理员）</SelectItem>
-                  {members.filter(m => m.user_phone).map(m => (
-                    <SelectItem key={m.user_phone} value={m.user_phone}>
-                      {userMap[m.user_phone] ? `${userMap[m.user_phone]} - ${m.user_phone.slice(0,3)}****${m.user_phone.slice(-4)}` : `${m.user_phone.slice(0,3)}****${m.user_phone.slice(-4)}`}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <p className="text-xs text-muted-foreground">不指定时，该部门默认由企业管理员管理</p>
+            {/* 左右分栏：左侧搜索选择，右侧已选择 */}
+            <div className="grid grid-cols-2 gap-4">
+              {/* 左侧：搜索和可选成员 */}
+              <div className="space-y-2" ref={adminDropdownRef}>
+                <Label>可选成员</Label>
+                <div className="relative">
+                  <Input 
+                    placeholder="搜索姓名或手机号" 
+                    value={adminSearchQuery}
+                    onChange={(e) => {
+                      const value = e.target.value;
+                      setAdminSearchQuery(value);
+                      setShowAdminDropdown(true);
+                      // 搜索成员（排除已设定和已选择的）
+                      const excludedPhones = [...currentAdminPhones, ...pendingAdminPhones];
+                      const results = members
+                        .filter(m => m.user_phone && !excludedPhones.includes(m.user_phone))
+                        .filter(m => 
+                          userMap[m.user_phone]?.includes(value) || 
+                          m.user_phone.includes(value)
+                        )
+                        .slice(0, 8);
+                      setAdminSearchResults(results.map(m => ({ 
+                        phone: m.user_phone, 
+                        name: userMap[m.user_phone] || m.user_phone 
+                      })));
+                    }}
+                    onFocus={() => {
+                      setShowAdminDropdown(true);
+                      // 显示可用成员（排除已设定和已选择的）
+                      const excludedPhones = [...currentAdminPhones, ...pendingAdminPhones];
+                      const results = members
+                        .filter(m => m.user_phone && !excludedPhones.includes(m.user_phone))
+                        .slice(0, 8);
+                      setAdminSearchResults(results.map(m => ({ 
+                        phone: m.user_phone, 
+                        name: userMap[m.user_phone] || m.user_phone 
+                      })));
+                    }}
+                  />
+                  {/* 下拉搜索结果 */}
+                  {showAdminDropdown && (
+                    <div className="absolute top-full left-0 right-0 mt-1 rounded-md border border-border bg-popover shadow-md z-50 max-h-48 overflow-y-auto">
+                      {adminSearchResults.length === 0 ? (
+                        <div className="px-3 py-2 text-xs text-muted-foreground">
+                          {adminSearchQuery.trim() === "" ? "暂无可添加的成员" : "未找到匹配的成员"}
+                        </div>
+                      ) : (
+                        adminSearchResults.map(({ phone, name }) => (
+                          <button
+                            key={phone}
+                            className="w-full px-3 py-2 text-left hover:bg-muted flex items-center gap-2 text-sm"
+                            onClick={() => {
+                              setPendingAdminPhones([...pendingAdminPhones, phone]);
+                              setAdminSearchQuery("");
+                              setShowAdminDropdown(false);
+                            }}
+                          >
+                            <span className="font-medium">{name}</span>
+                            <span className="text-muted-foreground text-xs">
+                              {phone.replace(/(\d{3})\d{4}(\d{4})/, '$1****$2')}
+                            </span>
+                          </button>
+                        ))
+                      )}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* 右侧：已选择待添加 */}
+              <div className="space-y-2">
+                <Label>已选择 ({pendingAdminPhones.length})</Label>
+                <div className="rounded-md border border-border bg-muted/30 h-40 overflow-y-auto">
+                  {pendingAdminPhones.length === 0 ? (
+                    <div className="flex items-center justify-center h-full text-sm text-muted-foreground">点击左侧成员添加</div>
+                  ) : (
+                    <div className="divide-y">
+                      {pendingAdminPhones.map(phone => (
+                        <div key={phone} className="flex items-center justify-between px-3 py-2 bg-background">
+                          <div className="flex flex-col">
+                            <span className="font-medium text-sm">{userMap[phone] || phone.replace(/(\d{3})\d{4}(\d{4})/, '$1****$2')}</span>
+                            <span className="text-muted-foreground text-xs">{phone.replace(/(\d{3})\d{4}(\d{4})/, '$1****$2')}</span>
+                          </div>
+                          <button
+                            onClick={() => {
+                              setPendingAdminPhones(pendingAdminPhones.filter(p => p !== phone));
+                            }}
+                            className="p-1 hover:text-destructive hover:bg-destructive/10 rounded transition-colors"
+                            title="移除"
+                          >
+                            <X className="w-4 h-4" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
             </div>
-            <div className="flex gap-3">
-              <Button variant="outline" className="flex-1" onClick={() => setSetAdminOrg(null)}>取消</Button>
-              <Button className="flex-1" onClick={handleSetOrgAdmin} disabled={saving || !newAdminPhone}>{saving ? "保存中..." : "确认"}</Button>
+
+            {/* 下方：已设定的管理员 */}
+            <div className="space-y-2 pt-2 border-t">
+              <Label>已设定管理员 ({currentAdminPhones.length})</Label>
+              {currentAdminPhones.length === 0 ? (
+                <div className="text-sm text-muted-foreground py-2">暂未设定管理员</div>
+              ) : (
+                <div className="rounded-md border border-border divide-y">
+                  {currentAdminPhones.map(phone => (
+                    <div key={phone} className="flex items-center justify-between px-3 py-2">
+                      <div className="flex items-center gap-2">
+                        <span className="font-medium text-sm">{userMap[phone] || phone.replace(/(\d{3})\d{4}(\d{4})/, '$1****$2')}</span>
+                        <span className="text-muted-foreground text-xs">{phone.replace(/(\d{3})\d{4}(\d{4})/, '$1****$2')}</span>
+                      </div>
+                      <button
+                        onClick={() => {
+                          setCurrentAdminPhones(currentAdminPhones.filter(p => p !== phone));
+                        }}
+                        className="p-1 hover:text-destructive hover:bg-destructive/10 rounded transition-colors"
+                        title="移除管理员权限"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div className="flex gap-3 pt-2">
+              <Button variant="outline" className="flex-1" onClick={() => { setSetAdminOrg(null); setCurrentAdminPhones([]); setPendingAdminPhones([]); setAdminSearchQuery(""); setShowAdminDropdown(false); }}>取消</Button>
+              <Button className="flex-1" onClick={handleSetOrgAdmin} disabled={saving}>{saving ? "保存中..." : "确认"}</Button>
             </div>
           </div>
         </DialogContent>

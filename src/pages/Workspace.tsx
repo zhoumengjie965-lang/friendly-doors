@@ -7,6 +7,7 @@ import EnterpriseInfo from "@/pages/EnterpriseInfo";
 import AccountBalance from "@/pages/AccountBalance";
 import ExpenseBills from "@/pages/ExpenseBills";
 import DeptManagement from "@/pages/DeptManagement";
+import MemberManagement from "@/pages/MemberManagement";
 import Profile from "@/pages/Profile";
 import ApiKeys from "@/pages/ApiKeys";
 import ResourceStats from "@/pages/ResourceStats";
@@ -511,6 +512,8 @@ export default function Workspace() {
               <ExpenseBills enterprise={enterprise} role={role} />
             ) : location.pathname.startsWith("/workspace/dept") ? (
               <DeptManagement enterprise={enterprise} role={role} />
+            ) : location.pathname === "/workspace/members" ? (
+              <MemberManagement />
             ) : location.pathname === "/workspace/models" || location.pathname === "/workspace" ? (
               <Models />
             ) : location.pathname === "/workspace/keys" ? (

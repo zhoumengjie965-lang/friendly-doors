@@ -25,6 +25,7 @@ import {
   Info,
   Monitor,
   MessageSquare,
+  Calculator,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import AdminDashboard from "./AdminDashboard";
@@ -39,6 +40,7 @@ import AdminSettings from "./AdminSettings";
 import AdminEnterpriseDetail from "./AdminEnterpriseDetail";
 import AdminChannelMonitor from "./AdminChannelMonitor";
 import AdminSystemDataDashboard from "./AdminSystemDataDashboard";
+import AdminReconciliation from "./AdminReconciliation";
 
 // 一级菜单页面（空页面）
 function AdminHome() {
@@ -169,6 +171,7 @@ const CONSOLE_NAV_GROUPS = [
       { label: "兑换码管理", icon: Ticket, path: "billing" },
       { label: "调用日志", icon: FileText, path: "call-logs" },
       { label: "渠道监控", icon: Activity, path: "channel-monitor" },
+      { label: "收支对账中心", icon: Calculator, path: "reconciliation" },
     ],
   },
   {
@@ -266,6 +269,7 @@ function ConsoleLayout() {
           <Route path="settings" element={<AdminSettings />} />
           <Route path="call-logs" element={<AdminCallLogs />} />
           <Route path="channel-monitor" element={<AdminChannelMonitor />} />
+          <Route path="reconciliation" element={<AdminReconciliation />} />
           <Route path="data-dashboard" element={<AdminDataDashboard />} />
           <Route path="token-management" element={<AdminTokenManagement />} />
           <Route path="wallet-management" element={<AdminWalletManagement />} />
