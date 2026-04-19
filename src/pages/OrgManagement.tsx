@@ -1,6 +1,13 @@
 import { useEffect, useState } from "react";
-import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import {
+  getEnterpriseOrganizations,
+  getEnterpriseMembers,
+  getMockData,
+  updateOrganization,
+  deleteOrganization,
+  createOrganization,
+} from "@/lib/mockData";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -64,25 +71,32 @@ export default function OrgManagement({ enterprise, role }: Props) {
 
   const load = async () => {
     setLoading(true);
-    const [orgsRes, membersRes, usersRes] = await Promise.all([
-      supabase.from("organizations").select("*").eq("enterprise_id", enterprise.id).order("created_at"),
-      supabase.from("members").select("user_phone, role, organization_id").eq("enterprise_id", enterprise.id),
-      supabase.from("users").select("phone, name"),
+    const [orgsData, membersData] = await Promise.all([
+      getEnterpriseOrganizations(enterprise.id),
+      getEnterpriseMembers(enterprise.id),
     ]);
-    const allMembers = membersRes.data || [];
+    
+    const allMembers = membersData.map(m => ({
+      user_phone: m.user_phone,
+      role: m.role,
+      organization_id: m.organization_id,
+    }));
     setMembers(allMembers);
     setMemberCount(allMembers.length);
 
+    // 从 mockData 获取用户映射
+    const mockData = getMockData();
     const map: Record<string, string> = {};
-    for (const u of (usersRes.data || [])) { if (u.phone) map[u.phone] = u.name || ""; }
+    for (const u of mockData.users) { 
+      if (u.phone) map[u.phone] = u.name || ""; 
+    }
     setUserMap(map);
 
-    const rawOrgs = (orgsRes.data || []) as any[];
-    const orgsWithCount = rawOrgs.map(org => ({
+    const orgsWithCount = orgsData.map(org => ({
       ...org,
       memberCount: allMembers.filter(m => m.organization_id === org.id).length,
     }));
-    setOrgs(orgsWithCount);
+    setOrgs(orgsWithCount as Org[]);
     setOrgCount(orgsWithCount.length);
     setLoading(false);
   };
@@ -91,10 +105,13 @@ export default function OrgManagement({ enterprise, role }: Props) {
 
   const toggleStatus = async (org: Org) => {
     const newStatus = org.status === "active" ? "disabled" : "active";
-    const { error } = await supabase.from("organizations").update({ status: newStatus } as any).eq("id", org.id);
-    if (error) { toast({ title: "操作失败", variant: "destructive" }); return; }
-    toast({ title: newStatus === "active" ? "已启用" : "已禁用" });
-    load();
+    try {
+      await updateOrganization(org.id, { status: newStatus as "active" | "inactive" });
+      toast({ title: newStatus === "active" ? "已启用" : "已禁用" });
+      load();
+    } catch {
+      toast({ title: "操作失败", variant: "destructive" });
+    }
   };
 
   const handleDelete = async () => {
@@ -105,24 +122,32 @@ export default function OrgManagement({ enterprise, role }: Props) {
       return;
     }
     const recovered = deleteOrg.monthly_budget ?? 0;
-    await supabase.from("organizations").delete().eq("id", deleteOrg.id);
-    toast({
-      title: "已删除部门",
-      description: recovered > 0 ? `¥${recovered.toLocaleString()} 预算已回收至企业` : undefined,
-    });
-    setDeleteOrg(null);
-    setStatsFlashKey(k => k + 1);
-    load();
+    try {
+      await deleteOrganization(deleteOrg.id);
+      toast({
+        title: "已删除部门",
+        description: recovered > 0 ? `¥${recovered.toLocaleString()} 预算已回收至企业` : undefined,
+      });
+      setDeleteOrg(null);
+      setStatsFlashKey(k => k + 1);
+      load();
+    } catch {
+      toast({ title: "删除失败", variant: "destructive" });
+    }
   };
 
   const handleEditName = async () => {
     if (!editOrg || !editName.trim()) return;
     setSaving(true);
-    await supabase.from("organizations").update({ name: editName.trim() } as any).eq("id", editOrg.id);
-    toast({ title: "名称已更新" });
+    try {
+      await updateOrganization(editOrg.id, { name: editName.trim() });
+      toast({ title: "名称已更新" });
+      setEditOrg(null);
+      load();
+    } catch {
+      toast({ title: "更新失败", variant: "destructive" });
+    }
     setSaving(false);
-    setEditOrg(null);
-    load();
   };
 
   const handleSetAdmin = async () => {
@@ -130,12 +155,20 @@ export default function OrgManagement({ enterprise, role }: Props) {
     setSaving(true);
     try {
       const phone = newAdminPhone === "__none__" ? null : newAdminPhone;
-      await supabase.from("organizations").update({ admin_phone: phone } as any).eq("id", setAdminOrg.id);
+      await updateOrganization(setAdminOrg.id, { admin_phone: phone } as any);
       if (phone) {
         const existingMember = members.find(m => m.user_phone === phone);
         if (existingMember) {
-          await supabase.from("members").update({ role: "org_admin", organization_id: setAdminOrg.id } as any)
-            .eq("user_phone", phone).eq("enterprise_id", enterprise.id);
+          // 更新成员角色
+          const mockData = getMockData();
+          const memberIndex = mockData.members.findIndex(
+            m => m.user_phone === phone && m.enterprise_id === enterprise.id
+          );
+          if (memberIndex !== -1) {
+            mockData.members[memberIndex].role = "org_admin";
+            mockData.members[memberIndex].organization_id = setAdminOrg.id;
+            localStorage.setItem("ai_gateway_mock_data", JSON.stringify(mockData));
+          }
         }
       }
       toast({ title: "部门管理员已更新" });
@@ -344,7 +377,7 @@ export default function OrgManagement({ enterprise, role }: Props) {
       <CreateOrgDialog
         open={createOpen}
         onOpenChange={setCreateOpen}
-        enterpriseId={enterprise.id}
+        enterpriseUID={enterprise.id}
         existingMembers={members}
         onCreated={load}
       />
@@ -470,11 +503,16 @@ export default function OrgManagement({ enterprise, role }: Props) {
                   onClick={async () => {
                     setDistributing(true);
                     try {
-                      await Promise.all(
-                        orgs.map(org =>
-                          supabase.from("organizations").update({ monthly_budget: perBudget } as any).eq("id", org.id)
-                        )
-                      );
+                      // 使用 mockData 更新每个组织的预算
+                      const mockData = getMockData();
+                      for (const org of orgs) {
+                        const orgIndex = mockData.organizations.findIndex(o => o.id === org.id);
+                        if (orgIndex !== -1) {
+                          (mockData.organizations[orgIndex] as any).monthly_budget = perBudget;
+                        }
+                      }
+                      localStorage.setItem("ai_gateway_mock_data", JSON.stringify(mockData));
+                      
                       setStatsFlashKey(k => k + 1);
                       toast({ title: `已成功为 ${n} 个部门分配预算`, description: `每个部门 ¥${perBudget.toFixed(2)}/月` });
                       setShowBudgetDialog(false);

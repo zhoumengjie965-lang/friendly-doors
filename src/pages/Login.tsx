@@ -7,7 +7,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
 
 export default function Login() {
-  const [phone, setPhone] = useState("");
+  const [phone, setPhone] = useState("18217795009");
   const [code, setCode] = useState("");
   const [agreed, setAgreed] = useState(false);
   const [countdown, setCountdown] = useState(0);

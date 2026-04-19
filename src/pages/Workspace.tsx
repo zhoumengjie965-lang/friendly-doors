@@ -103,15 +103,19 @@ export default function Workspace() {
   const loadEnterprises = async () => {
     if (!phone) { navigate("/login"); return; }
     const members = await getUserEnterprises(phone);
+    console.log("[Debug] members raw data:", members);
+    console.log("[Debug] phone:", phone);
     const list = (members as EnterpriseItem[])
       .filter(m => m.enterprises)
       .map(m => ({ enterprise: m.enterprises!, role: m.role, org: m.organizations || null }));
+    console.log("[Debug] enterprises list:", list);
     setEnterprises(list);
 
-    // Also load user name
-    const { data: userData } = await (await import("@/integrations/supabase/client")).supabase
-      .from("users").select("name").eq("phone", phone).maybeSingle();
-    if (userData?.name) setUserName(userData.name);
+    // Also load user name from mock data
+    const { getMockData } = await import("@/lib/mockData");
+    const mockData = getMockData();
+    const user = mockData.users.find(u => u.phone === phone);
+    if (user?.name) setUserName(user.name);
 
     if (list.length === 0) {
       // 无企业，检查是否有个人空间
@@ -153,14 +157,17 @@ export default function Workspace() {
     if (!newEnterpriseName.trim() || !phone) return;
     setActionLoading(true);
     try {
+      console.log("[CreateEnterprise] Starting...", { name: newEnterpriseName.trim(), phone });
       const ent = await createEnterprise(newEnterpriseName.trim(), phone);
+      console.log("[CreateEnterprise] Success:", ent);
       toast({ title: "企业创建成功" });
       setNewEnterpriseName("");
       setShowCreateEnterprise(false);
       await loadEnterprises();
       selectEnterprise(ent as Enterprise, "admin");
     } catch (e: any) {
-      toast({ title: "创建失败", description: e?.message, variant: "destructive" });
+      console.error("[CreateEnterprise] Error:", e);
+      toast({ title: "创建失败", description: e?.message || "请检查网络连接", variant: "destructive" });
     } finally {
       setActionLoading(false);
     }
@@ -202,6 +209,12 @@ export default function Workspace() {
             </div>
             <h1 className="text-2xl font-bold text-foreground">选择要进入的企业</h1>
             <p className="text-muted-foreground text-sm mt-1">你拥有多个企业，请选择一个进入</p>
+            <button
+              onClick={loadEnterprises}
+              className="mt-2 text-xs text-blue-600 hover:text-blue-800 underline"
+            >
+              刷新数据
+            </button>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             {enterprises.map(({ enterprise: ent, role: r, org }) => (
@@ -220,8 +233,14 @@ export default function Workspace() {
                     <p className="text-xs text-muted-foreground font-mono">{ent.enterprise_code}</p>
                   </div>
                 </div>
-                <span className="text-xs px-2 py-1 rounded-full bg-primary/10 text-primary">
-                  {r === "admin" ? "管理员" : r === "org_admin" ? "部门管理员" : "成员"}
+                <span className={`text-xs px-2 py-1 rounded-full ${
+                  r === "admin" 
+                    ? "bg-purple-100 text-purple-700" 
+                    : r === "org_admin" 
+                      ? "bg-blue-100 text-blue-700" 
+                      : "bg-gray-100 text-gray-600"
+                }`}>
+                  {r === "admin" ? "企业管理员" : r === "org_admin" ? "部门管理员" : "成员"}
                 </span>
               </button>
             ))}

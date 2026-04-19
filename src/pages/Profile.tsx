@@ -1,58 +1,92 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { AlertCircle, CheckCircle2 } from "lucide-react";
+import { getCurrentPhone } from "@/lib/auth";
+import { getMockData } from "@/lib/mockData";
 
 interface OrgMembership {
   org_id: string;
   org_name: string | null;
   role: string;
-  alias: string | null; // 部门内备注名
+  alias: string | null;
 }
 
 interface EnterpriseCard {
   enterprise_id: string;
   enterprise_name: string;
-  alias: string; // 企业别名
-  is_enterprise_owner: boolean; // 是否企业管理员
+  alias: string;
+  is_enterprise_owner: boolean;
   memberships: OrgMembership[];
 }
 
 export default function Profile() {
-  const [loading] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [memberships, setMemberships] = useState<EnterpriseCard[]>([]);
+  const phone = getCurrentPhone();
 
-  // mock 数据
-  const memberships: EnterpriseCard[] = [
-    {
-      enterprise_id: "ent-001",
-      enterprise_name: "企业ABC",
-      alias: "企",
-      is_enterprise_owner: true,
-      memberships: [
-        { org_id: "org-001", org_name: "AAAA", role: "owner", alias: "周梦洁" },
-        { org_id: "org-002", org_name: "研发部", role: "member", alias: "研发小王" },
-        { org_id: "org-003", org_name: "市场部", role: "owner", alias: "小周" },
-      ],
-    },
-    {
-      enterprise_id: "ent-002",
-      enterprise_name: "1234",
-      alias: "1",
-      is_enterprise_owner: false,
-      memberships: [
-        { org_id: "org-004", org_name: "默认组织", role: "member", alias: "张三" },
-      ],
-    },
-    {
-      enterprise_id: "ent-003",
-      enterprise_name: "企业A",
-      alias: "企",
-      is_enterprise_owner: false,
-      memberships: [
-        { org_id: "org-005", org_name: "默认组织", role: "member", alias: null },
-      ],
-    },
-  ];
+  useEffect(() => {
+    const loadMemberships = async () => {
+      if (!phone) {
+        setLoading(false);
+        return;
+      }
+
+      // 从 mock 数据查询用户的所有企业关联
+      const mockData = getMockData();
+      const membersData = mockData.members
+        .filter(m => m.user_phone === phone)
+        .map(m => {
+          const enterprise = mockData.enterprises.find(e => e.id === m.enterprise_id);
+          const organization = mockData.organizations.find(o => o.id === m.organization_id);
+          return {
+            ...m,
+            enterprises: enterprise ? { id: enterprise.id, name: enterprise.name } : null,
+            organizations: organization ? { id: organization.id, name: organization.name } : null,
+          };
+        });
+
+      console.log("[Profile] members data:", membersData);
+
+      // 按企业分组
+      const enterpriseMap = new Map<string, EnterpriseCard>();
+
+      (membersData || []).forEach((m: any) => {
+        const entId = m.enterprise_id;
+        const entName = m.enterprises?.name || "未知企业";
+        const orgName = m.organizations?.name || null;
+        const orgId = m.organization_id;
+
+        if (!enterpriseMap.has(entId)) {
+          enterpriseMap.set(entId, {
+            enterprise_id: entId,
+            enterprise_name: entName,
+            alias: entName.charAt(0),
+            is_enterprise_owner: m.role === "admin",
+            memberships: [],
+          });
+        }
+
+        const card = enterpriseMap.get(entId)!;
+        card.memberships.push({
+          org_id: orgId || entId,
+          org_name: orgName || "默认组织",
+          role: m.role === "admin" ? "owner" : "member",
+          alias: null,
+        });
+
+        // 如果有任何一个是 admin，则标记为企业管理员
+        if (m.role === "admin") {
+          card.is_enterprise_owner = true;
+        }
+      });
+
+      setMemberships(Array.from(enterpriseMap.values()));
+      setLoading(false);
+    };
+
+    loadMemberships();
+  }, [phone]);
 
   if (loading) {
     return (
@@ -63,7 +97,7 @@ export default function Profile() {
   }
 
   const shortId = "5A5344";
-  const phone = "18217795009";
+  const displayPhone = phone || "-";
 
   return (
     <div className="max-w-4xl space-y-6">
@@ -101,7 +135,7 @@ export default function Profile() {
             <div className="flex items-center justify-between px-5 py-4">
               <div className="flex items-center gap-4 min-w-0">
                 <span className="text-[13px] text-gray-500 whitespace-nowrap">手机号码</span>
-                <span className="text-[14px] font-medium text-gray-900">{phone}</span>
+                <span className="text-[14px] font-medium text-gray-900">{displayPhone}</span>
                 <a href="#" className="text-[13px] text-blue-600 hover:text-blue-700 flex-shrink-0">解绑</a>
               </div>
               <div className="flex items-center gap-1.5 text-green-600 flex-shrink-0 ml-6">
