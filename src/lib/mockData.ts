@@ -3,6 +3,7 @@
 
 const MOCK_DATA_KEY = "ai_gateway_mock_data";
 const CURRENT_PHONE_KEY = "ai_gateway_phone";
+const MOCK_DATA_VERSION = "1.2"; // 数据版本，修改mock数据时更新此版本号
 
 // ===== 数据类型定义 =====
 export interface MockUser {
@@ -11,6 +12,7 @@ export interface MockUser {
   name: string | null;
   avatar: string | null;
   created_at: string;
+  uid?: string;
 }
 
 export interface MockEnterprise {
@@ -155,6 +157,7 @@ const initialData: MockData = {
       name: "测试管理员",
       avatar: null,
       created_at: getNow(),
+      uid: "UID:100001",
     },
     ...OTHER_USERS.map((u, i) => ({
       id: `user_${i + 2}`,
@@ -162,6 +165,7 @@ const initialData: MockData = {
       name: u.name,
       avatar: null,
       created_at: getNow(),
+      uid: `UID:${100002 + i}`,
     })),
   ],
   enterprises: [
@@ -315,6 +319,67 @@ const initialData: MockData = {
       organization_id: "org_root",
       role: "admin",
       status: "active",
+      created_at: getNow(),
+    },
+    // 企业直属成员（可作为部门管理员候选人）
+    {
+      id: "member_root_1",
+      user_phone: "13800138001",
+      enterprise_id: "ent_1",
+      organization_id: "org_root",
+      role: "member",
+      status: "active",
+      daily_limit: 1000,
+      created_at: getNow(),
+    },
+    {
+      id: "member_root_2",
+      user_phone: "13800138002",
+      enterprise_id: "ent_1",
+      organization_id: "org_root",
+      role: "member",
+      status: "active",
+      daily_limit: 800,
+      created_at: getNow(),
+    },
+    {
+      id: "member_root_3",
+      user_phone: "13800138003",
+      enterprise_id: "ent_1",
+      organization_id: "org_root",
+      role: "member",
+      status: "active",
+      daily_limit: 800,
+      created_at: getNow(),
+    },
+    {
+      id: "member_root_4",
+      user_phone: "13800138004",
+      enterprise_id: "ent_1",
+      organization_id: "org_root",
+      role: "member",
+      status: "active",
+      daily_limit: 1000,
+      created_at: getNow(),
+    },
+    {
+      id: "member_root_5",
+      user_phone: "13800138005",
+      enterprise_id: "ent_1",
+      organization_id: "org_root",
+      role: "member",
+      status: "active",
+      daily_limit: 600,
+      created_at: getNow(),
+    },
+    {
+      id: "member_root_6",
+      user_phone: "13800138006",
+      enterprise_id: "ent_1",
+      organization_id: "org_root",
+      role: "member",
+      status: "active",
+      daily_limit: 1200,
       created_at: getNow(),
     },
     // 技术研发部成员
@@ -565,9 +630,13 @@ const initialData: MockData = {
 // ===== 数据管理函数 =====
 export function initMockData(): void {
   const existing = localStorage.getItem(MOCK_DATA_KEY);
-  if (!existing) {
+  const savedVersion = localStorage.getItem(`${MOCK_DATA_KEY}_version`);
+  
+  // 如果没有数据或版本不匹配，重置数据
+  if (!existing || savedVersion !== MOCK_DATA_VERSION) {
     localStorage.setItem(MOCK_DATA_KEY, JSON.stringify(initialData));
-    console.log("[MockData] 初始化mock数据完成");
+    localStorage.setItem(`${MOCK_DATA_KEY}_version`, MOCK_DATA_VERSION);
+    console.log("[MockData] 初始化mock数据完成 (版本:", MOCK_DATA_VERSION, ")");
   }
 }
 
@@ -583,7 +652,8 @@ export function saveMockData(data: MockData): void {
 
 export function resetMockData(): void {
   localStorage.setItem(MOCK_DATA_KEY, JSON.stringify(initialData));
-  console.log("[MockData] 重置mock数据完成");
+  localStorage.setItem(`${MOCK_DATA_KEY}_version`, MOCK_DATA_VERSION);
+  console.log("[MockData] 重置mock数据完成 (版本:", MOCK_DATA_VERSION, ")");
 }
 
 // ===== 用户相关 API =====

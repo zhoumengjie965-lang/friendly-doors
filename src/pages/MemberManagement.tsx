@@ -76,7 +76,7 @@ const MOCK_USERS: UserPoolMember[] = [
     status: "active", 
     joinTime: "2024-01-15 09:30:25", 
     departments: [
-      { name: "技术部", role: "部门管理员" },
+      { name: "技术部", role: "admin" },
       { name: "产品部", role: "成员" }
     ],
     apiKeyCount: 12
@@ -387,9 +387,14 @@ export default function MemberManagement() {
   };
 
   // 获取角色显示（多个部门时只显示最高角色）
-  const getRoleDisplay = (departments: UserPoolMember["departments"]) => {
-    if (departments.length === 0) return <span className="text-muted-foreground">-</span>;
-    const hasAdmin = departments.some(d => d.role === "部门管理员" || d.role === "管理员");
+  const getRoleDisplay = (user: UserPoolMember) => {
+    // 检查是否是企业管理员（通过 departments 中是否有 admin 角色）
+    const isEnterpriseAdmin = user.departments.some(d => d.role === "admin" || d.role === "企业管理员");
+    if (isEnterpriseAdmin) {
+      return <Badge className="bg-purple-100 text-purple-700 hover:bg-purple-100">企业管理员</Badge>;
+    }
+    if (user.departments.length === 0) return <span className="text-muted-foreground">-</span>;
+    const hasAdmin = user.departments.some(d => d.role === "部门管理员" || d.role === "管理员");
     if (hasAdmin) return <Badge className="bg-blue-100 text-blue-700 hover:bg-blue-100">部门管理员</Badge>;
     return <Badge variant="outline" className="text-gray-600">成员</Badge>;
   };
@@ -509,7 +514,7 @@ export default function MemberManagement() {
                       </span>
                     </TableCell>
                     {/* 角色：最高角色 */}
-                    <TableCell>{getRoleDisplay(user.departments)}</TableCell>
+                    <TableCell>{getRoleDisplay(user)}</TableCell>
                     {/* 状态 */}
                     <TableCell>{getStatusBadge(user.status)}</TableCell>
                     {/* 加入时间 */}
@@ -634,9 +639,9 @@ export default function MemberManagement() {
           
           {editForm && (
             <div className="space-y-4 py-4">
-              {/* 字段1：姓名 - 可编辑 */}
+              {/* 字段1：企业内姓名 - 可编辑 */}
               <div className="space-y-1.5">
-                <Label className="text-xs">姓名</Label>
+                <Label className="text-xs">企业内姓名</Label>
                 <Input
                   value={editForm.name}
                   onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
@@ -644,16 +649,16 @@ export default function MemberManagement() {
                 />
               </div>
 
-              {/* 字段2：用户名 - 只读 */}
-              <div className="space-y-1.5">
-                <Label className="text-xs">用户名</Label>
-                <Input value={editForm.username} disabled className="bg-muted/50 text-muted-foreground border-muted" />
-              </div>
-
-              {/* 字段3：手机号 - 只读展示 */}
+              {/* 字段2：手机号 - 只读展示（完整展示） */}
               <div className="space-y-1.5">
                 <Label className="text-xs">手机号</Label>
                 <Input value={editForm.phone} disabled className="bg-muted/50 text-muted-foreground border-muted" />
+              </div>
+
+              {/* 字段3：UID - 只读展示 */}
+              <div className="space-y-1.5">
+                <Label className="text-xs">UID</Label>
+                <Input value={editForm.uid} disabled className="bg-muted/50 text-muted-foreground border-muted" />
               </div>
 
               {/* 字段4：加入部门情况 - 仅展示 */}
@@ -672,7 +677,7 @@ export default function MemberManagement() {
                       >
                         <span>{dept.name}</span>
                         <Badge variant="outline" className="text-xs">
-                          {dept.role}
+                          {dept.role === "admin" || dept.role === "企业管理员" ? "-" : (dept.role === "org_admin" || dept.role === "部门管理员" ? "部门管理员" : "成员")}
                         </Badge>
                       </div>
                     ))}
@@ -1044,7 +1049,7 @@ export default function MemberManagement() {
                           {user.departments.length}
                         </span>
                       </TableCell>
-                      <TableCell>{getRoleDisplay(user.departments)}</TableCell>
+                      <TableCell>{getRoleDisplay(user)}</TableCell>
                       <TableCell className="text-muted-foreground">{user.joinTime}</TableCell>
                     </TableRow>
                   ))

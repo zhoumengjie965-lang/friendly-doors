@@ -6,7 +6,6 @@ import {
   updateOrganization,
   deleteOrganization,
   addMember,
-  createInvitation,
 } from "@/lib/mockData";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
@@ -38,6 +37,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Table,
   TableBody,
@@ -217,17 +222,33 @@ export default function DeptManagement() {
   const [editOrgBudget, setEditOrgBudget] = useState(0);
 
   const [deleteOrgConfirm, setDeleteOrgConfirm] = useState<Org | null>(null);
+  const [cannotDeleteOrg, setCannotDeleteOrg] = useState<Org | null>(null);
 
   const [setAdminOrg, setSetAdminOrg] = useState<Org | null>(null);
-  const [newAdminPhone, setNewAdminPhone] = useState<string | null>(null);
+  const [newAdminPhones, setNewAdminPhones] = useState<string[]>([]);
+  const [adminSelectSearch, setAdminSelectSearch] = useState("");
+  const [demoteConfirmMember, setDemoteConfirmMember] = useState<{phone: string; name: string} | null>(null);
+
+  // Edit member dialog states
+  const [editMemberOpen, setEditMemberOpen] = useState(false);
+  const [editMember, setEditMember] = useState<Member | null>(null);
+  const [editMemberRole, setEditMemberRole] = useState<"org_admin" | "member">("member");
 
   const [addMemberOpen, setAddMemberOpen] = useState(false);
-  const [memberPhone, setMemberPhone] = useState("");
-  const [memberName, setMemberName] = useState("");
-  const [memberRole, setMemberRole] = useState("member");
+  const [importMemberSearch, setImportMemberSearch] = useState("");
+  const [selectedMembersForImport, setSelectedMembersForImport] = useState<string[]>([]);
+  const [importMemberRole, setImportMemberRole] = useState("member");
+  const [importDailyLimit, setImportDailyLimit] = useState("2000");
 
   const [budgetDialogOpen, setBudgetDialogOpen] = useState(false);
   const [budgetValue, setBudgetValue] = useState("");
+
+  // 二次确认弹窗状态
+  const [memberRemoveConfirm, setMemberRemoveConfirm] = useState<Member | null>(null);
+  const [memberDisableConfirm, setMemberDisableConfirm] = useState<Member | null>(null);
+  const [memberEnableConfirm, setMemberEnableConfirm] = useState<Member | null>(null);
+  const [orgDisableConfirm, setOrgDisableConfirm] = useState<Org | null>(null);
+  const [orgEnableConfirm, setOrgEnableConfirm] = useState<Org | null>(null);
 
   useEffect(() => {
     loadInitialData();
@@ -374,9 +395,26 @@ export default function DeptManagement() {
 
   // CRUD operations
   const handleCreateOrg = async () => {
-    if (!newOrgName.trim() || !selectedOrg || !enterprise) return;
+    if (!newOrgName.trim() || !enterprise) return;
+    
+    // 确定 parent_id：部门视图用 selectedOrg，企业视图用根部门
+    let parentId: string | null = null;
+    if (viewMode === "department" && selectedOrg) {
+      parentId = selectedOrg.id;
+    } else {
+      // 企业视图下，找第一个根部门作为 parent
+      const rootOrg = orgs.find((o) => !o.parent_id);
+      if (!rootOrg) {
+        toast({ title: "创建失败", description: "未找到根部门", variant: "destructive" });
+        return;
+      }
+      parentId = rootOrg.id;
+    }
+    
+    if (!parentId) return;
+    
     try {
-      const newOrg = await createOrganization(enterprise.id, newOrgName.trim(), selectedOrg.id, {
+      const newOrg = await createOrganization(enterprise.id, newOrgName.trim(), parentId, {
         monthly_budget: newOrgBudget ? Number(newOrgBudget) : null,
         status: "active",
       });
@@ -442,69 +480,102 @@ export default function DeptManagement() {
   const handleSetAdmin = async () => {
     if (!setAdminOrg || !enterprise) return;
     try {
-      await updateOrganization(setAdminOrg.id, { admin_phone: newAdminPhone });
-      toast({ title: "部门管理员已更新" });
+      // 更新所有选中的管理员角色为 org_admin
+      for (const phone of newAdminPhones) {
+        const mockData = getMockData();
+        const memberIndex = mockData.members.findIndex(
+          (m) => m.user_phone === phone && m.enterprise_id === enterprise.id
+        );
+        if (memberIndex !== -1) {
+          mockData.members[memberIndex].role = "org_admin";
+          mockData.members[memberIndex].organization_id = setAdminOrg.id;
+          localStorage.setItem("ai_gateway_mock_data", JSON.stringify(mockData));
+        }
+      }
+      
+      toast({ title: "部门管理员已更新", description: `已设置 ${newAdminPhones.length} 位管理员` });
       setSetAdminOrg(null);
-      setNewAdminPhone("");
+      setNewAdminPhones([]);
+      setAdminSelectSearch("");
       loadInitialData();
     } catch {
       toast({ title: "操作失败", variant: "destructive" });
     }
   };
 
-  const handleToggleStatus = async (org: Org) => {
-    const newStatus = org.status === "active" ? "disabled" : "active";
+  const handleDemoteAdmin = async (phone: string) => {
+    if (!setAdminOrg || !enterprise) return;
     try {
-      await updateOrganization(org.id, { status: newStatus as "active" | "inactive" });
-      toast({ title: newStatus === "active" ? "已启用" : "已禁用" });
+      const mockData = getMockData();
+      const memberIndex = mockData.members.findIndex(
+        (m) => m.user_phone === phone && m.enterprise_id === enterprise.id
+      );
+      if (memberIndex !== -1) {
+        mockData.members[memberIndex].role = "member";
+        localStorage.setItem("ai_gateway_mock_data", JSON.stringify(mockData));
+      }
+      
+      toast({ title: "已降级", description: "该成员已降为普通成员" });
+      setDemoteConfirmMember(null);
       loadInitialData();
     } catch {
       toast({ title: "操作失败", variant: "destructive" });
     }
   };
 
-  const handleAddMember = async () => {
-    if (!memberPhone.trim() || !selectedOrg || !enterprise) {
-      toast({ title: "请填写手机号", variant: "destructive" });
+
+
+  const handleImportMembers = async () => {
+    if (!selectedOrg || !enterprise || selectedMembersForImport.length === 0) {
+      toast({ title: "请至少选择一个成员", variant: "destructive" });
       return;
     }
 
-    const phone = memberPhone.trim();
-    const mockData = getMockData();
-    const existingUser = mockData.users.find((u) => u.phone === phone);
-    const existingMember = mockData.members.find(
-      (m) => m.enterprise_id === enterprise.id && m.user_phone === phone
-    );
+    try {
+      for (const phone of selectedMembersForImport) {
+        // 更新现有成员的 organization_id 和 role
+        const mockData = getMockData();
+        const memberIndex = mockData.members.findIndex(
+          (m) => m.user_phone === phone && m.enterprise_id === enterprise.id
+        );
+        if (memberIndex !== -1) {
+          mockData.members[memberIndex].organization_id = selectedOrg.id;
+          mockData.members[memberIndex].role = importMemberRole as "admin" | "org_admin" | "member";
+          mockData.members[memberIndex].daily_limit = Number(importDailyLimit) || null;
+          localStorage.setItem("ai_gateway_mock_data", JSON.stringify(mockData));
+        }
+      }
 
-    if (existingMember) {
-      toast({ title: "该用户已是企业成员", variant: "destructive" });
-      return;
+      toast({ title: "导入成功", description: `已成功导入 ${selectedMembersForImport.length} 位成员` });
+      setImportMemberSearch("");
+      setSelectedMembersForImport([]);
+      setImportMemberRole("member");
+      setImportDailyLimit("2000");
+      setAddMemberOpen(false);
+      fetchMembers(selectedOrg.id);
+      loadInitialData();
+    } catch (e: any) {
+      toast({ title: "导入失败", description: e?.message, variant: "destructive" });
     }
+  };
 
-    if (existingUser) {
-      await addMember(
-        enterprise.id,
-        selectedOrg.id,
-        phone,
-        memberRole as "admin" | "org_admin" | "member",
-        { status: "active", daily_limit: 1000 }
-      );
-      toast({ title: "添加成功" });
-    } else {
-      await createInvitation(enterprise.id, getCurrentPhone() || "", {
-        organization_id: selectedOrg.id,
-        invitee_phone: phone,
-        role: memberRole as "admin" | "org_admin" | "member",
-      });
-      toast({ title: "邀请已发送" });
+  const handleEditMemberRole = async () => {
+    if (!editMember) return;
+    try {
+      const mockData = getMockData();
+      const idx = mockData.members.findIndex((m) => m.id === editMember.id);
+      if (idx !== -1) {
+        mockData.members[idx].role = editMemberRole;
+        localStorage.setItem("ai_gateway_mock_data", JSON.stringify(mockData));
+      }
+      toast({ title: "角色已更新" });
+      setEditMemberOpen(false);
+      setEditMember(null);
+      if (selectedOrg) fetchMembers(selectedOrg.id);
+      loadInitialData();
+    } catch {
+      toast({ title: "更新失败", variant: "destructive" });
     }
-
-    setMemberPhone("");
-    setMemberName("");
-    setMemberRole("member");
-    setAddMemberOpen(false);
-    fetchMembers(selectedOrg.id);
-    loadInitialData();
   };
 
   const handleBatchBudget = async () => {
@@ -531,6 +602,7 @@ export default function DeptManagement() {
     mockData.members = mockData.members.filter((m) => m.id !== member.id);
     localStorage.setItem("ai_gateway_mock_data", JSON.stringify(mockData));
     toast({ title: "成员已移除" });
+    setMemberRemoveConfirm(null);
     if (selectedOrg) fetchMembers(selectedOrg.id);
     loadInitialData();
   };
@@ -546,6 +618,22 @@ export default function DeptManagement() {
     setMembers((prev) =>
       prev.map((m) => (m.id === member.id ? { ...m, status: newStatus } : m))
     );
+    toast({ title: newStatus === "active" ? "已启用" : "已禁用" });
+    setMemberDisableConfirm(null);
+    setMemberEnableConfirm(null);
+  };
+
+  const handleToggleStatus = async (org: Org) => {
+    const newStatus = org.status === "active" ? "disabled" : "active";
+    try {
+      await updateOrganization(org.id, { status: newStatus as "active" | "inactive" });
+      toast({ title: newStatus === "active" ? "已启用" : "已禁用" });
+      setOrgDisableConfirm(null);
+      setOrgEnableConfirm(null);
+      loadInitialData();
+    } catch {
+      toast({ title: "操作失败", variant: "destructive" });
+    }
   };
 
   // Mask phone number
@@ -931,7 +1019,13 @@ export default function DeptManagement() {
                                 <button
                                   onClick={() => {
                                     setSetAdminOrg(org);
-                                    setNewAdminPhone(org.admin_phone || null);
+                                    // 获取当前部门的 org_admin 作为已选
+                                    const mockData = getMockData();
+                                    const currentAdmins = mockData.members
+                                      .filter(m => m.organization_id === org.id && m.role === "org_admin")
+                                      .map(m => m.user_phone);
+                                    setNewAdminPhones(currentAdmins);
+                                    setAdminSelectSearch("");
                                   }}
                                   className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
                                   title="设置部门管理员"
@@ -956,13 +1050,19 @@ export default function DeptManagement() {
                                     </button>
                                   </DropdownMenuTrigger>
                                   <DropdownMenuContent align="end">
-                                    <DropdownMenuItem onClick={() => handleToggleStatus(org)}>
+                                    <DropdownMenuItem onClick={() => org.status === "active" ? setOrgDisableConfirm(org) : setOrgEnableConfirm(org)}>
                                       <Power className="h-4 w-4 mr-2" />
                                       {org.status === "active" ? "禁用" : "启用"}
                                     </DropdownMenuItem>
                                     <DropdownMenuItem
                                       className="text-destructive"
-                                      onClick={() => setDeleteOrgConfirm(org)}
+                                      onClick={() => {
+                                        if ((org.memberCount || 0) > 0 || (org.childCount || 0) > 0) {
+                                          setCannotDeleteOrg(org);
+                                        } else {
+                                          setDeleteOrgConfirm(org);
+                                        }
+                                      }}
                                     >
                                       <Trash2 className="h-4 w-4 mr-2" />
                                       删除
@@ -1019,7 +1119,7 @@ export default function DeptManagement() {
                       </Button>
                       <Button size="sm" onClick={() => setAddMemberOpen(true)} className="h-9">
                         <Plus className="h-4 w-4 mr-2" />
-                        添加成员
+                        导入成员
                       </Button>
                     </div>
                   ) : (
@@ -1123,22 +1223,22 @@ export default function DeptManagement() {
                                 <div className="flex items-center justify-end gap-1">
                                   <button
                                     onClick={() => {
-                                      setEditOrg(selectedOrg);
-                                      setEditOrgName(selectedOrg?.name || "");
-                                      setEditOrgOpen(true);
+                                      setEditMember(member);
+                                      setEditMemberRole(member.role === "org_admin" ? "org_admin" : "member");
+                                      setEditMemberOpen(true);
                                     }}
                                     className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
                                   >
                                     <Pencil className="h-4 w-4 text-gray-500" />
                                   </button>
                                   <button
-                                    onClick={() => handleDeleteMember(member)}
+                                    onClick={() => setMemberRemoveConfirm(member)}
                                     className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
                                   >
                                     <Trash2 className="h-4 w-4 text-gray-500" />
                                   </button>
                                   <button
-                                    onClick={() => handleToggleMemberStatus(member)}
+                                    onClick={() => member.status === "active" ? setMemberDisableConfirm(member) : setMemberEnableConfirm(member)}
                                     className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
                                   >
                                     <PauseCircle className="h-4 w-4 text-gray-500" />
@@ -1219,7 +1319,13 @@ export default function DeptManagement() {
                                   <button
                                     onClick={() => {
                                       setSetAdminOrg(org);
-                                      setNewAdminPhone(org.admin_phone || null);
+                                      // 获取当前部门的 org_admin 作为已选
+                                      const mockData = getMockData();
+                                      const currentAdmins = mockData.members
+                                        .filter(m => m.organization_id === org.id && m.role === "org_admin")
+                                        .map(m => m.user_phone);
+                                      setNewAdminPhones(currentAdmins);
+                                      setAdminSelectSearch("");
                                     }}
                                     className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
                                     title="设置部门管理员"
@@ -1244,17 +1350,23 @@ export default function DeptManagement() {
                                       </button>
                                     </DropdownMenuTrigger>
                                     <DropdownMenuContent align="end">
-                                      <DropdownMenuItem onClick={() => handleToggleStatus(org)}>
+                                      <DropdownMenuItem onClick={() => org.status === "active" ? setOrgDisableConfirm(org) : setOrgEnableConfirm(org)}>
                                         <Power className="h-4 w-4 mr-2" />
                                         {org.status === "active" ? "禁用" : "启用"}
                                       </DropdownMenuItem>
-                                      <DropdownMenuItem
-                                        className="text-destructive"
-                                        onClick={() => setDeleteOrgConfirm(org)}
-                                      >
-                                        <Trash2 className="h-4 w-4 mr-2" />
-                                        删除
-                                      </DropdownMenuItem>
+                                    <DropdownMenuItem
+                                      className="text-destructive"
+                                      onClick={() => {
+                                        if ((org.memberCount || 0) > 0 || (org.childCount || 0) > 0) {
+                                          setCannotDeleteOrg(org);
+                                        } else {
+                                          setDeleteOrgConfirm(org);
+                                        }
+                                      }}
+                                    >
+                                      <Trash2 className="h-4 w-4 mr-2" />
+                                      删除
+                                    </DropdownMenuItem>
                                     </DropdownMenuContent>
                                   </DropdownMenu>
                                 </div>
@@ -1275,6 +1387,286 @@ export default function DeptManagement() {
           </div>
         )}
       </div>
+
+      {/* 成员移除确认弹窗 */}
+      <Dialog open={!!memberRemoveConfirm} onOpenChange={() => setMemberRemoveConfirm(null)}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <span className="text-lg">⚠️</span>
+              确认将成员「{memberRemoveConfirm?.name}」从本部门移除？
+            </DialogTitle>
+          </DialogHeader>
+          
+          {memberRemoveConfirm && (() => {
+            const mockData = getMockData();
+            const user = mockData.users.find(u => u.phone === memberRemoveConfirm.user_phone);
+            const uid = user?.uid || "-";
+            // 获取该成员加入的所有部门
+            const memberOrgs = mockData.members
+              .filter(m => m.user_phone === memberRemoveConfirm.user_phone && m.organization_id)
+              .map(m => {
+                const org = mockData.organizations.find(o => o.id === m.organization_id);
+                return org?.name;
+              })
+              .filter(Boolean);
+            // 获取API Key数量
+            const apiKeyCount = mockData.apiKeys?.filter(k => k.user_phone === memberRemoveConfirm.user_phone).length || 0;
+            
+            return (
+              <div className="space-y-4 py-2">
+                <p className="text-sm text-foreground">
+                  移除后，该成员将不再属于本部门，但其在企业内的账号和其他部门权限不受影响。
+                </p>
+
+                <div className="rounded-lg border border-border bg-muted/40 p-3 space-y-2 text-sm">
+                  <div className="flex items-center gap-2">
+                    <span className="text-muted-foreground shrink-0">成员：</span>
+                    <span className="font-medium text-foreground">{memberRemoveConfirm.name} ({uid})</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-muted-foreground shrink-0">涉及部门：</span>
+                    <span className="font-medium text-foreground">{memberOrgs.length > 0 ? memberOrgs.join("、") : "未分配"}</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-muted-foreground shrink-0">涉及 Key：</span>
+                    <span className="font-medium text-foreground">{apiKeyCount} 个</span>
+                  </div>
+                </div>
+
+                <p className="text-xs text-muted-foreground bg-muted/50 p-2 rounded">
+                  注：如需彻底删除该成员，请前往「成员管理」页面操作。
+                </p>
+              </div>
+            );
+          })()}
+
+          <DialogFooter className="gap-2">
+            <Button variant="outline" onClick={() => setMemberRemoveConfirm(null)}>
+              取消
+            </Button>
+            <Button variant="destructive" onClick={() => memberRemoveConfirm && handleDeleteMember(memberRemoveConfirm)}>
+              确认移除
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* 成员禁用确认弹窗 */}
+      <Dialog open={!!memberDisableConfirm} onOpenChange={() => setMemberDisableConfirm(null)}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <span className="text-lg">🚫</span>
+              确认禁用成员「{memberDisableConfirm?.name}」？
+            </DialogTitle>
+          </DialogHeader>
+          
+          {memberDisableConfirm && (() => {
+            const mockData = getMockData();
+            const user = mockData.users.find(u => u.phone === memberDisableConfirm.user_phone);
+            const uid = user?.uid || "-";
+            // 获取该成员加入的所有部门
+            const memberOrgs = mockData.members
+              .filter(m => m.user_phone === memberDisableConfirm.user_phone && m.organization_id)
+              .map(m => {
+                const org = mockData.organizations.find(o => o.id === m.organization_id);
+                return org?.name;
+              })
+              .filter(Boolean);
+            // 获取API Key数量
+            const apiKeyCount = mockData.apiKeys?.filter(k => k.user_phone === memberDisableConfirm.user_phone).length || 0;
+            
+            return (
+              <div className="space-y-4 py-2">
+                <p className="text-sm text-foreground">
+                  禁用后，该成员在本部门的所有 API Key 将立即停止调用，且无法访问本部门资源，重新启用后可恢复。
+                </p>
+
+                <div className="rounded-lg border border-border bg-muted/40 p-3 space-y-2 text-sm">
+                  <div className="flex items-center gap-2">
+                    <span className="text-muted-foreground shrink-0">成员：</span>
+                    <span className="font-medium text-foreground">{memberDisableConfirm.name} ({uid})</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-muted-foreground shrink-0">涉及部门：</span>
+                    <span className="font-medium text-foreground">{memberOrgs.length > 0 ? memberOrgs.join("、") : "未分配"}</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-muted-foreground shrink-0">涉及 Key：</span>
+                    <span className="font-medium text-foreground">{apiKeyCount} 个</span>
+                  </div>
+                </div>
+
+                <p className="text-xs text-muted-foreground bg-muted/50 p-2 rounded">
+                  注：此操作仅影响该成员在本部门的权限，不影响其在其他部门或企业全局的状态。
+                </p>
+              </div>
+            );
+          })()}
+
+          <DialogFooter className="gap-2">
+            <Button variant="outline" onClick={() => setMemberDisableConfirm(null)}>
+              取消
+            </Button>
+            <Button variant="destructive" onClick={() => memberDisableConfirm && handleToggleMemberStatus(memberDisableConfirm)}>
+              确认禁用
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* 成员启用确认弹窗 */}
+      <Dialog open={!!memberEnableConfirm} onOpenChange={() => setMemberEnableConfirm(null)}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <span className="text-lg">ℹ️</span>
+              确认启用成员「{memberEnableConfirm?.name}」？
+            </DialogTitle>
+          </DialogHeader>
+          
+          {memberEnableConfirm && (() => {
+            const mockData = getMockData();
+            const user = mockData.users.find(u => u.phone === memberEnableConfirm.user_phone);
+            const uid = user?.uid || "-";
+            // 获取该成员加入的所有部门
+            const memberOrgs = mockData.members
+              .filter(m => m.user_phone === memberEnableConfirm.user_phone && m.organization_id)
+              .map(m => {
+                const org = mockData.organizations.find(o => o.id === m.organization_id);
+                return org?.name;
+              })
+              .filter(Boolean);
+            // 获取API Key数量
+            const apiKeyCount = mockData.apiKeys?.filter(k => k.user_phone === memberEnableConfirm.user_phone).length || 0;
+            
+            return (
+              <div className="space-y-4 py-2">
+                <p className="text-sm text-foreground">
+                  启用后，该成员将恢复对本部门资源的访问权限，名下的 API Key 将同步恢复可用。
+                </p>
+                
+                <div className="rounded-lg border border-border bg-muted/40 p-3 space-y-2 text-sm">
+                  <div className="flex items-center gap-2">
+                    <span className="text-muted-foreground shrink-0">成员：</span>
+                    <span className="font-medium text-foreground">{memberEnableConfirm.name} ({uid})</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-muted-foreground shrink-0">涉及部门：</span>
+                    <span className="font-medium text-foreground">{memberOrgs.length > 0 ? memberOrgs.join("、") : "未分配"}</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-muted-foreground shrink-0">涉及 Key：</span>
+                    <span className="font-medium text-foreground">{apiKeyCount} 个</span>
+                  </div>
+                </div>
+
+                <p className="text-xs text-muted-foreground bg-muted/50 p-2 rounded">
+                  注：启用后，该成员将恢复原有的部门内权限配置。
+                </p>
+              </div>
+            );
+          })()}
+
+          <DialogFooter className="gap-2">
+            <Button variant="outline" onClick={() => setMemberEnableConfirm(null)}>
+              取消
+            </Button>
+            <Button onClick={() => memberEnableConfirm && handleToggleMemberStatus(memberEnableConfirm)}>
+              确认启用
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* 部门禁用确认弹窗 */}
+      <Dialog open={!!orgDisableConfirm} onOpenChange={() => setOrgDisableConfirm(null)}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <span className="text-lg">🚫</span>
+              确认禁用部门「{orgDisableConfirm?.name}」？
+            </DialogTitle>
+          </DialogHeader>
+
+          {orgDisableConfirm && (
+            <div className="space-y-4 py-2">
+              <p className="text-sm text-foreground">
+                禁用后，该部门及其<span className="font-medium text-destructive">所有子部门</span>的成员将无法访问部门资源，<span className="font-medium text-destructive">所有 API Key 将立即停止调用</span>。
+              </p>
+
+              <div className="rounded-lg border border-border bg-muted/40 p-3 space-y-2 text-sm">
+                <div className="flex items-center gap-2">
+                  <span className="text-muted-foreground shrink-0">部门：</span>
+                  <span className="font-medium text-foreground">{orgDisableConfirm.name}</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-muted-foreground shrink-0">成员数：</span>
+                  <span className="font-medium text-foreground">{orgDisableConfirm.memberCount || 0} 人</span>
+                </div>
+              </div>
+
+              <p className="text-xs text-muted-foreground bg-muted/50 p-2 rounded">
+                注：部门禁用不会影响成员在企业其他部门的权限。
+              </p>
+            </div>
+          )}
+
+          <DialogFooter className="gap-2">
+            <Button variant="outline" onClick={() => setOrgDisableConfirm(null)}>
+              取消
+            </Button>
+            <Button variant="destructive" onClick={() => orgDisableConfirm && handleToggleStatus(orgDisableConfirm)}>
+              确认禁用
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* 部门启用确认弹窗 */}
+      <Dialog open={!!orgEnableConfirm} onOpenChange={() => setOrgEnableConfirm(null)}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <span className="text-lg">ℹ️</span>
+              确认启用部门「{orgEnableConfirm?.name}」？
+            </DialogTitle>
+          </DialogHeader>
+
+          {orgEnableConfirm && (
+            <div className="space-y-4 py-2">
+              <p className="text-sm text-foreground">
+                启用后，该部门及其<span className="font-medium text-primary">所有子部门</span>的成员将恢复访问权限，<span className="font-medium text-primary">所有 API Key 将同步恢复调用</span>。
+              </p>
+
+              <div className="rounded-lg border border-border bg-muted/40 p-3 space-y-2 text-sm">
+                <div className="flex items-center gap-2">
+                  <span className="text-muted-foreground shrink-0">部门：</span>
+                  <span className="font-medium text-foreground">{orgEnableConfirm.name}</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-muted-foreground shrink-0">成员数：</span>
+                  <span className="font-medium text-foreground">{orgEnableConfirm.memberCount || 0} 人</span>
+                </div>
+              </div>
+
+              <p className="text-xs text-muted-foreground bg-muted/50 p-2 rounded">
+                注：启用后，部门成员将恢复原有的权限配置。
+              </p>
+            </div>
+          )}
+
+          <DialogFooter className="gap-2">
+            <Button variant="outline" onClick={() => setOrgEnableConfirm(null)}>
+              取消
+            </Button>
+            <Button onClick={() => orgEnableConfirm && handleToggleStatus(orgEnableConfirm)}>
+              确认启用
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Create Org Dialog */}
       <Dialog open={createOrgOpen} onOpenChange={(open) => {
@@ -1337,78 +1729,77 @@ export default function DeptManagement() {
                     m.phone.includes(adminSearchQuery)
                   );
                 
+                const selectedNames = newOrgAdmins.map(phone => {
+                  const user = mockData.users.find((u) => u.phone === phone);
+                  return user?.name || phone;
+                });
+                
                 return (
-                  <div className="relative">
-                    <Select
-                      value={newOrgAdmins[0] || "__none__"}
-                      onValueChange={(value) => {
-                        if (value === "__none__") {
-                          setNewOrgAdmins([]);
-                        } else if (!newOrgAdmins.includes(value)) {
-                          if (newOrgAdmins.length < 3) {
-                            setNewOrgAdmins([...newOrgAdmins, value]);
-                          } else {
-                            toast({ title: "最多只能选择3个管理员", variant: "destructive" });
-                          }
-                        }
-                        setAdminSearchQuery("");
-                      }}
-                    >
-                      <SelectTrigger className="w-full">
-                        <SelectValue placeholder="不指定">
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="outline"
+                        role="combobox"
+                        className="w-full justify-between font-normal"
+                      >
+                        <span className={newOrgAdmins.length > 0 ? "text-gray-900" : "text-gray-400"}>
                           {newOrgAdmins.length > 0 
-                            ? `${newOrgAdmins.length}人已选择` 
-                            : "不指定"}
-                        </SelectValue>
-                      </SelectTrigger>
-                      <SelectContent>
-                        <div className="px-2 pb-2">
-                          <Input
-                            placeholder="搜索成员"
-                            value={adminSearchQuery}
-                            onChange={(e) => setAdminSearchQuery(e.target.value)}
-                            className="h-8"
-                            onClick={(e) => e.stopPropagation()}
-                          />
-                        </div>
-                        <SelectItem value="__none__">不指定</SelectItem>
-                        {availableMembers.map((m) => (
-                          <SelectItem key={m.phone} value={m.phone}>
-                            <div className="flex items-center gap-2">
-                              <span>{m.name}</span>
-                              <span className="text-gray-400">- {m.phone.slice(0, 3)}****{m.phone.slice(-4)}</span>
-                              {newOrgAdmins.includes(m.phone) && (
-                                <span className="text-blue-500 ml-2">✓</span>
-                              )}
-                            </div>
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    
-                    {/* Selected admins display */}
-                    {newOrgAdmins.length > 0 && (
-                      <div className="flex flex-wrap gap-2 mt-2">
-                        {newOrgAdmins.map((phone) => {
-                          const user = mockData.users.find((u) => u.phone === phone);
-                          return (
-                            <div
-                              key={phone}
-                              className="flex items-center gap-1 px-2 py-1 bg-blue-50 text-blue-600 rounded-md text-sm"
-                            >
-                              <span>{user?.name || phone}</span>
-                              <button
-                                onClick={() => setNewOrgAdmins(newOrgAdmins.filter((p) => p !== phone))}
-                                className="hover:text-blue-800"
-                              >
-                                ×
-                              </button>
-                            </div>
-                          );
-                        })}
+                            ? selectedNames.join("、") 
+                            : "不指定时默认该部门由上级管理员管理"}
+                        </span>
+                        <ChevronDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-[360px] p-0" align="start">
+                      <div className="p-2 border-b">
+                        <Input
+                          placeholder="搜索成员"
+                          value={adminSearchQuery}
+                          onChange={(e) => setAdminSearchQuery(e.target.value)}
+                          className="h-8"
+                        />
                       </div>
-                    )}
-                  </div>
+                      <div className="max-h-60 overflow-y-auto py-1">
+                        {availableMembers.length === 0 ? (
+                          <div className="py-4 text-center text-sm text-gray-400">
+                            未找到成员
+                          </div>
+                        ) : (
+                          availableMembers.map((m) => {
+                            const isSelected = newOrgAdmins.includes(m.phone);
+                            return (
+                              <div
+                                key={m.phone}
+                                className="flex items-center gap-3 px-3 py-2 hover:bg-gray-50 cursor-pointer"
+                                onClick={() => {
+                                  if (isSelected) {
+                                    setNewOrgAdmins(newOrgAdmins.filter(p => p !== m.phone));
+                                  } else {
+                                    if (newOrgAdmins.length < 3) {
+                                      setNewOrgAdmins([...newOrgAdmins, m.phone]);
+                                    } else {
+                                      toast({ title: "最多只能选择3个管理员", variant: "destructive" });
+                                    }
+                                  }
+                                }}
+                              >
+                                <Checkbox
+                                  checked={isSelected}
+                                  onCheckedChange={() => {}}
+                                />
+                                <div className="flex items-center gap-2 flex-1">
+                                  <span className="text-sm">{m.name}</span>
+                                  <span className="text-xs text-gray-400">
+                                    {m.phone.slice(0, 3)}****{m.phone.slice(-4)}
+                                  </span>
+                                </div>
+                              </div>
+                            );
+                          })
+                        )}
+                      </div>
+                    </PopoverContent>
+                  </Popover>
                 );
               })()}
             </div>
@@ -1477,94 +1868,522 @@ export default function DeptManagement() {
 
       {/* Delete Org Dialog */}
       <Dialog open={!!deleteOrgConfirm} onOpenChange={() => setDeleteOrgConfirm(null)}>
-        <DialogContent>
+        <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>删除部门</DialogTitle>
-            <DialogDescription>
-              确定要删除部门「{deleteOrgConfirm?.name}」吗？此操作不可恢复。
-            </DialogDescription>
+            <DialogTitle className="flex items-center gap-2">
+              <span className="text-lg">⚠️</span>
+              确认删除部门「{deleteOrgConfirm?.name}」？
+            </DialogTitle>
           </DialogHeader>
-          <DialogFooter>
+
+          {deleteOrgConfirm && (
+            <div className="space-y-4 py-2">
+              <p className="text-sm text-foreground">
+                删除后，该部门将被<span className="font-medium text-destructive">永久删除</span>，<span className="font-medium text-destructive">不可恢复</span>。
+              </p>
+            </div>
+          )}
+
+          <DialogFooter className="gap-2">
             <Button variant="outline" onClick={() => setDeleteOrgConfirm(null)}>
               取消
             </Button>
             <Button variant="destructive" onClick={handleDeleteOrg}>
-              删除
+              确认删除
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Cannot Delete Org Dialog */}
+      <Dialog open={!!cannotDeleteOrg} onOpenChange={() => setCannotDeleteOrg(null)}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <span className="text-lg">🚫</span>
+              无法删除部门「{cannotDeleteOrg?.name}」
+            </DialogTitle>
+          </DialogHeader>
+
+          {cannotDeleteOrg && (
+            <div className="space-y-4 py-2">
+              <p className="text-sm text-foreground">
+                该部门还有 <span className="font-medium text-destructive">{cannotDeleteOrg.memberCount || 0} 位成员</span>、<span className="font-medium text-destructive">{cannotDeleteOrg.childCount || 0} 个子部门</span>，请先清理后再删除。
+              </p>
+            </div>
+          )}
+
+          <DialogFooter className="gap-2">
+            <Button onClick={() => setCannotDeleteOrg(null)}>
+              知道了
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
       {/* Set Admin Dialog */}
-      <Dialog open={!!setAdminOrg} onOpenChange={() => setSetAdminOrg(null)}>
-        <DialogContent>
+      <Dialog 
+        open={!!setAdminOrg} 
+        onOpenChange={(open) => {
+          if (!open) {
+            setNewAdminPhones([]);
+            setAdminSelectSearch("");
+          }
+          setSetAdminOrg(open ? setAdminOrg : null);
+        }}
+      >
+        <DialogContent className="max-w-2xl">
           <DialogHeader>
             <DialogTitle>设置部门管理员</DialogTitle>
-            <DialogDescription>为「{setAdminOrg?.name}」设置管理员</DialogDescription>
           </DialogHeader>
-          <div className="space-y-4">
-            <div className="space-y-2">
-              <Label>管理员手机号</Label>
-              <Input
-                placeholder="请输入管理员手机号"
-                value={newAdminPhone || ""}
-                onChange={(e) => setNewAdminPhone(e.target.value || null)}
-              />
-            </div>
-          </div>
+          {(() => {
+            const mockData = getMockData();
+            // 获取企业所有成员（排除企业管理员）
+            const enterpriseMembers = mockData.members.filter(
+              (m) => m.enterprise_id === enterprise?.id && m.role !== "admin"
+            );
+            const availableMembers = enterpriseMembers
+              .map((m) => {
+                const user = mockData.users.find((u) => u.phone === m.user_phone);
+                return {
+                  phone: m.user_phone,
+                  name: user?.name || m.user_phone,
+                };
+              })
+              .filter((m) => 
+                !adminSelectSearch || 
+                m.name.toLowerCase().includes(adminSelectSearch.toLowerCase()) ||
+                m.phone.includes(adminSelectSearch)
+              );
+            
+            const selectedAdminDetails = newAdminPhones.map(phone => {
+              const user = mockData.users.find(u => u.phone === phone);
+              return { phone, name: user?.name || phone };
+            });
+
+            // 获取当前已设定的管理员名单（部门内的 org_admin）
+            const currentAdmins = enterpriseMembers.filter(
+              m => m.organization_id === setAdminOrg?.id && m.role === "org_admin"
+            ).map(m => {
+              const user = mockData.users.find(u => u.phone === m.user_phone);
+              return { phone: m.user_phone, name: user?.name || m.user_phone };
+            });
+            
+            return (
+              <div className="space-y-4 py-2">
+                {/* 双栏选择区域 */}
+                <div className="grid grid-cols-2 gap-4 h-64">
+                  {/* 左侧：可选成员 */}
+                  <div className="border rounded-lg overflow-hidden">
+                    <div className="px-3 py-2 bg-gray-50 border-b text-sm text-gray-600">
+                      从用户池选择管理员（最多3人）
+                    </div>
+                    <div className="p-2 border-b">
+                      <Input
+                        placeholder="搜索姓名或手机号"
+                        value={adminSelectSearch}
+                        onChange={(e) => setAdminSelectSearch(e.target.value)}
+                        className="h-8 text-sm"
+                      />
+                    </div>
+                    <div className="overflow-y-auto h-[calc(100%-80px)]">
+                      {availableMembers.length === 0 ? (
+                        <div className="p-4 text-center text-sm text-gray-400">
+                          暂无可用成员
+                        </div>
+                      ) : (
+                        availableMembers.map(m => {
+                          const isSelected = newAdminPhones.includes(m.phone);
+                          const isDisabled = !isSelected && newAdminPhones.length >= 3;
+                          return (
+                            <div
+                              key={m.phone}
+                              className={`flex items-center gap-2 px-3 py-2 ${isDisabled ? "opacity-50 cursor-not-allowed" : "hover:bg-gray-50 cursor-pointer"}`}
+                              onClick={() => {
+                                if (isDisabled) return;
+                                if (isSelected) {
+                                  setNewAdminPhones(prev => prev.filter(p => p !== m.phone));
+                                } else {
+                                  setNewAdminPhones(prev => [...prev, m.phone]);
+                                }
+                              }}
+                            >
+                              <Checkbox checked={isSelected} />
+                              <span className="text-sm flex-1">{m.name}</span>
+                              <span className="text-xs text-gray-400">
+                                {m.phone.slice(0, 3)}****{m.phone.slice(-4)}
+                              </span>
+                            </div>
+                          );
+                        })
+                      )}
+                    </div>
+                  </div>
+                  
+                  {/* 右侧：已选管理员（标签形式） */}
+                  <div className="border rounded-lg overflow-hidden">
+                    <div className="px-3 py-2 bg-gray-50 border-b flex items-center justify-between">
+                      <span className="text-sm text-gray-600">已选择：{newAdminPhones.length}/3</span>
+                      {newAdminPhones.length > 0 && (
+                        <button 
+                          className="text-xs text-blue-500 hover:text-blue-600"
+                          onClick={() => setNewAdminPhones([])}
+                        >
+                          清空已选
+                        </button>
+                      )}
+                    </div>
+                    <div className="p-3 overflow-y-auto h-[calc(100%-40px)]">
+                      {selectedAdminDetails.length === 0 ? (
+                        <div className="text-center text-sm text-gray-400 py-8">
+                          请选择管理员
+                        </div>
+                      ) : (
+                        <div className="flex flex-wrap gap-2">
+                          {selectedAdminDetails.map(m => (
+                            <div key={m.phone} className="inline-flex items-center gap-1 px-2 py-1 bg-blue-50 text-blue-700 rounded-md text-sm">
+                              <span>{m.name}</span>
+                              <button
+                                className="ml-1 text-blue-500 hover:text-blue-700"
+                                onClick={() => setNewAdminPhones(prev => prev.filter(p => p !== m.phone))}
+                              >
+                                ×
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+                
+                {/* 当前已设定的管理员列表 */}
+                {currentAdmins.length > 0 && (
+                  <div className="border rounded-lg p-3">
+                    <div className="text-sm text-gray-600 mb-2">当前部门管理员</div>
+                    <div className="space-y-2">
+                      {currentAdmins.map(admin => (
+                        <div key={admin.phone} className="flex items-center justify-between py-1">
+                          <div className="flex items-center gap-2">
+                            <span className="text-sm">{admin.name}</span>
+                            <span className="text-xs text-gray-400">
+                              {admin.phone.slice(0, 3)}****{admin.phone.slice(-4)}
+                            </span>
+                          </div>
+                          <button
+                            onClick={() => setDemoteConfirmMember(admin)}
+                            className="text-xs text-orange-500 hover:text-orange-600 border border-orange-200 hover:border-orange-300 px-2 py-1 rounded transition-colors"
+                            title="降级为普通成员"
+                          >
+                            降级
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })()}
           <DialogFooter>
-            <Button variant="outline" onClick={() => setSetAdminOrg(null)}>
+            <Button 
+              variant="outline" 
+              onClick={() => {
+                setNewAdminPhones([]);
+                setAdminSelectSearch("");
+                setSetAdminOrg(null);
+              }}
+            >
               取消
             </Button>
-            <Button onClick={handleSetAdmin}>保存</Button>
+            <Button onClick={handleSetAdmin}>
+              保存 ({newAdminPhones.length})
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
-      {/* Add Member Dialog */}
-      <Dialog open={addMemberOpen} onOpenChange={setAddMemberOpen}>
+      {/* Demote Confirm Dialog */}
+      <Dialog open={!!demoteConfirmMember} onOpenChange={() => setDemoteConfirmMember(null)}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>添加成员</DialogTitle>
-            <DialogDescription>添加成员到「{selectedOrg?.name}」</DialogDescription>
+            <DialogTitle>确认降级</DialogTitle>
+            <DialogDescription>
+              确定要将「{demoteConfirmMember?.name}」降级为普通成员吗？
+              <br />
+              该成员将仍然留在本部门，但不再拥有部门管理员权限。
+            </DialogDescription>
           </DialogHeader>
-          <div className="space-y-4">
-            <div className="space-y-2">
-              <Label>
-                手机号 <span className="text-red-500">*</span>
-              </Label>
-              <Input
-                placeholder="请输入手机号"
-                value={memberPhone}
-                onChange={(e) => setMemberPhone(e.target.value)}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>姓名</Label>
-              <Input
-                placeholder="请输入姓名（可选）"
-                value={memberName}
-                onChange={(e) => setMemberName(e.target.value)}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>角色</Label>
-              <Select value={memberRole} onValueChange={setMemberRole}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="member">普通成员</SelectItem>
-                  <SelectItem value="org_admin">部门管理员</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setAddMemberOpen(false)}>
+            <Button variant="outline" onClick={() => setDemoteConfirmMember(null)}>
               取消
             </Button>
-            <Button onClick={handleAddMember}>添加</Button>
+            <Button 
+              variant="destructive" 
+              onClick={() => demoteConfirmMember && handleDemoteAdmin(demoteConfirmMember.phone)}
+            >
+              确认降级
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Import Members Dialog */}
+      <Dialog 
+        open={addMemberOpen} 
+        onOpenChange={(open) => {
+          if (!open) {
+            setImportMemberSearch("");
+            setSelectedMembersForImport([]);
+            setImportMemberRole("member");
+            setImportDailyLimit("2000");
+          }
+          setAddMemberOpen(open);
+        }}
+      >
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>导入成员</DialogTitle>
+          </DialogHeader>
+          {(() => {
+            const mockData = getMockData();
+            // 获取企业所有成员
+            const enterpriseMembers = mockData.members.filter(
+              (m) => m.enterprise_id === enterprise?.id
+            );
+            // 筛选出未在当前部门的成员（且不是 admin 角色的企业管理员）
+            const currentOrgMemberPhones = members.map(m => m.user_phone);
+            const availableMembers = enterpriseMembers
+              .filter(m => !currentOrgMemberPhones.includes(m.user_phone) && m.role !== "admin")
+              .map(m => {
+                const user = mockData.users.find(u => u.phone === m.user_phone);
+                return {
+                  phone: m.user_phone,
+                  name: user?.name || m.user_phone,
+                };
+              })
+              .filter(m => 
+                !importMemberSearch || 
+                m.name.toLowerCase().includes(importMemberSearch.toLowerCase()) ||
+                m.phone.includes(importMemberSearch)
+              );
+            
+            const selectedMemberDetails = selectedMembersForImport.map(phone => {
+              const user = mockData.users.find(u => u.phone === phone);
+              return { phone, name: user?.name || phone };
+            });
+            
+            return (
+              <div className="space-y-4 py-2">
+                {/* 双栏选择区域 */}
+                <div className="grid grid-cols-2 gap-4 h-64">
+                  {/* 左侧：可选成员 */}
+                  <div className="border rounded-lg overflow-hidden">
+                    <div className="px-3 py-2 bg-gray-50 border-b text-sm text-gray-600">
+                      从用户池选择成员
+                    </div>
+                    <div className="p-2 border-b">
+                      <Input
+                        placeholder="搜索姓名或手机号"
+                        value={importMemberSearch}
+                        onChange={(e) => setImportMemberSearch(e.target.value)}
+                        className="h-8 text-sm"
+                      />
+                    </div>
+                    <div className="overflow-y-auto h-[calc(100%-80px)]">
+                      {availableMembers.length === 0 ? (
+                        <div className="p-4 text-center text-sm text-gray-400">
+                          暂无可用成员
+                        </div>
+                      ) : (
+                        availableMembers.map(m => {
+                          const isSelected = selectedMembersForImport.includes(m.phone);
+                          return (
+                            <div
+                              key={m.phone}
+                              className="flex items-center gap-2 px-3 py-2 hover:bg-gray-50 cursor-pointer"
+                              onClick={() => {
+                                if (isSelected) {
+                                  setSelectedMembersForImport(prev => prev.filter(p => p !== m.phone));
+                                } else {
+                                  setSelectedMembersForImport(prev => [...prev, m.phone]);
+                                }
+                              }}
+                            >
+                              <Checkbox checked={isSelected} />
+                              <span className="text-sm flex-1">{m.name}</span>
+                              <span className="text-xs text-gray-400">
+                                {m.phone.slice(0, 3)}****{m.phone.slice(-4)}
+                              </span>
+                            </div>
+                          );
+                        })
+                      )}
+                    </div>
+                  </div>
+                  
+                  {/* 右侧：已选成员 */}
+                  <div className="border rounded-lg overflow-hidden">
+                    <div className="px-3 py-2 bg-gray-50 border-b flex items-center justify-between">
+                      <span className="text-sm text-gray-600">已选择：{selectedMembersForImport.length}人</span>
+                      {selectedMembersForImport.length > 0 && (
+                        <button 
+                          className="text-xs text-blue-500 hover:text-blue-600"
+                          onClick={() => setSelectedMembersForImport([])}
+                        >
+                          清空已选
+                        </button>
+                      )}
+                    </div>
+                    <div className="overflow-y-auto h-[calc(100%-40px)]">
+                      {selectedMemberDetails.length === 0 ? (
+                        <div className="p-4 text-center text-sm text-gray-400">
+                          请选择成员
+                        </div>
+                      ) : (
+                        selectedMemberDetails.map(m => (
+                          <div key={m.phone} className="flex items-center justify-between px-3 py-2 hover:bg-gray-50">
+                            <span className="text-sm">{m.name}</span>
+                            <button
+                              className="text-gray-400 hover:text-gray-600"
+                              onClick={() => setSelectedMembersForImport(prev => prev.filter(p => p !== m.phone))}
+                            >
+                              <span className="text-lg leading-none">×</span>
+                            </button>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  </div>
+                </div>
+                
+                {/* 角色和单日上限设置 */}
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label className="text-sm text-gray-600">角色</Label>
+                    <Select value={importMemberRole} onValueChange={setImportMemberRole}>
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="member">普通成员</SelectItem>
+                        <SelectItem value="org_admin">部门管理员</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-sm text-gray-600">单日上限（元）</Label>
+                    <Input
+                      type="number"
+                      value={importDailyLimit}
+                      onChange={(e) => setImportDailyLimit(e.target.value)}
+                      min={0}
+                    />
+                  </div>
+                </div>
+                
+                {/* 提示信息 */}
+                <div className="text-xs text-gray-400 space-y-1">
+                  <p>• 以上为尚未分配至本部门的成员</p>
+                  <p>• 如需添加新成员，请先在「成员管理」页面创建</p>
+                </div>
+              </div>
+            );
+          })()}
+          <DialogFooter>
+            <Button 
+              variant="outline" 
+              onClick={() => {
+                setImportMemberSearch("");
+                setSelectedMembersForImport([]);
+                setImportMemberRole("member");
+                setImportDailyLimit("2000");
+                setAddMemberOpen(false);
+              }}
+            >
+              取消
+            </Button>
+            <Button 
+              onClick={handleImportMembers}
+              disabled={selectedMembersForImport.length === 0}
+            >
+              导入 ({selectedMembersForImport.length})
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Member Dialog */}
+      <Dialog open={editMemberOpen} onOpenChange={(open) => {
+        if (!open) {
+          setEditMember(null);
+          setEditMemberRole("member");
+        }
+        setEditMemberOpen(open);
+      }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>编辑成员</DialogTitle>
+          </DialogHeader>
+          {editMember && (
+            <div className="space-y-4 py-2">
+              {/* 成员手机号 - 只读 */}
+              <div className="space-y-2">
+                <Label className="text-sm text-gray-600">成员手机号</Label>
+                <Input
+                  value={editMember.user_phone}
+                  disabled
+                  className="bg-gray-50 text-gray-500"
+                />
+              </div>
+              {/* 姓名 - 只读 */}
+              <div className="space-y-2">
+                <Label className="text-sm text-gray-600">姓名</Label>
+                <Input
+                  value={editMember.name || "未命名"}
+                  disabled
+                  className="bg-gray-50 text-gray-500"
+                />
+              </div>
+              {/* 角色 - 可编辑 */}
+              <div className="space-y-2">
+                <Label className="text-sm text-gray-600">角色</Label>
+                <div className="flex gap-4 mt-2">
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="radio"
+                      name="memberRole"
+                      value="org_admin"
+                      checked={editMemberRole === "org_admin"}
+                      onChange={(e) => setEditMemberRole(e.target.value as "org_admin")}
+                      className="w-4 h-4 text-blue-600"
+                    />
+                    <span className="text-sm">部门管理员</span>
+                  </label>
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="radio"
+                      name="memberRole"
+                      value="member"
+                      checked={editMemberRole === "member"}
+                      onChange={(e) => setEditMemberRole(e.target.value as "member")}
+                      className="w-4 h-4 text-blue-600"
+                    />
+                    <span className="text-sm">普通成员</span>
+                  </label>
+                </div>
+              </div>
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => {
+              setEditMember(null);
+              setEditMemberRole("member");
+              setEditMemberOpen(false);
+            }}>
+              取消
+            </Button>
+            <Button onClick={handleEditMemberRole}>确定</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
