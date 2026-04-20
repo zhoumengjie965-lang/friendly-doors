@@ -51,6 +51,14 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { Slider } from "@/components/ui/slider";
+import { Switch } from "@/components/ui/switch";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import {
   Search,
   ChevronRight,
@@ -101,6 +109,11 @@ interface Org {
   created_at: string;
   memberCount?: number;
   childCount?: number;
+  // 预算设置相关字段
+  default_monthly_budget?: number;
+  budget_override?: number;
+  alert_enabled?: boolean;
+  alert_threshold?: number;
 }
 
 interface Enterprise {
@@ -219,7 +232,12 @@ export default function DeptManagement() {
   const [editOrgName, setEditOrgName] = useState("");
 
   const [editBudgetOpen, setEditBudgetOpen] = useState(false);
-  const [editOrgBudget, setEditOrgBudget] = useState(0);
+  const [budgetForm, setBudgetForm] = useState({
+    default_monthly_budget: 0,
+    budget_override: 0,
+    alert_enabled: false,
+    alert_threshold: 75,
+  });
 
   const [deleteOrgConfirm, setDeleteOrgConfirm] = useState<Org | null>(null);
   const [cannotDeleteOrg, setCannotDeleteOrg] = useState<Org | null>(null);
@@ -455,8 +473,14 @@ export default function DeptManagement() {
   const handleEditBudget = async () => {
     if (!editOrg) return;
     try {
-      await updateOrganization(editOrg.id, { monthly_budget: editOrgBudget });
-      toast({ title: "预算已更新" });
+      await updateOrganization(editOrg.id, {
+        default_monthly_budget: budgetForm.default_monthly_budget,
+        budget_override: budgetForm.budget_override,
+        alert_enabled: budgetForm.alert_enabled,
+        alert_threshold: budgetForm.alert_threshold,
+        monthly_budget: budgetForm.budget_override || budgetForm.default_monthly_budget,
+      });
+      toast({ title: "预算设置已更新" });
       setEditOrg(null);
       setEditBudgetOpen(false);
       loadInitialData();
@@ -972,19 +996,74 @@ export default function DeptManagement() {
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {rootOrgs.map((org) => (
+                        {rootOrgs.map((org) => {
+                          // 获取该部门的所有管理员
+                          const mockData = getMockData();
+                          const orgAdmins = mockData.members
+                            .filter(m => m.organization_id === org.id && m.role === "org_admin");
+                          // 获取管理员的详细信息
+                          const adminDetails = orgAdmins.map(admin => {
+                            const user = mockData.users.find(u => u.phone === admin.user_phone);
+                            const rawUid = user?.uid || "-";
+                            const uid = rawUid.startsWith("UID:") ? rawUid.slice(4) : rawUid;
+                            return {
+                              name: user?.name || "未命名",
+                              uid: uid,
+                              phone: admin.user_phone,
+                              maskedPhone: maskPhone(admin.user_phone),
+                            };
+                          });
+                          const firstAdminName = adminDetails[0]?.name || "-";
+                          return (
                           <TableRow key={org.id} className="border-b border-gray-50">
                             <TableCell>
                               <div className="font-medium text-gray-900">{org.name}</div>
                             </TableCell>
                             <TableCell className="text-sm text-gray-600">
-                              {org.admin_phone || "-"}
+                              {adminDetails.length > 0 ? (
+                                <TooltipProvider>
+                                  <Tooltip>
+                                    <TooltipTrigger asChild>
+                                      <span className="cursor-pointer">{firstAdminName}</span>
+                                    </TooltipTrigger>
+                                    <TooltipContent side="top" className="max-w-xs">
+                                      <div className="space-y-1">
+                                        {adminDetails.map((admin, idx) => (
+                                          <div key={idx} className="text-sm text-gray-500">
+                                            {admin.name}（UID：{admin.uid} | 手机号：{admin.maskedPhone}）
+                                          </div>
+                                        ))}
+                                      </div>
+                                    </TooltipContent>
+                                  </Tooltip>
+                                </TooltipProvider>
+                              ) : (
+                                "-"
+                              )}
                             </TableCell>
                             <TableCell className="text-sm text-gray-600">
                               {org.memberCount || 0}
                             </TableCell>
                             <TableCell className="text-sm text-gray-600">
-                              {org.monthly_budget ? `¥${org.monthly_budget.toFixed(2)}` : "¥0.00"}
+                              <div className="flex items-center gap-2">
+                                {org.monthly_budget ? `¥${org.monthly_budget.toFixed(2)}` : "¥0.00"}
+                                <button
+                                  onClick={() => {
+                                    setEditOrg(org);
+                                    setBudgetForm({
+                                      default_monthly_budget: org.default_monthly_budget || 0,
+                                      budget_override: org.budget_override || org.monthly_budget || 0,
+                                      alert_enabled: org.alert_enabled || false,
+                                      alert_threshold: org.alert_threshold || 75,
+                                    });
+                                    setEditBudgetOpen(true);
+                                  }}
+                                  className="p-1 hover:bg-gray-100 rounded transition-colors"
+                                  title="设置预算"
+                                >
+                                  <Pencil className="h-3 w-3 text-gray-400" />
+                                </button>
+                              </div>
                             </TableCell>
                             <TableCell className="text-sm text-red-500">
                               ¥{(org.consumed_budget || 0).toFixed(2)}
@@ -1072,7 +1151,7 @@ export default function DeptManagement() {
                               </div>
                             </TableCell>
                           </TableRow>
-                        ))}
+                        )})}
                       </TableBody>
                     </Table>
                   )}
@@ -1155,7 +1234,13 @@ export default function DeptManagement() {
                             </TableCell>
                           </TableRow>
                         ) : (
-                          filteredMembers.map((member) => (
+                          filteredMembers.map((member) => {
+                            const mockData = getMockData();
+                            const user = mockData.users.find(u => u.phone === member.user_phone);
+                            const rawUid = user?.uid || "-";
+                            const uid = rawUid.startsWith("UID:") ? rawUid.slice(4) : rawUid;
+                            const maskedPhone = maskPhone(member.user_phone);
+                            return (
                             <TableRow key={member.id} className="border-b border-gray-50">
                               <TableCell>
                                 <div className="flex items-center gap-3">
@@ -1165,12 +1250,21 @@ export default function DeptManagement() {
                                     </AvatarFallback>
                                   </Avatar>
                                   <div>
-                                    <div className="text-sm font-medium text-gray-900">
-                                      {member.name || "未命名"}
-                                    </div>
-                                    <div className="text-xs text-gray-400">
-                                      {maskPhone(member.user_phone)}
-                                    </div>
+                                    <TooltipProvider>
+                                      <Tooltip>
+                                        <TooltipTrigger asChild>
+                                          <div className="text-sm font-medium text-gray-900 cursor-pointer">
+                                            {member.name || "未命名"}
+                                          </div>
+                                        </TooltipTrigger>
+                                        <TooltipContent side="top">
+                                          <div className="text-sm text-gray-500">
+                                            <p>UID：{uid}</p>
+                                            <p>手机号：{maskedPhone}</p>
+                                          </div>
+                                        </TooltipContent>
+                                      </Tooltip>
+                                    </TooltipProvider>
                                   </div>
                                 </div>
                               </TableCell>
@@ -1246,7 +1340,7 @@ export default function DeptManagement() {
                                 </div>
                               </TableCell>
                             </TableRow>
-                          ))
+                          )})
                         )}
                       </TableBody>
                     </Table>
@@ -1272,19 +1366,74 @@ export default function DeptManagement() {
                           </TableRow>
                         </TableHeader>
                         <TableBody>
-                          {childOrgs.map((org) => (
+                          {childOrgs.map((org) => {
+                            // 获取该部门的所有管理员
+                            const mockData = getMockData();
+                            const orgAdmins = mockData.members
+                              .filter(m => m.organization_id === org.id && m.role === "org_admin");
+                            // 获取管理员的详细信息
+                            const adminDetails = orgAdmins.map(admin => {
+                              const user = mockData.users.find(u => u.phone === admin.user_phone);
+                              const rawUid = user?.uid || "-";
+                              const uid = rawUid.startsWith("UID:") ? rawUid.slice(4) : rawUid;
+                              return {
+                                name: user?.name || "未命名",
+                                uid: uid,
+                                phone: admin.user_phone,
+                                maskedPhone: maskPhone(admin.user_phone),
+                              };
+                            });
+                            const firstAdminName = adminDetails[0]?.name || "-";
+                            return (
                             <TableRow key={org.id} className="border-b border-gray-50">
                               <TableCell>
                                 <div className="font-medium text-gray-900">{org.name}</div>
                               </TableCell>
                               <TableCell className="text-sm text-gray-600">
-                                {org.admin_phone || "-"}
+                                {adminDetails.length > 0 ? (
+                                  <TooltipProvider>
+                                    <Tooltip>
+                                      <TooltipTrigger asChild>
+                                        <span className="cursor-pointer">{firstAdminName}</span>
+                                      </TooltipTrigger>
+                                      <TooltipContent side="top" className="max-w-xs">
+                                        <div className="space-y-1">
+                                          {adminDetails.map((admin, idx) => (
+                                            <div key={idx} className="text-sm text-gray-500">
+                                              {admin.name}（UID：{admin.uid} | 手机号：{admin.maskedPhone}）
+                                            </div>
+                                          ))}
+                                        </div>
+                                      </TooltipContent>
+                                    </Tooltip>
+                                  </TooltipProvider>
+                                ) : (
+                                  "-"
+                                )}
                               </TableCell>
                               <TableCell className="text-sm text-gray-600">
                                 {org.memberCount || 0}
                               </TableCell>
                               <TableCell className="text-sm text-gray-600">
-                                {org.monthly_budget ? `¥${org.monthly_budget.toFixed(2)}` : "¥0.00"}
+                                <div className="flex items-center gap-2">
+                                  {org.monthly_budget ? `¥${org.monthly_budget.toFixed(2)}` : "¥0.00"}
+                                  <button
+                                    onClick={() => {
+                                      setEditOrg(org);
+                                      setBudgetForm({
+                                        default_monthly_budget: org.default_monthly_budget || 0,
+                                        budget_override: org.budget_override || org.monthly_budget || 0,
+                                        alert_enabled: org.alert_enabled || false,
+                                        alert_threshold: org.alert_threshold || 75,
+                                      });
+                                      setEditBudgetOpen(true);
+                                    }}
+                                    className="p-1 hover:bg-gray-100 rounded transition-colors"
+                                    title="设置预算"
+                                  >
+                                    <Pencil className="h-3 w-3 text-gray-400" />
+                                  </button>
+                                </div>
                               </TableCell>
                               <TableCell className="text-sm text-red-500">
                                 ¥{(org.consumed_budget || 0).toFixed(2)}
@@ -1332,17 +1481,6 @@ export default function DeptManagement() {
                                   >
                                     <UserCog className="h-4 w-4 text-gray-500" />
                                   </button>
-                                  <button
-                                    onClick={() => {
-                                      setEditOrg(org);
-                                      setEditOrgBudget(org.monthly_budget || 0);
-                                      setEditBudgetOpen(true);
-                                    }}
-                                    className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
-                                    title="编辑本月预算上限"
-                                  >
-                                    <Pencil className="h-4 w-4 text-gray-500" />
-                                  </button>
                                   <DropdownMenu>
                                     <DropdownMenuTrigger asChild>
                                       <button className="p-2 hover:bg-gray-100 rounded-lg transition-colors">
@@ -1372,7 +1510,7 @@ export default function DeptManagement() {
                                 </div>
                               </TableCell>
                             </TableRow>
-                          ))}
+                          )})}
                         </TableBody>
                       </Table>
                     )}
@@ -1823,7 +1961,7 @@ export default function DeptManagement() {
       <Dialog open={editOrgOpen} onOpenChange={setEditOrgOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>编辑部门</DialogTitle>
+            <DialogTitle>编辑部门名称</DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
             <div className="space-y-2">
@@ -1842,19 +1980,68 @@ export default function DeptManagement() {
 
       {/* Edit Budget Dialog */}
       <Dialog open={editBudgetOpen} onOpenChange={setEditBudgetOpen}>
-        <DialogContent>
+        <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>编辑本月预算上限</DialogTitle>
+            <DialogTitle>设置预算</DialogTitle>
           </DialogHeader>
-          <div className="space-y-4">
+          <div className="space-y-6 py-2">
+            {/* 默认月预算 */}
             <div className="space-y-2">
-              <Label>本月预算上限（元）</Label>
+              <Label>默认月预算（元/月）</Label>
               <Input
                 type="number"
-                value={editOrgBudget}
-                onChange={(e) => setEditOrgBudget(Number(e.target.value))}
+                value={budgetForm.default_monthly_budget}
+                onChange={(e) => setBudgetForm({ ...budgetForm, default_monthly_budget: Number(e.target.value) })}
                 min={0}
+                step={0.01}
               />
+              <p className="text-xs text-gray-400">每月1日根据默认月预算自动重置</p>
+            </div>
+
+            {/* 当前月预算覆盖 */}
+            <div className="space-y-2">
+              <Label>当前月预算覆盖（元/月）</Label>
+              <Input
+                type="number"
+                value={budgetForm.budget_override}
+                onChange={(e) => setBudgetForm({ ...budgetForm, budget_override: Number(e.target.value) })}
+                min={0}
+                step={0.01}
+              />
+              <p className="text-xs text-gray-400">仅本月生效，优先级高于默认月预算</p>
+            </div>
+
+            {/* 分隔线 */}
+            <div className="border-t border-gray-100" />
+
+            {/* 开启紧急预警通知 */}
+            <div className="flex items-center justify-between">
+              <Label className="cursor-pointer">开启紧急预警通知</Label>
+              <Switch
+                checked={budgetForm.alert_enabled}
+                onCheckedChange={(checked) => setBudgetForm({ ...budgetForm, alert_enabled: checked })}
+              />
+            </div>
+
+            {/* 预警阈值 */}
+            <div className="space-y-3">
+              <Label>预警阈值</Label>
+              <Slider
+                value={[budgetForm.alert_threshold]}
+                onValueChange={(value) => setBudgetForm({ ...budgetForm, alert_threshold: value[0] })}
+                min={50}
+                max={100}
+                step={5}
+                disabled={!budgetForm.alert_enabled}
+              />
+              <div className="flex justify-between text-xs text-gray-400">
+                <span>50%</span>
+                <span>75%</span>
+                <span>100%</span>
+              </div>
+              <p className="text-xs text-gray-400">
+                当月实际消耗达到预算阈值比例时，将通过短信通知管理员
+              </p>
             </div>
           </div>
           <DialogFooter>
@@ -1945,9 +2132,21 @@ export default function DeptManagement() {
             const availableMembers = enterpriseMembers
               .map((m) => {
                 const user = mockData.users.find((u) => u.phone === m.user_phone);
+                const rawUid = user?.uid || "-";
+                const uid = rawUid.startsWith("UID:") ? rawUid.slice(4) : rawUid;
+                // 获取该成员所属的所有组织
+                const memberOrgs = mockData.members
+                  .filter(mm => mm.user_phone === m.user_phone && mm.organization_id)
+                  .map(mm => {
+                    const org = mockData.organizations.find(o => o.id === mm.organization_id);
+                    return org?.name || "未知部门";
+                  });
                 return {
                   phone: m.user_phone,
                   name: user?.name || m.user_phone,
+                  role: m.role,
+                  uid,
+                  orgs: memberOrgs.length > 0 ? memberOrgs : ["默认部门"],
                 };
               })
               .filter((m) => 
@@ -1995,10 +2194,11 @@ export default function DeptManagement() {
                         availableMembers.map(m => {
                           const isSelected = newAdminPhones.includes(m.phone);
                           const isDisabled = !isSelected && newAdminPhones.length >= 3;
+                          const isOrgAdmin = m.role === "org_admin";
                           return (
                             <div
                               key={m.phone}
-                              className={`flex items-center gap-2 px-3 py-2 ${isDisabled ? "opacity-50 cursor-not-allowed" : "hover:bg-gray-50 cursor-pointer"}`}
+                              className={`flex items-start gap-2 px-3 py-2 ${isDisabled ? "opacity-50 cursor-not-allowed" : "hover:bg-gray-50 cursor-pointer"}`}
                               onClick={() => {
                                 if (isDisabled) return;
                                 if (isSelected) {
@@ -2008,11 +2208,20 @@ export default function DeptManagement() {
                                 }
                               }}
                             >
-                              <Checkbox checked={isSelected} />
-                              <span className="text-sm flex-1">{m.name}</span>
-                              <span className="text-xs text-gray-400">
-                                {m.phone.slice(0, 3)}****{m.phone.slice(-4)}
-                              </span>
+                              <Checkbox checked={isSelected} className="mt-1" />
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center justify-between">
+                                  <span className="text-sm font-medium">{m.name}（{m.phone.slice(0, 3)}****{m.phone.slice(-4)}）</span>
+                                  {isOrgAdmin && (
+                                    <Badge variant="outline" className="text-xs text-blue-600 border-blue-200 ml-2 shrink-0">
+                                      部门管理员
+                                    </Badge>
+                                  )}
+                                </div>
+                                <span className="text-xs text-gray-400 block mt-0.5">
+                                  UID：{m.uid} | 所在部门：{m.orgs?.join("，") || "默认部门"}
+                                </span>
+                              </div>
                             </div>
                           );
                         })

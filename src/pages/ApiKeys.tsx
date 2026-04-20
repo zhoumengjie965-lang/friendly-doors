@@ -3,6 +3,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { getCurrentPhone } from "@/lib/auth";
 import { useToast } from "@/hooks/use-toast";
+import { getMockData } from "@/lib/mockData";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -67,6 +68,12 @@ interface ApiKey {
 interface Props {
   enterprise: Enterprise;
   role: string;
+}
+
+// 手机号脱敏函数
+function maskPhone(phone: string): string {
+  if (!phone || phone.length < 7) return phone;
+  return phone.slice(0, 3) + "****" + phone.slice(-4);
 }
 
 const MODELS = [
@@ -315,6 +322,8 @@ export default function ApiKeys({ enterprise, role }: Props) {
 
   // User names cache (phone -> name)
   const [userNames, setUserNames] = useState<Record<string, string>>({});
+  // User info cache (phone -> { uid, phone })
+  const [userInfoMap, setUserInfoMap] = useState<Record<string, { uid: string; phone: string }>>({});
 
   // Batch create state
   const [batchCreateOpen, setBatchCreateOpen] = useState(false);
@@ -346,45 +355,70 @@ Key 配置信息
   const fetchMyKeys = useCallback(async () => {
     if (!phone) return;
     setLoading(true);
-    const { data, error } = await supabase
-      .from("api_keys" as any)
-      .select("*")
-      .eq("enterprise_id", enterprise.id)
-      .eq("creator_phone", phone)
-      .order("created_at", { ascending: false });
-    if (!error && data) setMyKeys(data as unknown as ApiKey[]);
+    // 使用 mock 数据
+    const mockData = getMockData();
+    const keys = mockData.apiKeys
+      .filter(k => k.enterprise_id === enterprise.id && k.user_phone === phone)
+      .map(k => ({
+        id: k.id,
+        name: k.name,
+        key_value: k.key,
+        status: k.status,
+        total_quota: k.monthly_quota,
+        used_quota: k.used_quota,
+        group_name: null,
+        expires_at: k.expires_at,
+        allowed_models: k.models,
+        ip_whitelist: null,
+        enterprise_id: k.enterprise_id,
+        organization_id: null,
+        creator_phone: k.user_phone,
+        created_at: k.created_at,
+      })) as ApiKey[];
+    setMyKeys(keys);
     setLoading(false);
   }, [phone, enterprise.id]);
 
   const fetchOrgKeys = useCallback(async (orgId?: string | null) => {
     if (!canSeeOrgTab) return;
     const targetOrgId = orgId !== undefined ? orgId : selectedOrgId;
-    let query = supabase
-      .from("api_keys" as any)
-      .select("*")
-      .eq("enterprise_id", enterprise.id);
-    if (targetOrgId) {
-      query = query.eq("organization_id", targetOrgId);
-    }
-    const { data, error } = await query.order("created_at", { ascending: false });
-    if (!error && data) {
-      const keys = data as unknown as ApiKey[];
-      setOrgKeys(keys);
-      const phones = [...new Set(keys.map(k => k.creator_phone))];
-      if (phones.length > 0) {
-        const { data: users } = await supabase
-          .from("users")
-          .select("phone, name")
-          .in("phone", phones);
-        if (users) {
-          const map: Record<string, string> = {};
-          users.forEach((u: { phone: string; name: string | null }) => {
-            map[u.phone] = u.name || u.phone;
-          });
-          setUserNames(map);
-        }
-      }
-    }
+    // 使用 mock 数据
+    const mockData = getMockData();
+    const keys = mockData.apiKeys
+      .filter(k => k.enterprise_id === enterprise.id)
+      .map(k => ({
+        id: k.id,
+        name: k.name,
+        key_value: k.key,
+        status: k.status,
+        total_quota: k.monthly_quota,
+        used_quota: k.used_quota,
+        group_name: null,
+        expires_at: k.expires_at,
+        allowed_models: k.models,
+        ip_whitelist: null,
+        enterprise_id: k.enterprise_id,
+        organization_id: null,
+        creator_phone: k.user_phone,
+        created_at: k.created_at,
+      })) as ApiKey[];
+    setOrgKeys(keys);
+    
+    // 构建用户名映射和用户信息映射
+    const phones = [...new Set(keys.map(k => k.creator_phone))];
+    const nameMap: Record<string, string> = {};
+    const infoMap: Record<string, { uid: string; phone: string }> = {};
+    phones.forEach(phone => {
+      const user = mockData.users.find(u => u.phone === phone);
+      nameMap[phone] = user?.name || phone;
+      infoMap[phone] = {
+        uid: user?.uid || "—",
+        phone: phone.slice(0, 3) + "****" + phone.slice(-4),
+      };
+    });
+    setUserNames(nameMap);
+    setUserInfoMap(infoMap);
+    
     // Fetch members for this org for the member filter
     if (targetOrgId) {
       const { data: members } = await supabase
@@ -772,7 +806,21 @@ Key 配置信息
                     {showCreator && (
                       <TableCell>
                         <div className="flex items-center gap-2">
-                          <span className="text-sm text-muted-foreground">{userNames[k.creator_phone] || k.creator_phone}</span>
+                          <TooltipProvider>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <span className="text-sm text-muted-foreground cursor-pointer">
+                                  {userNames[k.creator_phone] || k.creator_phone}
+                                </span>
+                              </TooltipTrigger>
+                              <TooltipContent side="top" className="max-w-xs">
+                                <div className="space-y-1 p-1 text-sm text-gray-500">
+                                  <p>UID：{userInfoMap[k.creator_phone]?.uid?.replace("UID:", "") || "—"}</p>
+                                  <p>手机号：{userInfoMap[k.creator_phone]?.phone || k.creator_phone}</p>
+                                </div>
+                              </TooltipContent>
+                            </Tooltip>
+                          </TooltipProvider>
                           {/* 第一个 key 显示批量分发标签（假数据演示） */}
                           {k === paged[0] && (
                             <TooltipProvider>
@@ -1113,7 +1161,7 @@ Key 配置信息
                     { value: "all", label: "全部成员" },
                     ...orgMembers.map(m => ({
                       value: m.phone,
-                      label: m.name ? `${m.name} (${m.phone})` : m.phone
+                      label: m.name ? `${m.name} (${maskPhone(m.phone)})` : maskPhone(m.phone)
                     }))
                   ]}
                   value={memberFilter}
@@ -1132,7 +1180,7 @@ Key 配置信息
                   { value: "all", label: "全部成员" },
                   ...orgMembers.map(m => ({
                     value: m.phone,
-                    label: m.name ? `${m.name} (${m.phone})` : m.phone
+                    label: m.name ? `${m.name} (${maskPhone(m.phone)})` : maskPhone(m.phone)
                   }))
                 ]}
                 value={memberFilter}
@@ -1150,7 +1198,7 @@ Key 配置信息
                   { value: "all", label: "全部成员" },
                   ...orgMembers.map(m => ({
                     value: m.phone,
-                    label: m.name ? `${m.name} (${m.phone})` : m.phone
+                    label: m.name ? `${m.name} (${maskPhone(m.phone)})` : maskPhone(m.phone)
                   }))
                 ]}
                 value={memberFilter}

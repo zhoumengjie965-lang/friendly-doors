@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
+import { getMockData } from "@/lib/mockData";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -715,7 +716,7 @@ function AuditLogsTab({ globalEnterpriseId, globalMember, enterprises, filterMod
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-border bg-muted/40">
-                {["时间", "所属企业", "操作人", "组织", "操作类型", "操作内容", "操作结果"].map(h => (
+                {["时间", "所属企业", "操作人", "操作类型", "操作内容"].map(h => (
                   <th key={h} className="px-3 py-2.5 text-left text-xs font-medium text-muted-foreground whitespace-nowrap">{h}</th>
                 ))}
               </tr>
@@ -725,18 +726,36 @@ function AuditLogsTab({ globalEnterpriseId, globalMember, enterprises, filterMod
                 <tr key={i} className="border-b border-border last:border-0 hover:bg-muted/30 transition-colors">
                   <td className="px-3 py-2.5 text-xs text-muted-foreground whitespace-nowrap font-mono">{row.time}</td>
                   <td className="px-3 py-2.5 text-xs text-foreground whitespace-nowrap font-medium">{row.enterprise}</td>
-                  <td className="px-3 py-2.5 text-xs text-foreground whitespace-nowrap">{row.operator}</td>
-                  <td className="px-3 py-2.5 text-xs text-foreground whitespace-nowrap">{row.org}</td>
+                  <td className="px-3 py-2.5">
+                    {(() => {
+                      // 解析操作人信息
+                      const operatorParts = row.operator.split(" · ");
+                      const name = operatorParts[0] || "未知";
+                      const phone = operatorParts[1] || "";
+                      // 从 mock 数据查找用户信息
+                      const mockData = getMockData();
+                      const user = mockData.users.find(u => u.phone === phone || u.name === name);
+                      const uid = user?.uid?.replace("UID:", "") || "-";
+                      // 查找所在部门
+                      const memberOrgs = mockData.members
+                        .filter(m => m.user_phone === phone && m.organization_id)
+                        .map(m => {
+                          const org = mockData.organizations.find(o => o.id === m.organization_id);
+                          return org?.name || "未知部门";
+                        });
+                      const orgs = memberOrgs.length > 0 ? memberOrgs.join("，") : "默认部门";
+                      return (
+                        <div className="flex flex-col">
+                          <span className="text-xs font-medium text-foreground">{name}（{phone.slice(0, 3)}****{phone.slice(-4)}）</span>
+                          <span className="text-xs text-muted-foreground mt-0.5">UID：{uid} | 所在部门：{orgs}</span>
+                        </div>
+                      );
+                    })()}
+                  </td>
                   <td className="px-3 py-2.5">
                     <AuditTypeBadge type={row.opType} />
                   </td>
                   <td className="px-3 py-2.5 text-xs text-foreground max-w-[240px] truncate">{row.content}</td>
-                  <td className="px-3 py-2.5">
-                    {row.result === "成功"
-                      ? <span className="bg-green-100 text-green-600 border border-green-200 text-xs px-1.5 py-0.5 rounded">成功</span>
-                      : <span className="bg-red-100 text-red-600 border border-red-200 text-xs px-1.5 py-0.5 rounded">失败</span>
-                    }
-                  </td>
                 </tr>
               ))}
             </tbody>

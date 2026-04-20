@@ -35,6 +35,11 @@ export interface MockOrganization {
   monthly_budget?: number | null;
   current_month_budget?: number | null;
   admin_phone?: string | null;
+  // 预算设置相关字段
+  default_monthly_budget?: number | null;
+  budget_override?: number | null;
+  alert_enabled?: boolean;
+  alert_threshold?: number;
   created_at: string;
   updated_at: string;
 }
@@ -133,6 +138,12 @@ function getNow(): string {
 function getFutureDate(days: number): string {
   const date = new Date();
   date.setDate(date.getDate() + days);
+  return date.toISOString();
+}
+
+function getPastDate(days: number): string {
+  const date = new Date();
+  date.setDate(date.getDate() - days);
   return date.toISOString();
 }
 
@@ -398,7 +409,7 @@ const initialData: MockData = {
       user_phone: "13800138004",
       enterprise_id: "ent_1",
       organization_id: "org_frontend",
-      role: "org_admin",
+      role: "member",
       status: "active",
       daily_limit: 800,
       created_at: getNow(),
@@ -408,7 +419,7 @@ const initialData: MockData = {
       user_phone: "13800138005",
       enterprise_id: "ent_1",
       organization_id: "org_backend",
-      role: "org_admin",
+      role: "member",
       status: "active",
       daily_limit: 800,
       created_at: getNow(),
@@ -450,7 +461,7 @@ const initialData: MockData = {
       user_phone: "13800138007",
       enterprise_id: "ent_1",
       organization_id: "org_ops",
-      role: "org_admin",
+      role: "member",
       status: "active",
       daily_limit: 700,
       created_at: getNow(),
@@ -528,6 +539,134 @@ const initialData: MockData = {
       monthly_quota: 20000,
       used_quota: 8500,
       expires_at: getFutureDate(365),
+      last_used_at: getNow(),
+      created_at: getNow(),
+      updated_at: getNow(),
+    },
+    {
+      id: "key_5",
+      name: "后端服务密钥",
+      key: generateApiKey(),
+      enterprise_id: "ent_1",
+      user_phone: "13800138005",
+      status: "active",
+      models: ["gpt-4", "gpt-3.5-turbo", "claude-3-sonnet"],
+      rate_limit: 5000,
+      monthly_quota: 50000,
+      used_quota: 12500,
+      expires_at: getFutureDate(90),
+      last_used_at: getNow(),
+      created_at: getNow(),
+      updated_at: getNow(),
+    },
+    {
+      id: "key_6",
+      name: "数据组密钥",
+      key: generateApiKey(),
+      enterprise_id: "ent_1",
+      user_phone: "13800138007",
+      status: "disabled",
+      models: ["gpt-3.5-turbo"],
+      rate_limit: 200,
+      monthly_quota: 2000,
+      used_quota: 0,
+      expires_at: getFutureDate(7),
+      last_used_at: null,
+      created_at: getNow(),
+      updated_at: getNow(),
+    },
+    {
+      id: "key_7",
+      name: "运维监控密钥",
+      key: generateApiKey(),
+      enterprise_id: "ent_1",
+      user_phone: "13800138008",
+      status: "active",
+      models: ["gpt-3.5-turbo", "gemini-pro"],
+      rate_limit: 300,
+      monthly_quota: 3000,
+      used_quota: 2800,
+      expires_at: getFutureDate(60),
+      last_used_at: getNow(),
+      created_at: getNow(),
+      updated_at: getNow(),
+    },
+    {
+      id: "key_8",
+      name: "客服系统密钥",
+      key: generateApiKey(),
+      enterprise_id: "ent_1",
+      user_phone: "13800138009",
+      status: "active",
+      models: ["gpt-3.5-turbo", "claude-3-haiku"],
+      rate_limit: 800,
+      monthly_quota: 8000,
+      used_quota: 4560,
+      expires_at: getFutureDate(180),
+      last_used_at: getNow(),
+      created_at: getNow(),
+      updated_at: getNow(),
+    },
+    {
+      id: "key_9",
+      name: "内部工具密钥",
+      key: generateApiKey(),
+      enterprise_id: "ent_1",
+      user_phone: TEST_PHONE,
+      status: "disabled",
+      models: ["gpt-4"],
+      rate_limit: 100,
+      monthly_quota: null,
+      used_quota: 500,
+      expires_at: null,
+      last_used_at: getPastDate(2),
+      created_at: getNow(),
+      updated_at: getNow(),
+    },
+    {
+      id: "key_10",
+      name: "营销自动化密钥",
+      key: generateApiKey(),
+      enterprise_id: "ent_1",
+      user_phone: "13800138010",
+      status: "active",
+      models: ["gpt-4", "gpt-3.5-turbo", "claude-3"],
+      rate_limit: 1500,
+      monthly_quota: 15000,
+      used_quota: 9200,
+      expires_at: getFutureDate(120),
+      last_used_at: getNow(),
+      created_at: getNow(),
+      updated_at: getNow(),
+    },
+    {
+      id: "key_11",
+      name: "研发测试密钥",
+      key: generateApiKey(),
+      enterprise_id: "ent_1",
+      user_phone: "13800138011",
+      status: "active",
+      models: ["gpt-3.5-turbo"],
+      rate_limit: 50,
+      monthly_quota: 500,
+      used_quota: 125,
+      expires_at: getFutureDate(14),
+      last_used_at: getNow(),
+      created_at: getNow(),
+      updated_at: getNow(),
+    },
+    {
+      id: "key_12",
+      name: "财务报表密钥",
+      key: generateApiKey(),
+      enterprise_id: "ent_1",
+      user_phone: "13800138012",
+      status: "active",
+      models: ["gpt-4", "gpt-4-turbo"],
+      rate_limit: 400,
+      monthly_quota: 8000,
+      used_quota: 3200,
+      expires_at: getFutureDate(200),
       last_used_at: getNow(),
       created_at: getNow(),
       updated_at: getNow(),
@@ -863,7 +1002,7 @@ export async function createOrganization(
 
 export async function updateOrganization(
   id: string,
-  updates: Partial<Pick<MockOrganization, "name" | "parent_id" | "status" | "monthly_budget" | "admin_phone">>
+  updates: Partial<Pick<MockOrganization, "name" | "parent_id" | "status" | "monthly_budget" | "admin_phone" | "default_monthly_budget" | "budget_override" | "alert_enabled" | "alert_threshold">>
 ): Promise<MockOrganization> {
   await delay(200);
   const data = getMockData();

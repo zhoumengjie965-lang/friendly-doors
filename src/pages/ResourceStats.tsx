@@ -16,6 +16,8 @@ import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import type { DateRange } from "react-day-picker";
 import OrgTreeSelect from "@/components/OrgTreeSelect";
+import { Tooltip as ShadcnTooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { getMockData } from "@/lib/mockData";
 
 interface Props {
   enterprise: { id: string; name: string; enterprise_code: string };
@@ -1131,29 +1133,55 @@ export default function ResourceStats({ enterprise }: Props) {
               <span className="font-semibold text-foreground">成员消耗排行榜</span>
               <span className="text-xs text-muted-foreground ml-1">Top 10</span>
             </div>
-            <ResponsiveContainer width="100%" height={320}>
-              <BarChart
-                layout="vertical"
-                data={filteredMemberRank.slice(0, 10)}
-                margin={{ top: 4, right: 64, left: 8, bottom: 4 }}
-                barSize={16}
-              >
-                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" horizontal={false} />
-                <XAxis
-                  type="number"
-                  tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }}
-                  axisLine={false}
-                  tickLine={false}
-                  tickFormatter={(v) => `¥${v}`}
-                />
-                <YAxis
-                  dataKey="name"
-                  type="category"
-                  width={56}
-                  tick={{ fontSize: 12, fill: "hsl(var(--muted-foreground))" }}
-                  axisLine={false}
-                  tickLine={false}
-                />
+            <TooltipProvider>
+              <ResponsiveContainer width="100%" height={320}>
+                <BarChart
+                  layout="vertical"
+                  data={filteredMemberRank.slice(0, 10)}
+                  margin={{ top: 4, right: 64, left: 8, bottom: 4 }}
+                  barSize={16}
+                >
+                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" horizontal={false} />
+                  <XAxis
+                    type="number"
+                    tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }}
+                    axisLine={false}
+                    tickLine={false}
+                    tickFormatter={(v) => `¥${v}`}
+                  />
+                  <YAxis
+                    dataKey="name"
+                    type="category"
+                    width={56}
+                    tick={(props) => {
+                      const { x, y, payload } = props;
+                      const name = payload?.value as string;
+                      // 从 mockData 获取用户信息
+                      const mockData = getMockData();
+                      const user = mockData.users.find(u => u.name === name);
+                      const uid = user?.uid?.replace("UID:", "") || "—";
+                      const maskedPhone = user?.phone ? user.phone.slice(0, 3) + "****" + user.phone.slice(-4) : "—";
+                      return (
+                        <foreignObject x={0} y={(y || 0) - 10} width={56} height={20}>
+                          <ShadcnTooltip>
+                            <TooltipTrigger asChild>
+                              <div className="w-full h-full flex items-center justify-end text-xs text-muted-foreground cursor-pointer truncate pr-1">
+                                {name}
+                              </div>
+                            </TooltipTrigger>
+                            <TooltipContent side="left" className="max-w-xs">
+                              <div className="space-y-1 p-1 text-sm text-gray-500">
+                                <p>UID：{uid}</p>
+                                <p>手机号：{maskedPhone}</p>
+                              </div>
+                            </TooltipContent>
+                          </ShadcnTooltip>
+                        </foreignObject>
+                      );
+                    }}
+                    axisLine={false}
+                    tickLine={false}
+                  />
                 <Tooltip
                   contentStyle={{
                     backgroundColor: "hsl(var(--background))",
@@ -1185,6 +1213,7 @@ export default function ResourceStats({ enterprise }: Props) {
                 </Bar>
               </BarChart>
             </ResponsiveContainer>
+          </TooltipProvider>
           </div>
 
           {/* Sub-department rank card */}
@@ -1516,6 +1545,7 @@ export default function ResourceStats({ enterprise }: Props) {
                 <span className="font-semibold text-foreground">成员消耗排行榜</span>
                 <span className="text-xs text-muted-foreground ml-1">Top {mockOrgDataMap[drillDownOrg]?.memberRank?.length || 10}</span>
               </div>
+              <TooltipProvider>
               <ResponsiveContainer width="100%" height={320}>
                 <BarChart
                   layout="vertical"
@@ -1535,7 +1565,32 @@ export default function ResourceStats({ enterprise }: Props) {
                     dataKey="name"
                     type="category"
                     width={56}
-                    tick={{ fontSize: 12, fill: "hsl(var(--muted-foreground))" }}
+                    tick={(props) => {
+                      const { x, y, payload } = props;
+                      const name = payload?.value as string;
+                      // 从 mockData 获取用户信息
+                      const mockData = getMockData();
+                      const user = mockData.users.find(u => u.name === name);
+                      const uid = user?.uid?.replace("UID:", "") || "—";
+                      const maskedPhone = user?.phone ? user.phone.slice(0, 3) + "****" + user.phone.slice(-4) : "—";
+                      return (
+                        <foreignObject x={0} y={(y || 0) - 10} width={56} height={20}>
+                          <ShadcnTooltip>
+                            <TooltipTrigger asChild>
+                              <div className="w-full h-full flex items-center justify-end text-xs text-muted-foreground cursor-pointer truncate pr-1">
+                                {name}
+                              </div>
+                            </TooltipTrigger>
+                            <TooltipContent side="left" className="max-w-xs">
+                              <div className="space-y-1 p-1 text-sm text-gray-500">
+                                <p>UID：{uid}</p>
+                                <p>手机号：{maskedPhone}</p>
+                              </div>
+                            </TooltipContent>
+                          </ShadcnTooltip>
+                        </foreignObject>
+                      );
+                    }}
                     axisLine={false}
                     tickLine={false}
                   />
@@ -1558,6 +1613,7 @@ export default function ResourceStats({ enterprise }: Props) {
                   />
                 </BarChart>
               </ResponsiveContainer>
+            </TooltipProvider>
             </div>
 
             {/* Sub-department rank card */}
