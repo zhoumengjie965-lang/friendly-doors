@@ -860,56 +860,20 @@ export default function CallLogs({ enterprise, role, currentOrg, orgList = [] }:
       </div>
 
       <Tabs defaultValue="call">
-        {/* Tab row: tabs on left, context selectors on right — same line */}
-        <div className="flex items-center justify-between gap-3">
-          <TabsList className="gap-1 h-auto p-1">
-            <TabsTrigger value="call" className="gap-1.5 text-sm px-4 py-2">
-              <Activity className="w-4 h-4" />调用日志
+        <TabsList className="gap-1 h-auto p-1">
+          <TabsTrigger value="call" className="gap-1.5 text-sm px-4 py-2">
+            <Activity className="w-4 h-4" />调用日志
+          </TabsTrigger>
+          <TabsTrigger value="task" className="gap-1.5 text-sm px-4 py-2">
+            <ClipboardList className="w-4 h-4" />任务日志
+          </TabsTrigger>
+          {/* 审计日志仅企业管理员可见 */}
+          {isEnterpriseAdmin && (
+            <TabsTrigger value="audit" className="gap-1.5 text-sm px-4 py-2">
+              <Shield className="w-4 h-4" />审计日志
             </TabsTrigger>
-            <TabsTrigger value="task" className="gap-1.5 text-sm px-4 py-2">
-              <ClipboardList className="w-4 h-4" />任务日志
-            </TabsTrigger>
-            {/* 审计日志仅企业管理员可见 */}
-            {isEnterpriseAdmin && (
-              <TabsTrigger value="audit" className="gap-1.5 text-sm px-4 py-2">
-                <Shield className="w-4 h-4" />审计日志
-              </TabsTrigger>
-            )}
-          </TabsList>
-
-          {/* Context selectors — inline with tabs on the right */}
-          {(showOrgSelector || showMemberSelector) && (
-            <div className="flex items-center gap-2">
-              {showOrgSelector && (
-                <Select value={globalOrg} onValueChange={v => { setGlobalOrg(v); setGlobalMember("all"); }}>
-                  <SelectTrigger className="h-8 w-28 text-xs font-medium border-border bg-background">
-                    <SelectValue placeholder="全部部门" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {isEnterpriseAdmin && <SelectItem value="all">全部部门</SelectItem>}
-                    {orgOptions.map(o => (
-                      <SelectItem key={o.id} value={o.id}>{o.name}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              )}
-
-              {showMemberSelector && (
-                <Select value={globalMember} onValueChange={setGlobalMember}>
-                  <SelectTrigger className="h-8 w-28 text-xs font-medium border-border bg-background">
-                    <SelectValue placeholder="全部成员" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">全部成员</SelectItem>
-                    {membersForOrg.map(m => (
-                      <SelectItem key={m} value={m}>{m}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              )}
-            </div>
           )}
-        </div>
+        </TabsList>
 
         <TabsContent value="call" className="mt-4">
           <CallLogsTab
