@@ -948,6 +948,8 @@ function SupplierBillManagement() {
 interface UserBillRecord {
   id: string;
   enterprise: string;
+  subjectId: string;         // 主体ID
+  spaceType: "personal" | "enterprise";  // 空间类型：个人空间、企业空间
   periodStart: string;
   periodEnd: string;
   totalAmount: number;
@@ -979,6 +981,8 @@ const MOCK_USER_BILLS: UserBillRecord[] = [
   {
     id: "BILL-202604-001",
     enterprise: "星辰科技",
+    subjectId: "ENT-001",
+    spaceType: "enterprise",
     periodStart: "2026-03-01",
     periodEnd: "2026-03-31",
     totalAmount: 158000.50,
@@ -1005,6 +1009,8 @@ const MOCK_USER_BILLS: UserBillRecord[] = [
   {
     id: "BILL-202604-002",
     enterprise: "未来智能",
+    subjectId: "ENT-002",
+    spaceType: "enterprise",
     periodStart: "2026-03-01",
     periodEnd: "2026-03-31",
     totalAmount: 89500.00,
@@ -1026,6 +1032,8 @@ const MOCK_USER_BILLS: UserBillRecord[] = [
   {
     id: "BILL-202604-003",
     enterprise: "云图网络",
+    subjectId: "ENT-003",
+    spaceType: "enterprise",
     periodStart: "2026-03-01",
     periodEnd: "2026-03-31",
     totalAmount: 256000.80,
@@ -1042,6 +1050,8 @@ const MOCK_USER_BILLS: UserBillRecord[] = [
   {
     id: "BILL-202604-004",
     enterprise: "数链信息",
+    subjectId: "ENT-004",
+    spaceType: "enterprise",
     periodStart: "2026-03-01",
     periodEnd: "2026-03-31",
     totalAmount: 45600.25,
@@ -1062,6 +1072,8 @@ const MOCK_USER_BILLS: UserBillRecord[] = [
   {
     id: "BILL-202604-005",
     enterprise: "智联系统",
+    subjectId: "ENT-005",
+    spaceType: "enterprise",
     periodStart: "2026-03-01",
     periodEnd: "2026-03-31",
     totalAmount: 67800.60,
@@ -1079,7 +1091,8 @@ const MOCK_USER_BILLS: UserBillRecord[] = [
 
 function UserBillManagement() {
   const [bills, setBills] = useState<UserBillRecord[]>(MOCK_USER_BILLS);
-  const [enterpriseFilter, setEnterpriseFilter] = useState<string>("all");
+  const [subjectNameFilter, setSubjectNameFilter] = useState<string>("");  // 主体名称搜索
+  const [spaceTypeFilter, setSpaceTypeFilter] = useState<string>("all");   // 空间类型筛选
   const [periodFilter, setPeriodFilter] = useState<string>("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [searchQuery, setSearchQuery] = useState("");
@@ -1089,14 +1102,18 @@ function UserBillManagement() {
 
   const filteredBills = useMemo(() => {
     return bills.filter((bill) => {
-      const matchEnterprise = enterpriseFilter === "all" || bill.enterprise === enterpriseFilter;
+      // 主体名称模糊搜索
+      const matchSubject = subjectNameFilter === "" || 
+        bill.enterprise.toLowerCase().includes(subjectNameFilter.toLowerCase());
+      // 空间类型筛选
+      const matchSpaceType = spaceTypeFilter === "all" || bill.spaceType === spaceTypeFilter;
       const matchPeriod = periodFilter === "" || bill.periodStart.startsWith(periodFilter);
       const matchStatus = statusFilter === "all" || bill.status === statusFilter;
       const matchSearch = searchQuery === "" ||
         bill.id.toLowerCase().includes(searchQuery.toLowerCase());
-      return matchEnterprise && matchPeriod && matchStatus && matchSearch;
+      return matchSubject && matchSpaceType && matchPeriod && matchStatus && matchSearch;
     });
-  }, [bills, enterpriseFilter, periodFilter, statusFilter, searchQuery]);
+  }, [bills, subjectNameFilter, spaceTypeFilter, periodFilter, statusFilter, searchQuery]);
 
   const handleSelectAll = (checked: boolean) => {
     if (checked) {
@@ -1156,6 +1173,11 @@ function UserBillManagement() {
     return value.toLocaleString();
   };
 
+  // 格式化数字为原始个数（用于模型用量和调用次数）
+  const formatNumber = (value: number) => {
+    return value.toLocaleString("zh-CN");
+  };
+
   return (
     <div className="space-y-4">
       {/* Bills Table */}
@@ -1203,45 +1225,25 @@ function UserBillManagement() {
                   <SelectItem value="confirmed">已确认</SelectItem>
                 </SelectContent>
               </Select>
-              <Popover>
-                <PopoverTrigger asChild>
-                  <Button
-                    variant="outline"
-                    role="combobox"
-                    className="h-9 w-[160px] justify-between text-xs"
-                  >
-                    {enterpriseFilter === "all" ? "全部企业" : enterpriseFilter}
-                    <ChevronDown className="ml-2 h-3 w-3 shrink-0 opacity-50" />
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-[160px] p-0">
-                  <Command>
-                    <CommandInput placeholder="搜索企业..." className="h-8 text-xs" />
-                    <CommandList>
-                      <CommandEmpty className="text-xs py-2">未找到企业</CommandEmpty>
-                      <CommandGroup>
-                        <CommandItem
-                          value="all"
-                          onSelect={() => setEnterpriseFilter("all")}
-                          className="text-xs"
-                        >
-                          全部企业
-                        </CommandItem>
-                        {ENTERPRISES.map((e) => (
-                          <CommandItem
-                            key={e}
-                            value={e}
-                            onSelect={() => setEnterpriseFilter(e)}
-                            className="text-xs"
-                          >
-                            {e}
-                          </CommandItem>
-                        ))}
-                      </CommandGroup>
-                    </CommandList>
-                  </Command>
-                </PopoverContent>
-              </Popover>
+              <Select value={spaceTypeFilter} onValueChange={setSpaceTypeFilter}>
+                <SelectTrigger className="h-9 w-[140px] text-xs">
+                  <SelectValue placeholder="空间类型" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">全部主体</SelectItem>
+                  <SelectItem value="personal">个人空间</SelectItem>
+                  <SelectItem value="enterprise">企业空间</SelectItem>
+                </SelectContent>
+              </Select>
+              <div className="relative">
+                <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  placeholder="主体名称"
+                  value={subjectNameFilter}
+                  onChange={(e) => setSubjectNameFilter(e.target.value)}
+                  className="h-9 w-[160px] pl-8 text-xs"
+                />
+              </div>
               <div className="relative">
                 <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
                 <Input
@@ -1255,7 +1257,7 @@ function UserBillManagement() {
                 variant="ghost"
                 size="sm"
                 className="h-9 text-xs text-muted-foreground"
-                onClick={() => { setEnterpriseFilter("all"); setPeriodFilter(""); setStatusFilter("all"); setSearchQuery(""); }}
+                onClick={() => { setSubjectNameFilter(""); setSpaceTypeFilter("all"); setPeriodFilter(""); setStatusFilter("all"); setSearchQuery(""); }}
               >
                 重置
               </Button>
@@ -1274,7 +1276,9 @@ function UserBillManagement() {
                     />
                   </th>
                   <th className="px-4 py-3 text-left font-medium text-muted-foreground">账单编号</th>
-                  <th className="px-4 py-3 text-left font-medium text-muted-foreground">企业名称</th>
+                  <th className="px-4 py-3 text-left font-medium text-muted-foreground">空间类型</th>
+                  <th className="px-4 py-3 text-left font-medium text-muted-foreground">主体名称</th>
+                  <th className="px-4 py-3 text-left font-medium text-muted-foreground">ID</th>
                   <th className="px-4 py-3 text-left font-medium text-muted-foreground">账期</th>
                   <th className="px-4 py-3 text-right font-medium text-muted-foreground">账单总额</th>
                   <th className="px-4 py-3 text-center font-medium text-muted-foreground">状态</th>
@@ -1284,7 +1288,7 @@ function UserBillManagement() {
               </thead>
               <tbody className="divide-y">
                 {filteredBills.length === 0 ? (
-                  <tr><td colSpan={8} className="px-4 py-12 text-center text-muted-foreground">暂无账单记录</td></tr>
+                  <tr><td colSpan={10} className="px-4 py-12 text-center text-muted-foreground">暂无账单记录</td></tr>
                 ) : (
                   filteredBills.map((bill) => (
                     <tr key={bill.id} className="hover:bg-muted/30">
@@ -1298,8 +1302,14 @@ function UserBillManagement() {
                       </td>
                       <td className="px-4 py-3 font-mono text-muted-foreground">{bill.id}</td>
                       <td className="px-4 py-3">
+                        <Badge variant="outline" className={`text-xs ${bill.spaceType === "enterprise" ? "text-blue-600 border-blue-200 bg-blue-50" : "text-purple-600 border-purple-200 bg-purple-50"}`}>
+                          {bill.spaceType === "enterprise" ? "企业空间" : "个人空间"}
+                        </Badge>
+                      </td>
+                      <td className="px-4 py-3">
                         <span className="font-medium">{bill.enterprise}</span>
                       </td>
+                      <td className="px-4 py-3 font-mono text-xs text-muted-foreground">{bill.subjectId}</td>
                       <td className="px-4 py-3 text-muted-foreground whitespace-nowrap">
                         {bill.periodStart.slice(0, 7)}
                       </td>
@@ -1316,7 +1326,7 @@ function UserBillManagement() {
                             className="h-7 px-2 text-xs text-blue-600 hover:text-blue-700 hover:bg-blue-50"
                             onClick={() => handlePreview(bill)}
                           >
-                            预览报告
+                            预览
                           </Button>
                           <Button
                             variant="ghost"
@@ -1381,32 +1391,12 @@ function UserBillManagement() {
 
       {/* Preview Dialog */}
       <Dialog open={previewOpen} onOpenChange={setPreviewOpen}>
-        <DialogContent className="sm:max-w-4xl max-h-[85vh] overflow-y-auto">
+        <DialogContent className="sm:max-w-[95vw] max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="text-base">账单明细报告</DialogTitle>
           </DialogHeader>
           {previewBill && (
             <div className="space-y-6 py-2">
-              {/* 头部信息 */}
-              <div className="bg-muted/30 rounded-lg p-4 space-y-2">
-                <div className="flex justify-between items-center">
-                  <span className="text-sm text-muted-foreground">企业名称：</span>
-                  <span className="font-medium">{previewBill.enterprise}</span>
-                </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-sm text-muted-foreground">账期：</span>
-                  <span>{previewBill.periodStart.slice(0, 7)}</span>
-                </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-sm text-muted-foreground">结算币种：</span>
-                  <Badge variant="outline">{previewBill.currency}</Badge>
-                </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-sm text-muted-foreground">账单编号：</span>
-                  <span className="font-mono text-xs">{previewBill.id}</span>
-                </div>
-              </div>
-
               {/* 明细表格 */}
               <div>
                 <h4 className="text-sm font-medium mb-3 text-foreground border-l-4 border-blue-500 pl-2">消费明细</h4>
@@ -1447,26 +1437,26 @@ function UserBillManagement() {
                       </tr>
                     </thead>
                     <tbody className="divide-y">
-                      {previewBill.details.map((detail, idx) => {
+                      {[...previewBill.details].sort((a, b) => a.modelName.localeCompare(b.modelName)).map((detail, idx) => {
                         const isTokenBilling = detail.billingType === "token";
                         return (
                           <tr key={idx} className="hover:bg-muted/20">
                             <td className="px-3 py-2 font-medium">{previewBill.enterprise}</td>
-                            <td className="px-3 py-2 text-muted-foreground">{previewBill.periodStart}</td>
+                            <td className="px-3 py-2 text-muted-foreground">{previewBill.periodStart.slice(0, 7)}</td>
                             <td className="px-3 py-2">
                               <Badge variant="outline" className="text-xs font-mono">{detail.modelName}</Badge>
                             </td>
                             {/* 按量计费列 - 仅按量时显示数据 */}
-                            <td className="px-3 py-2 text-right font-mono">{isTokenBilling ? formatTokens(detail.inputTokens) : "-"}</td>
-                            <td className="px-3 py-2 text-right font-mono">{isTokenBilling ? formatTokens(detail.outputTokens) : "-"}</td>
-                            <td className="px-3 py-2 text-right font-mono text-muted-foreground">{isTokenBilling ? formatTokens(detail.cacheReadTokens) : "-"}</td>
-                            <td className="px-3 py-2 text-right font-mono text-muted-foreground">{isTokenBilling ? formatTokens(detail.cacheCreateTokens) : "-"}</td>
+                            <td className="px-3 py-2 text-right font-mono">{isTokenBilling ? formatNumber(detail.inputTokens) : "-"}</td>
+                            <td className="px-3 py-2 text-right font-mono">{isTokenBilling ? formatNumber(detail.outputTokens) : "-"}</td>
+                            <td className="px-3 py-2 text-right font-mono text-muted-foreground">{isTokenBilling ? formatNumber(detail.cacheReadTokens) : "-"}</td>
+                            <td className="px-3 py-2 text-right font-mono text-muted-foreground">{isTokenBilling ? formatNumber(detail.cacheCreateTokens) : "-"}</td>
                             <td className="px-3 py-2 text-right font-mono">{isTokenBilling ? `¥${(detail.inputPrice * 1000000 * 7.2).toFixed(2)}` : "-"}</td>
                             <td className="px-3 py-2 text-right font-mono">{isTokenBilling ? `¥${(detail.outputPrice * 1000000 * 7.2).toFixed(2)}` : "-"}</td>
                             <td className="px-3 py-2 text-center">{isTokenBilling ? <span className="text-blue-600">{detail.cacheDiscount}x</span> : "-"}</td>
                             <td className="px-3 py-2 text-center border-r">{isTokenBilling ? <span className="text-blue-600">{detail.cacheDiscount}x</span> : "-"}</td>
                             {/* 按次计费列 - 仅按次时显示数据 */}
-                            <td className="px-3 py-2 text-right font-mono">{!isTokenBilling ? formatTokens(detail.callCount || 0) : "-"}</td>
+                            <td className="px-3 py-2 text-right font-mono">{!isTokenBilling ? formatNumber(detail.callCount || 0) : "-"}</td>
                             <td className="px-3 py-2 text-right font-mono border-r">{!isTokenBilling ? `¥${(detail.callPrice || 0).toFixed(2)}` : "-"}</td>
                             {/* 公共列 */}
                             <td className="px-3 py-2 text-center border-r">
@@ -1476,31 +1466,37 @@ function UserBillManagement() {
                           </tr>
                         );
                       })}
+                      {/* 月度汇总行 */}
+                      {(() => {
+                        const sortedDetails = [...previewBill.details].sort((a, b) => a.modelName.localeCompare(b.modelName));
+                        const totalInputTokens = sortedDetails.reduce((sum, d) => sum + d.inputTokens, 0);
+                        const totalOutputTokens = sortedDetails.reduce((sum, d) => sum + d.outputTokens, 0);
+                        const totalCacheReadTokens = sortedDetails.reduce((sum, d) => sum + d.cacheReadTokens, 0);
+                        const totalCacheCreateTokens = sortedDetails.reduce((sum, d) => sum + d.cacheCreateTokens, 0);
+                        const totalCallCount = sortedDetails.reduce((sum, d) => sum + (d.callCount || 0), 0);
+                        return (
+                          <tr className="bg-muted/50 border-t-2 border-muted font-medium">
+                            <td className="px-3 py-3 font-medium text-muted-foreground" colSpan={3}>月度汇总</td>
+                            {/* 按量计费汇总 */}
+                            <td className="px-3 py-3 text-right font-mono">{formatNumber(totalInputTokens)}</td>
+                            <td className="px-3 py-3 text-right font-mono">{formatNumber(totalOutputTokens)}</td>
+                            <td className="px-3 py-3 text-right font-mono text-muted-foreground">{formatNumber(totalCacheReadTokens)}</td>
+                            <td className="px-3 py-3 text-right font-mono text-muted-foreground">{formatNumber(totalCacheCreateTokens)}</td>
+                            <td className="px-3 py-3 text-right font-mono">-</td>
+                            <td className="px-3 py-3 text-right font-mono">-</td>
+                            <td className="px-3 py-3 text-center">-</td>
+                            <td className="px-3 py-3 text-center border-r">-</td>
+                            {/* 按次计费汇总 */}
+                            <td className="px-3 py-3 text-right font-mono">{formatNumber(totalCallCount)}</td>
+                            <td className="px-3 py-3 text-right font-mono border-r">-</td>
+                            {/* 公共列 */}
+                            <td className="px-3 py-3 text-center border-r">-</td>
+                            <td className="px-3 py-3 text-right font-mono font-bold text-green-700">{formatCurrency(previewBill.totalAmount)}</td>
+                          </tr>
+                        );
+                      })()}
                     </tbody>
                   </table>
-                </div>
-              </div>
-
-              {/* 底部汇总 */}
-              <div>
-                <h4 className="text-sm font-medium mb-3 text-foreground border-l-4 border-green-500 pl-2">月度汇总</h4>
-                <div className="bg-green-50/50 rounded-lg p-4 space-y-2">
-                  <div className="flex justify-between items-center text-sm">
-                    <span className="text-muted-foreground">模型数量：</span>
-                    <span>{previewBill.details.length} 个</span>
-                  </div>
-                  <div className="flex justify-between items-center text-sm">
-                    <span className="text-muted-foreground">总输入Token：</span>
-                    <span className="font-mono">{formatTokens(previewBill.details.reduce((sum, d) => sum + d.inputTokens, 0))}</span>
-                  </div>
-                  <div className="flex justify-between items-center text-sm">
-                    <span className="text-muted-foreground">总输出Token：</span>
-                    <span className="font-mono">{formatTokens(previewBill.details.reduce((sum, d) => sum + d.outputTokens, 0))}</span>
-                  </div>
-                  <div className="flex justify-between items-center pt-2 border-t border-green-200">
-                    <span className="font-medium">月度小计：</span>
-                    <span className="font-mono font-bold text-lg text-green-700">{formatCurrency(previewBill.totalAmount)}</span>
-                  </div>
                 </div>
               </div>
 
