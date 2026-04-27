@@ -41,6 +41,7 @@ import { Progress } from "@/components/ui/progress";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { format } from "date-fns";
 import OrgTreeSelect from "@/components/OrgTreeSelect";
+import { GripVertical } from "lucide-react";
 
 interface Enterprise {
   id: string;
@@ -56,6 +57,7 @@ interface ApiKey {
   total_quota: number | null;
   used_quota: number;
   group_name: string | null;
+  groups?: string[]; // 多分组，按优先级排序
   expires_at: string | null;
   allowed_models: string[] | null;
   ip_whitelist: string[] | null;
@@ -79,6 +81,309 @@ function maskPhone(phone: string): string {
 const MODELS = [
   "gpt-4o", "gpt-4o-mini", "gpt-4-turbo", "gpt-3.5-turbo",
   "claude-3-5-sonnet", "claude-3-haiku", "gemini-1.5-pro", "gemini-1.5-flash",
+];
+
+// 通用多选组件（支持搜索、多选）
+interface MultiSelectProps {
+  options: string[];
+  selected: string[];
+  onChange: (values: string[]) => void;
+  placeholder?: string;
+  searchPlaceholder?: string;
+}
+
+function MultiSelect({ options, selected, onChange, placeholder = "请选择", searchPlaceholder = "搜索..." }: MultiSelectProps) {
+  const [open, setOpen] = useState(false);
+  const [search, setSearch] = useState("");
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  // 过滤选项
+  const filteredOptions = options.filter(o =>
+    o.toLowerCase().includes(search.toLowerCase())
+  );
+
+  // 处理选择/取消选择
+  const toggleOption = (value: string) => {
+    if (selected.includes(value)) {
+      onChange(selected.filter(v => v !== value));
+    } else {
+      onChange([...selected, value]);
+    }
+  };
+
+  // 点击外部关闭
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  return (
+    <div ref={containerRef} className="relative">
+      {/* 触发按钮 */}
+      <button
+        onClick={() => setOpen(!open)}
+        className="flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm hover:bg-muted/40 transition-colors"
+      >
+        <span className="text-muted-foreground truncate">
+          {selected.length === 0 ? placeholder : `已选择 ${selected.length} 项`}
+        </span>
+        <ChevronDown className={`w-4 h-4 opacity-50 shrink-0 ml-2 transition-transform ${open ? "rotate-180" : ""}`} />
+      </button>
+
+      {/* 已选择的标签 */}
+      {selected.length > 0 && (
+        <div className="flex flex-wrap gap-1.5 mt-2">
+          {selected.map((value) => (
+            <span
+              key={value}
+              className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-blue-50 border border-blue-200 text-blue-700 text-xs"
+            >
+              <span>{value}</span>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onChange(selected.filter(v => v !== value));
+                }}
+                className="hover:text-red-500 ml-1"
+              >
+                <X className="w-3 h-3" />
+              </button>
+            </span>
+          ))}
+        </div>
+      )}
+
+      {/* 下拉选择面板 */}
+      {open && (
+        <div className="absolute z-50 mt-1 w-full bg-popover border rounded-md shadow-md">
+          {/* 搜索框 */}
+          <div className="p-2 border-b">
+            <div className="relative">
+              <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+              <input
+                type="text"
+                placeholder={searchPlaceholder}
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="w-full h-8 pl-8 pr-2 text-sm bg-transparent border-0 focus:outline-none focus:ring-0"
+                autoFocus
+              />
+            </div>
+          </div>
+          {/* 选项列表 */}
+          <div className="max-h-60 overflow-auto p-1">
+            {filteredOptions.length === 0 ? (
+              <div className="py-4 text-center text-sm text-muted-foreground">未找到</div>
+            ) : (
+              filteredOptions.map(option => (
+                <label
+                  key={option}
+                  className="flex items-center gap-2 px-2 py-1.5 text-sm hover:bg-muted cursor-pointer rounded"
+                >
+                  <input
+                    type="checkbox"
+                    checked={selected.includes(option)}
+                    onChange={() => toggleOption(option)}
+                    className="rounded border-gray-300"
+                  />
+                  <span className="flex-1">{option}</span>
+                  {selected.includes(option) && (
+                    <span className="text-xs text-blue-600">已选</span>
+                  )}
+                </label>
+              ))
+            )}
+          </div>
+          {/* 底部操作 */}
+          <div className="p-2 border-t flex justify-between items-center text-xs text-muted-foreground">
+            <span>已选择 {selected.length} 个</span>
+            {selected.length > 0 && (
+              <button
+                onClick={() => onChange([])}
+                className="text-red-500 hover:text-red-600"
+              >
+                清空
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// 分组多选组件（支持搜索、多选、拖拽排序）
+interface GroupMultiSelectProps {
+  groups: string[];
+  selected: string[];
+  onChange: (groups: string[]) => void;
+  placeholder?: string;
+}
+
+function GroupMultiSelect({ groups, selected, onChange, placeholder = "选择分组" }: GroupMultiSelectProps) {
+  const [open, setOpen] = useState(false);
+  const [search, setSearch] = useState("");
+  const containerRef = useRef<HTMLDivElement>(null);
+  const dragIndexRef = useRef<number | null>(null);
+
+  // 过滤分组列表
+  const filteredGroups = groups.filter(g =>
+    g.toLowerCase().includes(search.toLowerCase())
+  );
+
+  // 处理选择/取消选择
+  const toggleGroup = (group: string) => {
+    if (selected.includes(group)) {
+      onChange(selected.filter(g => g !== group));
+    } else {
+      onChange([...selected, group]);
+    }
+  };
+
+  // 拖拽排序处理
+  const handleDragStart = (index: number) => {
+    dragIndexRef.current = index;
+  };
+
+  const handleDragOver = (e: React.DragEvent, index: number) => {
+    e.preventDefault();
+    if (dragIndexRef.current === null || dragIndexRef.current === index) return;
+
+    const newSelected = [...selected];
+    const draggedItem = newSelected[dragIndexRef.current];
+    newSelected.splice(dragIndexRef.current, 1);
+    newSelected.splice(index, 0, draggedItem);
+
+    dragIndexRef.current = index;
+    onChange(newSelected);
+  };
+
+  const handleDragEnd = () => {
+    dragIndexRef.current = null;
+  };
+
+  // 点击外部关闭
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  return (
+    <div ref={containerRef} className="relative">
+      {/* 已选择的标签区域（放在下拉框上方） */}
+      {selected.length > 0 && (
+        <div className="mb-2 p-2 rounded-md border border-purple-200 bg-purple-50/50">
+          <div className="flex flex-wrap gap-1.5">
+            {selected.map((group, index) => (
+              <div
+                key={group}
+                draggable
+                onDragStart={() => handleDragStart(index)}
+                onDragOver={(e) => handleDragOver(e, index)}
+                onDragEnd={handleDragEnd}
+                className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-white border border-purple-200 text-purple-700 text-xs cursor-move hover:bg-purple-50 transition-colors shadow-sm"
+              >
+                <GripVertical className="w-3 h-3 opacity-50" />
+                <span>{group}</span>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onChange(selected.filter(g => g !== group));
+                  }}
+                  className="hover:text-red-500 ml-1"
+                >
+                  <X className="w-3 h-3" />
+                </button>
+              </div>
+            ))}
+          </div>
+          <p className="text-xs text-muted-foreground mt-1.5">拖拽标签可调整优先级顺序，同一模型在多个分组中存在时，优先使用排在前面的分组</p>
+        </div>
+      )}
+
+      {/* 触发按钮 */}
+      <button
+        onClick={() => setOpen(!open)}
+        className="flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm hover:bg-muted/40 transition-colors"
+      >
+        <span className="text-muted-foreground truncate">
+          {selected.length === 0 ? placeholder : `已选择 ${selected.length} 个分组`}
+        </span>
+        <ChevronDown className={`w-4 h-4 opacity-50 shrink-0 ml-2 transition-transform ${open ? "rotate-180" : ""}`} />
+      </button>
+
+      {/* 下拉选择面板 */}
+      {open && (
+        <div className="absolute z-50 mt-1 w-full bg-popover border rounded-md shadow-md">
+          {/* 搜索框 */}
+          <div className="p-2 border-b">
+            <div className="relative">
+              <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+              <input
+                type="text"
+                placeholder="搜索分组..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="w-full h-8 pl-8 pr-2 text-sm bg-transparent border-0 focus:outline-none focus:ring-0"
+                autoFocus
+              />
+            </div>
+          </div>
+          {/* 分组列表 */}
+          <div className="max-h-60 overflow-auto p-1">
+            {filteredGroups.length === 0 ? (
+              <div className="py-4 text-center text-sm text-muted-foreground">未找到分组</div>
+            ) : (
+              filteredGroups.map(group => (
+                <label
+                  key={group}
+                  className="flex items-center gap-2 px-2 py-1.5 text-sm hover:bg-muted cursor-pointer rounded"
+                >
+                  <input
+                    type="checkbox"
+                    checked={selected.includes(group)}
+                    onChange={() => toggleGroup(group)}
+                    className="rounded border-gray-300"
+                  />
+                  <span className="flex-1">{group}</span>
+                </label>
+              ))
+            )}
+          </div>
+          {/* 底部操作 */}
+          <div className="p-2 border-t flex justify-between items-center text-xs text-muted-foreground">
+            <span>已选择 {selected.length} 个</span>
+            {selected.length > 0 && (
+              <button
+                onClick={() => onChange([])}
+                className="text-red-500 hover:text-red-600"
+              >
+                清空
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+const GROUP_OPTIONS = [
+  "官方价格（×1.0）",
+  "生产通道（×0.95）",
+  "测试环境（×0.8）",
+  "开发环境（×0.7）",
+  "内部工具（×0.5）",
 ];
 
 const PAGE_SIZE = 10;
@@ -294,7 +599,7 @@ export default function ApiKeys({ enterprise, role }: Props) {
 
   // Form fields
   const [formName, setFormName] = useState("");
-  const [formGroup, setFormGroup] = useState("");
+  const [formGroups, setFormGroups] = useState<string[]>([]);
   const [formExpires, setFormExpires] = useState("");
   const [formQuota, setFormQuota] = useState("");
   const [formUnlimited, setFormUnlimited] = useState(true);
@@ -304,13 +609,13 @@ export default function ApiKeys({ enterprise, role }: Props) {
 
   // Org default config (org_admin sets defaults for member new keys)
   const [orgConfigOpen, setOrgConfigOpen] = useState(false);
-  const [orgConfigGroup, setOrgConfigGroup] = useState("");
+  const [orgConfigGroups, setOrgConfigGroups] = useState<string[]>([]);
   const [orgConfigExpires, setOrgConfigExpires] = useState("");
   const [orgConfigQuota, setOrgConfigQuota] = useState("");
   const [orgConfigUnlimited, setOrgConfigUnlimited] = useState(true);
   const [orgConfigModels, setOrgConfigModels] = useState<string[]>([]);
   const [orgConfigIpWhitelist, setOrgConfigIpWhitelist] = useState("");
-  const orgConfigSaved = useRef({ group: "", expires: "", quota: "", unlimited: true, models: [] as string[], ipWhitelist: "" });
+  const orgConfigSaved = useRef({ groups: [] as string[], expires: "", quota: "", unlimited: true, models: [] as string[], ipWhitelist: "" });
 
   // Advanced member permissions
   const [advancedPermOpen, setAdvancedPermOpen] = useState(false);
@@ -366,7 +671,8 @@ Key 配置信息
         status: k.status,
         total_quota: k.monthly_quota,
         used_quota: k.used_quota,
-        group_name: null,
+        group_name: k.group_name || null,
+        groups: k.groups,
         expires_at: k.expires_at,
         allowed_models: k.models,
         ip_whitelist: null,
@@ -393,7 +699,8 @@ Key 配置信息
         status: k.status,
         total_quota: k.monthly_quota,
         used_quota: k.used_quota,
-        group_name: null,
+        group_name: k.group_name || null,
+        groups: k.groups,
         expires_at: k.expires_at,
         allowed_models: k.models,
         ip_whitelist: null,
@@ -504,7 +811,7 @@ Key 配置信息
     if (previewRole === "member") {
       // Prefill from org default config for member
       const cfg = orgConfigSaved.current;
-      setFormGroup(cfg.group);
+      setFormGroups([...cfg.groups]);
       setFormExpires(cfg.expires);
       setFormQuota(cfg.quota);
       setFormUnlimited(cfg.unlimited);
@@ -513,7 +820,7 @@ Key 配置信息
       // Always open simple dialog; advanced settings accessible via button inside
       setSimpleDialogOpen(true);
     } else {
-      setFormGroup(""); setFormExpires("");
+      setFormGroups([]); setFormExpires("");
       setFormQuota(""); setFormUnlimited(true);
       setFormModels([]); setFormIpWhitelist("");
       setSheetOpen(true);
@@ -523,7 +830,7 @@ Key 配置信息
   const openCreateProd = () => {
     setEditingKey(null);
     setFormName("");
-    setFormGroup("生产通道");
+    setFormGroups(["生产通道（×0.95）"]);
     setFormExpires("");
     setFormQuota("");
     setFormUnlimited(true);
@@ -537,7 +844,7 @@ Key 配置信息
   const openEdit = (k: ApiKey) => {
     setEditingKey(k);
     setFormName(k.name);
-    setFormGroup(k.group_name || "");
+    setFormGroups(k.groups && k.groups.length > 0 ? k.groups : k.group_name ? [k.group_name] : []);
     setFormExpires(k.expires_at ? format(new Date(k.expires_at), "yyyy-MM-dd'T'HH:mm") : "");
     setFormUnlimited(k.total_quota === null);
     setFormQuota(k.total_quota !== null ? String(k.total_quota) : "");
@@ -557,7 +864,7 @@ Key 配置信息
     const commonPayload = {
       p_phone: phone,
       p_name: formName.trim(),
-      p_group_name: formGroup.trim() || null,
+      p_group_name: formGroups.length > 0 ? formGroups[0] : null,
       p_expires_at: formExpires ? new Date(formExpires).toISOString() : null,
       p_total_quota: formUnlimited ? null : (parseFloat(formQuota) || 0),
       p_allowed_models: formModels.length > 0 ? formModels : null,
@@ -657,7 +964,7 @@ Key 配置信息
 
   const saveOrgConfig = () => {
     orgConfigSaved.current = {
-      group: orgConfigGroup,
+      groups: orgConfigGroups,
       expires: orgConfigExpires,
       quota: orgConfigQuota,
       unlimited: orgConfigUnlimited,
@@ -864,7 +1171,22 @@ Key 配置信息
                       </TableCell>
                     )}
                     <TableCell>
-                      <span className="text-sm text-muted-foreground">{k.group_name || "—"}</span>
+                      {k.groups && k.groups.length > 0 ? (
+                        <div className="flex items-center gap-1 flex-wrap">
+                          {k.groups.map((group, idx) => (
+                            <span key={group} className="flex items-center">
+                              <span className="text-sm text-muted-foreground whitespace-nowrap">{group}</span>
+                              {idx < k.groups!.length - 1 && (
+                                <span className="mx-1 text-muted-foreground/50">→</span>
+                              )}
+                            </span>
+                          ))}
+                        </div>
+                      ) : k.group_name ? (
+                        <span className="text-sm text-muted-foreground">{k.group_name}</span>
+                      ) : (
+                        <span className="text-sm text-muted-foreground">—</span>
+                      )}
                     </TableCell>
                     <TableCell>
                       <div className="flex items-center gap-1.5 font-mono text-xs">
@@ -1054,7 +1376,7 @@ Key 配置信息
                 onClick={() => {
                   // 打开前将已保存的值回填到 state
                   const cfg = orgConfigSaved.current;
-                  setOrgConfigGroup(cfg.group);
+                  setOrgConfigGroups([...cfg.groups]);
                   setOrgConfigExpires(cfg.expires);
                   setOrgConfigQuota(cfg.quota);
                   setOrgConfigUnlimited(cfg.unlimited);
@@ -1318,19 +1640,16 @@ Key 配置信息
                 </div>
                 {/* 分组 */}
                 {!(previewRole === "member" && editingKey) && (
-                  <div className="grid grid-cols-[100px_1fr] items-center gap-3">
-                    <Label className="text-right text-muted-foreground text-sm">
+                  <div className="grid grid-cols-[100px_1fr] items-start gap-3">
+                    <Label className="text-right text-muted-foreground text-sm pt-2.5">
                       <span className="text-destructive mr-0.5">*</span>分组
                     </Label>
-                    <Select value={formGroup} onValueChange={setFormGroup}>
-                      <SelectTrigger className="h-10">
-                        <SelectValue placeholder="请选择分组" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="官方价格">官方价格</SelectItem>
-                        <SelectItem value="生产通道">生产通道</SelectItem>
-                      </SelectContent>
-                    </Select>
+                    <GroupMultiSelect
+                      groups={GROUP_OPTIONS}
+                      selected={formGroups}
+                      onChange={setFormGroups}
+                      placeholder="请选择分组"
+                    />
                   </div>
                 )}
                 {/* 过期时间 */}
@@ -1437,49 +1756,18 @@ Key 配置信息
                 <div className="grid grid-cols-[100px_1fr] items-start gap-3">
                   <Label className="text-right text-muted-foreground text-sm pt-2.5">模型限制列表</Label>
                   <div>
-                    {formGroup === "生产通道" ? (
+                    {formGroups.some(g => g.includes("生产通道")) ? (
                       <div className="flex h-10 w-full items-center rounded-md border border-input bg-muted/40 px-3 py-2 text-sm cursor-not-allowed">
                         <span className="text-muted-foreground">仅支持分组对应模型列表</span>
                       </div>
                     ) : (
-                      <>
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <button className="flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm hover:bg-muted/40 transition-colors">
-                              <span className="text-muted-foreground truncate">
-                                {formModels.length === 0 ? "留空则支持所有模型" : `已选 ${formModels.length} 个模型`}
-                              </span>
-                              <ChevronDown className="w-4 h-4 opacity-50 shrink-0 ml-2" />
-                            </button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent className="w-64" align="start">
-                            {MODELS.map(m => (
-                              <DropdownMenuCheckboxItem
-                                key={m}
-                                checked={formModels.includes(m)}
-                                onCheckedChange={checked => {
-                                  if (checked) setFormModels(prev => [...prev, m]);
-                                  else setFormModels(prev => prev.filter(x => x !== m));
-                                }}
-                              >
-                                {m}
-                              </DropdownMenuCheckboxItem>
-                            ))}
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                        {formModels.length > 0 && (
-                          <div className="flex flex-wrap gap-1.5 mt-2">
-                            {formModels.map(m => (
-                              <span key={m} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-primary/10 text-primary text-xs">
-                                {m}
-                                <button onClick={() => setFormModels(prev => prev.filter(x => x !== m))} className="hover:text-destructive">
-                                  <X className="w-3 h-3" />
-                                </button>
-                              </span>
-                            ))}
-                          </div>
-                        )}
-                      </>
+                      <MultiSelect
+                        options={MODELS}
+                        selected={formModels}
+                        onChange={setFormModels}
+                        placeholder="留空则支持所有模型"
+                        searchPlaceholder="搜索模型..."
+                      />
                     )}
                   </div>
                 </div>
@@ -1502,7 +1790,7 @@ Key 配置信息
           {/* 底部固定按钮 */}
           <div className="shrink-0 px-6 py-4 border-t border-border flex justify-end gap-3 bg-background">
             <Button variant="outline" className="w-24" onClick={() => setSheetOpen(false)} disabled={saving}>取消</Button>
-            <Button className="w-24" onClick={handleSave} disabled={saving || !formName.trim() || (previewRole !== "member" && !formGroup)}>
+            <Button className="w-24" onClick={handleSave} disabled={saving || !formName.trim() || (previewRole !== "member" && formGroups.length === 0)}>
               {saving ? "保存中..." : "确定"}
             </Button>
           </div>
@@ -1589,9 +1877,14 @@ Key 配置信息
               <h3 className="text-sm font-semibold text-foreground mb-4 pb-2 border-b border-border">基本信息</h3>
               <div className="space-y-3">
                 {/* 分组 */}
-                <div className="grid grid-cols-[100px_1fr] items-center gap-3">
-                  <Label className="text-right text-muted-foreground text-sm">分组</Label>
-                  <Input placeholder="不填则使用默认分组" value={orgConfigGroup} onChange={e => setOrgConfigGroup(e.target.value)} />
+                <div className="grid grid-cols-[100px_1fr] items-start gap-3">
+                  <Label className="text-right text-muted-foreground text-sm pt-2.5">分组</Label>
+                  <GroupMultiSelect
+                    groups={GROUP_OPTIONS}
+                    selected={orgConfigGroups}
+                    onChange={setOrgConfigGroups}
+                    placeholder="不填则使用默认分组"
+                  />
                 </div>
                 {/* 过期时间 */}
                 <div className="grid grid-cols-[100px_1fr] items-start gap-3">
@@ -1649,44 +1942,13 @@ Key 配置信息
               <div className="space-y-3">
                 <div className="grid grid-cols-[100px_1fr] items-start gap-3">
                   <Label className="text-right text-muted-foreground text-sm pt-2.5">模型限制列表</Label>
-                  <div>
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <button className="flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm hover:bg-muted/40 transition-colors">
-                          <span className="text-muted-foreground truncate">
-                            {orgConfigModels.length === 0 ? "留空则支持所有模型" : `已选 ${orgConfigModels.length} 个模型`}
-                          </span>
-                          <ChevronDown className="w-4 h-4 opacity-50 shrink-0 ml-2" />
-                        </button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent className="w-64" align="start">
-                        {MODELS.map(m => (
-                          <DropdownMenuCheckboxItem
-                            key={m}
-                            checked={orgConfigModels.includes(m)}
-                            onCheckedChange={checked => {
-                              if (checked) setOrgConfigModels(prev => [...prev, m]);
-                              else setOrgConfigModels(prev => prev.filter(x => x !== m));
-                            }}
-                          >
-                            {m}
-                          </DropdownMenuCheckboxItem>
-                        ))}
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                    {orgConfigModels.length > 0 && (
-                      <div className="flex flex-wrap gap-1.5 mt-2">
-                        {orgConfigModels.map(m => (
-                          <span key={m} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-primary/10 text-primary text-xs">
-                            {m}
-                            <button onClick={() => setOrgConfigModels(prev => prev.filter(x => x !== m))} className="hover:text-destructive">
-                              <X className="w-3 h-3" />
-                            </button>
-                          </span>
-                        ))}
-                      </div>
-                    )}
-                  </div>
+                  <MultiSelect
+                    options={MODELS}
+                    selected={orgConfigModels}
+                    onChange={setOrgConfigModels}
+                    placeholder="留空则支持所有模型"
+                    searchPlaceholder="搜索模型..."
+                  />
                 </div>
                 <div className="grid grid-cols-[100px_1fr] items-start gap-3">
                   <Label className="text-right text-muted-foreground text-sm pt-2.5">IP 白名单</Label>
@@ -1928,18 +2190,13 @@ Key 配置信息
                     {/* Model Limit */}
                     <div className="space-y-3">
                       <Label className="text-sm font-medium">模型限制</Label>
-                      <Select value={batchModels.join(",")} onValueChange={val => setBatchModels(val ? val.split(",") : [])}>
-                        <SelectTrigger>
-                          <SelectValue placeholder="留空则支持所有模型" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="">支持所有模型</SelectItem>
-                          <SelectItem value="gpt-4">GPT-4</SelectItem>
-                          <SelectItem value="gpt-3.5">GPT-3.5</SelectItem>
-                          <SelectItem value="claude">Claude</SelectItem>
-                          <SelectItem value="gemini">Gemini</SelectItem>
-                        </SelectContent>
-                      </Select>
+                      <MultiSelect
+                        options={MODELS}
+                        selected={batchModels}
+                        onChange={setBatchModels}
+                        placeholder="留空则支持所有模型"
+                        searchPlaceholder="搜索模型..."
+                      />
                     </div>
 
                     {/* IP Whitelist */}

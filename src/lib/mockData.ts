@@ -3,7 +3,7 @@
 
 const MOCK_DATA_KEY = "ai_gateway_mock_data";
 const CURRENT_PHONE_KEY = "ai_gateway_phone";
-const MOCK_DATA_VERSION = "1.2"; // 数据版本，修改mock数据时更新此版本号
+const MOCK_DATA_VERSION = "1.3"; // 数据版本，修改mock数据时更新此版本号
 
 // ===== 数据类型定义 =====
 export interface MockUser {
@@ -63,6 +63,8 @@ export interface MockApiKey {
   user_phone: string;
   status: "active" | "disabled";
   models: string[];
+  groups?: string[]; // 多分组，按优先级排序
+  group_name?: string | null; // 兼容旧数据
   rate_limit: number;
   monthly_quota: number;
   used_quota: number;
@@ -487,6 +489,7 @@ const initialData: MockData = {
       user_phone: TEST_PHONE,
       status: "active",
       models: ["gpt-4", "gpt-3.5-turbo"],
+      groups: ["Claude-原厂直连（×0.85）", "Claude-Code（×0.9）", "A-通用渠道-全站模型可用（×0.95）"],
       rate_limit: 1000,
       monthly_quota: 10000,
       used_quota: 2345,
@@ -503,6 +506,7 @@ const initialData: MockData = {
       user_phone: TEST_PHONE,
       status: "active",
       models: ["gpt-3.5-turbo"],
+      groups: ["官方价格（×1.0）", "生产通道（×0.95）", "测试环境（×0.8）", "开发环境（×0.7）", "内部工具（×0.5）"],
       rate_limit: 100,
       monthly_quota: 1000,
       used_quota: 123,
@@ -519,6 +523,7 @@ const initialData: MockData = {
       user_phone: "13800138004",
       status: "active",
       models: ["gpt-3.5-turbo", "claude-3"],
+      groups: ["GPT-4专线（×0.88）", "通用模型池（×0.92）", "经济型通道（×0.75）"],
       rate_limit: 500,
       monthly_quota: 5000,
       used_quota: 2100,
@@ -535,6 +540,7 @@ const initialData: MockData = {
       user_phone: "13800138006",
       status: "active",
       models: ["gpt-4", "claude-3"],
+      groups: ["Claude-3优先（×0.82）", "GPT-4-Turbo（×0.9）", "多模型聚合（×0.85）", "备用通道（×0.95）", "海外节点（×0.78）"],
       rate_limit: 2000,
       monthly_quota: 20000,
       used_quota: 8500,
