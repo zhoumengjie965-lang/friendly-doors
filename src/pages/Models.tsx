@@ -22,7 +22,6 @@ import {
   Image,
   Code,
   FileText,
-  ArrowRight,
   Plus,
   X,
   BookOpen,
@@ -45,6 +44,7 @@ interface GroupPrice {
   discount: number;
   inputTiers: { price: number; label: string }[];
   outputTiers: { price: number; label: string }[];
+  cachePrice?: number; // 缓存创建价格（元/M tokens）
 }
 
 // 假数据 - AI 模型列表
@@ -62,6 +62,11 @@ interface Model {
   apiEndpoint: string;
   contextTiers: ContextTier[];
   groupPrices: GroupPrice[];
+  cardPrice: {
+    input: number;
+    output: number;
+  };
+  isOfficialPrice?: boolean; // 是否为官方原价
 }
 
 const mockModels: Model[] = [
@@ -95,6 +100,7 @@ const mockModels: Model[] = [
           { price: 60, label: "≤128k" },
           { price: 120, label: ">128k" },
         ],
+        cachePrice: 7.5,
       },
       {
         group: "VIP",
@@ -108,8 +114,11 @@ const mockModels: Model[] = [
           { price: 51, label: "≤128k" },
           { price: 102, label: ">128k" },
         ],
+        cachePrice: 6.375,
       },
     ],
+    cardPrice: { input: 35, output: 175 },
+    isOfficialPrice: true,
   },
   {
     id: "gpt-4o-mini",
@@ -143,6 +152,7 @@ const mockModels: Model[] = [
         outputTiers: [{ price: 10.2, label: "标准" }],
       },
     ],
+    cardPrice: { input: 7, output: 35 },
   },
   {
     id: "claude-3-opus",
@@ -176,6 +186,7 @@ const mockModels: Model[] = [
         outputTiers: [{ price: 202.5, label: "≤200k" }],
       },
     ],
+    cardPrice: { input: 105, output: 525 },
   },
   {
     id: "claude-3-sonnet",
@@ -209,6 +220,7 @@ const mockModels: Model[] = [
         outputTiers: [{ price: 81, label: "标准" }],
       },
     ],
+    cardPrice: { input: 42, output: 210 },
   },
   {
     id: "dalle-3",
@@ -240,6 +252,7 @@ const mockModels: Model[] = [
         outputTiers: [],
       },
     ],
+    cardPrice: { input: 0.12, output: 0 },
   },
   {
     id: "stable-diffusion",
@@ -264,6 +277,7 @@ const mockModels: Model[] = [
         outputTiers: [],
       },
     ],
+    cardPrice: { input: 0.08, output: 0 },
   },
   {
     id: "code-llama",
@@ -290,6 +304,7 @@ const mockModels: Model[] = [
         outputTiers: [{ price: 24, label: "标准" }],
       },
     ],
+    cardPrice: { input: 18.5, output: 56 },
   },
   {
     id: "deepseek-coder",
@@ -323,6 +338,7 @@ const mockModels: Model[] = [
         outputTiers: [{ price: 6.8, label: "标准" }],
       },
     ],
+    cardPrice: { input: 4.5, output: 18.5 },
   },
   {
     id: "qwen-max",
@@ -356,6 +372,7 @@ const mockModels: Model[] = [
         ],
       },
     ],
+    cardPrice: { input: 46.5, output: 140 },
   },
   {
     id: "glm-4",
@@ -382,27 +399,15 @@ const mockModels: Model[] = [
         outputTiers: [{ price: 50, label: "标准" }],
       },
     ],
+    cardPrice: { input: 35, output: 116 },
   },
 ];
 
 const categories = ["全部", "对话", "图像", "代码"];
 
-// 格式化价格显示
+// 格式化价格显示（只保留¥符号）
 function formatPrice(price: number): string {
-  return `¥${price.toFixed(4)}/M Tokens`;
-}
-
-// 渲染阶梯价格（紧凑版）
-function renderTierPrices(tiers: { price: number; label: string }[]): string {
-  if (tiers.length === 0) return "-";
-  if (tiers.length === 1) return formatPrice(tiers[0].price);
-  return tiers.map((t) => formatPrice(t.price)).join(" / ");
-}
-
-// 渲染阶梯标签
-function renderTierLabels(tiers: { price: number; label: string }[]): string {
-  if (tiers.length <= 1) return "";
-  return tiers.map((t) => t.label).join(" / ");
+  return `¥${price.toFixed(4)}`;
 }
 
 export default function Models() {
@@ -511,25 +516,31 @@ export default function Models() {
               </div>
             </CardHeader>
             <CardContent className="pt-0">
-              <p className="text-sm text-muted-foreground mb-4 line-clamp-2">
+              <p className="text-sm text-muted-foreground mb-3 line-clamp-2">
                 {model.description}
               </p>
-              <div className="flex items-center justify-between">
-                <span className="text-sm font-medium text-primary">
-                  {model.pricing}
-                </span>
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  className="text-xs opacity-0 group-hover:opacity-100 transition-opacity"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    navigate("/workspace/keys");
-                  }}
+              <Separator className="mb-3 bg-border/40 h-px" />
+              <div className="flex items-start justify-between">
+                <div className="flex gap-6">
+                  <div>
+                    <p className="text-[10px] text-muted-foreground mb-0.5">输入价格</p>
+                    <p className="text-sm font-medium text-foreground whitespace-nowrap">
+                      ¥{model.cardPrice.input.toFixed(4)} / M
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-[10px] text-muted-foreground mb-0.5">输出价格</p>
+                    <p className="text-sm font-medium text-foreground whitespace-nowrap">
+                      ¥{model.cardPrice.output.toFixed(4)} / M
+                    </p>
+                  </div>
+                </div>
+                <Badge 
+                  variant="outline" 
+                  className="text-[9px] h-4 px-1.5 border-gray-200 text-gray-400 bg-transparent whitespace-nowrap mt-0"
                 >
-                  使用模型
-                  <ArrowRight className="w-3 h-3 ml-1" />
-                </Button>
+                  官方原价
+                </Badge>
               </div>
             </CardContent>
           </Card>
@@ -611,69 +622,123 @@ export default function Models() {
 
                 {/* Group Pricing */}
                 <div>
-                  <h4 className="text-sm font-semibold mb-3">分组价格</h4>
+                  <div className="flex items-center gap-2 mb-3">
+                    <h4 className="text-sm font-semibold">分组价格</h4>
+                    <Badge 
+                      variant="outline" 
+                      className="text-[9px] h-4 px-1.5 border-blue-200 text-blue-500 bg-transparent whitespace-nowrap"
+                    >
+                      专属折扣
+                    </Badge>
+                  </div>
                   <div className="border rounded-lg overflow-hidden">
                     <Table>
                       <TableHeader>
                         <TableRow className="bg-muted/50">
                           <TableHead className="text-xs py-2">分组</TableHead>
                           <TableHead className="text-xs py-2">计费类型</TableHead>
-                          <TableHead className="text-xs py-2">
-                            <div className="flex flex-col">
-                              <span>输入</span>
-                              {selectedModel.groupPrices[0]?.inputTiers.length > 1 && (
-                                <span className="text-[10px] text-muted-foreground font-normal">
-                                  {renderTierLabels(selectedModel.groupPrices[0].inputTiers)}
-                                </span>
-                              )}
-                            </div>
-                          </TableHead>
-                          <TableHead className="text-xs py-2">
-                            <div className="flex flex-col">
-                              <span>输出</span>
-                              {selectedModel.groupPrices[0]?.outputTiers.length > 1 && (
-                                <span className="text-[10px] text-muted-foreground font-normal">
-                                  {renderTierLabels(selectedModel.groupPrices[0].outputTiers)}
-                                </span>
-                              )}
-                            </div>
-                          </TableHead>
+                          {selectedModel.groupPrices.some(
+                            (g) => g.inputTiers.length > 1 || g.outputTiers.length > 1
+                          ) && <TableHead className="text-xs py-2">区间长度</TableHead>}
+                          <TableHead className="text-xs py-2">输入价格（元/M tokens）</TableHead>
+                          <TableHead className="text-xs py-2">输出价格（元/M tokens）</TableHead>
+                          {selectedModel.groupPrices.some((g) => g.cachePrice !== undefined) && (
+                            <TableHead className="text-xs py-2">缓存创建价格（元/M tokens）</TableHead>
+                          )}
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {selectedModel.groupPrices.map((group) => (
-                          <TableRow key={group.group}>
-                            <TableCell className="text-xs py-2.5 font-medium">
-                              {group.group}
-                              {group.discount !== 1.0 && (
-                                <span className="ml-1 text-[10px] text-muted-foreground">
-                                  (×{group.discount})
-                                </span>
+                        {selectedModel.groupPrices.flatMap((group) => {
+                          const hasMultipleTiers =
+                            group.inputTiers.length > 1 || group.outputTiers.length > 1;
+                          const tierCount = Math.max(
+                            group.inputTiers.length,
+                            group.outputTiers.length
+                          );
+                          // 如果只有一个阶梯，显示一行
+                          if (!hasMultipleTiers) {
+                            return [
+                              <TableRow key={group.group}>
+                                <TableCell className="text-xs py-2.5 font-medium">
+                                  {group.group}
+                                  {group.discount !== 1.0 && (
+                                    <span className="ml-1 text-[10px] text-muted-foreground">
+                                      (×{group.discount})
+                                    </span>
+                                  )}
+                                </TableCell>
+                                <TableCell className="text-xs py-2.5">
+                                  {group.billingType}
+                                </TableCell>
+                                {selectedModel.groupPrices.some(
+                                  (g) => g.inputTiers.length > 1 || g.outputTiers.length > 1
+                                ) && <TableCell className="text-xs py-2.5">-</TableCell>}
+                                <TableCell className="text-xs py-2.5">
+                                  {group.inputTiers[0] ? formatPrice(group.inputTiers[0].price) : "-"}
+                                </TableCell>
+                                <TableCell className="text-xs py-2.5">
+                                  {group.outputTiers[0] ? formatPrice(group.outputTiers[0].price) : "-"}
+                                </TableCell>
+                                {selectedModel.groupPrices.some(
+                                  (g) => g.cachePrice !== undefined
+                                ) && (
+                                  <TableCell className="text-xs py-2.5">
+                                    {group.cachePrice !== undefined ? formatPrice(group.cachePrice) : "-"}
+                                  </TableCell>
+                                )}
+                              </TableRow>,
+                            ];
+                          }
+                          // 多个阶梯，每阶梯一行
+                          return Array.from({ length: tierCount }, (_, idx) => (
+                            <TableRow key={`${group.group}-${idx}`}>
+                              {idx === 0 && (
+                                <TableCell
+                                  className="text-xs py-2.5 font-medium"
+                                  rowSpan={tierCount}
+                                >
+                                  {group.group}
+                                  {group.discount !== 1.0 && (
+                                    <span className="ml-1 text-[10px] text-muted-foreground">
+                                      (×{group.discount})
+                                    </span>
+                                  )}
+                                </TableCell>
                               )}
-                            </TableCell>
-                            <TableCell className="text-xs py-2.5">
-                              {group.billingType}
-                            </TableCell>
-                            <TableCell className="text-xs py-2.5">
-                              {renderTierPrices(group.inputTiers)}
-                            </TableCell>
-                            <TableCell className="text-xs py-2.5">
-                              {group.outputTiers.length > 0
-                                ? renderTierPrices(group.outputTiers)
-                                : "-"}
-                            </TableCell>
-                          </TableRow>
-                        ))}
+                              {idx === 0 && (
+                                <TableCell
+                                  className="text-xs py-2.5"
+                                  rowSpan={tierCount}
+                                >
+                                  {group.billingType}
+                                </TableCell>
+                              )}
+                              <TableCell className="text-xs py-2.5">
+                                {group.inputTiers[idx]?.label || "-"}
+                              </TableCell>
+                              <TableCell className="text-xs py-2.5">
+                                {group.inputTiers[idx] ? formatPrice(group.inputTiers[idx].price) : "-"}
+                              </TableCell>
+                              <TableCell className="text-xs py-2.5">
+                                {group.outputTiers[idx] ? formatPrice(group.outputTiers[idx].price) : "-"}
+                              </TableCell>
+                              {idx === 0 &&
+                                selectedModel.groupPrices.some(
+                                  (g) => g.cachePrice !== undefined
+                                ) && (
+                                  <TableCell
+                                    className="text-xs py-2.5"
+                                    rowSpan={tierCount}
+                                  >
+                                    {group.cachePrice !== undefined ? formatPrice(group.cachePrice) : "-"}
+                                  </TableCell>
+                                )}
+                            </TableRow>
+                          ));
+                        })}
                       </TableBody>
                     </Table>
                   </div>
-
-                  {/* 阶梯说明 */}
-                  {selectedModel.groupPrices[0]?.inputTiers.length > 1 && (
-                    <p className="text-[10px] text-muted-foreground mt-2">
-                      价格按上下文长度阶梯递增，具体区间见表头标注
-                    </p>
-                  )}
                 </div>
               </div>
             </div>
