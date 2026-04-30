@@ -67,6 +67,13 @@ interface Model {
     output: number;
   };
   isOfficialPrice?: boolean; // 是否为官方原价
+  // 模型规格
+  specs?: {
+    maxContextWindow: string; // 如 "128K", "1M", "2M"
+    maxOutputTokens: number; // 如 4096, 8192
+    supportedFeatures: string[]; // 如 ["支持流式", "图片输入", "工具调用", "前缀续写"]
+    releaseDate: string; // 如 "2026-04-21"
+  };
 }
 
 const mockModels: Model[] = [
@@ -119,6 +126,12 @@ const mockModels: Model[] = [
     ],
     cardPrice: { input: 35, output: 175 },
     isOfficialPrice: true,
+    specs: {
+      maxContextWindow: "128K",
+      maxOutputTokens: 4096,
+      supportedFeatures: ["支持流式", "图片输入", "工具调用", "前缀续写"],
+      releaseDate: "2024-05-13",
+    },
   },
   {
     id: "gpt-4o-mini",
@@ -153,6 +166,12 @@ const mockModels: Model[] = [
       },
     ],
     cardPrice: { input: 7, output: 35 },
+    specs: {
+      maxContextWindow: "128K",
+      maxOutputTokens: 16384,
+      supportedFeatures: ["支持流式", "图片输入", "工具调用"],
+      releaseDate: "2024-07-18",
+    },
   },
   {
     id: "claude-3-opus",
@@ -187,6 +206,12 @@ const mockModels: Model[] = [
       },
     ],
     cardPrice: { input: 105, output: 525 },
+    specs: {
+      maxContextWindow: "200K",
+      maxOutputTokens: 4096,
+      supportedFeatures: ["支持流式", "图片输入", "工具调用", "前缀续写"],
+      releaseDate: "2024-02-01",
+    },
   },
   {
     id: "claude-3-sonnet",
@@ -221,6 +246,12 @@ const mockModels: Model[] = [
       },
     ],
     cardPrice: { input: 42, output: 210 },
+    specs: {
+      maxContextWindow: "200K",
+      maxOutputTokens: 8192,
+      supportedFeatures: ["支持流式", "图片输入", "工具调用"],
+      releaseDate: "2024-06-20",
+    },
   },
   {
     id: "dalle-3",
@@ -253,6 +284,12 @@ const mockModels: Model[] = [
       },
     ],
     cardPrice: { input: 0.12, output: 0 },
+    specs: {
+      maxContextWindow: "N/A",
+      maxOutputTokens: 0,
+      supportedFeatures: ["图片输入"],
+      releaseDate: "2023-10-01",
+    },
   },
   {
     id: "stable-diffusion",
@@ -278,6 +315,12 @@ const mockModels: Model[] = [
       },
     ],
     cardPrice: { input: 0.08, output: 0 },
+    specs: {
+      maxContextWindow: "N/A",
+      maxOutputTokens: 0,
+      supportedFeatures: ["图片输入"],
+      releaseDate: "2023-07-26",
+    },
   },
   {
     id: "code-llama",
@@ -305,6 +348,12 @@ const mockModels: Model[] = [
       },
     ],
     cardPrice: { input: 18.5, output: 56 },
+    specs: {
+      maxContextWindow: "16K",
+      maxOutputTokens: 4096,
+      supportedFeatures: ["支持流式", "工具调用", "前缀续写"],
+      releaseDate: "2023-08-24",
+    },
   },
   {
     id: "deepseek-coder",
@@ -339,6 +388,12 @@ const mockModels: Model[] = [
       },
     ],
     cardPrice: { input: 4.5, output: 18.5 },
+    specs: {
+      maxContextWindow: "128K",
+      maxOutputTokens: 8192,
+      supportedFeatures: ["支持流式", "工具调用", "前缀续写"],
+      releaseDate: "2024-01-15",
+    },
   },
   {
     id: "qwen-max",
@@ -373,6 +428,12 @@ const mockModels: Model[] = [
       },
     ],
     cardPrice: { input: 46.5, output: 140 },
+    specs: {
+      maxContextWindow: "32K",
+      maxOutputTokens: 8192,
+      supportedFeatures: ["支持流式", "工具调用", "前缀续写"],
+      releaseDate: "2024-03-01",
+    },
   },
   {
     id: "glm-4",
@@ -400,6 +461,12 @@ const mockModels: Model[] = [
       },
     ],
     cardPrice: { input: 35, output: 116 },
+    specs: {
+      maxContextWindow: "128K",
+      maxOutputTokens: 4096,
+      supportedFeatures: ["支持流式", "图片输入", "工具调用"],
+      releaseDate: "2024-01-25",
+    },
   },
 ];
 
@@ -740,6 +807,52 @@ export default function Models() {
                     </Table>
                   </div>
                 </div>
+
+                {/* Model Specs */}
+                {selectedModel.specs && (
+                  <>
+                    <Separator />
+                    <div>
+                      <h4 className="text-sm font-semibold mb-3">模型规格</h4>
+                      <div className="space-y-3">
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs text-muted-foreground">最大上下文窗口</span>
+                          <span className="text-sm font-medium">
+                            {selectedModel.specs.maxContextWindow === "N/A" 
+                              ? "N/A" 
+                              : `${parseInt(selectedModel.specs.maxContextWindow.replace(/[^0-9]/g, ""))}k`}
+                          </span>
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs text-muted-foreground">单次最大输出</span>
+                          <span className="text-sm font-medium">
+                            {selectedModel.specs.maxOutputTokens === 0 
+                              ? "N/A" 
+                              : `${Math.round(selectedModel.specs.maxOutputTokens / 1000)}k`}
+                          </span>
+                        </div>
+                        <div className="flex items-start justify-between">
+                          <span className="text-xs text-muted-foreground shrink-0">支持功能</span>
+                          <div className="flex flex-wrap gap-1.5 justify-end max-w-[70%]">
+                            {selectedModel.specs.supportedFeatures.map((feature) => (
+                              <Badge
+                                key={feature}
+                                variant="secondary"
+                                className="text-[10px] px-2 py-0.5 bg-green-50 text-green-600 border border-green-200 hover:bg-green-100"
+                              >
+                                {feature}
+                              </Badge>
+                            ))}
+                          </div>
+                        </div>
+                        <div className="flex items-center justify-between pt-1">
+                          <span className="text-xs text-muted-foreground">发布日期</span>
+                          <span className="text-sm font-medium">{selectedModel.specs.releaseDate}</span>
+                        </div>
+                      </div>
+                    </div>
+                  </>
+                )}
               </div>
             </div>
           )}

@@ -46,14 +46,14 @@ interface Channel {
 // ─── Constants ───────────────────────────────────────────────────────────
 
 const CHANNEL_NAMES = [
-  "Claude-AWS", "OpenAI", "Gemini", "Azure-OpenAI", "Claude-Official",
-  "GPT-4-Turbo", "GPT-4o", "Claude-3-Sonnet", "Claude-3-Opus", "Gemini-Pro",
-  "Gemini-Ultra", "Llama-3-70B", "Llama-3-8B", "Mistral-Large", "Mistral-Medium",
-  "Qwen-Max", "Qwen-Plus", "Qwen-Turbo", "Baichuan-4", "Baichuan-3",
-  "ChatGLM-4", "ChatGLM-3", "Wenxin-4", "Wenxin-3.5", "Spark-Max",
-  "Spark-Pro", "Hunyuan-Pro", "Hunyuan-Standard", "Doubao-Pro", "Doubao-Lite",
-  "Kimi-K1.5", "Kimi-Moonshot", "DeepSeek-V3", "DeepSeek-R1", "Step-2",
-  "GLM-4-Plus", "MiniMax-ABAB6"
+  "渠道A-Claude", "渠道B-Gemini", "渠道C-OpenAI", "渠道D-Azure", "渠道E-Claude",
+  "渠道F-GPT4", "渠道G-GPT4o", "渠道H-Claude", "渠道I-Claude", "渠道J-Gemini",
+  "渠道K-Gemini", "渠道L-Llama", "渠道M-Llama", "渠道N-Mistral", "渠道O-Mistral",
+  "渠道P-Qwen", "渠道Q-Qwen", "渠道R-Qwen", "渠道S-Baichuan", "渠道T-Baichuan",
+  "渠道U-ChatGLM", "渠道V-ChatGLM", "渠道W-Wenxin", "渠道X-Wenxin", "渠道Y-Spark",
+  "渠道Z-Spark", "渠道AA-Hunyuan", "渠道AB-Hunyuan", "渠道AC-Doubao", "渠道AD-Doubao",
+  "渠道AE-Kimi", "渠道AF-Kimi", "渠道AG-DeepSeek", "渠道AH-DeepSeek", "渠道AI-Step",
+  "渠道AJ-GLM", "渠道AK-MiniMax"
 ];
 
 const MODEL_NAMES = [
@@ -105,7 +105,7 @@ function generateTrendData(currentSuccessRate: number, currentCacheRate: number)
 function generateChannels(): Channel[] {
   return CHANNEL_NAMES.slice(0, 36).map((name, index) => {
     // 根据用户提供的示例设置特定渠道的数据
-    if (name === "Claude-AWS") {
+    if (name === "渠道A-Claude") {
       const successRate = 25;
       const cacheHitRate = 27;
       return {
@@ -124,7 +124,7 @@ function generateChannels(): Channel[] {
         trendData: generateTrendData(successRate, cacheHitRate),
       };
     }
-    if (name === "OpenAI") {
+    if (name === "渠道C-OpenAI") {
       const successRate = 96;
       const cacheHitRate = 85;
       return {
@@ -143,7 +143,7 @@ function generateChannels(): Channel[] {
         trendData: generateTrendData(successRate, cacheHitRate),
       };
     }
-    if (name === "Gemini") {
+    if (name === "渠道B-Gemini") {
       const successRate = 78;
       const cacheHitRate = 40;
       return {
