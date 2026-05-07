@@ -10,6 +10,7 @@ import DeptManagement from "@/pages/DeptManagement";
 import MemberManagement from "@/pages/MemberManagement";
 import Profile from "@/pages/Profile";
 import ApiKeys from "@/pages/ApiKeys";
+import PersonalApiKeys from "@/pages/PersonalApiKeys";
 import ResourceStats from "@/pages/ResourceStats";
 import CallLogs from "@/pages/CallLogs";
 import Models from "@/pages/Models";
@@ -434,7 +435,7 @@ export default function Workspace() {
               {location.pathname === "/workspace/models" || location.pathname === "/workspace" ? (
                 <Models />
               ) : location.pathname === "/workspace/keys" ? (
-                <ApiKeys enterprise={null} role="member" />
+                <PersonalApiKeys />
               ) : location.pathname === "/workspace/stats" ? (
                 <ResourceStats enterprise={null} role="member" />
               ) : location.pathname === "/workspace/logs" ? (

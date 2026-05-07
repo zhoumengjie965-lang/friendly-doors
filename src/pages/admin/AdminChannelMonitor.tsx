@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
-import { RefreshCw, Activity, Filter, Clock, AlertCircle, CheckCircle2, AlertTriangle, TrendingUp, Search, ChevronDown, X } from "lucide-react";
+import { RefreshCw, Activity, Filter, Clock, AlertCircle, CheckCircle2, AlertTriangle, TrendingUp, Search, ChevronDown, X, Calendar } from "lucide-react";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -68,19 +68,20 @@ const REFRESH_INTERVAL = 5 * 60 * 1000; // 5分钟
 
 // ─── Helper Functions ────────────────────────────────────────────────────
 
-// 生成6小时的历史趋势数据（每5分钟一个点）
-function generateTrendData(currentSuccessRate: number, currentCacheRate: number): TrendPoint[] {
+// 生成6小时的历史趋势数据（每5分钟一个点），基于指定结束时间
+function generateTrendData(currentSuccessRate: number, currentCacheRate: number, endTime?: Date): TrendPoint[] {
   const data: TrendPoint[] = [];
-  const now = new Date();
+  // 使用指定时间或当前时间
+  const baseTime = endTime || new Date();
   
-  // 将当前时间对齐到5分钟边界
-  const alignedNow = new Date(now);
-  alignedNow.setMinutes(Math.floor(now.getMinutes() / 5) * 5, 0, 0);
+  // 将时间对齐到5分钟边界
+  const alignedTime = new Date(baseTime);
+  alignedTime.setMinutes(Math.floor(baseTime.getMinutes() / 5) * 5, 0, 0);
   
   for (let i = TREND_POINTS - 1; i >= 0; i--) {
-    const time = new Date(alignedNow.getTime() - i * 5 * 60 * 1000);
+    const time = new Date(alignedTime.getTime() - i * 5 * 60 * 1000);
     
-    // 生成波动数据，越靠近当前越接近期望值
+    // 生成波动数据，越靠近结束时间越接近期望值
     const progress = (TREND_POINTS - i) / TREND_POINTS;
     const variance = (1 - progress) * 20; // 早期数据波动更大
     
@@ -102,7 +103,7 @@ function generateTrendData(currentSuccessRate: number, currentCacheRate: number)
 }
 
 // 生成36个渠道的模拟数据
-function generateChannels(): Channel[] {
+function generateChannels(endTime?: Date): Channel[] {
   return CHANNEL_NAMES.slice(0, 36).map((name, index) => {
     // 根据用户提供的示例设置特定渠道的数据
     if (name === "渠道A-Claude") {
@@ -121,7 +122,7 @@ function generateChannels(): Channel[] {
         rpm: 120,
         tpm: 45000,
         models: ["claude-3.5-sonnet", "claude-3-opus"],
-        trendData: generateTrendData(successRate, cacheHitRate),
+        trendData: generateTrendData(successRate, cacheHitRate, endTime),
       };
     }
     if (name === "渠道C-OpenAI") {
@@ -140,7 +141,7 @@ function generateChannels(): Channel[] {
         rpm: 850,
         tpm: 320000,
         models: ["gpt-4o", "gpt-4-turbo", "gpt-3.5-turbo"],
-        trendData: generateTrendData(successRate, cacheHitRate),
+        trendData: generateTrendData(successRate, cacheHitRate, endTime),
       };
     }
     if (name === "渠道B-Gemini") {
@@ -159,7 +160,7 @@ function generateChannels(): Channel[] {
         rpm: 420,
         tpm: 168000,
         models: ["gemini-1.5-pro", "gemini-1.5-flash"],
-        trendData: generateTrendData(successRate, cacheHitRate),
+        trendData: generateTrendData(successRate, cacheHitRate, endTime),
       };
     }
 
@@ -196,7 +197,7 @@ function generateChannels(): Channel[] {
       rpm,
       tpm,
       models: MODEL_NAMES.slice(Math.floor(Math.random() * 10), Math.floor(Math.random() * 10) + 3),
-      trendData: generateTrendData(successRate, cacheRate),
+      trendData: generateTrendData(successRate, cacheRate, endTime),
     };
   });
 }
@@ -210,24 +211,30 @@ function getAlignedTime(date: Date): Date {
 
 // ─── Components ──────────────────────────────────────────────────────────
 
-// 渠道搜索选择器组件
-function ChannelSearchSelect({
+// 渠道多选搜索选择器组件
+function ChannelMultiSelect({
   channels,
-  selectedChannel,
+  selectedChannels,
   onSelect,
 }: {
   channels: Channel[];
-  selectedChannel: string;
-  onSelect: (value: string) => void;
+  selectedChannels: string[];
+  onSelect: (values: string[]) => void;
 }) {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
 
-  const selectedChannelName = useMemo(() => {
-    if (selectedChannel === "all") return "全部渠道";
-    const ch = channels.find((c) => c.id === selectedChannel);
-    return ch?.name || "全部渠道";
-  }, [selectedChannel, channels]);
+  const isAllSelected = selectedChannels.length === channels.length;
+  const hasPartialSelection = selectedChannels.length > 0 && selectedChannels.length < channels.length;
+
+  const displayText = useMemo(() => {
+    if (isAllSelected || selectedChannels.length === 0) return "全部渠道";
+    if (selectedChannels.length === 1) {
+      const ch = channels.find((c) => c.id === selectedChannels[0]);
+      return ch?.name || "1个渠道";
+    }
+    return `${selectedChannels.length}个渠道`;
+  }, [selectedChannels, channels, isAllSelected]);
 
   const filteredChannels = useMemo(() => {
     if (!search) return channels;
@@ -235,6 +242,22 @@ function ChannelSearchSelect({
       ch.name.toLowerCase().includes(search.toLowerCase())
     );
   }, [channels, search]);
+
+  const toggleAll = () => {
+    if (isAllSelected) {
+      onSelect([]);
+    } else {
+      onSelect(channels.map((c) => c.id));
+    }
+  };
+
+  const toggleChannel = (channelId: string) => {
+    if (selectedChannels.includes(channelId)) {
+      onSelect(selectedChannels.filter((id) => id !== channelId));
+    } else {
+      onSelect([...selectedChannels, channelId]);
+    }
+  };
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -245,11 +268,11 @@ function ChannelSearchSelect({
           aria-expanded={open}
           className="w-44 h-8 justify-between text-xs bg-background font-normal"
         >
-          <span className="truncate">{selectedChannelName}</span>
+          <span className="truncate">{displayText}</span>
           <ChevronDown className="ml-2 h-3 w-3 shrink-0 opacity-50" />
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="w-44 p-0">
+      <PopoverContent className="w-56 p-0">
         <div className="flex items-center border-b px-2 py-1.5">
           <Search className="mr-2 h-3 w-3 shrink-0 opacity-50" />
           <Input
@@ -265,39 +288,80 @@ function ChannelSearchSelect({
             />
           )}
         </div>
-        <div className="max-h-48 overflow-y-auto">
+        <div className="max-h-56 overflow-y-auto">
+          {/* 全部渠道选项 */}
           <div
-            className={`px-2 py-1.5 text-xs cursor-pointer hover:bg-muted ${
-              selectedChannel === "all" ? "bg-muted font-medium" : ""
-            }`}
-            onClick={() => {
-              onSelect("all");
-              setOpen(false);
-              setSearch("");
-            }}
+            className="flex items-center gap-2 px-2 py-2 text-xs cursor-pointer hover:bg-muted border-b"
+            onClick={toggleAll}
           >
-            全部渠道
+            <div
+              className={`w-4 h-4 rounded border flex items-center justify-center ${
+                isAllSelected
+                  ? "bg-primary border-primary"
+                  : hasPartialSelection
+                    ? "bg-primary border-primary"
+                    : "border-muted-foreground/30"
+              }`}
+            >
+              {(isAllSelected || hasPartialSelection) && (
+                <svg
+                  className="w-3 h-3 text-primary-foreground"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                  strokeWidth={3}
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    d="M5 12l5 5L20 7"
+                  />
+                </svg>
+              )}
+            </div>
+            <span className="font-medium">全部渠道</span>
           </div>
+
           {filteredChannels.length === 0 ? (
             <div className="px-2 py-2 text-xs text-muted-foreground text-center">
               未找到渠道
             </div>
           ) : (
-            filteredChannels.map((ch) => (
-              <div
-                key={ch.id}
-                className={`px-2 py-1.5 text-xs cursor-pointer hover:bg-muted truncate ${
-                  selectedChannel === ch.id ? "bg-muted font-medium" : ""
-                }`}
-                onClick={() => {
-                  onSelect(ch.id);
-                  setOpen(false);
-                  setSearch("");
-                }}
-              >
-                {ch.name}
-              </div>
-            ))
+            filteredChannels.map((ch) => {
+              const isSelected = selectedChannels.includes(ch.id);
+              return (
+                <div
+                  key={ch.id}
+                  className="flex items-center gap-2 px-2 py-1.5 text-xs cursor-pointer hover:bg-muted"
+                  onClick={() => toggleChannel(ch.id)}
+                >
+                  <div
+                    className={`w-4 h-4 rounded border flex items-center justify-center ${
+                      isSelected
+                        ? "bg-primary border-primary"
+                        : "border-muted-foreground/30"
+                    }`}
+                  >
+                    {isSelected && (
+                      <svg
+                        className="w-3 h-3 text-primary-foreground"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        stroke="currentColor"
+                        strokeWidth={3}
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          d="M5 12l5 5L20 7"
+                        />
+                      </svg>
+                    )}
+                  </div>
+                  <span className="truncate">{ch.name}</span>
+                </div>
+              );
+            })
           )}
         </div>
       </PopoverContent>
@@ -305,92 +369,181 @@ function ChannelSearchSelect({
   );
 }
 
-// 模型搜索选择器组件
-function ModelSearchSelect({
-  models,
-  selectedModel,
+// 日期时间选择器组件 - 使用简洁的日历+时间输入
+function DateTimePicker({
+  selectedTime,
   onSelect,
 }: {
-  models: string[];
-  selectedModel: string;
-  onSelect: (value: string) => void;
+  selectedTime: Date;
+  onSelect: (time: Date) => void;
 }) {
   const [open, setOpen] = useState(false);
-  const [search, setSearch] = useState("");
+  const [date, setDate] = useState<Date>(selectedTime);
+  const [timeStr, setTimeStr] = useState(() => {
+    const h = selectedTime.getHours().toString().padStart(2, '0');
+    const m = selectedTime.getMinutes().toString().padStart(2, '0');
+    return `${h}:${m}`;
+  });
 
-  const selectedModelName = useMemo(() => {
-    if (selectedModel === "all") return "全部模型";
-    return selectedModel;
-  }, [selectedModel]);
+  // 生成年月显示
+  const monthNames = ['1月', '2月', '3月', '4月', '5月', '6月', '7月', '8月', '9月', '10月', '11月', '12月'];
+  const weekDays = ['日', '一', '二', '三', '四', '五', '六'];
 
-  const filteredModels = useMemo(() => {
-    if (!search) return models;
-    return models.filter((m) => m.toLowerCase().includes(search.toLowerCase()));
-  }, [models, search]);
+  // 获取日历数据
+  const calendarDays = useMemo(() => {
+    const year = date.getFullYear();
+    const month = date.getMonth();
+    const firstDay = new Date(year, month, 1);
+    const lastDay = new Date(year, month + 1, 0);
+    const startDate = new Date(firstDay);
+    startDate.setDate(startDate.getDate() - firstDay.getDay());
+    
+    const days: Date[] = [];
+    for (let i = 0; i < 42; i++) {
+      const d = new Date(startDate);
+      d.setDate(startDate.getDate() + i);
+      days.push(d);
+    }
+    return days;
+  }, [date.getFullYear(), date.getMonth()]);
+
+  const handleConfirm = () => {
+    const [h, m] = timeStr.split(':').map(Number);
+    const newTime = new Date(date);
+    newTime.setHours(h || 0, m || 0, 0, 0);
+    onSelect(newTime);
+    setOpen(false);
+  };
+
+  const handleCancel = () => {
+    setDate(selectedTime);
+    const h = selectedTime.getHours().toString().padStart(2, '0');
+    const m = selectedTime.getMinutes().toString().padStart(2, '0');
+    setTimeStr(`${h}:${m}`);
+    setOpen(false);
+  };
+
+  const formatDisplayTime = (d: Date) => {
+    return d.toLocaleString("zh-CN", {
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+  };
+
+  const isSameDay = (d1: Date, d2: Date) => 
+    d1.getFullYear() === d2.getFullYear() &&
+    d1.getMonth() === d2.getMonth() &&
+    d1.getDate() === d2.getDate();
+
+  const isToday = (d: Date) => isSameDay(d, new Date());
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
         <Button
           variant="outline"
-          role="combobox"
-          aria-expanded={open}
-          className="w-44 h-8 justify-between text-xs bg-background font-normal"
+          className="h-8 justify-between text-xs bg-background font-normal gap-2 w-44"
         >
-          <span className="truncate">{selectedModelName}</span>
-          <ChevronDown className="ml-2 h-3 w-3 shrink-0 opacity-50" />
+          <Calendar className="h-3.5 w-3.5 text-muted-foreground" />
+          <span className="truncate">{formatDisplayTime(selectedTime)}</span>
+          <ChevronDown className="ml-1 h-3 w-3 shrink-0 opacity-50" />
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="w-44 p-0">
-        <div className="flex items-center border-b px-2 py-1.5">
-          <Search className="mr-2 h-3 w-3 shrink-0 opacity-50" />
-          <Input
-            placeholder="搜索模型..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="h-7 border-0 bg-transparent p-0 text-xs focus-visible:ring-0"
-          />
-          {search && (
-            <X
-              className="ml-1 h-3 w-3 shrink-0 cursor-pointer opacity-50 hover:opacity-100"
-              onClick={() => setSearch("")}
-            />
-          )}
-        </div>
-        <div className="max-h-48 overflow-y-auto">
-          <div
-            className={`px-2 py-1.5 text-xs cursor-pointer hover:bg-muted ${
-              selectedModel === "all" ? "bg-muted font-medium" : ""
-            }`}
-            onClick={() => {
-              onSelect("all");
-              setOpen(false);
-              setSearch("");
-            }}
-          >
-            全部模型
+      <PopoverContent className="w-auto p-0" align="start">
+        <div className="p-3 space-y-3">
+          {/* 日历头部 */}
+          <div className="flex items-center justify-between">
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-7 w-7 p-0"
+              onClick={() => setDate(new Date(date.getFullYear(), date.getMonth() - 1, 1))}
+            >
+              ←
+            </Button>
+            <span className="text-sm font-medium">
+              {date.getFullYear()}年{monthNames[date.getMonth()]}
+            </span>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-7 w-7 p-0"
+              onClick={() => setDate(new Date(date.getFullYear(), date.getMonth() + 1, 1))}
+            >
+              →
+            </Button>
           </div>
-          {filteredModels.length === 0 ? (
-            <div className="px-2 py-2 text-xs text-muted-foreground text-center">
-              未找到模型
-            </div>
-          ) : (
-            filteredModels.map((model) => (
-              <div
-                key={model}
-                className={`px-2 py-1.5 text-xs cursor-pointer hover:bg-muted truncate ${
-                  selectedModel === model ? "bg-muted font-medium" : ""
-                }`}
-                onClick={() => {
-                  onSelect(model);
-                  setOpen(false);
-                  setSearch("");
-                }}
-              >
-                {model}
+
+          {/* 星期标题 */}
+          <div className="grid grid-cols-7 gap-1">
+            {weekDays.map(d => (
+              <div key={d} className="text-center text-[10px] text-muted-foreground py-1">
+                {d}
               </div>
-            ))
-          )}
+            ))}
+          </div>
+
+          {/* 日期网格 */}
+          <div className="grid grid-cols-7 gap-1">
+            {calendarDays.map((d, i) => {
+              const isCurrentMonth = d.getMonth() === date.getMonth();
+              const isSelected = isSameDay(d, date);
+              const today = isToday(d);
+              
+              return (
+                <Button
+                  key={i}
+                  variant="ghost"
+                  size="sm"
+                  className={`h-7 w-7 p-0 text-xs ${
+                    isSelected 
+                      ? "bg-primary text-primary-foreground hover:bg-primary hover:text-primary-foreground" 
+                      : today
+                        ? "bg-primary/10 text-primary"
+                        : isCurrentMonth
+                          ? "text-foreground"
+                          : "text-muted-foreground"
+                  }`}
+                  onClick={() => setDate(new Date(d))}
+                >
+                  {d.getDate()}
+                </Button>
+              );
+            })}
+          </div>
+
+          {/* 时间输入 */}
+          <div className="flex items-center gap-2 pt-2 border-t">
+            <span className="text-xs text-muted-foreground">时间</span>
+            <Input
+              type="time"
+              value={timeStr}
+              onChange={(e) => setTimeStr(e.target.value)}
+              className="h-8 text-xs flex-1"
+            />
+          </div>
+
+          {/* 按钮 */}
+          <div className="flex justify-end gap-2">
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-7 text-xs"
+              onClick={handleCancel}
+            >
+              取消
+            </Button>
+            <Button
+              size="sm"
+              className="h-7 text-xs"
+              onClick={handleConfirm}
+            >
+              确定
+            </Button>
+          </div>
         </div>
       </PopoverContent>
     </Popover>
@@ -415,7 +568,7 @@ function StatusBadge({ status }: { status: ChannelStatus }) {
       className: "bg-red-50 text-red-600 border-red-200 hover:bg-red-50",
     },
     disabled: {
-      label: "禁用",
+      label: "无数据",
       icon: AlertCircle,
       className: "bg-gray-100 text-gray-500 border-gray-200 hover:bg-gray-100",
     },
@@ -468,7 +621,7 @@ function MetricBar({
 }
 
 // SVG 趋势折线图组件
-function TrendChart({ data }: { data: TrendPoint[] }) {
+function TrendChart({ data, isEmpty = false }: { data: TrendPoint[]; isEmpty?: boolean }) {
   const height = 100;
   const padding = { top: 22, right: 10, bottom: 18, left: 38 };
   
@@ -589,25 +742,29 @@ function TrendChart({ data }: { data: TrendPoint[] }) {
           );
         })}
 
-        {/* 成功率折线 */}
-        <path
-          d={successPath}
-          fill="none"
-          stroke="#22c55e"
-          strokeWidth={1.5}
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        />
+        {/* 成功率折线 - 无数据时不显示 */}
+        {!isEmpty && (
+          <path
+            d={successPath}
+            fill="none"
+            stroke="#22c55e"
+            strokeWidth={1.5}
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+        )}
 
-        {/* 缓存率折线 */}
-        <path
-          d={cachePath}
-          fill="none"
-          stroke="#3b82f6"
-          strokeWidth={1.5}
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        />
+        {/* 缓存率折线 - 无数据时不显示 */}
+        {!isEmpty && (
+          <path
+            d={cachePath}
+            fill="none"
+            stroke="#3b82f6"
+            strokeWidth={1.5}
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+        )}
 
         {/* X轴时间标签（整点） */}
         {timeLabels.map(({ index, label, x }) => (
@@ -626,12 +783,12 @@ function TrendChart({ data }: { data: TrendPoint[] }) {
         {/* 图例 - 右上角 */}
         <g transform={`translate(${viewBoxWidth - 115}, 10)`}>
           {/* 成功率图例 */}
-          <line x1="0" y1="0" x2="10" y2="0" stroke="#22c55e" strokeWidth={1.5} />
-          <text x="13" y="3" fontSize="9" fill="#6b7280">成功率</text>
+          <line x1="0" y1="0" x2="10" y2="0" stroke={isEmpty ? "#d1d5db" : "#22c55e"} strokeWidth={1.5} />
+          <text x="13" y="3" fontSize="9" fill={isEmpty ? "#9ca3af" : "#6b7280"}>成功率</text>
           
           {/* 缓存命中率图例 */}
-          <line x1="46" y1="0" x2="56" y2="0" stroke="#3b82f6" strokeWidth={1.5} />
-          <text x="59" y="3" fontSize="9" fill="#6b7280">缓存命中率</text>
+          <line x1="46" y1="0" x2="56" y2="0" stroke={isEmpty ? "#d1d5db" : "#3b82f6"} strokeWidth={1.5} />
+          <text x="59" y="3" fontSize="9" fill={isEmpty ? "#9ca3af" : "#6b7280"}>缓存命中率</text>
         </g>
       </svg>
     </div>
@@ -657,6 +814,9 @@ function ChannelCard({ channel }: { channel: Channel }) {
   };
   const cacheColorValue = getCacheColor(channel.cacheHitRate);
 
+  // 无数据状态
+  const isNoData = channel.status === "disabled";
+
   return (
     <Card className="overflow-hidden hover:shadow-md transition-shadow">
       <CardHeader className="pb-3 pt-4 px-4">
@@ -679,52 +839,78 @@ function ChannelCard({ channel }: { channel: Channel }) {
         <div className="grid grid-cols-5 gap-2 text-sm">
           <div className="bg-muted/50 rounded-lg p-2">
             <p className="text-[10px] text-muted-foreground mb-0.5">请求次数</p>
-            <p className="font-semibold text-foreground text-xs">{channel.requestCount.toLocaleString()}</p>
+            <p className="font-semibold text-foreground text-xs">{isNoData ? "-" : channel.requestCount.toLocaleString()}</p>
           </div>
           <div className="bg-muted/50 rounded-lg p-2">
             <p className="text-[10px] text-muted-foreground mb-0.5">RPM</p>
-            <p className="font-semibold text-foreground text-xs">{channel.rpm.toLocaleString()}</p>
+            <p className="font-semibold text-foreground text-xs">{isNoData ? "-" : channel.rpm.toLocaleString()}</p>
           </div>
           <div className="bg-muted/50 rounded-lg p-2">
             <p className="text-[10px] text-muted-foreground mb-0.5">TPM</p>
-            <p className="font-semibold text-foreground text-xs">{(channel.tpm / 1000).toFixed(0)}K</p>
+            <p className="font-semibold text-foreground text-xs">{isNoData ? "-" : `${(channel.tpm / 1000).toFixed(0)}K`}</p>
           </div>
           <div className="bg-muted/50 rounded-lg p-2">
             <p className="text-[10px] text-muted-foreground mb-0.5">平均首字响应</p>
-            <p className="font-semibold text-xs text-foreground">{channel.avgResponseTime}s</p>
+            <p className="font-semibold text-xs text-foreground">{isNoData ? "-" : `${channel.avgResponseTime}s`}</p>
           </div>
           <div className="bg-muted/50 rounded-lg p-2">
             <p className="text-[10px] text-muted-foreground mb-0.5">P95 / P99</p>
-            <p className="font-semibold text-xs text-foreground">{channel.p95Latency}s / {channel.p99Latency}s</p>
+            <p className="font-semibold text-xs text-foreground">{isNoData ? "-" : `${channel.p95Latency}s / ${channel.p99Latency}s`}</p>
           </div>
         </div>
 
         {/* 进度条指标 */}
         <div className="space-y-3">
-          <MetricBar 
-            label="成功率" 
-            value={channel.successRate} 
-            color={successRateColor}
-            unit="%"
-          />
-          {/* 缓存命中率 - 使用动态颜色 */}
-          <div className="space-y-2">
-            <div className="flex items-center justify-between text-xs">
-              <span className="text-muted-foreground">缓存命中率</span>
-              <span className="font-medium text-foreground">{channel.cacheHitRate}%</span>
-            </div>
-            <div className="h-2 w-full bg-muted rounded-full overflow-hidden">
-              <div 
-                className="h-full rounded-full transition-all duration-500"
-                style={{ width: `${Math.min(channel.cacheHitRate, 100)}%`, backgroundColor: cacheColorValue }}
+          {isNoData ? (
+            <>
+              {/* 无数据状态的占位进度条 */}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between text-xs">
+                  <span className="text-muted-foreground">成功率</span>
+                  <span className="font-medium text-muted-foreground">-</span>
+                </div>
+                <div className="h-2 w-full bg-muted rounded-full overflow-hidden">
+                  <div className="h-full bg-gray-300 rounded-full" style={{ width: "0%" }} />
+                </div>
+              </div>
+              <div className="space-y-2">
+                <div className="flex items-center justify-between text-xs">
+                  <span className="text-muted-foreground">缓存命中率</span>
+                  <span className="font-medium text-muted-foreground">-</span>
+                </div>
+                <div className="h-2 w-full bg-muted rounded-full overflow-hidden">
+                  <div className="h-full bg-gray-300 rounded-full" style={{ width: "0%" }} />
+                </div>
+              </div>
+            </>
+          ) : (
+            <>
+              <MetricBar 
+                label="成功率" 
+                value={channel.successRate} 
+                color={successRateColor}
+                unit="%"
               />
-            </div>
-          </div>
+              {/* 缓存命中率 - 使用动态颜色 */}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between text-xs">
+                  <span className="text-muted-foreground">缓存命中率</span>
+                  <span className="font-medium text-foreground">{channel.cacheHitRate}%</span>
+                </div>
+                <div className="h-2 w-full bg-muted rounded-full overflow-hidden">
+                  <div 
+                    className="h-full rounded-full transition-all duration-500"
+                    style={{ width: `${Math.min(channel.cacheHitRate, 100)}%`, backgroundColor: cacheColorValue }}
+                  />
+                </div>
+              </div>
+            </>
+          )}
         </div>
 
         {/* 趋势折线图 */}
         <div className="border-t pt-3 mt-3">
-          <TrendChart data={channel.trendData} />
+          <TrendChart data={channel.trendData} isEmpty={isNoData} />
         </div>
       </CardContent>
     </Card>
@@ -738,25 +924,29 @@ export default function AdminChannelMonitor() {
   const [filteredChannels, setFilteredChannels] = useState<Channel[]>([]);
   const [lastUpdateTime, setLastUpdateTime] = useState<Date>(getAlignedTime(new Date()));
   const [isRefreshing, setIsRefreshing] = useState(false);
-  const [selectedChannel, setSelectedChannel] = useState<string>("all");
-  const [selectedModel, setSelectedModel] = useState<string>("all");
+  const [selectedChannels, setSelectedChannels] = useState<string[]>([]);
   const [selectedStatus, setSelectedStatus] = useState<string>("all");
+  const [selectedTime, setSelectedTime] = useState<Date>(getAlignedTime(new Date()));
 
   // 初始化数据
   useEffect(() => {
-    const data = generateChannels();
+    const data = generateChannels(selectedTime);
     setChannels(data);
     setFilteredChannels(data);
   }, []);
 
-  // 自动刷新（每5分钟）
+  // 自动刷新（每5分钟）- 仅当选择当前时间时
   useEffect(() => {
     const checkAndRefresh = () => {
       const now = new Date();
       const alignedNow = getAlignedTime(now);
       
-      // 如果当前对齐时间大于上次更新时间，则刷新
-      if (alignedNow.getTime() > lastUpdateTime.getTime()) {
+      // 只有当选择当前时间时才自动刷新
+      const timeDiff = Math.abs(selectedTime.getTime() - alignedNow.getTime());
+      const isCurrentTime = timeDiff < 5 * 60 * 1000; // 5分钟内视为当前时间
+      
+      // 如果当前对齐时间大于上次更新时间且选择当前时间，则刷新
+      if (alignedNow.getTime() > lastUpdateTime.getTime() && isCurrentTime) {
         handleRefresh();
       }
     };
@@ -764,18 +954,15 @@ export default function AdminChannelMonitor() {
     // 每分钟检查一次是否需要刷新
     const interval = setInterval(checkAndRefresh, 60 * 1000);
     return () => clearInterval(interval);
-  }, [lastUpdateTime]);
+  }, [lastUpdateTime, selectedTime]);
 
   // 筛选和排序逻辑
   useEffect(() => {
     let result = [...channels];
 
-    if (selectedChannel !== "all") {
-      result = result.filter(ch => ch.id === selectedChannel);
-    }
-
-    if (selectedModel !== "all") {
-      result = result.filter(ch => ch.models.includes(selectedModel));
+    // 渠道多选筛选（空数组或未全选时）
+    if (selectedChannels.length > 0 && selectedChannels.length < channels.length) {
+      result = result.filter(ch => selectedChannels.includes(ch.id));
     }
 
     if (selectedStatus !== "all") {
@@ -800,17 +987,29 @@ export default function AdminChannelMonitor() {
     });
 
     setFilteredChannels(result);
-  }, [selectedChannel, selectedModel, selectedStatus, channels]);
+  }, [selectedChannels, selectedStatus, channels]);
 
   // 刷新数据
   const handleRefresh = () => {
     setIsRefreshing(true);
     setTimeout(() => {
-      const data = generateChannels();
+      const data = generateChannels(selectedTime);
       setChannels(data);
       setLastUpdateTime(getAlignedTime(new Date()));
       setIsRefreshing(false);
     }, 800);
+  };
+
+  // 处理时间选择变化
+  const handleTimeChange = (newTime: Date) => {
+    setSelectedTime(newTime);
+    setIsRefreshing(true);
+    setTimeout(() => {
+      const data = generateChannels(newTime);
+      setChannels(data);
+      setFilteredChannels(data);
+      setIsRefreshing(false);
+    }, 400);
   };
 
   // 格式化时间（5分钟粒度）
@@ -863,7 +1062,7 @@ export default function AdminChannelMonitor() {
             </div>
             <div className="flex items-center gap-1.5">
               <span className="w-2 h-2 rounded-full bg-gray-400" />
-              <span className="text-muted-foreground">禁用</span>
+              <span className="text-muted-foreground">无数据</span>
               <span className="font-medium text-foreground">{stats.disabled}</span>
             </div>
           </div>
@@ -895,18 +1094,17 @@ export default function AdminChannelMonitor() {
           <span>筛选:</span>
         </div>
         
-        {/* 渠道搜索选择器 */}
-        <ChannelSearchSelect
-          channels={channels}
-          selectedChannel={selectedChannel}
-          onSelect={setSelectedChannel}
+        {/* 时间选择器 - 最左侧 */}
+        <DateTimePicker
+          selectedTime={selectedTime}
+          onSelect={handleTimeChange}
         />
-
-        {/* 模型搜索选择器 */}
-        <ModelSearchSelect
-          models={MODEL_NAMES}
-          selectedModel={selectedModel}
-          onSelect={setSelectedModel}
+        
+        {/* 渠道多选选择器 */}
+        <ChannelMultiSelect
+          channels={channels}
+          selectedChannels={selectedChannels}
+          onSelect={setSelectedChannels}
         />
 
         <Select value={selectedStatus} onValueChange={setSelectedStatus}>
@@ -936,20 +1134,19 @@ export default function AdminChannelMonitor() {
             <SelectItem value="disabled" className="text-xs">
               <div className="flex items-center gap-1.5">
                 <span className="w-1.5 h-1.5 rounded-full bg-gray-400" />
-                禁用
+                无数据
               </div>
             </SelectItem>
           </SelectContent>
         </Select>
 
-        {(selectedChannel !== "all" || selectedModel !== "all" || selectedStatus !== "all") && (
+        {(selectedChannels.length > 0 || selectedStatus !== "all") && (
           <Button
             variant="ghost"
             size="sm"
             className="h-8 text-xs text-muted-foreground hover:text-foreground"
             onClick={() => {
-              setSelectedChannel("all");
-              setSelectedModel("all");
+              setSelectedChannels([]);
               setSelectedStatus("all");
             }}
           >
@@ -978,8 +1175,7 @@ export default function AdminChannelMonitor() {
             size="sm"
             className="mt-2"
             onClick={() => {
-              setSelectedChannel("all");
-              setSelectedModel("all");
+              setSelectedChannels([]);
               setSelectedStatus("all");
             }}
           >

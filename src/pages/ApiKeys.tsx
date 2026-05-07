@@ -33,6 +33,7 @@ import {
   Plus, RefreshCw, Eye, EyeOff, Copy, Check, Pencil, Trash2,
   ToggleLeft, ToggleRight, ChevronDown, Search, X, Building2, Settings, ShieldCheck,
   Users, FileText, Send, Loader2, ArrowRight, ArrowLeft, CheckCircle, Mail,
+  GripVertical,
 } from "lucide-react";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
@@ -41,7 +42,6 @@ import { Progress } from "@/components/ui/progress";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { format } from "date-fns";
 import OrgTreeSelect from "@/components/OrgTreeSelect";
-import { GripVertical } from "lucide-react";
 
 interface Enterprise {
   id: string;
@@ -217,7 +217,7 @@ function MultiSelect({ options, selected, onChange, placeholder = "请选择", s
   );
 }
 
-// 分组多选组件（支持搜索、多选、拖拽排序）
+// 分组多选组件（支持搜索、多选、拖拽排序、全选）
 interface GroupMultiSelectProps {
   groups: string[];
   selected: string[];
@@ -235,6 +235,18 @@ function GroupMultiSelect({ groups, selected, onChange, placeholder = "选择分
   const filteredGroups = groups.filter(g =>
     g.toLowerCase().includes(search.toLowerCase())
   );
+
+  // 是否全选
+  const isAllSelected = selected.length === groups.length && groups.length > 0;
+
+  // 处理全选/取消全选
+  const toggleAll = () => {
+    if (isAllSelected) {
+      onChange([]);
+    } else {
+      onChange([...groups]);
+    }
+  };
 
   // 处理选择/取消选择
   const toggleGroup = (group: string) => {
@@ -280,45 +292,64 @@ function GroupMultiSelect({ groups, selected, onChange, placeholder = "选择分
 
   return (
     <div ref={containerRef} className="relative">
-      {/* 已选择的标签区域（放在下拉框上方） */}
-      {selected.length > 0 && (
-        <div className="mb-2 p-2 rounded-md border border-purple-200 bg-purple-50/50">
-          <div className="flex flex-wrap gap-1.5">
-            {selected.map((group, index) => (
-              <div
-                key={group}
-                draggable
-                onDragStart={() => handleDragStart(index)}
-                onDragOver={(e) => handleDragOver(e, index)}
-                onDragEnd={handleDragEnd}
-                className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-white border border-purple-200 text-purple-700 text-xs cursor-move hover:bg-purple-50 transition-colors shadow-sm"
-              >
-                <GripVertical className="w-3 h-3 opacity-50" />
-                <span>{group}</span>
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onChange(selected.filter(g => g !== group));
-                  }}
-                  className="hover:text-red-500 ml-1"
-                >
-                  <X className="w-3 h-3" />
-                </button>
-              </div>
-            ))}
-          </div>
-          <p className="text-xs text-muted-foreground mt-1.5">拖拽标签可调整优先级顺序，同一模型在多个分组中存在时，优先使用排在前面的分组</p>
-        </div>
-      )}
-
-      {/* 触发按钮 */}
+      {/* 触发按钮（标签内嵌显示） */}
       <button
         onClick={() => setOpen(!open)}
-        className="flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm hover:bg-muted/40 transition-colors"
+        className="flex min-h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm hover:bg-muted/40 transition-colors"
       >
-        <span className="text-muted-foreground truncate">
-          {selected.length === 0 ? placeholder : `已选择 ${selected.length} 个分组`}
-        </span>
+        <div className="flex flex-wrap gap-1.5 flex-1 items-center overflow-hidden">
+          {selected.length === 0 ? (
+            <span className="text-muted-foreground">{placeholder}</span>
+          ) : isAllSelected ? (
+            <span className="inline-flex items-center px-2 py-0.5 rounded bg-muted border border-border text-muted-foreground text-xs">
+              全部分组（{groups.length}）
+            </span>
+          ) : selected.length <= 2 ? (
+            selected.map((group) => (
+              <span
+                key={group}
+                className="inline-flex items-center px-1.5 py-0.5 rounded bg-muted border border-border text-muted-foreground text-xs whitespace-nowrap"
+              >
+                {group}
+              </span>
+            ))
+          ) : (
+            <>
+              {selected.slice(0, 2).map((group) => (
+                <span
+                  key={group}
+                  className="inline-flex items-center px-1.5 py-0.5 rounded bg-muted border border-border text-muted-foreground text-xs whitespace-nowrap"
+                >
+                  {group}
+                </span>
+              ))}
+              <TooltipProvider delayDuration={200}>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <span
+                      className="inline-flex items-center px-1.5 py-0.5 rounded bg-gray-100 border border-gray-200 text-gray-500 text-xs cursor-pointer hover:bg-gray-200"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      +{selected.length - 2}
+                    </span>
+                  </TooltipTrigger>
+                  <TooltipContent side="top" sideOffset={8} avoidCollisions={false} className="max-w-md p-3 z-[100]">
+                    <div className="flex flex-wrap gap-2 max-w-[320px]">
+                      {selected.map((group) => (
+                        <span
+                          key={group}
+                          className="inline-flex items-center px-2 py-1 rounded bg-muted border border-border text-muted-foreground text-xs whitespace-nowrap"
+                        >
+                          {group}
+                        </span>
+                      ))}
+                    </div>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            </>
+          )}
+        </div>
         <ChevronDown className={`w-4 h-4 opacity-50 shrink-0 ml-2 transition-transform ${open ? "rotate-180" : ""}`} />
       </button>
 
@@ -339,6 +370,19 @@ function GroupMultiSelect({ groups, selected, onChange, placeholder = "选择分
               />
             </div>
           </div>
+          {/* 全选选项 */}
+          <div className="px-2 py-1.5 border-b bg-muted/20">
+            <label className="flex items-center gap-2 px-2 py-1.5 text-sm hover:bg-muted cursor-pointer rounded">
+              <input
+                type="checkbox"
+                checked={isAllSelected}
+                onChange={toggleAll}
+                className="rounded border-gray-300"
+              />
+              <span className="font-medium">全部分组</span>
+            </label>
+          </div>
+
           {/* 分组列表 */}
           <div className="max-h-60 overflow-auto p-1">
             {filteredGroups.length === 0 ? (
@@ -381,9 +425,14 @@ function GroupMultiSelect({ groups, selected, onChange, placeholder = "选择分
 const GROUP_OPTIONS = [
   "官方价格（×1.0）",
   "生产通道（×0.95）",
-  "测试环境（×0.8）",
-  "开发环境（×0.7）",
-  "内部工具（×0.5）",
+  "测试环境（×0.85）",
+  "开发环境（×0.8）",
+  "内部工具（×0.7）",
+  "实验分组（×0.6）",
+  "预发环境（×0.9）",
+  "合作伙伴（×0.88）",
+  "VIP通道（×0.92）",
+  "备用通道（×0.75）",
 ];
 
 const PAGE_SIZE = 10;
@@ -820,9 +869,13 @@ Key 配置信息
       // Always open simple dialog; advanced settings accessible via button inside
       setSimpleDialogOpen(true);
     } else {
-      setFormGroups([]); setFormExpires("");
-      setFormQuota(""); setFormUnlimited(true);
-      setFormModels([]); setFormIpWhitelist("");
+      // 默认全选所有分组
+      setFormGroups([...GROUP_OPTIONS]);
+      setFormExpires("");
+      setFormQuota("");
+      setFormUnlimited(true);
+      setFormModels([]);
+      setFormIpWhitelist("");
       setSheetOpen(true);
     }
   };
@@ -1173,17 +1226,43 @@ Key 配置信息
                     <TableCell>
                       {k.groups && k.groups.length > 0 ? (
                         <div className="flex items-center gap-1 flex-wrap">
-                          {k.groups.map((group, idx) => (
-                            <span key={group} className="flex items-center">
-                              <span className="text-sm text-muted-foreground whitespace-nowrap">{group}</span>
-                              {idx < k.groups!.length - 1 && (
-                                <span className="mx-1 text-muted-foreground/50">→</span>
-                              )}
+                          {/* 显示前2个分组 */}
+                          {k.groups.slice(0, 2).map((group) => (
+                            <span 
+                              key={group} 
+                              className="inline-flex items-center px-2 py-0.5 rounded bg-gray-100 text-gray-700 text-xs whitespace-nowrap"
+                            >
+                              {group}
                             </span>
                           ))}
+                          
+                          {/* >2 个时显示 +N 计数 */}
+                          {k.groups.length > 2 && (
+                            <TooltipProvider delayDuration={200}>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <span className="inline-flex items-center px-1.5 py-0.5 rounded bg-gray-100 border border-gray-200 text-gray-500 text-xs cursor-pointer hover:bg-gray-200">
+                                    +{k.groups.length - 2}
+                                  </span>
+                                </TooltipTrigger>
+                                <TooltipContent side="top" sideOffset={8} avoidCollisions={false} className="max-w-md p-3 z-[100]">
+                                  <div className="flex flex-wrap gap-2 max-w-[320px]">
+                                    {k.groups.map((group) => (
+                                      <span 
+                                        key={group} 
+                                        className="inline-flex items-center px-2 py-1 rounded bg-muted border border-border text-muted-foreground text-xs whitespace-nowrap"
+                                      >
+                                        {group}
+                                      </span>
+                                    ))}
+                                  </div>
+                                </TooltipContent>
+                              </Tooltip>
+                            </TooltipProvider>
+                          )}
                         </div>
                       ) : k.group_name ? (
-                        <span className="text-sm text-muted-foreground">{k.group_name}</span>
+                        <span className="inline-flex items-center px-2 py-0.5 rounded bg-gray-100 text-gray-700 text-xs">{k.group_name}</span>
                       ) : (
                         <span className="text-sm text-muted-foreground">—</span>
                       )}

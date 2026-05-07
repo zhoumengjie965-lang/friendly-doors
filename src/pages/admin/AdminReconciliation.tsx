@@ -16,6 +16,8 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import {
   Select,
   SelectContent,
@@ -59,6 +61,7 @@ import {
   FileCheck,
   Lock,
   ChevronDown,
+  X,
 } from "lucide-react";
 
 // ─── Types ───────────────────────────────────────────────────────────────
@@ -1100,6 +1103,13 @@ function UserBillManagement() {
   const [previewBill, setPreviewBill] = useState<UserBillRecord | null>(null);
   const [previewOpen, setPreviewOpen] = useState(false);
 
+  // 重新生成账单相关状态
+  const [regenerateOpen, setRegenerateOpen] = useState(false);
+  const [regeneratePeriod, setRegeneratePeriod] = useState<string>("");
+  const [regenerateType, setRegenerateType] = useState<"personal" | "enterprise">("enterprise");
+  const [regenerateSubject, setRegenerateSubject] = useState<string>("");
+  const [subjectSearchQuery, setSubjectSearchQuery] = useState<string>("");
+
   const filteredBills = useMemo(() => {
     return bills.filter((bill) => {
       // 主体名称模糊搜索
@@ -1151,6 +1161,19 @@ function UserBillManagement() {
     alert(`批量下载 ${selectedBills.length} 个账单`);
   };
 
+  const handleRegenerate = () => {
+    // 默认使用当前筛选的账期，如果没有则使用上个月
+    const defaultPeriod = periodFilter || format(new Date(), "yyyy-MM");
+    setRegeneratePeriod(defaultPeriod);
+    setRegenerateOpen(true);
+  };
+
+  const handleConfirmRegenerate = () => {
+    // 这里执行重新生成账单的逻辑
+    alert(`正在重新生成所有企业在 [${regeneratePeriod}] 账期内的账单...`);
+    setRegenerateOpen(false);
+  };
+
   const handlePreview = (bill: UserBillRecord) => {
     setPreviewBill(bill);
     setPreviewOpen(true);
@@ -1191,16 +1214,27 @@ function UserBillManagement() {
                 <span className="text-xs text-blue-600">已选择 {selectedBills.length} 项</span>
               )}
             </div>
-            <Button 
-              onClick={handleBatchDownload} 
-              variant="outline" 
-              size="sm" 
-              className="h-8 gap-1.5 text-xs"
-              disabled={selectedBills.length === 0}
-            >
-              <Download className="w-3.5 h-3.5" />
-              批量下载
-            </Button>
+            <div className="flex items-center gap-2">
+              <Button 
+                onClick={handleRegenerate} 
+                variant="outline" 
+                size="sm" 
+                className="h-8 gap-1.5 text-xs"
+              >
+                <Loader2 className="w-3.5 h-3.5" />
+                重新生成
+              </Button>
+              <Button 
+                onClick={handleBatchDownload} 
+                variant="outline" 
+                size="sm" 
+                className="h-8 gap-1.5 text-xs"
+                disabled={selectedBills.length === 0}
+              >
+                <Download className="w-3.5 h-3.5" />
+                批量下载
+              </Button>
+            </div>
           </div>
         </CardHeader>
         <CardContent className="p-0">
@@ -1563,6 +1597,133 @@ function UserBillManagement() {
               </div>
             </div>
           )}
+        </DialogContent>
+      </Dialog>
+
+      {/* 重新生成账单弹窗 */}
+      <Dialog open={regenerateOpen} onOpenChange={setRegenerateOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>重新生成账单</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-5 py-4">
+            {/* 个人/企业单选 */}
+            <div className="space-y-2">
+              <Label className="text-sm font-medium">主体类型</Label>
+              <RadioGroup
+                value={regenerateType}
+                onValueChange={(v) => {
+                  setRegenerateType(v as "personal" | "enterprise");
+                  setRegenerateSubject("");
+                  setSubjectSearchQuery("");
+                }}
+                className="flex gap-4"
+              >
+                <div className="flex items-center space-x-2">
+                  <RadioGroupItem value="personal" id="personal" />
+                  <Label htmlFor="personal" className="text-sm cursor-pointer">个人</Label>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <RadioGroupItem value="enterprise" id="enterprise" />
+                  <Label htmlFor="enterprise" className="text-sm cursor-pointer">企业</Label>
+                </div>
+              </RadioGroup>
+            </div>
+
+            {/* 选择主体 - 模糊搜索 */}
+            <div className="space-y-2">
+              <Label className="text-sm font-medium">选择主体</Label>
+              <div className="relative">
+                <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground z-10" />
+                <Input
+                  placeholder="搜索主体名称..."
+                  value={subjectSearchQuery}
+                  onChange={(e) => setSubjectSearchQuery(e.target.value)}
+                  className="h-10 pl-10"
+                />
+                {regenerateSubject && !subjectSearchQuery && (
+                  <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-1">
+                    <span className="text-xs text-muted-foreground">已选:</span>
+                    <Badge variant="secondary" className="text-xs">
+                      {MOCK_USER_BILLS.find(b => b.subjectId === regenerateSubject)?.enterprise || regenerateSubject}
+                    </Badge>
+                    <X
+                      className="w-3 h-3 cursor-pointer text-muted-foreground hover:text-foreground"
+                      onClick={() => {
+                        setRegenerateSubject("");
+                        setSubjectSearchQuery("");
+                      }}
+                    />
+                  </div>
+                )}
+                {/* 搜索结果下拉 */}
+                {subjectSearchQuery && (
+                  <div className="absolute top-full left-0 right-0 mt-1 bg-popover border rounded-md shadow-md z-50 max-h-48 overflow-y-auto">
+                    {MOCK_USER_BILLS
+                      .filter(b => b.spaceType === regenerateType)
+                      .filter(b => b.enterprise.toLowerCase().includes(subjectSearchQuery.toLowerCase()))
+                      .slice(0, 10)
+                      .map((bill) => (
+                        <div
+                          key={bill.subjectId}
+                          className={`px-3 py-2 text-sm cursor-pointer hover:bg-muted ${
+                            regenerateSubject === bill.subjectId ? "bg-muted font-medium" : ""
+                          }`}
+                          onClick={() => {
+                            setRegenerateSubject(bill.subjectId);
+                            setSubjectSearchQuery("");
+                          }}
+                        >
+                          <div className="flex items-center justify-between">
+                            <span>{bill.enterprise}</span>
+                            <span className="text-xs text-muted-foreground">{bill.subjectId}</span>
+                          </div>
+                        </div>
+                      ))}
+                    {MOCK_USER_BILLS.filter(b => b.spaceType === regenerateType).filter(b =>
+                      b.enterprise.toLowerCase().includes(subjectSearchQuery.toLowerCase())
+                    ).length === 0 && (
+                      <div className="px-3 py-4 text-sm text-muted-foreground text-center">
+                        未找到匹配的主体
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* 账期选择 */}
+            <div className="space-y-2">
+              <Label className="text-sm font-medium">选择账期</Label>
+              <Input
+                type="month"
+                value={regeneratePeriod}
+                onChange={(e) => setRegeneratePeriod(e.target.value)}
+                className="h-10"
+              />
+            </div>
+
+            {/* 提示文字 - 选择后才显示 */}
+            {regenerateSubject && regeneratePeriod && (
+              <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
+                <p className="text-sm text-amber-700 leading-relaxed">
+                  将重新生成【{MOCK_USER_BILLS.find(b => b.subjectId === regenerateSubject)?.enterprise || "未知主体"}】在【{regeneratePeriod}】账期内的账单，若存在已生成账单将被立即覆盖，是否确认执行？
+                </p>
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setRegenerateOpen(false)}>
+              取消
+            </Button>
+            <Button
+              onClick={handleConfirmRegenerate}
+              className="bg-blue-600 hover:bg-blue-700"
+              disabled={!regeneratePeriod || !regenerateSubject}
+            >
+              确认执行
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>

@@ -116,10 +116,13 @@ interface Org {
   alert_threshold?: number;
 }
 
-interface Enterprise {
-  id: string;
-  name: string;
-  status: string;
+interface DeptManagementProps {
+  enterprise: {
+    id: string;
+    name: string;
+    enterprise_code?: string;
+  };
+  role: string;
 }
 
 // Org Tree Node Component
@@ -207,7 +210,7 @@ function OrgTreeNode({
   );
 }
 
-export default function DeptManagement() {
+export default function DeptManagement({ enterprise, role }: DeptManagementProps) {
   const { toast } = useToast();
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");

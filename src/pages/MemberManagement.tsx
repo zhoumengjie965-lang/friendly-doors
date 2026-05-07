@@ -37,6 +37,20 @@ import {
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { ChevronDown } from "lucide-react";
 
 // ─── Types ───────────────────────────────────────────────────────────────
 
@@ -65,6 +79,17 @@ interface ImportResult {
 }
 
 // ─── Mock Data ───────────────────────────────────────────────────────────
+
+// 部门列表（组织树）
+const DEPARTMENTS = [
+  { id: "all", name: "全部部门" },
+  { id: "1", name: "技术部" },
+  { id: "2", name: "产品部" },
+  { id: "3", name: "市场部" },
+  { id: "4", name: "运营部" },
+  { id: "5", name: "财务部" },
+  { id: "6", name: "人事部" },
+];
 
 const MOCK_USERS: UserPoolMember[] = [
   { 
@@ -125,6 +150,7 @@ const MOCK_USERS: UserPoolMember[] = [
 export default function MemberManagement() {
   const [users, setUsers] = useState<UserPoolMember[]>(MOCK_USERS);
   const [searchQuery, setSearchQuery] = useState("");
+  const [selectedDepartment, setSelectedDepartment] = useState("all");
   const [addDialogOpen, setAddDialogOpen] = useState(false);
   const [importDialogOpen, setImportDialogOpen] = useState(false);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
@@ -160,10 +186,19 @@ export default function MemberManagement() {
   const [deletedUsers] = useState<UserPoolMember[]>([]);
 
   const filteredUsers = users.filter(
-    (u) =>
-      u.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      u.phone.includes(searchQuery) ||
-      u.uid.toLowerCase().includes(searchQuery.toLowerCase())
+    (u) => {
+      // 部门筛选
+      const matchesDepartment = selectedDepartment === "all" || 
+        u.departments.some(d => d.name === DEPARTMENTS.find(dept => dept.id === selectedDepartment)?.name);
+      
+      // 搜索筛选
+      const matchesSearch = 
+        u.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        u.phone.includes(searchQuery) ||
+        u.uid.toLowerCase().includes(searchQuery.toLowerCase());
+      
+      return matchesDepartment && matchesSearch;
+    }
   );
 
   // 全选/取消全选
@@ -426,14 +461,31 @@ export default function MemberManagement() {
             {selectedUserIds.length > 0 && ` (${selectedUserIds.length})`}
           </Button>
         </div>
-        <div className="relative w-64">
-          <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            placeholder="搜索姓名、手机号或UID"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="pl-10"
-          />
+        <div className="flex items-center gap-3">
+          {/* 部门筛选 */}
+          <Select value={selectedDepartment} onValueChange={setSelectedDepartment}>
+            <SelectTrigger className="w-40">
+              <SelectValue placeholder="全部部门" />
+            </SelectTrigger>
+            <SelectContent>
+              {DEPARTMENTS.map((dept) => (
+                <SelectItem key={dept.id} value={dept.id}>
+                  {dept.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          
+          {/* 搜索框 */}
+          <div className="relative w-64">
+            <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              placeholder="搜索姓名、手机号或UID"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="pl-10"
+            />
+          </div>
         </div>
       </div>
 
@@ -507,11 +559,33 @@ export default function MemberManagement() {
                       <div>{maskPhone(user.phone)}</div>
                       <div className="text-xs text-muted-foreground">{user.uid}</div>
                     </TableCell>
-                    {/* 加入部门：数量 */}
+                    {/* 加入部门：显示部门名称，多个时主部门+n */}
                     <TableCell>
-                      <span className={user.departments.length === 0 ? "text-muted-foreground" : ""}>
-                        {user.departments.length}
-                      </span>
+                      {user.departments.length === 0 ? (
+                        <span className="text-muted-foreground">-</span>
+                      ) : user.departments.length === 1 ? (
+                        <span>{user.departments[0].name}</span>
+                      ) : (
+                        <TooltipProvider>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <span className="cursor-help inline-flex items-center gap-1">
+                                {user.departments[0].name}
+                                <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs bg-gray-100 text-gray-600">
+                                  +{user.departments.length - 1}
+                                </span>
+                              </span>
+                            </TooltipTrigger>
+                            <TooltipContent side="top">
+                              <div className="space-y-1">
+                                {user.departments.map((dept, idx) => (
+                                  <div key={idx} className="text-sm">{dept.name}</div>
+                                ))}
+                              </div>
+                            </TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
+                      )}
                     </TableCell>
                     {/* 角色：最高角色 */}
                     <TableCell>{getRoleDisplay(user)}</TableCell>
@@ -1045,9 +1119,31 @@ export default function MemberManagement() {
                         <div className="text-xs text-muted-foreground">{user.uid}</div>
                       </TableCell>
                       <TableCell>
-                        <span className={user.departments.length === 0 ? "text-muted-foreground" : ""}>
-                          {user.departments.length}
-                        </span>
+                        {user.departments.length === 0 ? (
+                          <span className="text-muted-foreground">-</span>
+                        ) : user.departments.length === 1 ? (
+                          <span>{user.departments[0].name}</span>
+                        ) : (
+                          <TooltipProvider>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <span className="cursor-help inline-flex items-center gap-1">
+                                  {user.departments[0].name}
+                                  <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs bg-gray-100 text-gray-600">
+                                    +{user.departments.length - 1}
+                                  </span>
+                                </span>
+                              </TooltipTrigger>
+                              <TooltipContent side="top">
+                                <div className="space-y-1">
+                                  {user.departments.map((dept, idx) => (
+                                    <div key={idx} className="text-sm">{dept.name}</div>
+                                  ))}
+                                </div>
+                              </TooltipContent>
+                            </Tooltip>
+                          </TooltipProvider>
+                        )}
                       </TableCell>
                       <TableCell>{getRoleDisplay(user)}</TableCell>
                       <TableCell className="text-muted-foreground">{user.joinTime}</TableCell>
