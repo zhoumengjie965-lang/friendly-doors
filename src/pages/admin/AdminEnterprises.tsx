@@ -4,6 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -169,6 +170,7 @@ function ModelAccessSelect({
 interface AdminInfo {
   phone: string;
   name: string | null;
+  user_type?: "formal" | "test";
 }
 
 interface Enterprise {
@@ -184,6 +186,7 @@ interface Enterprise {
   member_count: number;
   api_key_count: number;
   admins: AdminInfo[];
+  enterprise_type?: "formal" | "test";
 }
 
 const CERT_STATUS: Record<string, { label: string; variant: "default" | "secondary" | "destructive" | "outline" }> = {
@@ -196,6 +199,28 @@ const CERT_STATUS: Record<string, { label: string; variant: "default" | "seconda
 function maskPhone(phone: string) {
   if (phone.length < 7) return phone;
   return phone.slice(0, 3) + "****" + phone.slice(-4);
+}
+
+// 绿色标签组件 - 企业标签
+function GreenTag({ type, name }: { type?: "formal" | "test"; name: string }) {
+  const prefix = type === "formal" ? "正式用户" : "测试用户";
+  return (
+    <span className="inline-flex items-center gap-1.5 px-2 py-0.5 bg-green-50 text-green-600 text-xs rounded">
+      <span className="w-1.5 h-1.5 bg-green-500 rounded-full"></span>
+      {prefix}-{name}
+    </span>
+  );
+}
+
+// 绿色标签组件 - 用户标签
+function UserGreenTag({ type, name }: { type?: "formal" | "test"; name: string }) {
+  const prefix = type === "formal" ? "正式用户" : "测试用户";
+  return (
+    <span className="inline-flex items-center gap-1.5 px-2 py-0.5 bg-green-50 text-green-600 text-xs rounded">
+      <span className="w-1.5 h-1.5 bg-green-500 rounded-full"></span>
+      {prefix}-{name}管理员
+    </span>
+  );
 }
 
 function AdminCell({ admins }: { admins: AdminInfo[] }) {
@@ -239,6 +264,49 @@ function AdminCell({ admins }: { admins: AdminInfo[] }) {
   return adminList;
 }
 
+// 带标签的管理员单元格
+function AdminCellWithTag({ admins }: { admins: AdminInfo[] }) {
+  if (admins.length === 0) {
+    return <span className="text-xs text-muted-foreground">—</span>;
+  }
+
+  const first = admins[0];
+  const extra = admins.length - 1;
+
+  return (
+    <div className="flex flex-col gap-1">
+      <div className="flex items-center gap-2">
+        <span className="text-xs font-medium text-foreground">{first.name || "用户"}</span>
+        <UserGreenTag type={first.user_type} name={first.name || "用户"} />
+      </div>
+      <div className="flex items-center gap-2">
+        <span className="text-xs text-muted-foreground">{maskPhone(first.phone)}</span>
+        {extra > 0 && (
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span className="inline-flex items-center justify-center h-4 min-w-4 px-1 rounded-full bg-muted text-muted-foreground text-[10px] font-medium cursor-default">
+                  +{extra}
+                </span>
+              </TooltipTrigger>
+              <TooltipContent side="top" className="max-w-48">
+                <div className="space-y-1.5">
+                  {admins.map((a) => (
+                    <div key={a.phone}>
+                      <p className="text-xs font-medium">{a.name || "用户"}</p>
+                      <p className="text-xs text-muted-foreground">{maskPhone(a.phone)}</p>
+                    </div>
+                  ))}
+                </div>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export default function AdminEnterprises() {
   const { toast } = useToast();
   const navigate = useNavigate();
@@ -248,6 +316,7 @@ export default function AdminEnterprises() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [certFilter, setCertFilter] = useState<string | null>(null);
+  const [onlyWithTag, setOnlyWithTag] = useState(false);
 
   // Quick recharge dialog
   const [rechargeTarget, setRechargeTarget] = useState<Enterprise | null>(null);
@@ -261,7 +330,12 @@ export default function AdminEnterprises() {
     enterpriseName: "",
     adminPhone: "",
     modelAccess: ["国际"] as string[],
+    remarkType: "测试",
+    remarkName: "",
   });
+
+  // 备注类型选项
+  const REMARK_TYPE_OPTIONS = ["测试", "正式", "内部", "演示"];
   const [addingEnterprise, setAddingEnterprise] = useState(false);
 
   // Edit enterprise sheet state
@@ -271,15 +345,22 @@ export default function AdminEnterprises() {
     name: "",
     group: "default",
     modelAccess: ["国际"] as string[],
+    remark: "",
   });
   const [savingEnterprise, setSavingEnterprise] = useState(false);
 
   const fetchData = async () => {
     setLoading(true);
-    const { data: ents } = await supabase
+    const { data: ents, error } = await supabase
       .from("enterprises")
       .select("id,name,owner_phone,enterprise_code,created_at")
       .order("created_at", { ascending: false });
+    
+    if (error) {
+      console.error("获取企业数据失败:", error);
+      setLoading(false);
+      return;
+    }
 
     if (!ents) { setLoading(false); return; }
 
@@ -315,13 +396,13 @@ export default function AdminEnterprises() {
     // Group admins by enterprise: owner first, then org admins
     const adminsMap: Record<string, AdminInfo[]> = {};
     for (const e of ents) {
-      adminsMap[e.id] = [{ phone: e.owner_phone, name: nameMap[e.owner_phone] ?? null }];
+      adminsMap[e.id] = [{ phone: e.owner_phone, name: nameMap[e.owner_phone] ?? null, user_type: "test" }];
     }
     for (const m of adminMembers || []) {
       // avoid duplicating if owner is also an org admin
       if (!adminsMap[m.enterprise_id]) adminsMap[m.enterprise_id] = [];
       if (!adminsMap[m.enterprise_id].find((a) => a.phone === m.user_phone)) {
-        adminsMap[m.enterprise_id].push({ phone: m.user_phone, name: nameMap[m.user_phone] ?? null });
+        adminsMap[m.enterprise_id].push({ phone: m.user_phone, name: nameMap[m.user_phone] ?? null, user_type: "test" });
       }
     }
 
@@ -340,6 +421,7 @@ export default function AdminEnterprises() {
       member_count: memberCount[e.id] ?? 0,
       api_key_count: apiKeyCount[e.id] ?? 0,
       admins: adminsMap[e.id] ?? [],
+      enterprise_type: "test",
     })));
     setLoading(false);
   };
@@ -378,7 +460,8 @@ export default function AdminEnterprises() {
         e.owner_phone.includes(search) ||
         e.enterprise_code.includes(search);
       const matchCert = certFilter ? e.cert_status === certFilter : true;
-      return matchSearch && matchCert;
+      const matchTag = onlyWithTag ? e.enterprise_type !== undefined : true;
+      return matchSearch && matchCert && matchTag;
     }
   );
 
@@ -391,6 +474,13 @@ export default function AdminEnterprises() {
       toast({ title: "请输入企业管理员手机号/用户ID", variant: "destructive" });
       return;
     }
+    if (!addForm.remarkName.trim()) {
+      toast({ title: "请输入用户真实名字", variant: "destructive" });
+      return;
+    }
+
+    // 组合备注：类型-用户真实名字
+    const remark = `${addForm.remarkType}-${addForm.remarkName}`;
 
     setAddingEnterprise(true);
     try {
@@ -413,6 +503,7 @@ export default function AdminEnterprises() {
         .insert({
           name: addForm.enterpriseName.trim(),
           owner_phone: userData.phone,
+          remark: remark,
         })
         .select()
         .single();
@@ -439,7 +530,7 @@ export default function AdminEnterprises() {
 
       toast({ title: "企业创建成功", description: `企业「${addForm.enterpriseName}」已添加` });
       setAddDialogOpen(false);
-      setAddForm({ enterpriseName: "", adminPhone: "", modelAccess: ["国际"] });
+      setAddForm({ enterpriseName: "", adminPhone: "", modelAccess: ["国际"], remarkType: "测试", remarkName: "" });
       fetchData(); // 刷新企业列表
     } catch (err: any) {
       toast({ title: "创建失败", description: err.message || "未知错误", variant: "destructive" });
@@ -467,14 +558,26 @@ export default function AdminEnterprises() {
             添加企业
           </Button>
         </div>
-        <div className="relative w-64">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-          <Input
-            placeholder="搜索企业名称 / 手机号…"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="pl-9"
-          />
+        <div className="flex items-center gap-4">
+          <div className="relative w-64">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+            <Input
+              placeholder="搜索企业名称 / 手机号…"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="pl-9"
+            />
+          </div>
+          <div className="flex items-center gap-2">
+            <Checkbox
+              id="onlyWithTag"
+              checked={onlyWithTag}
+              onCheckedChange={(checked) => setOnlyWithTag(checked as boolean)}
+            />
+            <Label htmlFor="onlyWithTag" className="text-sm text-muted-foreground cursor-pointer">
+              仅展示有标签的企业
+            </Label>
+          </div>
         </div>
       </div>
 
@@ -528,13 +631,16 @@ export default function AdminEnterprises() {
                   className="cursor-pointer group min-w-0"
                   onClick={() => navigate(`/admin/enterprises/${e.id}`)}
                 >
-                  <p className="font-medium text-foreground group-hover:text-primary transition-colors truncate">{e.name}</p>
+                  <div className="flex items-center gap-2">
+                    <p className="font-medium text-foreground group-hover:text-primary transition-colors truncate">{e.name}</p>
+                    <GreenTag type={e.enterprise_type} name={e.name} />
+                  </div>
                   <p className="text-xs text-muted-foreground font-mono truncate">{e.enterprise_code}</p>
                 </div>
 
                 {/* 企业管理员 */}
                 <div className="min-w-0">
-                  <AdminCell admins={e.admins} />
+                  <AdminCellWithTag admins={e.admins} />
                 </div>
 
                 {/* 认证状态 */}
@@ -586,6 +692,7 @@ export default function AdminEnterprises() {
                         name: e.name,
                         group: "default",
                         modelAccess: ["国际"],
+                        remark: "",
                       });
                       setEditSheetOpen(true);
                     }}
@@ -699,6 +806,37 @@ export default function AdminEnterprises() {
                   onChange={(access) => setAddForm((prev) => ({ ...prev, modelAccess: access }))}
                 />
               </div>
+
+              {/* 备注 */}
+              <div className="space-y-1.5">
+                <Label className="text-sm">
+                  备注 <span className="text-red-500">*</span>
+                </Label>
+                <div className="flex gap-2">
+                  <Select
+                    value={addForm.remarkType}
+                    onValueChange={(value) => setAddForm((prev) => ({ ...prev, remarkType: value }))}
+                  >
+                    <SelectTrigger className="w-[100px] h-10 bg-gray-50/50 border-gray-200">
+                      <SelectValue placeholder="选择类型" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {REMARK_TYPE_OPTIONS.map((type) => (
+                        <SelectItem key={type} value={type}>
+                          {type}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Input
+                    placeholder="请输入用户真实名字（仅管理员可见）"
+                    value={addForm.remarkName}
+                    onChange={(e) => setAddForm((prev) => ({ ...prev, remarkName: e.target.value }))}
+                    className="h-10 bg-gray-50/50 border-gray-200 flex-1"
+                  />
+                </div>
+                <p className="text-xs text-gray-400">备注格式：类型-用户真实名字</p>
+              </div>
             </div>
           </div>
 
@@ -709,7 +847,7 @@ export default function AdminEnterprises() {
               className="h-9 px-4"
               onClick={() => {
                 setAddDialogOpen(false);
-                setAddForm({ enterpriseName: "", adminPhone: "", modelAccess: ["国际"] });
+                setAddForm({ enterpriseName: "", adminPhone: "", modelAccess: ["国际"], remarkType: "测试", remarkName: "" });
               }}
             >
               取消
@@ -775,6 +913,19 @@ export default function AdminEnterprises() {
                 onChange={(access) => setEditForm((prev) => ({ ...prev, modelAccess: access }))}
               />
             </div>
+
+            {/* 备注 */}
+            <div className="space-y-1.5">
+              <Label className="text-sm">
+                备注 <span className="text-red-500">*</span>
+              </Label>
+              <Input
+                placeholder="请输入备注（仅管理员可见）"
+                value={editForm.remark}
+                onChange={(e) => setEditForm((prev) => ({ ...prev, remark: e.target.value }))}
+                className="h-10 bg-gray-50/50 border-gray-200"
+              />
+            </div>
           </div>
 
           {/* 底部按钮 */}
@@ -791,6 +942,10 @@ export default function AdminEnterprises() {
               onClick={async () => {
                 if (!editTarget || !editForm.name.trim()) {
                   toast({ title: "请输入企业名称", variant: "destructive" });
+                  return;
+                }
+                if (!editForm.remark.trim()) {
+                  toast({ title: "请输入备注", variant: "destructive" });
                   return;
                 }
                 setSavingEnterprise(true);

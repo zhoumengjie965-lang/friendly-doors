@@ -218,7 +218,7 @@ export default function DeptManagement({ enterprise, role }: DeptManagementProps
   const [orgs, setOrgs] = useState<Org[]>([]);
   const [members, setMembers] = useState<Member[]>([]);
   const [expandedOrgIds, setExpandedOrgIds] = useState<Set<string>>(new Set());
-  const [enterprise, setEnterprise] = useState<Enterprise | null>(null);
+  const [currentEnterprise, setCurrentEnterprise] = useState<Enterprise | null>(null);
   const [activeTab, setActiveTab] = useState("members");
   const [memberSearch, setMemberSearch] = useState("");
   const [viewMode, setViewMode] = useState<"enterprise" | "department">("enterprise");
@@ -296,7 +296,7 @@ export default function DeptManagement({ enterprise, role }: DeptManagementProps
       return;
     }
 
-    setEnterprise(enterpriseData as unknown as Enterprise);
+    setCurrentEnterprise(enterpriseData as unknown as Enterprise);
 
     // Load all organizations
     const orgsData = mockData.organizations
@@ -376,10 +376,10 @@ export default function DeptManagement({ enterprise, role }: DeptManagementProps
 
   // Calculate enterprise total members
   const enterpriseMemberCount = useMemo(() => {
-    if (!enterprise) return 0;
+    if (!currentEnterprise) return 0;
     const mockData = getMockData();
-    return mockData.members.filter((m) => m.enterprise_id === enterprise.id).length;
-  }, [enterprise]);
+    return mockData.members.filter((m) => m.enterprise_id === currentEnterprise.id).length;
+  }, [currentEnterprise]);
 
   // Calculate org stats
   const orgStats = useMemo(() => {
@@ -416,7 +416,7 @@ export default function DeptManagement({ enterprise, role }: DeptManagementProps
 
   // CRUD operations
   const handleCreateOrg = async () => {
-    if (!newOrgName.trim() || !enterprise) return;
+    if (!newOrgName.trim() || !currentEnterprise) return;
     
     // 确定 parent_id：部门视图用 selectedOrg，企业视图用根部门
     let parentId: string | null = null;
@@ -435,14 +435,14 @@ export default function DeptManagement({ enterprise, role }: DeptManagementProps
     if (!parentId) return;
     
     try {
-      const newOrg = await createOrganization(enterprise.id, newOrgName.trim(), parentId, {
+      const newOrg = await createOrganization(currentEnterprise.id, newOrgName.trim(), parentId, {
         monthly_budget: newOrgBudget ? Number(newOrgBudget) : null,
         status: "active",
       });
       // Add admin members if selected
       if (newOrgAdmins.length > 0 && newOrg) {
         for (const adminPhone of newOrgAdmins) {
-          await addMember(enterprise.id, newOrg.id, adminPhone, "org_admin", {
+          await addMember(currentEnterprise.id, newOrg.id, adminPhone, "org_admin", {
             status: "active",
             daily_limit: 1000,
           });
@@ -505,13 +505,13 @@ export default function DeptManagement({ enterprise, role }: DeptManagementProps
   };
 
   const handleSetAdmin = async () => {
-    if (!setAdminOrg || !enterprise) return;
+    if (!setAdminOrg || !currentEnterprise) return;
     try {
       // 更新所有选中的管理员角色为 org_admin
       for (const phone of newAdminPhones) {
         const mockData = getMockData();
         const memberIndex = mockData.members.findIndex(
-          (m) => m.user_phone === phone && m.enterprise_id === enterprise.id
+          (m) => m.user_phone === phone && m.enterprise_id === currentEnterprise.id
         );
         if (memberIndex !== -1) {
           mockData.members[memberIndex].role = "org_admin";
@@ -531,11 +531,11 @@ export default function DeptManagement({ enterprise, role }: DeptManagementProps
   };
 
   const handleDemoteAdmin = async (phone: string) => {
-    if (!setAdminOrg || !enterprise) return;
+    if (!setAdminOrg || !currentEnterprise) return;
     try {
       const mockData = getMockData();
       const memberIndex = mockData.members.findIndex(
-        (m) => m.user_phone === phone && m.enterprise_id === enterprise.id
+        (m) => m.user_phone === phone && m.enterprise_id === currentEnterprise.id
       );
       if (memberIndex !== -1) {
         mockData.members[memberIndex].role = "member";
@@ -553,7 +553,7 @@ export default function DeptManagement({ enterprise, role }: DeptManagementProps
 
 
   const handleImportMembers = async () => {
-    if (!selectedOrg || !enterprise || selectedMembersForImport.length === 0) {
+    if (!selectedOrg || !currentEnterprise || selectedMembersForImport.length === 0) {
       toast({ title: "请至少选择一个成员", variant: "destructive" });
       return;
     }
@@ -563,7 +563,7 @@ export default function DeptManagement({ enterprise, role }: DeptManagementProps
         // 更新现有成员的 organization_id 和 role
         const mockData = getMockData();
         const memberIndex = mockData.members.findIndex(
-          (m) => m.user_phone === phone && m.enterprise_id === enterprise.id
+          (m) => m.user_phone === phone && m.enterprise_id === currentEnterprise.id
         );
         if (memberIndex !== -1) {
           mockData.members[memberIndex].organization_id = selectedOrg.id;

@@ -6,6 +6,7 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sh
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem } from "@/components/ui/command";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -13,7 +14,7 @@ import { Search, Plus, X, UserCircle, Eye, EyeOff, Shield, ChevronDown, RotateCc
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useToast } from "@/hooks/use-toast";
 
-interface EnterpriseRef { id: string; name: string; role: string; }
+interface EnterpriseRef { id: string; name: string; role: string; enterprise_type?: "formal" | "test"; }
 
 interface UserRow {
   id: string;
@@ -29,6 +30,7 @@ interface UserRow {
   invite_count: number;
   invite_revenue: number;
   inviter: string | null;
+  user_type?: "formal" | "test";
 }
 
 interface MemberDetail {
@@ -50,6 +52,28 @@ const MODEL_ACCESS_OPTIONS = [
   { value: "国内", label: "国内" },
   { value: "国际", label: "国际" },
 ];
+
+// 绿色标签组件 - 用户标签
+function GreenTag({ type, name }: { type?: "formal" | "test"; name: string }) {
+  const prefix = type === "formal" ? "正式用户" : "测试用户";
+  return (
+    <span className="inline-flex items-center gap-1.5 px-2 py-0.5 bg-green-50 text-green-600 text-xs rounded">
+      <span className="w-1.5 h-1.5 bg-green-500 rounded-full"></span>
+      {prefix}-{name}
+    </span>
+  );
+}
+
+// 绿色标签组件 - 企业标签
+function EnterpriseGreenTag({ type, name }: { type?: "formal" | "test"; name: string }) {
+  const prefix = type === "formal" ? "正式用户" : "测试用户";
+  return (
+    <span className="inline-flex items-center gap-1.5 px-2 py-0.5 bg-green-50 text-green-600 text-xs rounded">
+      <span className="w-1.5 h-1.5 bg-green-500 rounded-full"></span>
+      {prefix}-{name}
+    </span>
+  );
+}
 
 // 用户分组配置
 const GROUP_OPTIONS = [
@@ -197,6 +221,7 @@ export default function AdminUsers() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [groupFilter, setGroupFilter] = useState<string>("all");
+  const [onlyWithTag, setOnlyWithTag] = useState(false);
 
   // Drawer state
   const [drawerOpen, setDrawerOpen] = useState(false);
@@ -234,10 +259,16 @@ export default function AdminUsers() {
   }, []);
 
   const fetchAll = async () => {
-    const { data: usersData } = await supabase
+    const { data: usersData, error } = await supabase
       .from("users")
       .select("id,phone,name,created_at,status")
       .order("created_at", { ascending: false });
+    
+    if (error) {
+      console.error("获取用户数据失败:", error);
+      setLoading(false);
+      return;
+    }
 
     if (!usersData) { setLoading(false); return; }
 
@@ -274,6 +305,7 @@ export default function AdminUsers() {
         id: m.enterprise_id,
         name: entMap[m.enterprise_id] || "未知企业",
         role: m.role,
+        enterprise_type: "test",
       });
     });
 
@@ -306,6 +338,7 @@ export default function AdminUsers() {
           invite_count: 0,
           invite_revenue: 0,
           inviter: null,
+          user_type: "test",
         };
       })
     );
@@ -490,6 +523,10 @@ export default function AdminUsers() {
     .filter((u) => {
       if (groupFilter === "all") return true;
       return u.group === groupFilter;
+    })
+    .filter((u) => {
+      if (!onlyWithTag) return true;
+      return u.user_type !== undefined;
     });
 
   const roleLabel = (role: string) => {
@@ -542,6 +579,16 @@ export default function AdminUsers() {
             <SelectItem value="enterprise">企业用户</SelectItem>
           </SelectContent>
         </Select>
+        <div className="flex items-center gap-2 px-2">
+          <Checkbox
+            id="onlyWithTag"
+            checked={onlyWithTag}
+            onCheckedChange={(checked) => setOnlyWithTag(checked as boolean)}
+          />
+          <Label htmlFor="onlyWithTag" className="text-sm text-muted-foreground cursor-pointer whitespace-nowrap">
+            仅展示有标签的用户
+          </Label>
+        </div>
         <Button variant="outline" className="h-9" onClick={handleSearch}>
           查询
         </Button>
@@ -579,7 +626,10 @@ export default function AdminUsers() {
               <span className="text-muted-foreground px-3 py-3.5 font-mono text-xs truncate">
                 {u.id.slice(0, 6)}
               </span>
-              <span className="text-foreground px-3 py-3.5 truncate font-medium">{u.name || u.phone}</span>
+              <span className="text-foreground px-3 py-3.5 truncate">
+                <span className="font-medium">{u.name || u.phone}</span>
+                <GreenTag type={u.user_type} name={u.name || u.phone} />
+              </span>
               <span className="px-3 py-3.5">
                 {u.status === "active" ? (
                   <Badge variant="outline" className="text-xs text-green-600 border-green-200 bg-green-50">已启用</Badge>
@@ -600,13 +650,17 @@ export default function AdminUsers() {
                 {u.enterprises.length === 0 ? (
                   "-"
                 ) : u.enterprises.length === 1 ? (
-                  u.enterprises[0].name
+                  <span className="inline-flex items-center gap-1">
+                    {u.enterprises[0].name}
+                    <EnterpriseGreenTag type={u.enterprises[0].enterprise_type} name={u.enterprises[0].name} />
+                  </span>
                 ) : (
                   <TooltipProvider delayDuration={200}>
                     <Tooltip>
                       <TooltipTrigger asChild>
                         <span className="cursor-default inline-flex items-center gap-1">
                           {u.enterprises[0].name}
+                          <EnterpriseGreenTag type={u.enterprises[0].enterprise_type} name={u.enterprises[0].name} />
                           <span className="text-xs bg-muted rounded px-1 py-0.5">+{u.enterprises.length - 1}</span>
                         </span>
                       </TooltipTrigger>

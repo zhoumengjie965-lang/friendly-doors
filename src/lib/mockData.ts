@@ -3,7 +3,7 @@
 
 const MOCK_DATA_KEY = "ai_gateway_mock_data";
 const CURRENT_PHONE_KEY = "ai_gateway_phone";
-const MOCK_DATA_VERSION = "1.3"; // 数据版本，修改mock数据时更新此版本号
+const MOCK_DATA_VERSION = "1.4"; // 数据版本，修改mock数据时更新此版本号
 
 // ===== 数据类型定义 =====
 export interface MockUser {
@@ -13,6 +13,8 @@ export interface MockUser {
   avatar: string | null;
   created_at: string;
   uid?: string;
+  remark?: string;
+  user_type?: "formal" | "test";
 }
 
 export interface MockEnterprise {
@@ -22,6 +24,8 @@ export interface MockEnterprise {
   owner_phone: string;
   created_at: string;
   updated_at: string;
+  remark?: string;
+  enterprise_type?: "formal" | "test";
 }
 
 export interface MockOrganization {
@@ -171,6 +175,43 @@ const initialData: MockData = {
       avatar: null,
       created_at: getNow(),
       uid: "UID:100001",
+      remark: "超级管理员账号",
+      user_type: "test",
+    },
+    {
+      id: "user_formal_1",
+      phone: "13900139001",
+      name: "正式用户A",
+      avatar: null,
+      created_at: getNow(),
+      uid: "UID:200001",
+      remark: "正式客户",
+      user_type: "formal",
+    },
+    {
+      id: "user_formal_2",
+      phone: "13900139002",
+      name: "正式用户B",
+      avatar: null,
+      created_at: getNow(),
+      uid: "UID:200002",
+    },
+    {
+      id: "user_test_1",
+      phone: "13900139003",
+      name: "测试用户C",
+      avatar: null,
+      created_at: getNow(),
+      uid: "UID:300001",
+      user_type: "test",
+    },
+    {
+      id: "user_test_2",
+      phone: "13900139004",
+      name: "测试用户D",
+      avatar: null,
+      created_at: getNow(),
+      uid: "UID:300002",
     },
     ...OTHER_USERS.map((u, i) => ({
       id: `user_${i + 2}`,
@@ -187,6 +228,45 @@ const initialData: MockData = {
       name: "我的测试企业",
       enterprise_code: "TEST001",
       owner_phone: TEST_PHONE,
+      created_at: getNow(),
+      updated_at: getNow(),
+      remark: "测试环境企业",
+      enterprise_type: "test",
+    },
+    {
+      id: "ent_formal_1",
+      name: "正式客户企业A",
+      enterprise_code: "FRML001",
+      owner_phone: "13900139001",
+      created_at: getNow(),
+      updated_at: getNow(),
+      remark: "正式客户",
+      enterprise_type: "formal",
+    },
+    {
+      id: "ent_formal_2",
+      name: "正式客户企业B",
+      enterprise_code: "FRML002",
+      owner_phone: "13900139002",
+      created_at: getNow(),
+      updated_at: getNow(),
+      enterprise_type: "formal",
+    },
+    {
+      id: "ent_test_2",
+      name: "测试企业C",
+      enterprise_code: "TEST002",
+      owner_phone: "13900139003",
+      created_at: getNow(),
+      updated_at: getNow(),
+      remark: "内部测试",
+      enterprise_type: "test",
+    },
+    {
+      id: "ent_no_type",
+      name: "普通企业D",
+      enterprise_code: "NORM001",
+      owner_phone: "13900139004",
       created_at: getNow(),
       updated_at: getNow(),
     },
