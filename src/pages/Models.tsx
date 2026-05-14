@@ -45,6 +45,12 @@ interface GroupPrice {
   inputTiers: { price: number; label: string }[];
   outputTiers: { price: number; label: string }[];
   cachePrice?: number; // 缓存创建价格（元/M tokens）
+  // 视频生成模型专用
+  videoTiers?: {
+    resolution: string; // 分辨率，如 "720p", "1080p"
+    hasVideo: boolean;  // 是否包含视频
+    price: number;      // 价格（元/秒）
+  }[];
 }
 
 // 假数据 - AI 模型列表
@@ -468,6 +474,84 @@ const mockModels: Model[] = [
       releaseDate: "2024-01-25",
     },
   },
+  {
+    id: "seedance-2.0",
+    name: "Seedance 2.0",
+    provider: "ByteDance",
+    description: "高质量视频生成模型，支持多镜头切换",
+    fullDescription:
+      "Seedance 2.0 是字节跳动推出的高质量视频生成模型，支持多镜头切换、高级运镜等功能，能够生成专业级的视频内容。",
+    category: "图像",
+    pricing: "¥0.50/秒",
+    icon: Image,
+    color: "hsl(340, 80%, 55%)",
+    tags: ["视频生成", "多镜头"],
+    apiEndpoint: "seedance:/v1/video/generations",
+    contextTiers: [],
+    groupPrices: [
+      {
+        group: "default",
+        billingType: "按次计费",
+        discount: 1.0,
+        inputTiers: [],
+        outputTiers: [],
+        videoTiers: [
+          { resolution: "480p", hasVideo: false, price: 0.15 },
+          { resolution: "480p", hasVideo: true, price: 0.30 },
+          { resolution: "720p", hasVideo: false, price: 0.25 },
+          { resolution: "720p", hasVideo: true, price: 0.50 },
+          { resolution: "1080p", hasVideo: false, price: 0.40 },
+          { resolution: "1080p", hasVideo: true, price: 0.80 },
+        ],
+      },
+    ],
+    cardPrice: { input: 0.5, output: 0 },
+    specs: {
+      maxContextWindow: "N/A",
+      maxOutputTokens: 0,
+      supportedFeatures: ["视频生成", "多镜头切换", "高级运镜"],
+      releaseDate: "2025-01-15",
+    },
+  },
+  {
+    id: "seedance-2.0-fast",
+    name: "Seedance 2.0 Fast",
+    provider: "ByteDance",
+    description: "快速视频生成模型，响应速度快",
+    fullDescription:
+      "Seedance 2.0 Fast 是字节跳动推出的快速视频生成模型，在保证视频质量的同时大幅提升生成速度，适合需要快速产出视频的场景。",
+    category: "图像",
+    pricing: "¥0.35/秒",
+    icon: Image,
+    color: "hsl(340, 80%, 60%)",
+    tags: ["视频生成", "快速"],
+    apiEndpoint: "seedance:/v1/video/generations",
+    contextTiers: [],
+    groupPrices: [
+      {
+        group: "default",
+        billingType: "按次计费",
+        discount: 1.0,
+        inputTiers: [],
+        outputTiers: [],
+        videoTiers: [
+          { resolution: "480p", hasVideo: false, price: 0.10 },
+          { resolution: "480p", hasVideo: true, price: 0.20 },
+          { resolution: "720p", hasVideo: false, price: 0.18 },
+          { resolution: "720p", hasVideo: true, price: 0.35 },
+          { resolution: "1080p", hasVideo: false, price: 0.28 },
+          { resolution: "1080p", hasVideo: true, price: 0.55 },
+        ],
+      },
+    ],
+    cardPrice: { input: 0.35, output: 0 },
+    specs: {
+      maxContextWindow: "N/A",
+      maxOutputTokens: 0,
+      supportedFeatures: ["视频生成", "快速生成"],
+      releaseDate: "2025-01-15",
+    },
+  },
 ];
 
 const categories = ["全部", "对话", "图像", "代码"];
@@ -589,18 +673,39 @@ export default function Models() {
               <Separator className="mb-3 bg-border/40 h-px" />
               <div className="flex items-start justify-between">
                 <div className="flex gap-6">
-                  <div>
-                    <p className="text-[10px] text-muted-foreground mb-0.5">输入价格</p>
-                    <p className="text-sm font-medium text-foreground whitespace-nowrap">
-                      ¥{model.cardPrice.input.toFixed(4)} / M
-                    </p>
-                  </div>
-                  <div>
-                    <p className="text-[10px] text-muted-foreground mb-0.5">输出价格</p>
-                    <p className="text-sm font-medium text-foreground whitespace-nowrap">
-                      ¥{model.cardPrice.output.toFixed(4)} / M
-                    </p>
-                  </div>
+                  {model.id.startsWith("seedance") ? (
+                    // 视频生成模型 - 按秒计费
+                    <div>
+                      <p className="text-[10px] text-muted-foreground mb-0.5">生成价格</p>
+                      <p className="text-sm font-medium text-foreground whitespace-nowrap">
+                        ¥{model.cardPrice.input.toFixed(2)} / 秒
+                      </p>
+                    </div>
+                  ) : model.cardPrice.output === 0 ? (
+                    // 图像生成模型 - 只显示输入价格
+                    <div>
+                      <p className="text-[10px] text-muted-foreground mb-0.5">生成价格</p>
+                      <p className="text-sm font-medium text-foreground whitespace-nowrap">
+                        ¥{model.cardPrice.input.toFixed(4)} / 张
+                      </p>
+                    </div>
+                  ) : (
+                    // 文本模型 - 显示输入和输出价格
+                    <>
+                      <div>
+                        <p className="text-[10px] text-muted-foreground mb-0.5">输入价格</p>
+                        <p className="text-sm font-medium text-foreground whitespace-nowrap">
+                          ¥{model.cardPrice.input.toFixed(4)} / M
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-[10px] text-muted-foreground mb-0.5">输出价格</p>
+                        <p className="text-sm font-medium text-foreground whitespace-nowrap">
+                          ¥{model.cardPrice.output.toFixed(4)} / M
+                        </p>
+                      </div>
+                    </>
+                  )}
                 </div>
                 <Badge 
                   variant="outline" 

@@ -180,6 +180,7 @@ interface Enterprise {
   enterprise_code: string;
   created_at: string;
   cert_status: string;
+  status: "enabled" | "disabled";
   balance: number;
   total_consumed: number;
   org_count: number;
@@ -330,12 +331,12 @@ export default function AdminEnterprises() {
     enterpriseName: "",
     adminPhone: "",
     modelAccess: ["国际"] as string[],
-    remarkType: "测试",
+    remarkType: "正式用户",
     remarkName: "",
   });
 
   // 备注类型选项
-  const REMARK_TYPE_OPTIONS = ["测试", "正式", "内部", "演示"];
+  const REMARK_TYPE_OPTIONS = ["正式用户", "内结用户", "测试用户", "测试用户（付费）", "研发", "演示", "其他"];
   const [addingEnterprise, setAddingEnterprise] = useState(false);
 
   // Edit enterprise sheet state
@@ -353,7 +354,7 @@ export default function AdminEnterprises() {
     setLoading(true);
     const { data: ents, error } = await supabase
       .from("enterprises")
-      .select("id,name,owner_phone,enterprise_code,created_at")
+      .select("id,name,owner_phone,enterprise_code,created_at,status")
       .order("created_at", { ascending: false });
     
     if (error) {
@@ -415,6 +416,7 @@ export default function AdminEnterprises() {
     setEnterprises(ents.map((e) => ({
       ...e,
       cert_status: certMap[e.id] || "uncertified",
+      status: (e.status as "enabled" | "disabled") || "enabled",
       balance: balMap[e.id]?.balance ?? 0,
       total_consumed: balMap[e.id]?.total_consumed ?? 0,
       org_count: orgCount[e.id] ?? 0,
@@ -479,8 +481,8 @@ export default function AdminEnterprises() {
       return;
     }
 
-    // 组合备注：类型-用户真实名字
-    const remark = `${addForm.remarkType}-${addForm.remarkName}`;
+    // 组合备注：类型_输入信息
+    const remark = `${addForm.remarkType}_${addForm.remarkName}`;
 
     setAddingEnterprise(true);
     try {
@@ -504,6 +506,7 @@ export default function AdminEnterprises() {
           name: addForm.enterpriseName.trim(),
           owner_phone: userData.phone,
           remark: remark,
+          status: "enabled",
         })
         .select()
         .single();
@@ -530,7 +533,7 @@ export default function AdminEnterprises() {
 
       toast({ title: "企业创建成功", description: `企业「${addForm.enterpriseName}」已添加` });
       setAddDialogOpen(false);
-      setAddForm({ enterpriseName: "", adminPhone: "", modelAccess: ["国际"], remarkType: "测试", remarkName: "" });
+      setAddForm({ enterpriseName: "", adminPhone: "", modelAccess: ["国际"], remarkType: "正式用户", remarkName: "" });
       fetchData(); // 刷新企业列表
     } catch (err: any) {
       toast({ title: "创建失败", description: err.message || "未知错误", variant: "destructive" });
@@ -539,7 +542,30 @@ export default function AdminEnterprises() {
     }
   };
 
-  const COLS = "grid-cols-[2fr_1.5fr_1fr_1.2fr_1fr_80px_100px_88px]";
+  // 切换企业启用/禁用状态
+  const handleToggleStatus = async (enterprise: Enterprise) => {
+    const newStatus = enterprise.status === "disabled" ? "enabled" : "disabled";
+    const actionText = newStatus === "enabled" ? "启用" : "禁用";
+    
+    try {
+      const { error } = await supabase
+        .from("enterprises")
+        .update({ status: newStatus })
+        .eq("id", enterprise.id);
+      
+      if (error) {
+        toast({ title: `${actionText}失败`, description: error.message, variant: "destructive" });
+        return;
+      }
+      
+      toast({ title: `已${actionText}企业「${enterprise.name}」` });
+      fetchData();
+    } catch (err: any) {
+      toast({ title: `${actionText}失败`, description: err.message || "未知错误", variant: "destructive" });
+    }
+  };
+
+  const COLS = "grid-cols-[2fr_1.5fr_80px_1fr_1.2fr_1fr_80px_100px_88px]";
 
   return (
     <div className="p-6 space-y-5">
@@ -587,6 +613,7 @@ export default function AdminEnterprises() {
         <div className={`grid ${COLS} gap-3 px-5 py-3 bg-muted/50 text-xs font-medium text-muted-foreground border-b`}>
           <span>企业名称</span>
           <span>企业管理员</span>
+          <span>状态</span>
           <DropdownMenu>
             <DropdownMenuTrigger className="flex items-center gap-1 hover:text-foreground focus:outline-none">
               认证状态
@@ -642,6 +669,16 @@ export default function AdminEnterprises() {
                 <div className="min-w-0">
                   <AdminCellWithTag admins={e.admins} />
                 </div>
+
+                {/* 状态 */}
+                <span>
+                  <Badge
+                    variant={e.status === "disabled" ? "destructive" : "outline"}
+                    className={`text-xs ${e.status === "enabled" ? "border-green-200 text-green-600 bg-green-50" : ""}`}
+                  >
+                    {e.status === "disabled" ? "已禁用" : "已启用"}
+                  </Badge>
+                </span>
 
                 {/* 认证状态 */}
                 <span>
@@ -702,11 +739,11 @@ export default function AdminEnterprises() {
                   <Button
                     size="sm"
                     variant="ghost"
-                    className="h-7 w-7 p-0 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
-                    title="禁用企业"
-                    onClick={() => toast({ title: "功能开发中", description: "禁用企业功能即将上线" })}
+                    className={`h-7 w-7 p-0 ${e.status === "disabled" ? "text-green-600 hover:text-green-700 hover:bg-green-50" : "text-muted-foreground hover:text-destructive hover:bg-destructive/10"}`}
+                    title={e.status === "disabled" ? "启用企业" : "禁用企业"}
+                    onClick={() => handleToggleStatus(e)}
                   >
-                    <Ban className="w-3.5 h-3.5" />
+                    {e.status === "disabled" ? <Check className="w-3.5 h-3.5" /> : <Ban className="w-3.5 h-3.5" />}
                   </Button>
                 </div>
               </div>
@@ -817,7 +854,7 @@ export default function AdminEnterprises() {
                     value={addForm.remarkType}
                     onValueChange={(value) => setAddForm((prev) => ({ ...prev, remarkType: value }))}
                   >
-                    <SelectTrigger className="w-[100px] h-10 bg-gray-50/50 border-gray-200">
+                    <SelectTrigger className="w-[130px] h-10 bg-gray-50/50 border-gray-200">
                       <SelectValue placeholder="选择类型" />
                     </SelectTrigger>
                     <SelectContent>
@@ -829,13 +866,13 @@ export default function AdminEnterprises() {
                     </SelectContent>
                   </Select>
                   <Input
-                    placeholder="请输入用户真实名字（仅管理员可见）"
+                    placeholder="请输入信息（仅管理员可见）"
                     value={addForm.remarkName}
                     onChange={(e) => setAddForm((prev) => ({ ...prev, remarkName: e.target.value }))}
                     className="h-10 bg-gray-50/50 border-gray-200 flex-1"
                   />
                 </div>
-                <p className="text-xs text-gray-400">备注格式：类型-用户真实名字</p>
+                <p className="text-xs text-gray-400">备注格式：类型_输入信息</p>
               </div>
             </div>
           </div>
@@ -847,7 +884,7 @@ export default function AdminEnterprises() {
               className="h-9 px-4"
               onClick={() => {
                 setAddDialogOpen(false);
-                setAddForm({ enterpriseName: "", adminPhone: "", modelAccess: ["国际"], remarkType: "测试", remarkName: "" });
+                setAddForm({ enterpriseName: "", adminPhone: "", modelAccess: ["国际"], remarkType: "正式用户", remarkName: "" });
               }}
             >
               取消

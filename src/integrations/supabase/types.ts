@@ -218,6 +218,8 @@ export type Database = {
           id: string
           name: string
           owner_phone: string
+          remark: string | null
+          status: string
         }
         Insert: {
           created_at?: string
@@ -225,6 +227,8 @@ export type Database = {
           id?: string
           name: string
           owner_phone: string
+          remark?: string | null
+          status?: string
         }
         Update: {
           created_at?: string
@@ -232,6 +236,8 @@ export type Database = {
           id?: string
           name?: string
           owner_phone?: string
+          remark?: string | null
+          status?: string
         }
         Relationships: []
       }
