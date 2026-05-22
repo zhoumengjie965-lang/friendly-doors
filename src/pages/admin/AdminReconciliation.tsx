@@ -556,7 +556,6 @@ function SupplierBillManagement() {
 
   return (
     <div className="space-y-4">
-      {/* Bills Table */}
       <Card className="border shadow-sm">
         <CardHeader className="py-3 px-4 border-b">
           <div className="flex items-center justify-between">
@@ -948,6 +947,8 @@ function SupplierBillManagement() {
 // ─── Tab 4: 用户账单管理 ───────────────────────────────────────────────────
 
 // 用户账单相关类型
+type RebateStatus = "none" | "pending" | "toSend" | "sent";
+
 interface UserBillRecord {
   id: string;
   enterprise: string;
@@ -960,6 +961,9 @@ interface UserBillRecord {
   generatedAt: string;
   status: "pending" | "sent" | "confirmed";
   sentAt?: string;
+  rebateStatus: RebateStatus;
+  rebateAmount?: number;
+  voucherCode?: string;
   details: UserBillDetail[];
 }
 
@@ -975,6 +979,7 @@ interface UserBillDetail {
   cacheDiscount: number;
   tierDiscount: number;
   subtotal: number;
+  rebateDiscount?: number;   // 返券折扣(%)
   callCount?: number;        // 调用次数（按次计费时有效）
   callPrice?: number;        // 调用单价（元/次，按次计费时有效）
 }
@@ -992,6 +997,9 @@ const MOCK_USER_BILLS: UserBillRecord[] = [
     currency: "CNY",
     generatedAt: "2026-04-01 00:05:23",
     status: "pending",
+    rebateStatus: "toSend",
+    rebateAmount: 11492.55,
+    voucherCode: "VCBILL-2029379",
     details: [
       // gpt-4o 按量计费（第一行展示按量计费）
       { modelName: "gpt-4o", billingType: "token", inputTokens: 125000000, outputTokens: 45000000, cacheReadTokens: 8000000, cacheCreateTokens: 2000000, inputPrice: 0.00015, outputPrice: 0.0006, cacheDiscount: 0.5, tierDiscount: 0.95, subtotal: 45800.25 },
@@ -1021,6 +1029,9 @@ const MOCK_USER_BILLS: UserBillRecord[] = [
     generatedAt: "2026-04-01 00:05:45",
     status: "sent",
     sentAt: "2026-04-02 10:30:00",
+    rebateStatus: "sent",
+    rebateAmount: 5237.00,
+    voucherCode: "VCBILL-2029380",
     details: [
       { modelName: "gpt-4o", billingType: "token", inputTokens: 85000000, outputTokens: 25000000, cacheReadTokens: 5000000, cacheCreateTokens: 1000000, inputPrice: 0.00015, outputPrice: 0.0006, cacheDiscount: 0.5, tierDiscount: 0.95, subtotal: 28500.00 },
       { modelName: "gemini-1.5-pro", billingType: "token", inputTokens: 45000000, outputTokens: 15000000, cacheReadTokens: 2000000, cacheCreateTokens: 500000, inputPrice: 0.00012, outputPrice: 0.0004, cacheDiscount: 0.5, tierDiscount: 0.93, subtotal: 15200.00 },
@@ -1044,10 +1055,12 @@ const MOCK_USER_BILLS: UserBillRecord[] = [
     generatedAt: "2026-04-01 00:06:12",
     status: "confirmed",
     sentAt: "2026-04-03 14:20:00",
+    rebateStatus: "pending",
+    rebateAmount: 26048.06,
     details: [
-      { modelName: "gpt-4o", billingType: "token", inputTokens: 200000000, outputTokens: 80000000, cacheReadTokens: 15000000, cacheCreateTokens: 5000000, inputPrice: 0.00015, outputPrice: 0.0006, cacheDiscount: 0.5, tierDiscount: 0.88, subtotal: 75600.80 },
-      { modelName: "claude-3-opus", billingType: "token", inputTokens: 120000000, outputTokens: 50000000, cacheReadTokens: 8000000, cacheCreateTokens: 3000000, inputPrice: 0.00025, outputPrice: 0.00125, cacheDiscount: 0.5, tierDiscount: 0.88, subtotal: 98000.00 },
-      { modelName: "azure-gpt-4", billingType: "token", inputTokens: 80000000, outputTokens: 35000000, cacheReadTokens: 4000000, cacheCreateTokens: 2000000, inputPrice: 0.00018, outputPrice: 0.00072, cacheDiscount: 0.5, tierDiscount: 0.88, subtotal: 82400.00 },
+      { modelName: "gpt-4o", billingType: "token", inputTokens: 200000000, outputTokens: 80000000, cacheReadTokens: 15000000, cacheCreateTokens: 5000000, inputPrice: 0.00015, outputPrice: 0.0006, cacheDiscount: 0.5, tierDiscount: 0.88, subtotal: 75600.80, rebateDiscount: 8 },
+      { modelName: "claude-3-opus", billingType: "token", inputTokens: 120000000, outputTokens: 50000000, cacheReadTokens: 8000000, cacheCreateTokens: 3000000, inputPrice: 0.00025, outputPrice: 0.00125, cacheDiscount: 0.5, tierDiscount: 0.88, subtotal: 98000.00, rebateDiscount: 12 },
+      { modelName: "azure-gpt-4", billingType: "token", inputTokens: 80000000, outputTokens: 35000000, cacheReadTokens: 4000000, cacheCreateTokens: 2000000, inputPrice: 0.00018, outputPrice: 0.00072, cacheDiscount: 0.5, tierDiscount: 0.88, subtotal: 82400.00, rebateDiscount: 10 },
     ]
   },
   {
@@ -1061,6 +1074,9 @@ const MOCK_USER_BILLS: UserBillRecord[] = [
     currency: "CNY",
     generatedAt: "2026-04-01 00:06:38",
     status: "pending",
+    rebateStatus: "toSend",
+    rebateAmount: 4231.62,
+    voucherCode: "VCBILL-2029381",
     details: [
       { modelName: "gpt-4o-mini", billingType: "token", inputTokens: 500000000, outputTokens: 120000000, cacheReadTokens: 20000000, cacheCreateTokens: 5000000, inputPrice: 0.000015, outputPrice: 0.00006, cacheDiscount: 0.5, tierDiscount: 0.98, subtotal: 15600.25 },
       { modelName: "ernie-4.0", billingType: "token", inputTokens: 40000000, outputTokens: 15000000, cacheReadTokens: 2000000, cacheCreateTokens: 500000, inputPrice: 0.00012, outputPrice: 0.00048, cacheDiscount: 0.6, tierDiscount: 0.95, subtotal: 13000.00 },
@@ -1083,6 +1099,7 @@ const MOCK_USER_BILLS: UserBillRecord[] = [
     currency: "CNY",
     generatedAt: "2026-04-01 00:07:05",
     status: "pending",
+    rebateStatus: "none",
     details: [
       { modelName: "gpt-4o", billingType: "token", inputTokens: 60000000, outputTokens: 25000000, cacheReadTokens: 4000000, cacheCreateTokens: 1000000, inputPrice: 0.00015, outputPrice: 0.0006, cacheDiscount: 0.5, tierDiscount: 0.95, subtotal: 22800.60 },
       { modelName: "claude-3.5-sonnet", billingType: "token", inputTokens: 45000000, outputTokens: 18000000, cacheReadTokens: 3000000, cacheCreateTokens: 800000, inputPrice: 0.00016, outputPrice: 0.0008, cacheDiscount: 0.5, tierDiscount: 0.95, subtotal: 18500.00 },
@@ -1098,10 +1115,21 @@ function UserBillManagement() {
   const [spaceTypeFilter, setSpaceTypeFilter] = useState<string>("all");   // 空间类型筛选
   const [periodFilter, setPeriodFilter] = useState<string>("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [rebateStatusFilter, setRebateStatusFilter] = useState<string>("all");
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedBills, setSelectedBills] = useState<string[]>([]);
   const [previewBill, setPreviewBill] = useState<UserBillRecord | null>(null);
   const [previewOpen, setPreviewOpen] = useState(false);
+
+  // 返券处理弹窗状态
+  const [rebateDialogOpen, setRebateDialogOpen] = useState(false);
+  const [rebateBill, setRebateBill] = useState<UserBillRecord | null>(null);
+  const [rebateStep, setRebateStep] = useState<0 | 1 | 2>(0);
+  // 代金券记录视图
+  const [viewMode, setViewMode] = useState<"bills" | "vouchers">("bills");
+  const [voucherSearchQuery, setVoucherSearchQuery] = useState("");
+  const [voucherPage, setVoucherPage] = useState(1);
+  const voucherPageSize = 10;
 
   // 重新生成账单相关状态
   const [regenerateOpen, setRegenerateOpen] = useState(false);
@@ -1119,11 +1147,12 @@ function UserBillManagement() {
       const matchSpaceType = spaceTypeFilter === "all" || bill.spaceType === spaceTypeFilter;
       const matchPeriod = periodFilter === "" || bill.periodStart.startsWith(periodFilter);
       const matchStatus = statusFilter === "all" || bill.status === statusFilter;
+      const matchRebateStatus = rebateStatusFilter === "all" || bill.rebateStatus === rebateStatusFilter;
       const matchSearch = searchQuery === "" ||
         bill.id.toLowerCase().includes(searchQuery.toLowerCase());
-      return matchSubject && matchSpaceType && matchPeriod && matchStatus && matchSearch;
+      return matchSubject && matchSpaceType && matchPeriod && matchStatus && matchRebateStatus && matchSearch;
     });
-  }, [bills, subjectNameFilter, spaceTypeFilter, periodFilter, statusFilter, searchQuery]);
+  }, [bills, subjectNameFilter, spaceTypeFilter, periodFilter, statusFilter, rebateStatusFilter, searchQuery]);
 
   const handleSelectAll = (checked: boolean) => {
     if (checked) {
@@ -1179,11 +1208,47 @@ function UserBillManagement() {
     setPreviewOpen(true);
   };
 
+  const handleOpenRebate = (bill: UserBillRecord) => {
+    let targetBill = bill;
+    // 兜底：已生成/已发送状态下若缺少代金券编号，自动补一个并同步更新列表
+    if (bill.rebateStatus !== "pending" && !bill.voucherCode) {
+      const code = `VC${bill.id.slice(0, 8).toUpperCase()}${Math.floor(Math.random() * 10000).toString().padStart(4, "0")}`;
+      targetBill = { ...bill, voucherCode: code };
+      setBills((prev) => prev.map((b) => (b.id === bill.id ? targetBill : b)));
+    }
+    setRebateBill(targetBill);
+    const initialStep = targetBill.rebateStatus === "pending" ? 0 : targetBill.rebateStatus === "toSend" ? 1 : 2;
+    setRebateStep(initialStep as 0 | 1 | 2);
+    setRebateDialogOpen(true);
+  };
+
+  const handleGenerateVoucher = (id: string) => {
+    const code = `VC${id.slice(0, 8).toUpperCase()}${Math.floor(Math.random() * 10000).toString().padStart(4, '0')}`;
+    setBills(bills.map((b) => b.id === id ? { ...b, rebateStatus: "toSend" as const, voucherCode: code } : b));
+    setRebateBill((prev) => (prev && prev.id === id ? { ...prev, rebateStatus: "toSend" as const, voucherCode: code } : prev));
+  };
+
+  const handleSendVoucher = (id: string) => {
+    const now = format(new Date(), "yyyy-MM-dd HH:mm:ss");
+    setBills(bills.map((b) => b.id === id ? { ...b, rebateStatus: "sent" as const, sentAt: now } : b));
+    setRebateBill((prev) => (prev && prev.id === id ? { ...prev, rebateStatus: "sent" as const, sentAt: now } : prev));
+  };
+
   const getStatusBadge = (status: UserBillRecord["status"]) => {
     switch (status) {
       case "pending": return <Badge variant="outline" className="text-amber-600 border-amber-200 bg-amber-50 text-xs">待结清</Badge>;
       case "sent": return <Badge variant="outline" className="text-blue-600 border-blue-200 bg-blue-50 text-xs">已发送</Badge>;
       case "confirmed": return <Badge variant="outline" className="text-green-600 border-green-200 bg-green-50 text-xs">已确认</Badge>;
+      default: return null;
+    }
+  };
+
+  const getRebateStatusBadge = (rebateStatus: RebateStatus) => {
+    switch (rebateStatus) {
+      case "none": return <Badge variant="outline" className="text-gray-500 border-gray-200 bg-gray-50 text-xs">无需返券</Badge>;
+      case "pending": return <Badge className="bg-red-500 text-white border-red-500 hover:bg-red-600 text-xs">待生成</Badge>;
+      case "toSend": return <Badge variant="outline" className="text-blue-600 border-blue-200 bg-blue-50 text-xs">待发送</Badge>;
+      case "sent": return <Badge className="bg-green-500 text-white border-green-500 hover:bg-green-600 text-xs">已发送</Badge>;
       default: return null;
     }
   };
@@ -1203,6 +1268,8 @@ function UserBillManagement() {
 
   return (
     <div className="space-y-4">
+      {viewMode === "bills" && (
+      <>
       {/* Bills Table */}
       <Card className="border shadow-sm">
         <CardHeader className="py-3 px-4 border-b">
@@ -1215,6 +1282,12 @@ function UserBillManagement() {
               )}
             </div>
             <div className="flex items-center gap-2">
+              <button
+                onClick={() => setViewMode("vouchers")}
+                className="text-xs text-blue-600 hover:text-blue-700 hover:underline"
+              >
+                查看代金券记录
+              </button>
               <Button 
                 onClick={handleRegenerate} 
                 variant="outline" 
@@ -1269,6 +1342,18 @@ function UserBillManagement() {
                   <SelectItem value="enterprise">企业空间</SelectItem>
                 </SelectContent>
               </Select>
+              <Select value={rebateStatusFilter} onValueChange={setRebateStatusFilter}>
+                <SelectTrigger className="h-9 w-[140px] text-xs">
+                  <SelectValue placeholder="全部返券状态" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">全部返券状态</SelectItem>
+                  <SelectItem value="none">无需返券</SelectItem>
+                  <SelectItem value="pending">待生成</SelectItem>
+                  <SelectItem value="toSend">待发送</SelectItem>
+                  <SelectItem value="sent">已发送</SelectItem>
+                </SelectContent>
+              </Select>
               <div className="relative">
                 <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
                 <Input
@@ -1317,12 +1402,14 @@ function UserBillManagement() {
                   <th className="px-4 py-3 text-right font-medium text-muted-foreground">账单总额</th>
                   <th className="px-4 py-3 text-center font-medium text-muted-foreground">状态</th>
                   <th className="px-4 py-3 text-left font-medium text-muted-foreground">生成时间</th>
+                  <th className="px-4 py-3 text-center font-medium text-muted-foreground">返券状态</th>
+                  <th className="px-4 py-3 text-right font-medium text-muted-foreground">应返券金额</th>
                   <th className="px-4 py-3 text-right font-medium text-muted-foreground">操作</th>
                 </tr>
               </thead>
               <tbody className="divide-y">
                 {filteredBills.length === 0 ? (
-                  <tr><td colSpan={10} className="px-4 py-12 text-center text-muted-foreground">暂无账单记录</td></tr>
+                  <tr><td colSpan={12} className="px-4 py-12 text-center text-muted-foreground">暂无账单记录</td></tr>
                 ) : (
                   filteredBills.map((bill) => (
                     <tr key={bill.id} className="hover:bg-muted/30">
@@ -1352,6 +1439,10 @@ function UserBillManagement() {
                       </td>
                       <td className="px-4 py-3 text-center">{getStatusBadge(bill.status)}</td>
                       <td className="px-4 py-3 text-muted-foreground">{bill.generatedAt}</td>
+                      <td className="px-4 py-3 text-center">{getRebateStatusBadge(bill.rebateStatus)}</td>
+                      <td className="px-4 py-3 text-right font-mono">
+                        {bill.rebateStatus === "none" ? "—" : formatCurrency(bill.rebateAmount || 0)}
+                      </td>
                       <td className="px-4 py-3 text-right">
                         <div className="flex items-center justify-end gap-2">
                           <Button
@@ -1369,47 +1460,13 @@ function UserBillManagement() {
                           >
                             下载
                           </Button>
-                          {/* 发送状态列 */}
-                          {bill.status === "pending" ? (
+                          {bill.rebateStatus !== "none" && (
                             <Button
-                              variant="ghost"
                               size="sm"
-                              className="h-7 px-2 text-xs text-green-600 hover:text-green-700 hover:bg-green-50"
-                              onClick={() => handleMarkAsSent(bill.id)}
+                              className="h-7 px-3 text-xs bg-blue-600 hover:bg-blue-700 text-white"
+                              onClick={() => handleOpenRebate(bill)}
                             >
-                              标记发送
-                            </Button>
-                          ) : bill.status === "sent" ? (
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="h-7 px-2 text-xs text-amber-600 hover:text-amber-700 hover:bg-amber-50"
-                              onClick={() => handleUndoSent(bill.id)}
-                            >
-                              撤销发送
-                            </Button>
-                          ) : (
-                            <span className="h-7 px-2 text-xs text-muted-foreground flex items-center">已发送</span>
-                          )}
-                          {/* 确认状态列 */}
-                          {bill.status === "confirmed" ? (
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="h-7 px-2 text-xs text-amber-600 hover:text-amber-700 hover:bg-amber-50"
-                              onClick={() => handleUndoConfirm(bill.id)}
-                            >
-                              撤销确认
-                            </Button>
-                          ) : (
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="h-7 px-2 text-xs text-blue-600 hover:text-blue-700 hover:bg-blue-50"
-                              onClick={() => handleConfirm(bill.id)}
-                              disabled={bill.status === "pending"}
-                            >
-                              确认
+                              返券处理
                             </Button>
                           )}
                         </div>
@@ -1726,6 +1783,363 @@ function UserBillManagement() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* 返券处理弹窗 */}
+      <Dialog open={rebateDialogOpen} onOpenChange={setRebateDialogOpen}>
+        <DialogContent className="sm:max-w-2xl max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="text-base">返券处理</DialogTitle>
+          </DialogHeader>
+          {rebateBill && (
+            <div className="space-y-5 py-2">
+              {/* 账单信息 */}
+              <div className="flex items-center justify-between bg-muted/30 rounded-lg px-4 py-3">
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2">
+                    <p className="text-sm font-medium">{rebateBill.enterprise}</p>
+                    <Badge variant="outline" className={`text-[10px] py-0 px-1.5 h-5 ${rebateBill.spaceType === "enterprise" ? "text-blue-600 border-blue-200 bg-blue-50" : "text-purple-600 border-purple-200 bg-purple-50"}`}>
+                      {rebateBill.spaceType === "enterprise" ? "企业空间" : "个人空间"}
+                    </Badge>
+                  </div>
+                  <p className="text-xs text-muted-foreground">{rebateBill.id} · {rebateBill.periodStart.slice(0, 7)}</p>
+                </div>
+                <div className="text-right">
+                  <p className="text-sm font-medium">应返券金额</p>
+                  <p className="text-lg font-bold text-blue-600 font-mono">{formatCurrency(rebateBill.rebateAmount || 0)}</p>
+                </div>
+              </div>
+
+              {/* 流程步骤条 */}
+              <div className="flex items-center gap-2">
+                {[
+                  { label: "核实返券金额" },
+                  { label: "生成代金券" },
+                  { label: "发送给用户" },
+                ].map((step, idx) => {
+                  const isActive = rebateStep >= idx;
+                  const isCurrent = rebateStep === idx;
+                  return (
+                    <div key={idx} className="flex items-center gap-2 flex-1">
+                      <div className={cn(
+                        "flex items-center justify-center w-6 h-6 rounded-full text-xs font-medium shrink-0",
+                        isActive ? "bg-blue-600 text-white" : "bg-gray-200 text-gray-500"
+                      )}>
+                        {idx + 1}
+                      </div>
+                      <span className={cn(
+                        "text-xs whitespace-nowrap",
+                        isCurrent ? "text-blue-600 font-medium" : isActive ? "text-foreground" : "text-muted-foreground"
+                      )}>
+                        {step.label}
+                      </span>
+                      {idx < 2 && (
+                        <div className={cn("flex-1 h-0.5 mx-1", rebateStep > idx ? "bg-blue-600" : "bg-gray-200")} />
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* 动态提示 */}
+              <div className="bg-amber-50 border border-amber-200 rounded-lg p-2.5">
+                <p className="text-xs text-amber-700 leading-relaxed">
+                  {rebateStep === 0 && "请核对应返券金额，确认无误后进入下一步生成代金券。"}
+                  {rebateStep === 1 && rebateBill.rebateStatus === "pending" && "请预览代金券信息，确认无误后生成代金券。生成后将在代金券列表新增待发送记录。"}
+                  {rebateStep === 1 && rebateBill.rebateStatus === "toSend" && "代金券已生成，可点击下一步进入发送环节。发送前用户暂不可见、不可使用。"}
+                  {rebateStep === 2 && rebateBill.rebateStatus === "toSend" && "代金券已生成，发送后将进入客户账户并可用于消费抵扣。此操作不可撤销，且发送后代金券不可再开票，请确认无误。"}
+                  {rebateStep === 2 && rebateBill.rebateStatus === "sent" && "代金券已发送至客户账户，客户可在账户明细中查看。"}
+                </p>
+              </div>
+
+              {/* Step 0: 核实返券金额 */}
+              {rebateStep === 0 && (
+                <div className="border rounded-lg overflow-hidden">
+                  <table className="w-full text-xs">
+                    <thead className="bg-blue-50 border-b">
+                      <tr>
+                        <th className="px-3 py-2 text-left font-medium text-muted-foreground">模型名称</th>
+                        <th className="px-3 py-2 text-right font-medium text-muted-foreground">账单金额</th>
+                        <th className="px-3 py-2 text-right font-medium text-muted-foreground">返券折扣</th>
+                        <th className="px-3 py-2 text-right font-medium text-muted-foreground">应返券金额</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y">
+                      {rebateBill.details.map((d, i) => (
+                        <tr key={i} className="hover:bg-muted/20">
+                          <td className="px-3 py-2">
+                            <Badge variant="outline" className="text-xs font-mono">{d.modelName}</Badge>
+                          </td>
+                          <td className="px-3 py-2 text-right font-mono">{formatCurrency(d.subtotal)}</td>
+                          <td className="px-3 py-2 text-right font-mono">{d.rebateDiscount ?? 0}%</td>
+                          <td className="px-3 py-2 text-right font-mono text-blue-600">{formatCurrency(d.subtotal * (d.rebateDiscount ?? 0) / 100)}</td>
+                        </tr>
+                      ))}
+                      <tr className="bg-blue-50 font-medium">
+                        <td className="px-3 py-2">合计</td>
+                        <td className="px-3 py-2 text-right font-mono">{formatCurrency(rebateBill.details.reduce((sum, d) => sum + d.subtotal, 0))}</td>
+                        <td className="px-3 py-2 text-right"></td>
+                        <td className="px-3 py-2 text-right font-mono text-blue-600">{formatCurrency(rebateBill.rebateAmount || 0)}</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              )}
+
+              {/* Step 1: 生成代金券 */}
+              {rebateStep === 1 && (
+                <div className="space-y-3">
+                  <div className="rounded-xl bg-blue-500 text-white p-4 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[10px] font-mono bg-white/20 px-2 py-0.5 rounded">
+                        {rebateBill.rebateStatus === "pending" ? "生成后自动生成" : rebateBill.voucherCode || "—"}
+                      </span>
+                      <span className="text-[10px] bg-white/20 px-2 py-0.5 rounded">
+                        {rebateBill.rebateStatus === "pending" ? "未生成" : "已生成"}
+                      </span>
+                    </div>
+                    <div className="text-center py-1">
+                      <p className="text-xs text-blue-100 mb-0.5">代金券金额</p>
+                      <p className="text-3xl font-bold font-mono">{formatCurrency(rebateBill.rebateAmount || 0)}</p>
+                    </div>
+                    <div className="grid grid-cols-2 gap-x-3 gap-y-2 text-xs text-blue-100">
+                      <div className="flex items-center gap-1">
+                        <span className="text-blue-200 text-[10px]">可用范围</span>
+                        <span>模型 API 服务</span>
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <span className="text-blue-200 text-[10px]">有效期</span>
+                        <span>长期有效</span>
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <span className="text-blue-200 text-[10px]">生成时间</span>
+                        <span>{rebateBill.rebateStatus === "pending" ? "—" : format(new Date(), "yyyy-MM-dd HH:mm")}</span>
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <span className="text-blue-200 text-[10px]">备注</span>
+                        <span>{rebateBill.periodStart.slice(0, 7)} 账期返券</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Step 2: 发送给用户 */}
+              {rebateStep === 2 && (
+                <div className="space-y-3">
+                  {rebateBill.rebateStatus === "sent" ? (
+                    <div className="bg-green-50 border border-green-200 rounded-lg p-6 text-center space-y-2">
+                      <CheckCircle2 className="w-8 h-8 text-green-600 mx-auto" />
+                      <p className="text-sm font-medium text-green-700">代金券已发送成功</p>
+                      <p className="text-xs text-green-600">
+                        金额：{formatCurrency(rebateBill.rebateAmount || 0)} · 接收方：{rebateBill.enterprise}
+                      </p>
+                      <p className="text-xs text-green-600 font-mono">代金券编号：{rebateBill.voucherCode || "—"}</p>
+                    </div>
+                  ) : (
+                    <div className="bg-green-50 border border-green-200 rounded-lg p-6 text-center space-y-1">
+                      <p className="text-xs text-muted-foreground">即将发送至</p>
+                      <p className="text-xl font-bold text-green-700">{rebateBill.enterprise}</p>
+                      <p className="text-sm font-mono text-green-600">{formatCurrency(rebateBill.rebateAmount || 0)}</p>
+                      <p className="text-xs text-muted-foreground font-mono mt-1">代金券编号：{rebateBill.voucherCode || "—"}</p>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* 底部操作按钮 */}
+              <div className="flex justify-end items-center pt-3 border-t gap-2">
+                {rebateStep === 0 && (
+                  <Button
+                    size="sm"
+                    className="text-xs bg-blue-600 hover:bg-blue-700"
+                    onClick={() => setRebateStep(1)}
+                  >
+                    下一步
+                  </Button>
+                )}
+                {rebateStep === 1 && (
+                  <>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="text-xs"
+                      onClick={() => setRebateStep(0)}
+                    >
+                      上一步
+                    </Button>
+                    {rebateBill.rebateStatus === "pending" ? (
+                      <Button
+                        size="sm"
+                        className="text-xs bg-blue-600 hover:bg-blue-700"
+                        onClick={() => rebateBill && handleGenerateVoucher(rebateBill.id)}
+                      >
+                        确认生成代金券
+                      </Button>
+                    ) : (
+                      <Button
+                        size="sm"
+                        className="text-xs bg-blue-600 hover:bg-blue-700"
+                        onClick={() => setRebateStep(2)}
+                      >
+                        下一步
+                      </Button>
+                    )}
+                  </>
+                )}
+                {rebateStep === 2 && (
+                  <>
+                    {rebateBill.rebateStatus !== "sent" && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="text-xs"
+                        onClick={() => setRebateStep(1)}
+                      >
+                        上一步
+                      </Button>
+                    )}
+                    {rebateBill.rebateStatus === "toSend" && (
+                      <Button
+                        size="sm"
+                        className="text-xs bg-green-600 hover:bg-green-700"
+                        onClick={() => rebateBill && handleSendVoucher(rebateBill.id)}
+                      >
+                        确认发送
+                      </Button>
+                    )}
+                  </>
+                )}
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      </>
+      )}
+
+      {viewMode === "vouchers" && (
+        <Card className="border shadow-sm">
+          <CardHeader className="py-3 px-4 border-b">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <CardTitle className="text-sm font-medium">代金券记录</CardTitle>
+                <div className="relative">
+                  <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
+                  <Input
+                    placeholder="搜索代金券编号"
+                    value={voucherSearchQuery}
+                    onChange={(e) => { setVoucherSearchQuery(e.target.value); setVoucherPage(1); }}
+                    className="h-8 w-52 pl-8 text-xs"
+                  />
+                </div>
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-8 text-xs"
+                onClick={() => { setViewMode("bills"); setVoucherSearchQuery(""); setVoucherPage(1); }}
+              >
+                返回账单管理
+              </Button>
+            </div>
+          </CardHeader>
+          <CardContent className="p-0">
+            <div className="overflow-x-auto">
+              <table className="w-full text-xs">
+                <thead className="bg-muted/50 border-b">
+                  <tr>
+                    <th className="px-3 py-2 text-left font-medium text-muted-foreground whitespace-nowrap">代金券编号</th>
+                    <th className="px-3 py-2 text-left font-medium text-muted-foreground whitespace-nowrap">来源账单</th>
+                    <th className="px-3 py-2 text-left font-medium text-muted-foreground whitespace-nowrap">来源账期</th>
+                    <th className="px-3 py-2 text-left font-medium text-muted-foreground whitespace-nowrap">客户名称</th>
+                    <th className="px-3 py-2 text-right font-medium text-muted-foreground whitespace-nowrap">代金券金额</th>
+                    <th className="px-3 py-2 text-right font-medium text-muted-foreground whitespace-nowrap">剩余金额</th>
+                    <th className="px-3 py-2 text-center font-medium text-muted-foreground whitespace-nowrap">状态</th>
+                    <th className="px-3 py-2 text-left font-medium text-muted-foreground whitespace-nowrap">生成时间</th>
+                    <th className="px-3 py-2 text-left font-medium text-muted-foreground whitespace-nowrap">发送时间</th>
+                    <th className="px-3 py-2 text-left font-medium text-muted-foreground whitespace-nowrap">操作人</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y">
+                  {(() => {
+                    const allVouchers = bills.filter(b => b.rebateStatus === "toSend" || b.rebateStatus === "sent");
+                    const filtered = voucherSearchQuery
+                      ? allVouchers.filter(b => (b.voucherCode || "").toLowerCase().includes(voucherSearchQuery.toLowerCase()))
+                      : allVouchers;
+                    const total = filtered.length;
+                    const totalPages = Math.max(1, Math.ceil(total / voucherPageSize));
+                    const currentPage = Math.min(voucherPage, totalPages);
+                    const start = (currentPage - 1) * voucherPageSize;
+                    const pageItems = filtered.slice(start, start + voucherPageSize);
+                    if (total === 0) {
+                      return (
+                        <tr>
+                          <td colSpan={10} className="px-3 py-8 text-center text-muted-foreground">
+                            {voucherSearchQuery ? "未找到匹配的代金券" : "暂无代金券记录"}
+                          </td>
+                        </tr>
+                      );
+                    }
+                    return (
+                      <>
+                        {pageItems.map((bill) => (
+                          <tr key={bill.id} className="hover:bg-muted/20">
+                            <td className="px-3 py-2 font-mono">{bill.voucherCode || "—"}</td>
+                            <td className="px-3 py-2 font-mono text-muted-foreground">{bill.id}</td>
+                            <td className="px-3 py-2 text-muted-foreground">{bill.periodStart.slice(0, 7)}</td>
+                            <td className="px-3 py-2">{bill.enterprise}</td>
+                            <td className="px-3 py-2 text-right font-mono">{formatCurrency(bill.rebateAmount || 0)}</td>
+                            <td className="px-3 py-2 text-right font-mono">{formatCurrency(bill.rebateStatus === "sent" ? (bill.rebateAmount || 0) * 0.85 : bill.rebateAmount || 0)}</td>
+                            <td className="px-3 py-2 text-center">
+                              {bill.rebateStatus === "toSend" && <Badge variant="outline" className="text-blue-600 border-blue-200 bg-blue-50 text-xs">待发送</Badge>}
+                              {bill.rebateStatus === "sent" && <Badge className="bg-green-500 text-white border-green-500 hover:bg-green-600 text-xs">已发送</Badge>}
+                            </td>
+                            <td className="px-3 py-2 text-muted-foreground">{bill.generatedAt}</td>
+                            <td className="px-3 py-2 text-muted-foreground">{bill.rebateStatus === "sent" ? (bill.sentAt || "—") : "—"}</td>
+                            <td className="px-3 py-2 text-muted-foreground whitespace-nowrap">张三</td>
+                          </tr>
+                        ))}
+                        {total > voucherPageSize && (
+                          <tr>
+                            <td colSpan={10} className="px-3 py-3">
+                              <div className="flex items-center justify-between">
+                                <span className="text-xs text-muted-foreground">
+                                  共 {total} 条，第 {currentPage} / {totalPages} 页
+                                </span>
+                                <div className="flex items-center gap-1">
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    className="h-7 text-xs"
+                                    disabled={currentPage <= 1}
+                                    onClick={() => setVoucherPage(currentPage - 1)}
+                                  >
+                                    上一页
+                                  </Button>
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    className="h-7 text-xs"
+                                    disabled={currentPage >= totalPages}
+                                    onClick={() => setVoucherPage(currentPage + 1)}
+                                  >
+                                    下一页
+                                  </Button>
+                                </div>
+                              </div>
+                            </td>
+                          </tr>
+                        )}
+                      </>
+                    );
+                  })()}
+                </tbody>
+              </table>
+            </div>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }

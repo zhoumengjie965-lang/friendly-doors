@@ -30,6 +30,7 @@ import {
 } from "@/components/ui/dialog";
 import { Plus, Check, Pencil, Trash2, Search } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import GroupRateSettings from "./GroupRateSettings";
 
 // 模型价格数据接口
 type PricingMode = "by_volume" | "by_count";
@@ -798,11 +799,7 @@ export default function AdminSettings() {
       )}
 
       {/* 分组倍率设置 */}
-      {currentTab === "group-rate" && (
-        <div className="p-8 text-center text-muted-foreground">
-          <p>分组倍率设置功能开发中...</p>
-        </div>
-      )}
+      {currentTab === "group-rate" && <GroupRateSettings />}
 
       {/* 可视化倍率设置 - 包含原模型倍率设置的完整功能 */}
       {currentTab === "visual-rate" && (

@@ -52,6 +52,13 @@ const MODEL_ACCESS_OPTIONS = [
   { value: "国际", label: "国际" },
 ];
 
+type BillingMode = "realtime" | "rebate";
+
+const BILLING_MODE_OPTIONS = [
+  { value: "realtime", label: "实时扣费", description: "调用时按分组倍率直接扣费" },
+  { value: "rebate", label: "账后返券", description: "调用时按原价扣费，月初按账单核算代金券返还" },
+];
+
 // 备注类型选项
 const REMARK_TYPE_OPTIONS = ["正式用户", "内结用户", "测试用户", "测试用户（付费）", "研发", "演示", "其他"];
 
@@ -79,23 +86,37 @@ function EnterpriseGreenTag({ type, name }: { type?: "formal" | "test"; name: st
 
 // 用户分组配置
 const GROUP_OPTIONS = [
-  { value: "basic", name: "basic", remark: "试用客户", discountChannels: "gemini高速折扣通道 (x0.75)、grok高速折扣通道 (x0.85)、openai高速折扣通道 (x0.85)" },
-  { value: "openai-basic", name: "openai-basic", remark: "正式客户", discountChannels: "openai高速折扣通道 (x0.85)" },
-  { value: "grok-fast", name: "grok-fast", remark: "正式客户", discountChannels: "grok高速折扣通道 (x0.85)" },
-  { value: "claudetest", name: "claude-test", remark: "正式客户", discountChannels: "claude高速折扣通道 (x0.85)" },
-  { value: "vip-ep", name: "vip-ep", remark: "正式客户", discountChannels: "gemini高速折扣通道 (x0.75)、grok高速折扣通道 (x0.85)" },
-  { value: "suno", name: "suno", remark: "正式客户", discountChannels: "suno高速折扣通道 (x0.8)" },
-  { value: "gemini-fast", name: "gemini-fast", remark: "正式客户", discountChannels: "gemini高速折扣通道 (x0.75)" },
-  { value: "vip-dp", name: "vip-dp", remark: "互联内结客户", discountChannels: "gemini高速折扣通道 (x0.75)、grok高速折扣通道 (x0.85)、claude高速折扣通道 (x0.85)" },
+  { value: "basic", name: "basic", remark: "试用客户", discountChannels: "gemini高速折扣通道 (x0.75)、grok高速折扣通道 (x0.85)、openai高速折扣通道 (x0.85)", rebateEnabled: false },
+  { value: "openai-basic", name: "openai-basic", remark: "正式客户", discountChannels: "openai高速折扣通道 (x0.85)", rebateEnabled: false },
+  { value: "grok-fast", name: "grok-fast", remark: "正式客户", discountChannels: "grok高速折扣通道 (x0.85)", rebateEnabled: false },
+  { value: "claudetest", name: "claude-test", remark: "正式客户", discountChannels: "claude高速折扣通道 (x0.85)", rebateEnabled: false },
+  { value: "vip-ep", name: "vip-ep", remark: "正式客户", discountChannels: "gemini高速折扣通道 (x0.75)、grok高速折扣通道 (x0.85)", rebateEnabled: true },
+  { value: "suno", name: "suno", remark: "正式客户", discountChannels: "suno高速折扣通道 (x0.8)", rebateEnabled: false },
+  { value: "gemini-fast", name: "gemini-fast", remark: "正式客户", discountChannels: "gemini高速折扣通道 (x0.75)", rebateEnabled: false },
+  { value: "vip-dp", name: "vip-dp", remark: "互联内结客户", discountChannels: "gemini高速折扣通道 (x0.75)、grok高速折扣通道 (x0.85)、claude高速折扣通道 (x0.85)", rebateEnabled: true },
 ];
 
 // 分组可搜索下拉选择器
-function GroupCombobox({ value, onChange }: { value: string; onChange: (value: string) => void }) {
+function GroupCombobox({
+  value,
+  onChange,
+  billingMode = "all",
+}: {
+  value: string;
+  onChange: (value: string) => void;
+  billingMode?: BillingMode | "all";
+}) {
   const [open, setOpen] = useState(false);
   const selected = GROUP_OPTIONS.find((g) => g.value === value);
   const displayText = selected
     ? `${selected.name} (${selected.remark})`
     : "请选择分组";
+
+  const options = GROUP_OPTIONS.filter((group) => {
+    if (billingMode === "realtime") return !group.rebateEnabled;
+    if (billingMode === "rebate") return group.rebateEnabled;
+    return true;
+  });
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -108,9 +129,13 @@ function GroupCombobox({ value, onChange }: { value: string; onChange: (value: s
       <PopoverContent className="p-0 w-[320px]" align="start">
         <Command shouldFilter>
           <CommandInput placeholder="搜索分组..." />
-          <CommandEmpty>未找到匹配的分组</CommandEmpty>
+          <CommandEmpty>
+            {options.length === 0
+              ? "当前计费模式下暂无可选分组"
+              : "未找到匹配的分组"}
+          </CommandEmpty>
           <CommandGroup>
-            {GROUP_OPTIONS.map((group) => {
+            {options.map((group) => {
               return (
                 <CommandItem
                   key={group.value}
@@ -253,6 +278,7 @@ export default function AdminUsers() {
     displayName: "",
     remarkType: "正式用户",
     remarkName: "",
+    billingMode: "realtime" as BillingMode,
     group: "default",
     modelAccess: [] as string[],
   });
@@ -267,6 +293,8 @@ export default function AdminUsers() {
     password: "",
     remarkType: "正式用户",
     remarkName: "",
+    billingMode: "realtime" as BillingMode,
+    group: GROUP_OPTIONS.filter((g) => !g.rebateEnabled)[0]?.value || "",
     modelAccess: ["国际"] as string[],
   });
   const [addingUser, setAddingUser] = useState(false);
@@ -431,6 +459,7 @@ export default function AdminUsers() {
       displayName: user.name || "",
       remarkType: type,
       remarkName: name,
+      billingMode: GROUP_OPTIONS.find((g) => g.value === (user.group || ""))?.rebateEnabled ? "rebate" : "realtime",
       group: user.group || "default",
       modelAccess: ["国际"],
     });
@@ -517,7 +546,7 @@ export default function AdminUsers() {
 
       toast({ title: "用户创建成功", description: `用户 ${addForm.username} 已添加` });
       setAddDialogOpen(false);
-      setAddForm({ username: "", displayName: "", password: "", remarkType: "正式用户", remarkName: "", modelAccess: ["国际"] });
+      setAddForm({ username: "", displayName: "", password: "", remarkType: "正式用户", remarkName: "", billingMode: "realtime", group: GROUP_OPTIONS.filter((g) => !g.rebateEnabled)[0]?.value || "", modelAccess: ["国际"] });
       fetchAll();
     } catch (err: any) {
       toast({ title: "创建失败", description: err.message || "未知错误", variant: "destructive" });
@@ -883,10 +912,49 @@ export default function AdminUsers() {
                 <div className="border rounded-lg p-4 space-y-4 bg-gray-50/30">
                   <div className="space-y-1.5">
                     <Label className="text-sm">
+                      计费模式 <span className="text-red-500">*</span>
+                    </Label>
+                    <Select
+                      value={editForm.billingMode}
+                      onValueChange={(value) => {
+                        setEditForm((prev) => {
+                          const next = {
+                            ...prev,
+                            billingMode: value as BillingMode,
+                          };
+                          const allowed = GROUP_OPTIONS.filter((group) =>
+                            value === "realtime" ? !group.rebateEnabled : group.rebateEnabled
+                          );
+                          if (!allowed.some((group) => group.value === next.group)) {
+                            next.group = allowed[0]?.value || "";
+                          }
+                          return next;
+                        });
+                      }}
+                    >
+                      <SelectTrigger className="h-10 bg-gray-50/50 border-gray-200">
+                        <SelectValue placeholder="选择计费模式" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {BILLING_MODE_OPTIONS.map((option) => (
+                          <SelectItem key={option.value} value={option.value}>
+                            {option.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <p className="text-xs text-muted-foreground">
+                      {BILLING_MODE_OPTIONS.find((m) => m.value === editForm.billingMode)?.description}
+                    </p>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <Label className="text-sm">
                       分组 <span className="text-red-500">*</span>
                     </Label>
                     <GroupCombobox
                       value={editForm.group}
+                      billingMode={editForm.billingMode}
                       onChange={(value) => setEditForm((prev) => ({ ...prev, group: value }))}
                     />
                     {editForm.group && (
@@ -996,10 +1064,14 @@ export default function AdminUsers() {
                       toast({ title: "请输入用户名", variant: "destructive" });
                       return;
                     }
+                    if (!editForm.group.trim()) {
+                      toast({ title: "请选择分组", variant: "destructive" });
+                      return;
+                    }
                     setSavingUser(true);
                     setTimeout(() => {
                       setSavingUser(false);
-                      toast({ title: "保存成功", description: "用户信息已更新" });
+                      toast({ title: "保存成功", description: `用户「${editForm.username}」的分组已更新为「${editForm.group}」` });
                       setDrawerOpen(false);
                     }, 500);
                   }}
@@ -1118,7 +1190,7 @@ export default function AdminUsers() {
               className="h-9 px-4"
               onClick={() => {
                 setAddDialogOpen(false);
-                setAddForm({ username: "", displayName: "", password: "", remarkType: "正式用户", remarkName: "", modelAccess: ["国际"] });
+                setAddForm({ username: "", displayName: "", password: "", remarkType: "正式用户", remarkName: "", billingMode: "realtime", group: GROUP_OPTIONS.filter((g) => !g.rebateEnabled)[0]?.value || "", modelAccess: ["国际"] });
               }}
             >
               取消

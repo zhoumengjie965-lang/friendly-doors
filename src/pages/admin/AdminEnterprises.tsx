@@ -27,24 +27,45 @@ const MODEL_ACCESS_OPTIONS = [
   { value: "国际", label: "国际" },
 ];
 
-// 分组可搜索下拉选择器
-const GROUP_OPTIONS = [
-  { value: "basic", name: "basic", remark: "试用客户", discountChannels: "gemini高速折扣通道 (x0.75)、grok高速折扣通道 (x0.85)、openai高速折扣通道 (x0.85)" },
-  { value: "openai-basic", name: "openai-basic", remark: "正式客户", discountChannels: "openai高速折扣通道 (x0.85)" },
-  { value: "grok-fast", name: "grok-fast", remark: "正式客户", discountChannels: "grok高速折扣通道 (x0.85)" },
-  { value: "claudetest", name: "claude-test", remark: "正式客户", discountChannels: "claude高速折扣通道 (x0.85)" },
-  { value: "vip-ep", name: "vip-ep", remark: "正式客户", discountChannels: "gemini高速折扣通道 (x0.75)、grok高速折扣通道 (x0.85)" },
-  { value: "suno", name: "suno", remark: "正式客户", discountChannels: "suno高速折扣通道 (x0.8)" },
-  { value: "gemini-fast", name: "gemini-fast", remark: "正式客户", discountChannels: "gemini高速折扣通道 (x0.75)" },
-  { value: "vip-dp", name: "vip-dp", remark: "互联内结客户", discountChannels: "gemini高速折扣通道 (x0.75)、grok高速折扣通道 (x0.85)、claude高速折扣通道 (x0.85)" },
+type BillingMode = "realtime" | "rebate";
+
+const BILLING_MODE_OPTIONS = [
+  { value: "realtime", label: "实时扣费", description: "调用时按分组倍率直接扣费" },
+  { value: "rebate", label: "账后返券", description: "调用时按原价扣费，月初按账单核算代金券返还" },
 ];
 
-function GroupCombobox({ value, onChange }: { value: string; onChange: (value: string) => void }) {
+// 分组可搜索下拉选择器
+const GROUP_OPTIONS = [
+  { value: "basic", name: "basic", remark: "试用客户", discountChannels: "gemini高速折扣通道 (x0.75)、grok高速折扣通道 (x0.85)、openai高速折扣通道 (x0.85)", rebateEnabled: false },
+  { value: "openai-basic", name: "openai-basic", remark: "正式客户", discountChannels: "openai高速折扣通道 (x0.85)", rebateEnabled: false },
+  { value: "grok-fast", name: "grok-fast", remark: "正式客户", discountChannels: "grok高速折扣通道 (x0.85)", rebateEnabled: false },
+  { value: "claudetest", name: "claude-test", remark: "正式客户", discountChannels: "claude高速折扣通道 (x0.85)", rebateEnabled: false },
+  { value: "vip-ep", name: "vip-ep", remark: "正式客户", discountChannels: "gemini高速折扣通道 (x0.75)、grok高速折扣通道 (x0.85)", rebateEnabled: true },
+  { value: "suno", name: "suno", remark: "正式客户", discountChannels: "suno高速折扣通道 (x0.8)", rebateEnabled: false },
+  { value: "gemini-fast", name: "gemini-fast", remark: "正式客户", discountChannels: "gemini高速折扣通道 (x0.75)", rebateEnabled: false },
+  { value: "vip-dp", name: "vip-dp", remark: "互联内结客户", discountChannels: "gemini高速折扣通道 (x0.75)、grok高速折扣通道 (x0.85)、claude高速折扣通道 (x0.85)", rebateEnabled: true },
+];
+
+function GroupCombobox({
+  value,
+  onChange,
+  billingMode = "all",
+}: {
+  value: string;
+  onChange: (value: string) => void;
+  billingMode?: BillingMode | "all";
+}) {
   const [open, setOpen] = useState(false);
   const selected = GROUP_OPTIONS.find((g) => g.value === value);
   const displayText = selected
     ? `${selected.name} (${selected.remark})`
     : "请选择分组";
+
+  const options = GROUP_OPTIONS.filter((group) => {
+    if (billingMode === "realtime") return !group.rebateEnabled;
+    if (billingMode === "rebate") return group.rebateEnabled;
+    return true;
+  });
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -57,9 +78,13 @@ function GroupCombobox({ value, onChange }: { value: string; onChange: (value: s
       <PopoverContent className="p-0 w-[320px]" align="start">
         <Command shouldFilter>
           <CommandInput placeholder="搜索分组..." />
-          <CommandEmpty>未找到匹配的分组</CommandEmpty>
+          <CommandEmpty>
+            {options.length === 0
+              ? "当前计费模式下暂无可选分组"
+              : "未找到匹配的分组"}
+          </CommandEmpty>
           <CommandGroup>
-            {GROUP_OPTIONS.map((group) => {
+            {options.map((group) => {
               return (
                 <CommandItem
                   key={group.value}
@@ -187,6 +212,7 @@ interface Enterprise {
   api_key_count: number;
   admins: AdminInfo[];
   enterprise_type?: "formal" | "test";
+  group?: string;
 }
 
 const CERT_STATUS: Record<string, { label: string; variant: "default" | "secondary" | "destructive" | "outline" }> = {
@@ -509,6 +535,8 @@ export default function AdminEnterprises() {
     modelAccess: ["国际"] as string[],
     remarkType: "正式用户",
     remarkName: "",
+    billingMode: "realtime" as BillingMode,
+    group: GROUP_OPTIONS.filter((g) => !g.rebateEnabled)[0]?.value || "",
   });
 
   // 备注类型选项
@@ -520,6 +548,7 @@ export default function AdminEnterprises() {
   const [editTarget, setEditTarget] = useState<Enterprise | null>(null);
   const [editForm, setEditForm] = useState({
     name: "",
+    billingMode: "realtime" as BillingMode,
     group: "default",
     modelAccess: ["国际"] as string[],
     remarkType: "正式用户",
@@ -699,6 +728,7 @@ export default function AdminEnterprises() {
           owner_phone: userData.phone,
           remark: remark,
           status: "enabled",
+          group: addForm.group || null,
         })
         .select()
         .single();
@@ -725,7 +755,7 @@ export default function AdminEnterprises() {
 
       toast({ title: "企业创建成功", description: `企业「${addForm.enterpriseName}」已添加` });
       setAddDialogOpen(false);
-      setAddForm({ enterpriseName: "", adminPhone: "", modelAccess: ["国际"], remarkType: "正式用户", remarkName: "" });
+      setAddForm({ enterpriseName: "", adminPhone: "", modelAccess: ["国际"], remarkType: "正式用户", remarkName: "", billingMode: "realtime", group: GROUP_OPTIONS.filter((g) => !g.rebateEnabled)[0]?.value || "" });
       fetchData(); // 刷新企业列表
     } catch (err: any) {
       toast({ title: "创建失败", description: err.message || "未知错误", variant: "destructive" });
@@ -924,13 +954,15 @@ export default function AdminEnterprises() {
                       const parts = mockRemark.split("_");
                       const type = parts[0] && REMARK_TYPE_OPTIONS.includes(parts[0]) ? parts[0] : "正式用户";
                       const name = parts.slice(1).join("_") || "";
-                      setEditForm({
+                      setEditForm((prev) => ({
+                        ...prev,
                         name: e.name,
-                        group: "default",
+                        billingMode: GROUP_OPTIONS.find((g) => g.value === (e.group || "default"))?.rebateEnabled ? "rebate" : "realtime",
+                        group: e.group || "default",
                         modelAccess: ["国际"],
                         remarkType: type,
                         remarkName: name,
-                      });
+                      }));
                       setEditSheetOpen(true);
                     }}
                   >
@@ -1082,7 +1114,7 @@ export default function AdminEnterprises() {
               className="h-9 px-4"
               onClick={() => {
                 setAddDialogOpen(false);
-                setAddForm({ enterpriseName: "", adminPhone: "", modelAccess: ["国际"], remarkType: "正式用户", remarkName: "" });
+                setAddForm({ enterpriseName: "", adminPhone: "", modelAccess: ["国际"], remarkType: "正式用户", remarkName: "", billingMode: "realtime", group: GROUP_OPTIONS.filter((g) => !g.rebateEnabled)[0]?.value || "" });
               }}
             >
               取消
@@ -1122,6 +1154,42 @@ export default function AdminEnterprises() {
               />
             </div>
 
+            {/* 计费模式 */}
+            <div className="space-y-1.5">
+              <Label className="text-sm">
+                计费模式 <span className="text-red-500">*</span>
+              </Label>
+              <Select
+                value={editForm.billingMode}
+                onValueChange={(value) => {
+                  setEditForm((prev) => {
+                    const next = { ...prev, billingMode: value as BillingMode };
+                    const allowed = GROUP_OPTIONS.filter((group) =>
+                      value === "realtime" ? !group.rebateEnabled : group.rebateEnabled
+                    );
+                    if (!allowed.some((group) => group.value === next.group)) {
+                      next.group = allowed[0]?.value || "";
+                    }
+                    return next;
+                  });
+                }}
+              >
+                <SelectTrigger className="h-10 bg-gray-50/50 border-gray-200">
+                  <SelectValue placeholder="选择计费模式" />
+                </SelectTrigger>
+                <SelectContent>
+                  {BILLING_MODE_OPTIONS.map((mode) => (
+                    <SelectItem key={mode.value} value={mode.value}>
+                      {mode.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">
+                {BILLING_MODE_OPTIONS.find((m) => m.value === editForm.billingMode)?.description}
+              </p>
+            </div>
+
             {/* 分组 */}
             <div className="space-y-1.5">
               <Label className="text-sm">
@@ -1130,6 +1198,7 @@ export default function AdminEnterprises() {
               <GroupCombobox
                 value={editForm.group}
                 onChange={(value) => setEditForm((prev) => ({ ...prev, group: value }))}
+                billingMode={editForm.billingMode}
               />
               {editForm.group && (
                 <p className="text-xs text-muted-foreground mt-1">
@@ -1195,13 +1264,17 @@ export default function AdminEnterprises() {
                   toast({ title: "请输入企业名称", variant: "destructive" });
                   return;
                 }
+                if (!editForm.group.trim()) {
+                  toast({ title: "请选择分组", variant: "destructive" });
+                  return;
+                }
                 // 组合备注：类型_输入信息
                 const remark = `${editForm.remarkType}_${editForm.remarkName}`;
                 setSavingEnterprise(true);
                 try {
                   const { error } = await supabase
                     .from("enterprises")
-                    .update({ name: editForm.name.trim(), remark })
+                    .update({ name: editForm.name.trim(), remark, group: editForm.group })
                     .eq("id", editTarget.id);
 
                   if (error) {
