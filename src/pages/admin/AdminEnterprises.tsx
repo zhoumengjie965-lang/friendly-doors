@@ -4,7 +4,6 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -197,6 +196,170 @@ const CERT_STATUS: Record<string, { label: string; variant: "default" | "seconda
   rejected: { label: "已拒绝", variant: "destructive" },
 };
 
+// Mock 企业数据（开发测试用）
+const MOCK_ENTERPRISES: Enterprise[] = [
+  {
+    id: "mock-001",
+    name: "腾讯科技",
+    owner_phone: "13800138001",
+    enterprise_code: "TX2024001",
+    created_at: "2024-01-15T08:30:00Z",
+    cert_status: "approved",
+    status: "enabled",
+    balance: 158000.50,
+    total_consumed: 45200.00,
+    org_count: 5,
+    member_count: 128,
+    api_key_count: 12,
+    admins: [{ phone: "13800138001", name: "张三", user_type: "formal" }],
+    enterprise_type: "formal",
+  },
+  {
+    id: "mock-002",
+    name: "阿里巴巴",
+    owner_phone: "13800138002",
+    enterprise_code: "AL2024002",
+    created_at: "2024-02-20T10:15:00Z",
+    cert_status: "approved",
+    status: "enabled",
+    balance: 256000.00,
+    total_consumed: 89000.00,
+    org_count: 8,
+    member_count: 256,
+    api_key_count: 20,
+    admins: [{ phone: "13800138002", name: "李四", user_type: "formal" }],
+    enterprise_type: "formal",
+  },
+  {
+    id: "mock-003",
+    name: "字节跳动",
+    owner_phone: "13800138003",
+    enterprise_code: "BD2024003",
+    created_at: "2024-03-10T14:20:00Z",
+    cert_status: "pending",
+    status: "enabled",
+    balance: 98000.00,
+    total_consumed: 32000.00,
+    org_count: 3,
+    member_count: 89,
+    api_key_count: 8,
+    admins: [{ phone: "13800138003", name: "王五", user_type: "formal" }],
+    enterprise_type: undefined,
+  },
+  {
+    id: "mock-004",
+    name: "美团",
+    owner_phone: "13800138004",
+    enterprise_code: "MT2024004",
+    created_at: "2024-04-05T09:45:00Z",
+    cert_status: "uncertified",
+    status: "enabled",
+    balance: 45000.00,
+    total_consumed: 15000.00,
+    org_count: 2,
+    member_count: 45,
+    api_key_count: 5,
+    admins: [{ phone: "13800138004", name: "赵六", user_type: "test" }],
+    enterprise_type: undefined,
+  },
+  {
+    id: "mock-005",
+    name: "京东",
+    owner_phone: "13800138005",
+    enterprise_code: "JD2024005",
+    created_at: "2024-05-12T11:30:00Z",
+    cert_status: "approved",
+    status: "disabled",
+    balance: 320000.00,
+    total_consumed: 120000.00,
+    org_count: 10,
+    member_count: 512,
+    api_key_count: 25,
+    admins: [{ phone: "13800138005", name: "孙七", user_type: "formal" }],
+    enterprise_type: undefined,
+  },
+  {
+    id: "mock-006",
+    name: "拼多多",
+    owner_phone: "13800138006",
+    enterprise_code: "PDD2024006",
+    created_at: "2024-06-08T16:00:00Z",
+    cert_status: "rejected",
+    status: "enabled",
+    balance: 12000.00,
+    total_consumed: 8000.00,
+    org_count: 1,
+    member_count: 23,
+    api_key_count: 3,
+    admins: [{ phone: "13800138006", name: "周八", user_type: "test" }],
+    enterprise_type: "test",
+  },
+  {
+    id: "mock-007",
+    name: "小米科技",
+    owner_phone: "13800138007",
+    enterprise_code: "XM2024007",
+    created_at: "2024-07-20T08:00:00Z",
+    cert_status: "approved",
+    status: "enabled",
+    balance: 186500.00,
+    total_consumed: 65000.00,
+    org_count: 6,
+    member_count: 168,
+    api_key_count: 15,
+    admins: [{ phone: "13800138007", name: "吴九", user_type: "formal" }],
+    enterprise_type: "formal",
+  },
+  {
+    id: "mock-008",
+    name: "华为云",
+    owner_phone: "13800138008",
+    enterprise_code: "HWY2024008",
+    created_at: "2024-08-15T13:45:00Z",
+    cert_status: "pending",
+    status: "enabled",
+    balance: 500000.00,
+    total_consumed: 200000.00,
+    org_count: 12,
+    member_count: 800,
+    api_key_count: 35,
+    admins: [{ phone: "13800138008", name: "郑十", user_type: "formal" }],
+    enterprise_type: undefined,
+  },
+  {
+    id: "mock-009",
+    name: "网易",
+    owner_phone: "13800138009",
+    enterprise_code: "WY2024009",
+    created_at: "2024-09-01T10:20:00Z",
+    cert_status: "uncertified",
+    status: "enabled",
+    balance: 28000.00,
+    total_consumed: 12000.00,
+    org_count: 2,
+    member_count: 38,
+    api_key_count: 4,
+    admins: [{ phone: "13800138009", name: "钱十一", user_type: "test" }],
+    enterprise_type: undefined,
+  },
+  {
+    id: "mock-010",
+    name: "百度",
+    owner_phone: "13800138010",
+    enterprise_code: "BD2024010",
+    created_at: "2024-10-10T15:30:00Z",
+    cert_status: "approved",
+    status: "enabled",
+    balance: 375000.00,
+    total_consumed: 150000.00,
+    org_count: 9,
+    member_count: 350,
+    api_key_count: 22,
+    admins: [{ phone: "13800138010", name: "陈十二", user_type: "formal" }],
+    enterprise_type: "formal",
+  },
+];
+
 function maskPhone(phone: string) {
   if (phone.length < 7) return phone;
   return phone.slice(0, 3) + "****" + phone.slice(-4);
@@ -317,7 +480,20 @@ export default function AdminEnterprises() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [certFilter, setCertFilter] = useState<string | null>(null);
-  const [onlyWithTag, setOnlyWithTag] = useState(false);
+  const [tagFilter, setTagFilter] = useState<string>("all");
+
+  // 标签类型选项
+  const TAG_TYPE_OPTIONS = [
+    { value: "all", label: "全部标签" },
+    { value: "正式用户", label: "正式用户" },
+    { value: "内结用户", label: "内结用户" },
+    { value: "测试用户", label: "测试用户" },
+    { value: "测试用户（付费）", label: "测试用户（付费）" },
+    { value: "研发", label: "研发" },
+    { value: "演示", label: "演示" },
+    { value: "其他", label: "其他" },
+    { value: "none", label: "无标签" },
+  ];
 
   // Quick recharge dialog
   const [rechargeTarget, setRechargeTarget] = useState<Enterprise | null>(null);
@@ -346,12 +522,24 @@ export default function AdminEnterprises() {
     name: "",
     group: "default",
     modelAccess: ["国际"] as string[],
-    remark: "",
+    remarkType: "正式用户",
+    remarkName: "",
   });
   const [savingEnterprise, setSavingEnterprise] = useState(false);
 
   const fetchData = async () => {
     setLoading(true);
+
+    // 使用 mock 数据（开发测试用）
+    const useMockData = true;
+    if (useMockData) {
+      setTimeout(() => {
+        setEnterprises(MOCK_ENTERPRISES);
+        setLoading(false);
+      }, 500);
+      return;
+    }
+
     const { data: ents, error } = await supabase
       .from("enterprises")
       .select("id,name,owner_phone,enterprise_code,created_at,status")
@@ -462,7 +650,15 @@ export default function AdminEnterprises() {
         e.owner_phone.includes(search) ||
         e.enterprise_code.includes(search);
       const matchCert = certFilter ? e.cert_status === certFilter : true;
-      const matchTag = onlyWithTag ? e.enterprise_type !== undefined : true;
+      // 标签筛选逻辑
+      let matchTag = true;
+      if (tagFilter === "none") {
+        matchTag = e.enterprise_type === undefined;
+      } else if (tagFilter !== "all") {
+        // 从备注中解析标签类型进行匹配
+        // mock数据中没有实际备注，这里根据 enterprise_type 简单判断
+        matchTag = e.enterprise_type !== undefined;
+      }
       return matchSearch && matchCert && matchTag;
     }
   );
@@ -474,10 +670,6 @@ export default function AdminEnterprises() {
     }
     if (!addForm.adminPhone.trim()) {
       toast({ title: "请输入企业管理员手机号/用户ID", variant: "destructive" });
-      return;
-    }
-    if (!addForm.remarkName.trim()) {
-      toast({ title: "请输入用户真实名字", variant: "destructive" });
       return;
     }
 
@@ -594,16 +786,18 @@ export default function AdminEnterprises() {
               className="pl-9"
             />
           </div>
-          <div className="flex items-center gap-2">
-            <Checkbox
-              id="onlyWithTag"
-              checked={onlyWithTag}
-              onCheckedChange={(checked) => setOnlyWithTag(checked as boolean)}
-            />
-            <Label htmlFor="onlyWithTag" className="text-sm text-muted-foreground cursor-pointer">
-              仅展示有标签的企业
-            </Label>
-          </div>
+          <Select value={tagFilter} onValueChange={setTagFilter}>
+            <SelectTrigger className="w-[140px] h-9 bg-white">
+              <SelectValue placeholder="标签筛选" />
+            </SelectTrigger>
+            <SelectContent>
+              {TAG_TYPE_OPTIONS.map((opt) => (
+                <SelectItem key={opt.value} value={opt.value}>
+                  {opt.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
       </div>
 
@@ -725,11 +919,17 @@ export default function AdminEnterprises() {
                     title="编辑企业"
                     onClick={() => {
                       setEditTarget(e);
+                      // 解析备注格式 "类型_输入信息"
+                      const mockRemark = "正式用户_测试备注"; // 实际应从企业数据中获取
+                      const parts = mockRemark.split("_");
+                      const type = parts[0] && REMARK_TYPE_OPTIONS.includes(parts[0]) ? parts[0] : "正式用户";
+                      const name = parts.slice(1).join("_") || "";
                       setEditForm({
                         name: e.name,
                         group: "default",
                         modelAccess: ["国际"],
-                        remark: "",
+                        remarkType: type,
+                        remarkName: name,
                       });
                       setEditSheetOpen(true);
                     }}
@@ -846,9 +1046,7 @@ export default function AdminEnterprises() {
 
               {/* 备注 */}
               <div className="space-y-1.5">
-                <Label className="text-sm">
-                  备注 <span className="text-red-500">*</span>
-                </Label>
+                <Label className="text-sm">备注</Label>
                 <div className="flex gap-2">
                   <Select
                     value={addForm.remarkType}
@@ -953,15 +1151,31 @@ export default function AdminEnterprises() {
 
             {/* 备注 */}
             <div className="space-y-1.5">
-              <Label className="text-sm">
-                备注 <span className="text-red-500">*</span>
-              </Label>
-              <Input
-                placeholder="请输入备注（仅管理员可见）"
-                value={editForm.remark}
-                onChange={(e) => setEditForm((prev) => ({ ...prev, remark: e.target.value }))}
-                className="h-10 bg-gray-50/50 border-gray-200"
-              />
+              <Label className="text-sm">备注</Label>
+              <div className="flex gap-2">
+                <Select
+                  value={editForm.remarkType}
+                  onValueChange={(value) => setEditForm((prev) => ({ ...prev, remarkType: value }))}
+                >
+                  <SelectTrigger className="w-[130px] h-10 bg-gray-50/50 border-gray-200">
+                    <SelectValue placeholder="选择类型" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {REMARK_TYPE_OPTIONS.map((type) => (
+                      <SelectItem key={type} value={type}>
+                        {type}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Input
+                  placeholder="请输入信息（仅管理员可见）"
+                  value={editForm.remarkName}
+                  onChange={(e) => setEditForm((prev) => ({ ...prev, remarkName: e.target.value }))}
+                  className="h-10 bg-gray-50/50 border-gray-200 flex-1"
+                />
+              </div>
+              <p className="text-xs text-gray-400">备注格式：类型_输入信息</p>
             </div>
           </div>
 
@@ -981,15 +1195,13 @@ export default function AdminEnterprises() {
                   toast({ title: "请输入企业名称", variant: "destructive" });
                   return;
                 }
-                if (!editForm.remark.trim()) {
-                  toast({ title: "请输入备注", variant: "destructive" });
-                  return;
-                }
+                // 组合备注：类型_输入信息
+                const remark = `${editForm.remarkType}_${editForm.remarkName}`;
                 setSavingEnterprise(true);
                 try {
                   const { error } = await supabase
                     .from("enterprises")
-                    .update({ name: editForm.name.trim() })
+                    .update({ name: editForm.name.trim(), remark })
                     .eq("id", editTarget.id);
 
                   if (error) {

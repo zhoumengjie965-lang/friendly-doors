@@ -25,6 +25,12 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Building2, Users, Key, Plus, SlidersHorizontal, Pencil, UserCog, Power, Trash2, ChevronDown, Sliders, AlertTriangle } from "lucide-react";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import CreateOrgDialog from "@/components/CreateOrgDialog";
 import OrgBudgetSheet from "@/components/OrgBudgetSheet";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -281,7 +287,18 @@ export default function OrgManagement({ enterprise, role }: Props) {
               <tbody>
                 {orgs.map((org, i) => (
                   <tr key={org.id} className={`border-b border-border last:border-0 hover:bg-muted/20 transition-colors ${i % 2 === 0 ? "" : "bg-muted/10"}`}>
-                    <td className="px-6 py-4 font-medium text-foreground">{org.name}</td>
+                    <td className="px-6 py-4 font-medium text-foreground">
+                      <TooltipProvider>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <span className="cursor-pointer">{org.name}</span>
+                          </TooltipTrigger>
+                          <TooltipContent side="top">
+                            <p className="text-sm">部门ID：{org.id}</p>
+                          </TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
+                    </td>
                     <td className="px-6 py-4 text-muted-foreground">
                       {org.admin_phone
                         ? (userMap[org.admin_phone]

@@ -6,7 +6,6 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sh
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
-import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem } from "@/components/ui/command";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -52,6 +51,9 @@ const MODEL_ACCESS_OPTIONS = [
   { value: "国内", label: "国内" },
   { value: "国际", label: "国际" },
 ];
+
+// 备注类型选项
+const REMARK_TYPE_OPTIONS = ["正式用户", "内结用户", "测试用户", "测试用户（付费）", "研发", "演示", "其他"];
 
 // 绿色标签组件 - 用户标签
 function GreenTag({ type, name }: { type?: "formal" | "test"; name: string }) {
@@ -221,7 +223,20 @@ export default function AdminUsers() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [groupFilter, setGroupFilter] = useState<string>("all");
-  const [onlyWithTag, setOnlyWithTag] = useState(false);
+  const [tagFilter, setTagFilter] = useState<string>("all");
+
+  // 标签类型选项
+  const TAG_TYPE_OPTIONS = [
+    { value: "all", label: "全部标签" },
+    { value: "正式用户", label: "正式用户" },
+    { value: "内结用户", label: "内结用户" },
+    { value: "测试用户", label: "测试用户" },
+    { value: "测试用户（付费）", label: "测试用户（付费）" },
+    { value: "研发", label: "研发" },
+    { value: "演示", label: "演示" },
+    { value: "其他", label: "其他" },
+    { value: "none", label: "无标签" },
+  ];
 
   // Drawer state
   const [drawerOpen, setDrawerOpen] = useState(false);
@@ -236,7 +251,8 @@ export default function AdminUsers() {
     username: "",
     password: "",
     displayName: "",
-    remark: "",
+    remarkType: "正式用户",
+    remarkName: "",
     group: "default",
     modelAccess: [] as string[],
   });
@@ -249,7 +265,8 @@ export default function AdminUsers() {
     username: "",
     displayName: "",
     password: "",
-    remark: "",
+    remarkType: "正式用户",
+    remarkName: "",
     modelAccess: ["国际"] as string[],
   });
   const [addingUser, setAddingUser] = useState(false);
@@ -403,11 +420,17 @@ export default function AdminUsers() {
   const openDrawer = (user: UserRow) => {
     setDrawerUser(user);
     setEditBalance("");
+    // 解析备注格式 "类型_输入信息"
+    const mockRemark = "正式用户_测试备注"; // 实际应从用户数据中获取
+    const parts = mockRemark.split("_");
+    const type = parts[0] && REMARK_TYPE_OPTIONS.includes(parts[0]) ? parts[0] : "正式用户";
+    const name = parts.slice(1).join("_") || "";
     setEditForm({
       username: user.name || "",
       password: "",
       displayName: user.name || "",
-      remark: "",
+      remarkType: type,
+      remarkName: name,
       group: user.group || "default",
       modelAccess: ["国际"],
     });
@@ -471,6 +494,9 @@ export default function AdminUsers() {
       return;
     }
 
+    // 组合备注：类型_输入信息（选填）
+    const remark = addForm.remarkName.trim() ? `${addForm.remarkType}_${addForm.remarkName}` : "";
+
     setAddingUser(true);
     try {
       const { error } = await supabase.auth.signUp({
@@ -479,7 +505,7 @@ export default function AdminUsers() {
         options: {
           data: {
             name: addForm.displayName.trim() || addForm.username.trim(),
-            remark: addForm.remark.trim(),
+            remark: remark,
           },
         },
       });
@@ -491,7 +517,7 @@ export default function AdminUsers() {
 
       toast({ title: "用户创建成功", description: `用户 ${addForm.username} 已添加` });
       setAddDialogOpen(false);
-      setAddForm({ username: "", displayName: "", password: "", remark: "", modelAccess: ["国际"] });
+      setAddForm({ username: "", displayName: "", password: "", remarkType: "正式用户", remarkName: "", modelAccess: ["国际"] });
       fetchAll();
     } catch (err: any) {
       toast({ title: "创建失败", description: err.message || "未知错误", variant: "destructive" });
@@ -525,8 +551,13 @@ export default function AdminUsers() {
       return u.group === groupFilter;
     })
     .filter((u) => {
-      if (!onlyWithTag) return true;
-      return u.user_type !== undefined;
+      // 标签筛选逻辑
+      if (tagFilter === "none") {
+        return u.user_type === undefined;
+      } else if (tagFilter !== "all") {
+        return u.user_type !== undefined;
+      }
+      return true;
     });
 
   const roleLabel = (role: string) => {
@@ -579,16 +610,18 @@ export default function AdminUsers() {
             <SelectItem value="enterprise">企业用户</SelectItem>
           </SelectContent>
         </Select>
-        <div className="flex items-center gap-2 px-2">
-          <Checkbox
-            id="onlyWithTag"
-            checked={onlyWithTag}
-            onCheckedChange={(checked) => setOnlyWithTag(checked as boolean)}
-          />
-          <Label htmlFor="onlyWithTag" className="text-sm text-muted-foreground cursor-pointer whitespace-nowrap">
-            仅展示有标签的用户
-          </Label>
-        </div>
+        <Select value={tagFilter} onValueChange={setTagFilter}>
+          <SelectTrigger className="w-[140px] h-9 bg-white">
+            <SelectValue placeholder="标签筛选" />
+          </SelectTrigger>
+          <SelectContent>
+            {TAG_TYPE_OPTIONS.map((opt) => (
+              <SelectItem key={opt.value} value={opt.value}>
+                {opt.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
         <Button variant="outline" className="h-9" onClick={handleSearch}>
           查询
         </Button>
@@ -807,12 +840,30 @@ export default function AdminUsers() {
 
                   <div className="space-y-1.5">
                     <Label className="text-sm">备注</Label>
-                    <Input
-                      placeholder="请输入备注（仅管理员可见）"
-                      value={editForm.remark}
-                      onChange={(e) => setEditForm((prev) => ({ ...prev, remark: e.target.value }))}
-                      className="h-10"
-                    />
+                    <div className="flex gap-2">
+                      <Select
+                        value={editForm.remarkType}
+                        onValueChange={(value) => setEditForm((prev) => ({ ...prev, remarkType: value }))}
+                      >
+                        <SelectTrigger className="w-[130px] h-10 bg-white">
+                          <SelectValue placeholder="选择类型" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {REMARK_TYPE_OPTIONS.map((type) => (
+                            <SelectItem key={type} value={type}>
+                              {type}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <Input
+                        placeholder="请输入信息（仅管理员可见）"
+                        value={editForm.remarkName}
+                        onChange={(e) => setEditForm((prev) => ({ ...prev, remarkName: e.target.value }))}
+                        className="h-10 flex-1"
+                      />
+                    </div>
+                    <p className="text-xs text-gray-400">备注格式：类型_输入信息</p>
                   </div>
                 </div>
               </div>
@@ -941,6 +992,10 @@ export default function AdminUsers() {
                 <Button
                   className="h-9 px-4 bg-blue-600 hover:bg-blue-700 text-white"
                   onClick={() => {
+                    if (!editForm.username.trim()) {
+                      toast({ title: "请输入用户名", variant: "destructive" });
+                      return;
+                    }
                     setSavingUser(true);
                     setTimeout(() => {
                       setSavingUser(false);
@@ -1019,12 +1074,30 @@ export default function AdminUsers() {
 
               <div className="space-y-1.5">
                 <Label className="text-sm">备注</Label>
-                <Input
-                  placeholder="请输入备注（仅管理员可见）"
-                  value={addForm.remark}
-                  onChange={(e) => setAddForm((prev) => ({ ...prev, remark: e.target.value }))}
-                  className="h-10 bg-gray-50/50 border-gray-200"
-                />
+                <div className="flex gap-2">
+                  <Select
+                    value={addForm.remarkType}
+                    onValueChange={(value) => setAddForm((prev) => ({ ...prev, remarkType: value }))}
+                  >
+                    <SelectTrigger className="w-[130px] h-10 bg-gray-50/50 border-gray-200">
+                      <SelectValue placeholder="选择类型" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {REMARK_TYPE_OPTIONS.map((type) => (
+                        <SelectItem key={type} value={type}>
+                          {type}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Input
+                    placeholder="请输入信息（仅管理员可见）"
+                    value={addForm.remarkName}
+                    onChange={(e) => setAddForm((prev) => ({ ...prev, remarkName: e.target.value }))}
+                    className="h-10 bg-gray-50/50 border-gray-200 flex-1"
+                  />
+                </div>
+                <p className="text-xs text-gray-400">备注格式：类型_输入信息</p>
               </div>
 
               <div className="space-y-1.5">
@@ -1045,7 +1118,7 @@ export default function AdminUsers() {
               className="h-9 px-4"
               onClick={() => {
                 setAddDialogOpen(false);
-                setAddForm({ username: "", displayName: "", password: "", remark: "", modelAccess: ["国际"] });
+                setAddForm({ username: "", displayName: "", password: "", remarkType: "正式用户", remarkName: "", modelAccess: ["国际"] });
               }}
             >
               取消

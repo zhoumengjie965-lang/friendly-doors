@@ -564,7 +564,16 @@ export default function MemberManagement() {
                       {user.departments.length === 0 ? (
                         <span className="text-muted-foreground">-</span>
                       ) : user.departments.length === 1 ? (
-                        <span>{user.departments[0].name}</span>
+                        <TooltipProvider>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <span className="cursor-pointer">{user.departments[0].name}</span>
+                            </TooltipTrigger>
+                            <TooltipContent side="top">
+                              <p className="text-sm">部门ID：{user.departments[0].id}</p>
+                            </TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
                       ) : (
                         <TooltipProvider>
                           <Tooltip>
@@ -579,7 +588,7 @@ export default function MemberManagement() {
                             <TooltipContent side="top">
                               <div className="space-y-1">
                                 {user.departments.map((dept, idx) => (
-                                  <div key={idx} className="text-sm">{dept.name}</div>
+                                  <div key={idx} className="text-sm">{dept.name}（ID：{dept.id}）</div>
                                 ))}
                               </div>
                             </TooltipContent>

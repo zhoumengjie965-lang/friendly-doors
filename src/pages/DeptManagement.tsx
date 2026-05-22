@@ -184,9 +184,18 @@ function OrgTreeNode({
           <Network className={`h-4 w-4 ${isSelected ? "text-blue-500" : "text-gray-400"}`} />
         )}
 
-        <span className={`text-sm truncate ${isSelected ? "font-medium text-blue-600" : "text-gray-700"}`}>
-          {org.name}
-        </span>
+        <TooltipProvider>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <span className={`text-sm truncate cursor-pointer ${isSelected ? "font-medium text-blue-600" : "text-gray-700"}`}>
+                {org.name}
+              </span>
+            </TooltipTrigger>
+            <TooltipContent side="right">
+              <p className="text-sm">部门ID：{org.id}</p>
+            </TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
       </div>
 
       {isExpanded && hasChildren && (
@@ -1020,7 +1029,16 @@ export default function DeptManagement({ enterprise, role }: DeptManagementProps
                           return (
                           <TableRow key={org.id} className="border-b border-gray-50">
                             <TableCell>
-                              <div className="font-medium text-gray-900">{org.name}</div>
+                              <TooltipProvider>
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <div className="font-medium text-gray-900 cursor-pointer">{org.name}</div>
+                                  </TooltipTrigger>
+                                  <TooltipContent side="top">
+                                    <p className="text-sm">部门ID：{org.id}</p>
+                                  </TooltipContent>
+                                </Tooltip>
+                              </TooltipProvider>
                             </TableCell>
                             <TableCell className="text-sm text-gray-600">
                               {adminDetails.length > 0 ? (
@@ -1390,7 +1408,16 @@ export default function DeptManagement({ enterprise, role }: DeptManagementProps
                             return (
                             <TableRow key={org.id} className="border-b border-gray-50">
                               <TableCell>
-                                <div className="font-medium text-gray-900">{org.name}</div>
+                                <TooltipProvider>
+                                  <Tooltip>
+                                    <TooltipTrigger asChild>
+                                      <div className="font-medium text-gray-900 cursor-pointer">{org.name}</div>
+                                    </TooltipTrigger>
+                                    <TooltipContent side="top">
+                                      <p className="text-sm">部门ID：{org.id}</p>
+                                    </TooltipContent>
+                                  </Tooltip>
+                                </TooltipProvider>
                               </TableCell>
                               <TableCell className="text-sm text-gray-600">
                                 {adminDetails.length > 0 ? (
