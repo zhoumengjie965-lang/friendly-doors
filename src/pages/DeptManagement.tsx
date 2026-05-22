@@ -7,6 +7,12 @@ import {
   deleteOrganization,
   addMember,
 } from "@/lib/mockData";
+
+interface Enterprise {
+  id: string;
+  name: string;
+  enterprise_code: string;
+}
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";

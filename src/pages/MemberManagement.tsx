@@ -63,7 +63,7 @@ interface UserPoolMember {
   username: string; // 系统用户名/登录名
   status: "active" | "inactive" | "pending";
   joinTime: string;
-  departments: { name: string; role: string }[]; // 加入的部门及角色
+  departments: { id: string; name: string; role: string }[]; // 加入的部门及角色
   apiKeyCount: number; // 名下 API Key 数量
 }
 
@@ -101,8 +101,8 @@ const MOCK_USERS: UserPoolMember[] = [
     status: "active", 
     joinTime: "2024-01-15 09:30:25", 
     departments: [
-      { name: "技术部", role: "admin" },
-      { name: "产品部", role: "成员" }
+      { id: "dept-001", name: "技术部", role: "admin" },
+      { id: "dept-002", name: "产品部", role: "成员" }
     ],
     apiKeyCount: 12
   },
@@ -115,7 +115,7 @@ const MOCK_USERS: UserPoolMember[] = [
     status: "active", 
     joinTime: "2024-02-20 14:15:08", 
     departments: [
-      { name: "市场部", role: "成员" }
+      { id: "dept-003", name: "市场部", role: "成员" }
     ],
     apiKeyCount: 5
   },
@@ -139,7 +139,7 @@ const MOCK_USERS: UserPoolMember[] = [
     status: "inactive", 
     joinTime: "2024-03-05 16:20:47", 
     departments: [
-      { name: "运营部", role: "成员" }
+      { id: "dept-004", name: "运营部", role: "成员" }
     ],
     apiKeyCount: 3
   },
