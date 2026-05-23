@@ -982,6 +982,8 @@ interface UserBillDetail {
   rebateDiscount?: number;   // 返券折扣(%)
   callCount?: number;        // 调用次数（按次计费时有效）
   callPrice?: number;        // 调用单价（元/次，按次计费时有效）
+  voucherDeduction?: number; // 代金券抵扣
+  balanceDeduction?: number; // 充值余额支付
 }
 
 // Mock 数据 - 用户账单
@@ -1002,19 +1004,19 @@ const MOCK_USER_BILLS: UserBillRecord[] = [
     voucherCode: "VCBILL-2029379",
     details: [
       // gpt-4o 按量计费（第一行展示按量计费）
-      { modelName: "gpt-4o", billingType: "token", inputTokens: 125000000, outputTokens: 45000000, cacheReadTokens: 8000000, cacheCreateTokens: 2000000, inputPrice: 0.00015, outputPrice: 0.0006, cacheDiscount: 0.5, tierDiscount: 0.95, subtotal: 45800.25 },
+      { modelName: "gpt-4o", billingType: "token", inputTokens: 125000000, outputTokens: 45000000, cacheReadTokens: 8000000, cacheCreateTokens: 2000000, inputPrice: 0.00015, outputPrice: 0.0006, cacheDiscount: 0.5, tierDiscount: 1, subtotal: 45800.25, voucherDeduction: 5000, balanceDeduction: 40800.25 },
       // whisper-1 按次计费（语音转文字）
-      { modelName: "whisper-1", billingType: "call", inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheCreateTokens: 0, inputPrice: 0, outputPrice: 0, cacheDiscount: 1, tierDiscount: 0.95, subtotal: 4100.00, callCount: 8200, callPrice: 0.5 },
+      { modelName: "whisper-1", billingType: "call", inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheCreateTokens: 0, inputPrice: 0, outputPrice: 0, cacheDiscount: 1, tierDiscount: 1, subtotal: 4100.00, callCount: 8200, callPrice: 0.5, voucherDeduction: 0, balanceDeduction: 4100.00 },
       // claude-3.5-sonnet 按量计费
-      { modelName: "claude-3.5-sonnet", billingType: "token", inputTokens: 98000000, outputTokens: 32000000, cacheReadTokens: 5000000, cacheCreateTokens: 1500000, inputPrice: 0.00016, outputPrice: 0.0008, cacheDiscount: 0.5, tierDiscount: 0.92, subtotal: 38500.80 },
+      { modelName: "claude-3.5-sonnet", billingType: "token", inputTokens: 98000000, outputTokens: 32000000, cacheReadTokens: 5000000, cacheCreateTokens: 1500000, inputPrice: 0.00016, outputPrice: 0.0008, cacheDiscount: 0.5, tierDiscount: 1, subtotal: 38500.80, voucherDeduction: 3000, balanceDeduction: 35500.80 },
       // text-embedding-3 按次计费（嵌入模型）
-      { modelName: "text-embedding-3", billingType: "call", inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheCreateTokens: 0, inputPrice: 0, outputPrice: 0, cacheDiscount: 1, tierDiscount: 0.90, subtotal: 1720.00, callCount: 4300, callPrice: 0.4 },
+      { modelName: "text-embedding-3", billingType: "call", inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheCreateTokens: 0, inputPrice: 0, outputPrice: 0, cacheDiscount: 1, tierDiscount: 1, subtotal: 1720.00, callCount: 4300, callPrice: 0.4, voucherDeduction: 0, balanceDeduction: 1720.00 },
       // glm-4 按量计费
-      { modelName: "glm-4", billingType: "token", inputTokens: 65000000, outputTokens: 28000000, cacheReadTokens: 3000000, cacheCreateTokens: 1000000, inputPrice: 0.0001, outputPrice: 0.0005, cacheDiscount: 0.6, tierDiscount: 0.90, subtotal: 24700.45 },
+      { modelName: "glm-4", billingType: "token", inputTokens: 65000000, outputTokens: 28000000, cacheReadTokens: 3000000, cacheCreateTokens: 1000000, inputPrice: 0.0001, outputPrice: 0.0005, cacheDiscount: 0.6, tierDiscount: 1, subtotal: 24700.45, voucherDeduction: 2000, balanceDeduction: 22700.45 },
       // dall-e-3 按次计费（图像生成）
-      { modelName: "dall-e-3", billingType: "call", inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheCreateTokens: 0, inputPrice: 0, outputPrice: 0, cacheDiscount: 1, tierDiscount: 0.92, subtotal: 5120.00, callCount: 6400, callPrice: 0.8 },
+      { modelName: "dall-e-3", billingType: "call", inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheCreateTokens: 0, inputPrice: 0, outputPrice: 0, cacheDiscount: 1, tierDiscount: 1, subtotal: 5120.00, callCount: 6400, callPrice: 0.8, voucherDeduction: 0, balanceDeduction: 5120.00 },
       // tts-1 按次计费（语音合成）
-      { modelName: "tts-1", billingType: "call", inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheCreateTokens: 0, inputPrice: 0, outputPrice: 0, cacheDiscount: 1, tierDiscount: 0.95, subtotal: 3600.00, callCount: 12000, callPrice: 0.3 },
+      { modelName: "tts-1", billingType: "call", inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheCreateTokens: 0, inputPrice: 0, outputPrice: 0, cacheDiscount: 1, tierDiscount: 1, subtotal: 3600.00, callCount: 12000, callPrice: 0.3, voucherDeduction: 0, balanceDeduction: 3600.00 },
     ]
   },
   {
@@ -1502,7 +1504,9 @@ function UserBillManagement() {
                         <th colSpan={8} className="px-3 py-1.5 text-center font-medium text-muted-foreground border-b border-r bg-muted/30">按量计费</th>
                         <th colSpan={2} className="px-3 py-1.5 text-center font-medium text-muted-foreground border-b border-r bg-muted/30">按次计费</th>
                         <th rowSpan={2} className="px-3 py-2.5 text-center font-medium text-muted-foreground border-r">阶梯折扣</th>
-                        <th rowSpan={2} className="px-3 py-2.5 text-right font-medium text-muted-foreground">单项费用</th>
+                        <th rowSpan={2} className="px-3 py-2.5 text-right font-medium text-muted-foreground border-r">单项费用</th>
+                        <th rowSpan={2} className="px-3 py-2.5 text-right font-medium text-muted-foreground border-r">代金券抵扣</th>
+                        <th rowSpan={2} className="px-3 py-2.5 text-right font-medium text-muted-foreground">充值余额支付</th>
                       </tr>
                       {/* 二级表头 */}
                       <tr className="border-b">
@@ -1553,7 +1557,9 @@ function UserBillManagement() {
                             <td className="px-3 py-2 text-center border-r">
                               <span className="text-green-600">{(detail.tierDiscount * 100).toFixed(0)}%</span>
                             </td>
-                            <td className="px-3 py-2 text-right font-mono font-medium">{formatCurrency(detail.subtotal)}</td>
+                            <td className="px-3 py-2 text-right font-mono font-medium border-r">{formatCurrency(detail.subtotal)}</td>
+                            <td className="px-3 py-2 text-right font-mono font-medium border-r text-amber-600">{formatCurrency(detail.voucherDeduction ?? 0)}</td>
+                            <td className="px-3 py-2 text-right font-mono font-medium">{formatCurrency(detail.balanceDeduction ?? detail.subtotal)}</td>
                           </tr>
                         );
                       })}
@@ -1565,6 +1571,8 @@ function UserBillManagement() {
                         const totalCacheReadTokens = sortedDetails.reduce((sum, d) => sum + d.cacheReadTokens, 0);
                         const totalCacheCreateTokens = sortedDetails.reduce((sum, d) => sum + d.cacheCreateTokens, 0);
                         const totalCallCount = sortedDetails.reduce((sum, d) => sum + (d.callCount || 0), 0);
+                        const totalVoucherDeduction = sortedDetails.reduce((sum, d) => sum + (d.voucherDeduction ?? 0), 0);
+                        const totalBalanceDeduction = sortedDetails.reduce((sum, d) => sum + (d.balanceDeduction ?? d.subtotal), 0);
                         return (
                           <tr className="bg-muted/50 border-t-2 border-muted font-medium">
                             <td className="px-3 py-3 font-medium text-muted-foreground" colSpan={3}>月度汇总</td>
@@ -1582,12 +1590,17 @@ function UserBillManagement() {
                             <td className="px-3 py-3 text-right font-mono border-r">-</td>
                             {/* 公共列 */}
                             <td className="px-3 py-3 text-center border-r">-</td>
-                            <td className="px-3 py-3 text-right font-mono font-bold text-green-700">{formatCurrency(previewBill.totalAmount)}</td>
+                            <td className="px-3 py-3 text-right font-mono font-bold text-green-700 border-r">{formatCurrency(previewBill.totalAmount)}</td>
+                            <td className="px-3 py-3 text-right font-mono font-bold text-amber-600 border-r">{formatCurrency(totalVoucherDeduction)}</td>
+                            <td className="px-3 py-3 text-right font-mono font-bold">{formatCurrency(totalBalanceDeduction)}</td>
                           </tr>
                         );
                       })()}
                     </tbody>
                   </table>
+                  <div className="px-3 py-2 text-xs text-muted-foreground border-t bg-muted/20">
+                    说明：本期可开票金额为充值余额支付金额，代金券抵扣金额不可开票。
+                  </div>
                 </div>
               </div>
 
@@ -1858,25 +1871,28 @@ function UserBillManagement() {
                     <thead className="bg-blue-50 border-b">
                       <tr>
                         <th className="px-3 py-2 text-left font-medium text-muted-foreground">模型名称</th>
-                        <th className="px-3 py-2 text-right font-medium text-muted-foreground">账单金额</th>
+                        <th className="px-3 py-2 text-right font-medium text-muted-foreground">充值余额支付</th>
                         <th className="px-3 py-2 text-right font-medium text-muted-foreground">返券折扣</th>
                         <th className="px-3 py-2 text-right font-medium text-muted-foreground">应返券金额</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y">
-                      {rebateBill.details.map((d, i) => (
-                        <tr key={i} className="hover:bg-muted/20">
-                          <td className="px-3 py-2">
-                            <Badge variant="outline" className="text-xs font-mono">{d.modelName}</Badge>
-                          </td>
-                          <td className="px-3 py-2 text-right font-mono">{formatCurrency(d.subtotal)}</td>
-                          <td className="px-3 py-2 text-right font-mono">{d.rebateDiscount ?? 0}%</td>
-                          <td className="px-3 py-2 text-right font-mono text-blue-600">{formatCurrency(d.subtotal * (d.rebateDiscount ?? 0) / 100)}</td>
-                        </tr>
-                      ))}
+                      {rebateBill.details.map((d, i) => {
+                        const deduction = d.balanceDeduction ?? d.subtotal;
+                        return (
+                          <tr key={i} className="hover:bg-muted/20">
+                            <td className="px-3 py-2">
+                              <Badge variant="outline" className="text-xs font-mono">{d.modelName}</Badge>
+                            </td>
+                            <td className="px-3 py-2 text-right font-mono">{formatCurrency(deduction)}</td>
+                            <td className="px-3 py-2 text-right font-mono">{d.rebateDiscount ?? 0}%</td>
+                            <td className="px-3 py-2 text-right font-mono text-blue-600">{formatCurrency(deduction * (d.rebateDiscount ?? 0) / 100)}</td>
+                          </tr>
+                        );
+                      })}
                       <tr className="bg-blue-50 font-medium">
                         <td className="px-3 py-2">合计</td>
-                        <td className="px-3 py-2 text-right font-mono">{formatCurrency(rebateBill.details.reduce((sum, d) => sum + d.subtotal, 0))}</td>
+                        <td className="px-3 py-2 text-right font-mono">{formatCurrency(rebateBill.details.reduce((sum, d) => sum + (d.balanceDeduction ?? d.subtotal), 0))}</td>
                         <td className="px-3 py-2 text-right"></td>
                         <td className="px-3 py-2 text-right font-mono text-blue-600">{formatCurrency(rebateBill.rebateAmount || 0)}</td>
                       </tr>
