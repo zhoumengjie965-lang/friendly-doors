@@ -12,7 +12,7 @@ import {
 } from "@/components/ui/tooltip";
 import {
   RefreshCw, Settings, ChevronDown, ChevronUp, Activity, ClipboardList,
-  Shield, Calendar, X,
+  Shield, Calendar, X, Download,
 } from "lucide-react";
 import {
   Pagination, PaginationContent, PaginationItem, PaginationLink,
@@ -30,18 +30,53 @@ interface Props {
   orgList?: OrgInfo[];
 }
 
+// ── Helpers ──
+function downloadCSV(filename: string, content: string) {
+  const blob = new Blob(["\uFEFF" + content], { type: "text/csv;charset=utf-8;" });
+  const link = document.createElement("a");
+  link.href = URL.createObjectURL(blob);
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(link.href);
+}
+
+function getCsvValue(row: typeof mockUsageLogs[0], header: string): string {
+  const map: Record<string, string> = {
+    "时间": row.time,
+    "APIKey": row.apiKey,
+    "分组": row.group,
+    "类型": row.type,
+    "模型": String(row.model ?? ""),
+    "用时/首字": String(row.duration ?? ""),
+    "输入": String(row.input ?? ""),
+    "输出": String(row.output ?? ""),
+    "花费": `¥${Number(row.cost).toFixed(4)}`,
+    "详情": row.detail,
+    "组织": row.org ?? "",
+    "成员": row.member ?? "",
+  };
+  const v = map[header] ?? "";
+  // escape CSV special chars
+  if (v.includes(",") || v.includes('"') || v.includes("\n")) {
+    return `"${v.replace(/"/g, '""')}"`;
+  }
+  return v;
+}
+
 // ── Mock data ──
 const mockUsageLogs = [
-  { time: "2026-03-03 11:15:44", apiKey: "test", group: "default", org: "技术部", member: "张三", type: "错误", model: "mock-error", duration: "0s", streaming: "非流", input: 0, output: 0, cost: 0, ip: "10.244.109.64", detail: "Incorrect API key provided. You can find your API key at https://***.com/***/**" },
-  { time: "2026-03-03 11:14:22", apiKey: "prod", group: "default", org: "产品部", member: "李四", type: "消费", model: "gpt-4o", duration: "1.2s", streaming: "流式", input: 156, output: 312, cost: 0.003, ip: "10.244.109.65", detail: "Request completed successfully." },
-  { time: "2026-03-03 11:13:01", apiKey: "test", group: "dev", org: "技术部", member: "王五", type: "错误", model: "mock-error", duration: "0s", streaming: "非流", input: 0, output: 0, cost: 0, ip: "10.244.109.66", detail: "Rate limit exceeded. Please try again later." },
-  { time: "2026-03-03 11:12:55", apiKey: "prod", group: "default", org: "产品部", member: "赵六", type: "消费", model: "claude-3-5-sonnet", duration: "2.3s", streaming: "流式", input: 240, output: 480, cost: 0.008, ip: "10.244.109.67", detail: "Request completed successfully." },
-  { time: "2026-03-03 11:11:33", apiKey: "dev-key", group: "dev", org: "研发部", member: "陈七", type: "消费", model: "gpt-4o-mini", duration: "0.8s", streaming: "非流", input: 88, output: 120, cost: 0.001, ip: "10.244.109.68", detail: "Request completed successfully." },
-  { time: "2026-03-03 11:10:14", apiKey: "test", group: "default", org: "技术部", member: "张三", type: "错误", model: "mock-error", duration: "0s", streaming: "非流", input: 0, output: 0, cost: 0, ip: "10.244.109.64", detail: "Incorrect API key provided." },
-  { time: "2026-03-03 11:09:02", apiKey: "prod", group: "finance", org: "财务部", member: "周八", type: "消费", model: "gpt-4o", duration: "1.8s", streaming: "流式", input: 320, output: 640, cost: 0.012, ip: "10.244.109.69", detail: "Request completed successfully." },
-  { time: "2026-03-03 11:08:47", apiKey: "dev-key", group: "dev", org: "研发部", member: "吴九", type: "消费", model: "claude-3-haiku", duration: "0.5s", streaming: "非流", input: 64, output: 96, cost: 0.001, ip: "10.244.109.70", detail: "Request completed successfully." },
-  { time: "2026-03-03 11:07:30", apiKey: "test", group: "default", org: "技术部", member: "郑十", type: "错误", model: "mock-error", duration: "0s", streaming: "非流", input: 0, output: 0, cost: 0, ip: "10.244.109.64", detail: "Incorrect API key provided." },
-  { time: "2026-03-03 11:06:15", apiKey: "prod", group: "default", org: "产品部", member: "李四", type: "消费", model: "gpt-4o", duration: "1.5s", streaming: "流式", input: 200, output: 400, cost: 0.007, ip: "10.244.109.71", detail: "Request completed successfully." },
+  { time: "2026-05-27 08:36:04", apiKey: "通用分组key", group: "default", org: "技术部", member: "张三", type: "消费", model: "suno_brics", duration: "0.1", streaming: "流首", input: 0, output: 0, cost: 0.029968, ip: "10.244.109.64", detail: "价格：¥0.030000 * 专属倍率：1" },
+  { time: "2026-05-27 08:36:01", apiKey: "通用分组key", group: "default", org: "技术部", member: "张三", type: "错误", model: "gpt-oss-120b", duration: "0.0", streaming: "异常", input: 0, output: 0, cost: 0, ip: "10.244.109.64", detail: "分组gpt官网 下模型 gpt-oss-120b 无可用通道（distribution error）" },
+  { time: "2026-05-27 08:35:54", apiKey: "通用分组key", group: "default", org: "技术部", member: "张三", type: "错误", model: "gpt-oss-120b", duration: "0.0", streaming: "异常", input: 0, output: 0, cost: 0, ip: "10.244.109.64", detail: "分组gpt官网 下模型 gpt-oss-120b 无可用通道（distribution error）" },
+  { time: "2026-05-27 08:35:48", apiKey: "通用分组key", group: "default", org: "技术部", member: "张三", type: "错误", model: "gpt-oss-120b", duration: "0.0", streaming: "异常", input: 0, output: 0, cost: 0, ip: "10.244.109.64", detail: "分组gpt官网 下模型 gpt-oss-120b 无可用通道（distribution error）" },
+  { time: "2026-05-27 08:35:42", apiKey: "通用分组key", group: "default", org: "技术部", member: "张三", type: "消费", model: "qwen2.5-flash", duration: "2.1", streaming: "流首", input: 11, output: 272, cost: 0.001974, ip: "10.244.109.64", detail: "模型：0.085714286 * 分组倍率：1" },
+  { time: "2026-05-27 08:35:40", apiKey: "通用分组key", group: "default", org: "技术部", member: "张三", type: "消费", model: "gpt-4o", duration: "1.1", streaming: "流首", input: 8, output: 11, cost: 0.000910, ip: "10.244.109.64", detail: "模型：1.25 * 分组倍率：1" },
+  { time: "2026-05-27 08:35:39", apiKey: "通用分组key", group: "default", org: "技术部", member: "张三", type: "消费", model: "gpt-4o", duration: "1.1", streaming: "流首", input: 7, output: 11, cost: 0.001274, ip: "10.244.109.64", detail: "模型：1.25 * 分组倍率：1" },
+  { time: "2026-05-27 08:35:38", apiKey: "通用分组key", group: "default", org: "技术部", member: "张三", type: "消费", model: "glm-5.1", duration: "6.1", streaming: "流首", input: 6, output: 194, cost: 0.004090, ip: "10.244.109.64", detail: "模型：0.042857143 * 分组倍率：1" },
+  { time: "2026-05-27 08:35:33", apiKey: "通用分组key", group: "default", org: "技术部", member: "张三", type: "消费", model: "qwen2.5-max-preview", duration: "10.1", streaming: "流首", input: 11, output: 354, cost: 0.019222, ip: "10.244.109.64", detail: "模型：0.642857143 * 分组倍率：1" },
+  { time: "2026-05-27 08:35:31", apiKey: "通用分组key", group: "default", org: "技术部", member: "张三", type: "消费", model: "deepseek-v4-flash", duration: "3.1", streaming: "流首", input: 5, output: 222, cost: 0.000448, ip: "10.244.109.64", detail: "模型：0.071428571 * 分组倍率：1" },
 ];
 
 // ── Merged task logs (drawing + async tasks) ──
@@ -75,6 +110,7 @@ const apiKeyColors: Record<string, string> = {
   test: "bg-gray-700 text-white",
   prod: "bg-blue-700 text-white",
   "dev-key": "bg-violet-700 text-white",
+  "通用分组key": "bg-indigo-600 text-white",
 };
 function getApiKeyColor(key: string) {
   return apiKeyColors[key] ?? "bg-gray-600 text-white";
@@ -215,6 +251,8 @@ function CallLogsTab({ role, globalOrg, globalMember }: {
   const [pageSize, setPageSize] = useState(10);
   const [filterGroup, setFilterGroup] = useState("all");
   const [filterType, setFilterType] = useState("all");
+  const [exportOpen, setExportOpen] = useState(false);
+  const [exporting, setExporting] = useState(false);
 
   const isEnterpriseAdmin = role === "enterprise_admin";
   const isOrgAdmin = role === "org_admin";
@@ -248,21 +286,55 @@ function CallLogsTab({ role, globalOrg, globalMember }: {
     setPage(1);
   };
 
+  const dateStart = "2026-03-03 00:00:00";
+  const dateEnd = "2026-03-03 23:59:59";
+  const dateDiffDays = Math.ceil(
+    (new Date(dateEnd.replace(/-/g, "/")).getTime() - new Date(dateStart.replace(/-/g, "/")).getTime()) /
+    (1000 * 60 * 60 * 24)
+  );
+  const exceedLimit = filtered.length > 100000 || dateDiffDays > 31;
+
+  const handleExport = () => {
+    if (exceedLimit) return;
+    setExporting(true);
+    setTimeout(() => {
+      const csvContent = [
+        headers.join(","),
+        ...filtered.map(row => headers.map(h => getCsvValue(row, h)).join(",")),
+      ].join("\n");
+      const filename = `调用日志_${dateStart.replace(/[:\s]/g, "")}_${dateEnd.replace(/[:\s]/g, "")}.csv`;
+      downloadCSV(filename, csvContent);
+      setExporting(false);
+      setExportOpen(false);
+    }, 800);
+  };
+
   return (
     <div className="space-y-4">
       {/* Filter bar */}
       <div className="bg-card border border-border rounded-xl p-4">
         <div className="flex flex-wrap items-center gap-3">
           <div className="flex items-center gap-1 border border-border rounded-md px-3 h-9 text-sm text-foreground bg-background whitespace-nowrap">
-            <span>2026-03-03 00:00:00</span>
+            <span>{dateStart}</span>
             <span className="mx-1 text-muted-foreground">→</span>
-            <span>2026-03-03 23:59:59</span>
+            <span>{dateEnd}</span>
             <Calendar className="w-4 h-4 ml-2 text-muted-foreground" />
           </div>
           <Input className="h-9 w-40 text-sm" placeholder="APIKey名称" value={filterApiKey} onChange={e => setFilterApiKey(e.target.value)} />
           <Input className="h-9 w-36 text-sm" placeholder="模型名称" value={filterModel} onChange={e => setFilterModel(e.target.value)} />
           <Button size="sm" className="h-9">搜索</Button>
           <Button size="sm" variant="outline" className="h-9" onClick={handleReset}>重置</Button>
+          <div className="flex-1" />
+          <Button
+            size="sm"
+            variant="outline"
+            className="h-9 gap-1"
+            onClick={() => setExportOpen(true)}
+            disabled={exporting}
+          >
+            <Download className="w-4 h-4" />
+            导出
+          </Button>
         </div>
       </div>
 
@@ -388,7 +460,10 @@ function CallLogsTab({ role, globalOrg, globalMember }: {
                       : <span className="bg-green-100 text-green-600 border border-green-200 text-xs px-1.5 py-0.5 rounded">消费</span>
                     }
                   </td>
-...
+                  <td className="px-3 py-2.5 text-xs text-foreground">{row.model}</td>
+                  <td className="px-3 py-2.5 text-xs text-foreground">{row.duration}</td>
+                  <td className="px-3 py-2.5 text-xs text-foreground">{row.input}</td>
+                  <td className="px-3 py-2.5 text-xs text-foreground">{row.output}</td>
                   <td className="px-3 py-2.5 text-xs text-foreground">¥{Number(row.cost).toFixed(4)}</td>
                   <td className="px-3 py-2.5 text-xs text-muted-foreground max-w-[200px] truncate">{row.detail}</td>
                 </tr>
@@ -404,6 +479,47 @@ function CallLogsTab({ role, globalOrg, globalMember }: {
           onPageSizeChange={setPageSize}
         />
       </div>
+
+      {/* Export confirm dialog */}
+      <Dialog open={exportOpen} onOpenChange={setExportOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>导出调用日志</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3 text-sm">
+            <div className="flex items-center justify-between">
+              <span className="text-muted-foreground">时间范围</span>
+              <span className="font-medium">{dateStart} ~ {dateEnd}</span>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-muted-foreground">导出条数</span>
+              <span className="font-medium">{filtered.length.toLocaleString()} 条</span>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-muted-foreground">文件格式</span>
+              <span className="font-medium">CSV</span>
+            </div>
+            {filtered.length > 100000 && (
+              <div className="bg-red-50 border border-red-200 rounded-md p-3 text-red-600">
+                导出条数超过 10 万条限制，请缩小时间范围或增加筛选条件后再试。
+              </div>
+            )}
+            {dateDiffDays > 31 && (
+              <div className="bg-red-50 border border-red-200 rounded-md p-3 text-red-600">
+                时间跨度超过 31 天限制，请缩小时间范围后再试。
+              </div>
+            )}
+          </div>
+          <div className="flex justify-end gap-2 mt-4">
+            <Button variant="outline" size="sm" onClick={() => setExportOpen(false)} disabled={exporting}>
+              取消
+            </Button>
+            <Button size="sm" onClick={handleExport} disabled={exporting || exceedLimit}>
+              {exporting ? "导出中…" : "确认导出"}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

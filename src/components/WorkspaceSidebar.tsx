@@ -9,7 +9,7 @@ import { Collapsible, CollapsibleTrigger, CollapsibleContent } from "@/component
 import {
   LayoutGrid, Key, BarChart3, FileText, Building2, Users,
   ChevronDown, ChevronRight, Wallet, Network, Settings, UserCog, UserCircle,
-  Receipt, UserPlus
+  Receipt, UserPlus, PieChart
 } from "lucide-react";
 
 interface NavChild { title: string; url: string; icon: React.ElementType }
@@ -25,6 +25,7 @@ const enterpriseNavItems: NavItem[] = [
     title: "企业管理", icon: Building2, children: [
       { title: "企业信息", url: "/workspace/enterprise/info", icon: Settings },
       { title: "账户余额", url: "/workspace/enterprise/balance", icon: Wallet },
+      { title: "费用总览", url: "/workspace/enterprise/cost-overview", icon: PieChart },
       { title: "费用账单", url: "/workspace/enterprise/bills", icon: Receipt },
     ],
   },
@@ -39,6 +40,7 @@ const personalNavItems: NavItem[] = [
   { title: "资源统计", url: "/workspace/stats", icon: BarChart3 },
   { title: "调用日志", url: "/workspace/logs", icon: FileText },
   { title: "余额充值", url: "/workspace/balance", icon: Wallet },
+  { title: "费用总览", url: "/workspace/cost-overview", icon: PieChart },
   { title: "个人中心", url: "/workspace/profile", icon: UserCircle },
 ];
 
