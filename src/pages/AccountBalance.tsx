@@ -35,6 +35,8 @@ interface BalanceRecord {
   balance_after: number; // 操作后余额
   operator: string | null;
   remark: string | null;
+  expiryDate?: string | null; // 代金券有效期
+  remainingAmount?: number; // 代金券剩余金额
   created_at: string;
 }
 
@@ -65,20 +67,22 @@ export default function AccountBalance({ enterprise, role }: Props) {
 
   // Mock 数据（已按时间倒序）
   const allMockRecords: BalanceRecord[] = [
-    { id: "v1", type: "voucher_recharge", source: "系统", amount: 11492.55, balance_after: 12092.55, operator: "系统", remark: "2026-03 账期返券", created_at: "2026-04-02T10:30:00" },
+    { id: "v1", type: "voucher_recharge", source: "系统", amount: 11492.55, balance_after: 12092.55, operator: "系统", remark: "2026-03 账期返券", expiryDate: "2026-05-31T23:59:59", remainingAmount: 11492.55, created_at: "2026-04-02T10:30:00" },
     { id: "r1", type: "redeem_recharge", source: "兑换码充值", amount: 500, balance_after: 550, operator: "18833334444", remark: "兑换码: TEST2024", created_at: "2026-02-27T14:25:48" },
     { id: "r2", type: "admin_recharge", source: "后台充值", amount: 100, balance_after: 650, operator: "管理员", remark: "后台手动充值", created_at: "2026-02-27T14:25:48" },
     { id: "a1", type: "admin_adjust", source: "后台调额", amount: -50, balance_after: 600, operator: "管理员", remark: "额度调整", created_at: "2026-02-26T10:30:00" },
   ];
 
-  const filteredRecords = allMockRecords.filter((r) => {
+  // 充值记录（排除代金券）
+  const rechargeRecords = allMockRecords.filter((r) => r.type !== "voucher_recharge").filter((r) => {
     if (typeFilter !== "all") {
       return r.type === typeFilter;
     }
     return true;
   });
 
-  const records = filteredRecords;
+  // 代金券记录
+  const voucherRecords = allMockRecords.filter((r) => r.type === "voucher_recharge");
 
   // Alert settings
   const [alertMethod, setAlertMethod] = useState("email");
@@ -312,7 +316,7 @@ export default function AccountBalance({ enterprise, role }: Props) {
                 variant="default"
                 size="sm"
                 className="h-8 text-sm"
-                disabled={records.length === 0}
+                disabled={rechargeRecords.length === 0}
               >
                 <Download className="w-3.5 h-3.5 mr-1" />
                 下载
@@ -323,7 +327,6 @@ export default function AccountBalance({ enterprise, role }: Props) {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">全部类型</SelectItem>
-                  <SelectItem value="voucher_recharge">代金券</SelectItem>
                   <SelectItem value="redeem_recharge">兑换充值</SelectItem>
                   <SelectItem value="admin_recharge">后台充值</SelectItem>
                   <SelectItem value="admin_adjust">后台调额</SelectItem>
@@ -345,7 +348,7 @@ export default function AccountBalance({ enterprise, role }: Props) {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {records.length === 0 ? (
+              {rechargeRecords.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={6}>
                     <div className="flex flex-col items-center justify-center py-12 text-muted-foreground gap-3">
@@ -355,7 +358,7 @@ export default function AccountBalance({ enterprise, role }: Props) {
                   </TableCell>
                 </TableRow>
               ) : (
-                records.map((r) => (
+                rechargeRecords.map((r) => (
                   <TableRow key={r.id} className="hover:bg-muted/30">
                     <TableCell className="text-sm text-muted-foreground">{r.id}</TableCell>
                     <TableCell className="text-sm">
@@ -386,9 +389,9 @@ export default function AccountBalance({ enterprise, role }: Props) {
         </div>
 
         {/* Pagination */}
-        {records.length > 0 && (
+        {rechargeRecords.length > 0 && (
           <div className="flex items-center justify-between pt-2">
-            <p className="text-sm text-muted-foreground">共 {records.length} 条记录</p>
+            <p className="text-sm text-muted-foreground">共 {rechargeRecords.length} 条记录</p>
             <div className="flex items-center gap-2">
               <Button
                 variant="outline" size="sm"
@@ -403,6 +406,102 @@ export default function AccountBalance({ enterprise, role }: Props) {
                 variant="outline" size="sm"
                 disabled
               >
+                <ChevronRight className="w-4 h-4" />
+              </Button>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* 代金券记录 */}
+      <div className="bg-card border border-border rounded-xl p-6 space-y-4">
+        <div className="flex items-center justify-between">
+          <h2 className="font-semibold text-foreground">代金券记录</h2>
+        </div>
+        <div className="rounded-lg border border-border overflow-hidden">
+          <Table>
+            <TableHeader>
+              <TableRow className="bg-muted/50 hover:bg-muted/50">
+                <TableHead className="text-muted-foreground">代金券编号</TableHead>
+                <TableHead className="text-muted-foreground">金额</TableHead>
+                <TableHead className="text-muted-foreground">剩余金额</TableHead>
+                <TableHead className="text-muted-foreground">使用状态</TableHead>
+                <TableHead className="text-muted-foreground">发放时间</TableHead>
+                <TableHead className="text-muted-foreground">有效期至</TableHead>
+                <TableHead className="text-muted-foreground">备注</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {voucherRecords.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={7}>
+                    <div className="flex flex-col items-center justify-center py-12 text-muted-foreground gap-3">
+                      <Inbox className="w-10 h-10 opacity-30" />
+                      <p className="text-sm">暂无代金券记录</p>
+                    </div>
+                  </TableCell>
+                </TableRow>
+              ) : (
+                voucherRecords.map((r) => {
+                  const remaining = r.remainingAmount ?? r.amount;
+                  const expired = r.expiryDate ? new Date(r.expiryDate) < new Date() : false;
+                  let statusLabel = "使用中";
+                  let statusClass = "bg-green-500 text-white border-green-500";
+                  if (remaining <= 0) {
+                    statusLabel = "已用完";
+                    statusClass = "text-orange-600 border-orange-200 bg-orange-50";
+                  } else if (expired) {
+                    statusLabel = "已过期";
+                    statusClass = "text-gray-500 border-gray-200 bg-gray-50";
+                  }
+                  return (
+                    <TableRow key={r.id} className="hover:bg-muted/30">
+                      <TableCell className="text-sm font-mono text-muted-foreground">{r.id}</TableCell>
+                      <TableCell className="font-semibold text-primary">
+                        +¥{Math.abs(r.amount).toFixed(2)}
+                      </TableCell>
+                      <TableCell className="text-sm text-muted-foreground">
+                        ¥{remaining.toFixed(2)}
+                      </TableCell>
+                      <TableCell>
+                        <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium ${statusClass}`}>
+                          {statusLabel}
+                        </span>
+                      </TableCell>
+                      <TableCell className="text-sm text-muted-foreground whitespace-nowrap">
+                        {new Date(r.created_at).toLocaleString("zh-CN", {
+                          year: "numeric",
+                          month: "2-digit",
+                          day: "2-digit",
+                          hour: "2-digit",
+                          minute: "2-digit",
+                          second: "2-digit",
+                        }).replace(/\//g, "-")}
+                      </TableCell>
+                      <TableCell className="text-sm text-muted-foreground whitespace-nowrap">
+                        {r.expiryDate
+                          ? new Date(r.expiryDate).toLocaleString("zh-CN", { year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false }).replace(/\//g, "-")
+                          : "—"}
+                      </TableCell>
+                      <TableCell className="text-sm text-muted-foreground max-w-xs truncate">
+                        {r.remark ?? "—"}
+                      </TableCell>
+                    </TableRow>
+                  );
+                })
+              )}
+            </TableBody>
+          </Table>
+        </div>
+        {voucherRecords.length > 0 && (
+          <div className="flex items-center justify-between pt-2">
+            <p className="text-sm text-muted-foreground">共 {voucherRecords.length} 条记录</p>
+            <div className="flex items-center gap-2">
+              <Button variant="outline" size="sm" disabled>
+                <ChevronLeft className="w-4 h-4" />
+              </Button>
+              <span className="text-sm text-muted-foreground">1 / 1</span>
+              <Button variant="outline" size="sm" disabled>
                 <ChevronRight className="w-4 h-4" />
               </Button>
             </div>

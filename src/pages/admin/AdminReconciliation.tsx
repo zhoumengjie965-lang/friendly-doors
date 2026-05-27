@@ -40,7 +40,7 @@ import {
   CommandList,
 } from "@/components/ui/command";
 import { cn } from "@/lib/utils";
-import { format, subDays, startOfMonth, endOfMonth } from "date-fns";
+import { format, subDays, startOfMonth, endOfMonth, addDays } from "date-fns";
 import { zhCN } from "date-fns/locale";
 import {
   Upload,
@@ -54,6 +54,7 @@ import {
   TrendingDown,
   DollarSign,
   AlertCircle,
+  Info,
   Table2,
   Receipt,
   FileText,
@@ -964,6 +965,15 @@ interface UserBillRecord {
   rebateStatus: RebateStatus;
   rebateAmount?: number;
   voucherCode?: string;
+  voucherExpiryDate?: string;
+  voucherExpiryDays?: number;
+  voucherRemainingAmount?: number;
+  sentRebateAmount?: number;   // 已发放金额（重新生成后保留）
+  voucherUsedAmount?: number;  // 已使用金额
+  diffVoucherCode?: string;    // 差额补发代金券编号
+  diffVoucherAmount?: number;  // 差额补发金额
+  diffVoucherSentAt?: string;  // 差额补发时间
+  diffVoucherRemark?: string;  // 差额补发备注
   details: UserBillDetail[];
 }
 
@@ -1002,6 +1012,8 @@ const MOCK_USER_BILLS: UserBillRecord[] = [
     rebateStatus: "toSend",
     rebateAmount: 11492.55,
     voucherCode: "VCBILL-2029379",
+    voucherExpiryDays: 60,
+    voucherRemainingAmount: 11492.55,
     details: [
       // gpt-4o 按量计费（第一行展示按量计费）
       { modelName: "gpt-4o", billingType: "token", inputTokens: 125000000, outputTokens: 45000000, cacheReadTokens: 8000000, cacheCreateTokens: 2000000, inputPrice: 0.00015, outputPrice: 0.0006, cacheDiscount: 0.5, tierDiscount: 1, subtotal: 45800.25, voucherDeduction: 5000, balanceDeduction: 40800.25 },
@@ -1034,6 +1046,9 @@ const MOCK_USER_BILLS: UserBillRecord[] = [
     rebateStatus: "sent",
     rebateAmount: 5237.00,
     voucherCode: "VCBILL-2029380",
+    voucherExpiryDate: "2026-05-31 23:59:59",
+    voucherExpiryDays: 60,
+    voucherRemainingAmount: 4451.45,
     details: [
       { modelName: "gpt-4o", billingType: "token", inputTokens: 85000000, outputTokens: 25000000, cacheReadTokens: 5000000, cacheCreateTokens: 1000000, inputPrice: 0.00015, outputPrice: 0.0006, cacheDiscount: 0.5, tierDiscount: 0.95, subtotal: 28500.00 },
       { modelName: "gemini-1.5-pro", billingType: "token", inputTokens: 45000000, outputTokens: 15000000, cacheReadTokens: 2000000, cacheCreateTokens: 500000, inputPrice: 0.00012, outputPrice: 0.0004, cacheDiscount: 0.5, tierDiscount: 0.93, subtotal: 15200.00 },
@@ -1079,6 +1094,8 @@ const MOCK_USER_BILLS: UserBillRecord[] = [
     rebateStatus: "toSend",
     rebateAmount: 4231.62,
     voucherCode: "VCBILL-2029381",
+    voucherExpiryDays: 60,
+    voucherRemainingAmount: 4231.62,
     details: [
       { modelName: "gpt-4o-mini", billingType: "token", inputTokens: 500000000, outputTokens: 120000000, cacheReadTokens: 20000000, cacheCreateTokens: 5000000, inputPrice: 0.000015, outputPrice: 0.00006, cacheDiscount: 0.5, tierDiscount: 0.98, subtotal: 15600.25 },
       { modelName: "ernie-4.0", billingType: "token", inputTokens: 40000000, outputTokens: 15000000, cacheReadTokens: 2000000, cacheCreateTokens: 500000, inputPrice: 0.00012, outputPrice: 0.00048, cacheDiscount: 0.6, tierDiscount: 0.95, subtotal: 13000.00 },
@@ -1109,6 +1126,173 @@ const MOCK_USER_BILLS: UserBillRecord[] = [
       { modelName: "glm-4", billingType: "token", inputTokens: 30000000, outputTokens: 10000000, cacheReadTokens: 2000000, cacheCreateTokens: 500000, inputPrice: 0.0001, outputPrice: 0.0005, cacheDiscount: 0.6, tierDiscount: 0.95, subtotal: 13500.00 },
     ]
   },
+  {
+    id: "BILL-202604-006",
+    enterprise: "领航科技",
+    subjectId: "ENT-006",
+    spaceType: "enterprise",
+    periodStart: "2026-03-01",
+    periodEnd: "2026-03-31",
+    totalAmount: 32000.00,
+    currency: "CNY",
+    generatedAt: "2026-04-01 00:08:12",
+    status: "sent",
+    sentAt: "2026-04-05 09:15:00",
+    rebateStatus: "sent",
+    rebateAmount: 3000.00,
+    voucherCode: "VCBILL-2029382",
+    voucherExpiryDate: "2026-06-30 23:59:59",
+    voucherExpiryDays: 180,
+    voucherRemainingAmount: 0,
+    details: [
+      { modelName: "gpt-4o-mini", billingType: "token", inputTokens: 120000000, outputTokens: 40000000, cacheReadTokens: 8000000, cacheCreateTokens: 2000000, inputPrice: 0.000015, outputPrice: 0.00006, cacheDiscount: 0.5, tierDiscount: 0.97, subtotal: 4200.00 },
+      { modelName: "gemini-1.5-pro", billingType: "token", inputTokens: 80000000, outputTokens: 25000000, cacheReadTokens: 5000000, cacheCreateTokens: 1200000, inputPrice: 0.00012, outputPrice: 0.0004, cacheDiscount: 0.5, tierDiscount: 0.95, subtotal: 5200.00 },
+    ]
+  },
+  {
+    id: "BILL-202604-007",
+    enterprise: "云海数据",
+    subjectId: "ENT-007",
+    spaceType: "enterprise",
+    periodStart: "2026-02-01",
+    periodEnd: "2026-02-28",
+    totalAmount: 95000.00,
+    currency: "CNY",
+    generatedAt: "2026-03-01 00:03:45",
+    status: "sent",
+    sentAt: "2026-03-03 11:20:00",
+    rebateStatus: "sent",
+    rebateAmount: 8500.00,
+    voucherCode: "VCBILL-2029383",
+    voucherExpiryDate: "2026-04-30 23:59:59",
+    voucherExpiryDays: 60,
+    voucherRemainingAmount: 8500.00,
+    details: [
+      { modelName: "gpt-4o", billingType: "token", inputTokens: 180000000, outputTokens: 60000000, cacheReadTokens: 12000000, cacheCreateTokens: 4000000, inputPrice: 0.00015, outputPrice: 0.0006, cacheDiscount: 0.5, tierDiscount: 0.9, subtotal: 58800.00 },
+      { modelName: "claude-3.5-sonnet", billingType: "token", inputTokens: 90000000, outputTokens: 35000000, cacheReadTokens: 6000000, cacheCreateTokens: 2000000, inputPrice: 0.00016, outputPrice: 0.0008, cacheDiscount: 0.5, tierDiscount: 0.9, subtotal: 36200.00 },
+    ]
+  },
+  // 以下5条为重新生成后差额处理状态示例
+  {
+    id: "BILL-202604-008",
+    enterprise: "恒通科技",
+    subjectId: "ENT-008",
+    spaceType: "enterprise",
+    periodStart: "2026-03-01",
+    periodEnd: "2026-03-31",
+    totalAmount: 68000.00,
+    currency: "CNY",
+    generatedAt: "2026-04-01 00:08:00",
+    status: "confirmed",
+    rebateStatus: "sent",
+    rebateAmount: 5200.00,
+    sentRebateAmount: 5200.00,
+    voucherCode: "VCBILL-2029384",
+    voucherExpiryDate: "2026-05-31 23:59:59",
+    voucherExpiryDays: 60,
+    voucherRemainingAmount: 5200.00,
+    voucherUsedAmount: 0,
+    details: [
+      { modelName: "gpt-4o", billingType: "token", inputTokens: 80000000, outputTokens: 30000000, cacheReadTokens: 5000000, cacheCreateTokens: 2000000, inputPrice: 0.00015, outputPrice: 0.0006, cacheDiscount: 0.5, tierDiscount: 0.9, subtotal: 28200.00, rebateDiscount: 10 },
+      { modelName: "claude-3-haiku", billingType: "token", inputTokens: 60000000, outputTokens: 20000000, cacheReadTokens: 4000000, cacheCreateTokens: 1500000, inputPrice: 0.00008, outputPrice: 0.0004, cacheDiscount: 0.5, tierDiscount: 0.9, subtotal: 12800.00, rebateDiscount: 10 },
+    ]
+  },
+  {
+    id: "BILL-202604-009",
+    enterprise: "先锋智能",
+    subjectId: "ENT-009",
+    spaceType: "enterprise",
+    periodStart: "2026-03-01",
+    periodEnd: "2026-03-31",
+    totalAmount: 88000.00,
+    currency: "CNY",
+    generatedAt: "2026-04-01 00:08:30",
+    status: "confirmed",
+    rebateStatus: "sent",
+    rebateAmount: 7500.00,
+    sentRebateAmount: 5000.00,
+    voucherCode: "VCBILL-2029385",
+    voucherExpiryDate: "2026-05-31 23:59:59",
+    voucherExpiryDays: 60,
+    voucherRemainingAmount: 5000.00,
+    voucherUsedAmount: 0,
+    details: [
+      { modelName: "gpt-4o", billingType: "token", inputTokens: 100000000, outputTokens: 35000000, cacheReadTokens: 6000000, cacheCreateTokens: 2000000, inputPrice: 0.00015, outputPrice: 0.0006, cacheDiscount: 0.5, tierDiscount: 0.9, subtotal: 34500.00, rebateDiscount: 10 },
+      { modelName: "gemini-1.5-pro", billingType: "token", inputTokens: 50000000, outputTokens: 15000000, cacheReadTokens: 3000000, cacheCreateTokens: 1000000, inputPrice: 0.00012, outputPrice: 0.0004, cacheDiscount: 0.5, tierDiscount: 0.9, subtotal: 15500.00, rebateDiscount: 10 },
+    ]
+  },
+  {
+    id: "BILL-202604-010",
+    enterprise: "信达信息",
+    subjectId: "ENT-010",
+    spaceType: "enterprise",
+    periodStart: "2026-03-01",
+    periodEnd: "2026-03-31",
+    totalAmount: 55000.00,
+    currency: "CNY",
+    generatedAt: "2026-04-01 00:09:00",
+    status: "confirmed",
+    rebateStatus: "sent",
+    rebateAmount: 3500.00,
+    sentRebateAmount: 5000.00,
+    voucherCode: "VCBILL-2029386",
+    voucherExpiryDate: "2026-05-31 23:59:59",
+    voucherExpiryDays: 60,
+    voucherRemainingAmount: 5000.00,
+    voucherUsedAmount: 0,
+    details: [
+      { modelName: "gpt-4o-mini", billingType: "token", inputTokens: 200000000, outputTokens: 50000000, cacheReadTokens: 10000000, cacheCreateTokens: 3000000, inputPrice: 0.000015, outputPrice: 0.00006, cacheDiscount: 0.5, tierDiscount: 0.95, subtotal: 10500.00, rebateDiscount: 10 },
+      { modelName: "text-embedding-3", billingType: "call", inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheCreateTokens: 0, inputPrice: 0, outputPrice: 0, cacheDiscount: 1, tierDiscount: 0.95, subtotal: 8000.00, callCount: 20000, callPrice: 0.4 },
+    ]
+  },
+  {
+    id: "BILL-202604-011",
+    enterprise: "远航系统",
+    subjectId: "ENT-011",
+    spaceType: "enterprise",
+    periodStart: "2026-03-01",
+    periodEnd: "2026-03-31",
+    totalAmount: 62000.00,
+    currency: "CNY",
+    generatedAt: "2026-04-01 00:09:30",
+    status: "confirmed",
+    rebateStatus: "sent",
+    rebateAmount: 3000.00,
+    sentRebateAmount: 5000.00,
+    voucherCode: "VCBILL-2029387",
+    voucherExpiryDate: "2026-05-31 23:59:59",
+    voucherExpiryDays: 60,
+    voucherRemainingAmount: 2000.00,
+    voucherUsedAmount: 3000.00,
+    details: [
+      { modelName: "glm-4", billingType: "token", inputTokens: 70000000, outputTokens: 25000000, cacheReadTokens: 4000000, cacheCreateTokens: 1500000, inputPrice: 0.0001, outputPrice: 0.0005, cacheDiscount: 0.6, tierDiscount: 0.92, subtotal: 16200.00, rebateDiscount: 10 },
+      { modelName: "tts-1", billingType: "call", inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheCreateTokens: 0, inputPrice: 0, outputPrice: 0, cacheDiscount: 1, tierDiscount: 0.92, subtotal: 3800.00, callCount: 12666, callPrice: 0.3 },
+    ]
+  },
+  {
+    id: "BILL-202604-012",
+    enterprise: "启明数字",
+    subjectId: "ENT-012",
+    spaceType: "enterprise",
+    periodStart: "2026-03-01",
+    periodEnd: "2026-03-31",
+    totalAmount: 48000.00,
+    currency: "CNY",
+    generatedAt: "2026-04-01 00:10:00",
+    status: "confirmed",
+    rebateStatus: "sent",
+    rebateAmount: 2800.00,
+    sentRebateAmount: 5000.00,
+    voucherCode: "VCBILL-2029388",
+    voucherExpiryDate: "2026-05-31 23:59:59",
+    voucherExpiryDays: 60,
+    voucherRemainingAmount: 0,
+    voucherUsedAmount: 5000.00,
+    details: [
+      { modelName: "dall-e-3", billingType: "call", inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheCreateTokens: 0, inputPrice: 0, outputPrice: 0, cacheDiscount: 1, tierDiscount: 0.9, subtotal: 12000.00, callCount: 15000, callPrice: 0.8 },
+      { modelName: "whisper-1", billingType: "call", inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheCreateTokens: 0, inputPrice: 0, outputPrice: 0, cacheDiscount: 1, tierDiscount: 0.9, subtotal: 8000.00, callCount: 16000, callPrice: 0.5 },
+    ]
+  },
 ];
 
 function UserBillManagement() {
@@ -1127,6 +1311,7 @@ function UserBillManagement() {
   const [rebateDialogOpen, setRebateDialogOpen] = useState(false);
   const [rebateBill, setRebateBill] = useState<UserBillRecord | null>(null);
   const [rebateStep, setRebateStep] = useState<0 | 1 | 2>(0);
+  const [rebateExpiryDays, setRebateExpiryDays] = useState<number>(60);
   // 代金券记录视图
   const [viewMode, setViewMode] = useState<"bills" | "vouchers">("bills");
   const [voucherSearchQuery, setVoucherSearchQuery] = useState("");
@@ -1139,6 +1324,9 @@ function UserBillManagement() {
   const [regenerateType, setRegenerateType] = useState<"personal" | "enterprise">("enterprise");
   const [regenerateSubject, setRegenerateSubject] = useState<string>("");
   const [subjectSearchQuery, setSubjectSearchQuery] = useState<string>("");
+  const [regenerateConfirmOpen, setRegenerateConfirmOpen] = useState(false);
+  const [regenerateConfirmType, setRegenerateConfirmType] = useState<"toSend" | "sent" | null>(null);
+  const [diffConfirmOpen, setDiffConfirmOpen] = useState(false);
 
   const filteredBills = useMemo(() => {
     return bills.filter((bill) => {
@@ -1199,10 +1387,48 @@ function UserBillManagement() {
     setRegenerateOpen(true);
   };
 
-  const handleConfirmRegenerate = () => {
-    // 这里执行重新生成账单的逻辑
-    alert(`正在重新生成所有企业在 [${regeneratePeriod}] 账期内的账单...`);
+  const handleDoRegenerate = () => {
+    if (regenerateConfirmType === "toSend") {
+      // 待发放状态：重置返券状态为待确认，清除代金券信息
+      setBills((prev) => prev.map((b) =>
+        b.subjectId === regenerateSubject && b.periodStart.startsWith(regeneratePeriod)
+          ? { ...b, rebateStatus: "pending" as const, voucherCode: undefined, voucherExpiryDays: undefined, voucherExpiryDate: undefined }
+          : b
+      ));
+    }
+    alert(`正在重新生成【${MOCK_USER_BILLS.find(b => b.subjectId === regenerateSubject)?.enterprise || "未知主体"}】在【${regeneratePeriod}】账期内的账单...`);
     setRegenerateOpen(false);
+    setRegenerateConfirmOpen(false);
+    setRegenerateConfirmType(null);
+  };
+
+  const handleConfirmRegenerate = () => {
+    const targetBill = bills.find(
+      (b) => b.subjectId === regenerateSubject && b.periodStart.startsWith(regeneratePeriod)
+    );
+    if (targetBill && (targetBill.rebateStatus === "toSend" || targetBill.rebateStatus === "sent")) {
+      setRegenerateConfirmType(targetBill.rebateStatus);
+      setRegenerateConfirmOpen(true);
+      return;
+    }
+    handleDoRegenerate();
+  };
+
+  const handleSendDiffRebate = () => {
+    if (!rebateBill) return;
+    const now = new Date();
+    const nowStr = now.toISOString().slice(0, 19).replace("T", " ");
+    const code = `VCBILL-DIFF-${Date.now().toString().slice(-6)}`;
+    const remark = `${rebateBill.periodStart.slice(0, 7)} 账期返券差额补发`;
+    const patch = {
+      diffVoucherCode: code,
+      diffVoucherAmount: (rebateBill.rebateAmount || 0) - (rebateBill.sentRebateAmount || 0),
+      diffVoucherSentAt: nowStr,
+      diffVoucherRemark: remark,
+    };
+    setBills((prev) => prev.map((b) => (b.id === rebateBill.id ? { ...b, ...patch } : b)));
+    setRebateBill((prev) => (prev ? { ...prev, ...patch } : null));
+    setDiffConfirmOpen(false);
   };
 
   const handlePreview = (bill: UserBillRecord) => {
@@ -1212,28 +1438,36 @@ function UserBillManagement() {
 
   const handleOpenRebate = (bill: UserBillRecord) => {
     let targetBill = bill;
-    // 兜底：已生成/已发送状态下若缺少代金券编号，自动补一个并同步更新列表
+    // 兜底：已生成/已发放状态下若缺少代金券编号，自动补一个并同步更新列表
     if (bill.rebateStatus !== "pending" && !bill.voucherCode) {
       const code = `VC${bill.id.slice(0, 8).toUpperCase()}${Math.floor(Math.random() * 10000).toString().padStart(4, "0")}`;
       targetBill = { ...bill, voucherCode: code };
       setBills((prev) => prev.map((b) => (b.id === bill.id ? targetBill : b)));
     }
     setRebateBill(targetBill);
-    const initialStep = targetBill.rebateStatus === "pending" ? 0 : targetBill.rebateStatus === "toSend" ? 1 : 2;
+    const initialStep = targetBill.rebateStatus === "pending" ? 0 : 2;
     setRebateStep(initialStep as 0 | 1 | 2);
+    // 若已生成/已发放且已有天数配置，则沿用；否则默认60天
+    setRebateExpiryDays(targetBill.voucherExpiryDays ?? 60);
     setRebateDialogOpen(true);
   };
 
   const handleGenerateVoucher = (id: string) => {
     const code = `VC${id.slice(0, 8).toUpperCase()}${Math.floor(Math.random() * 10000).toString().padStart(4, '0')}`;
-    setBills(bills.map((b) => b.id === id ? { ...b, rebateStatus: "toSend" as const, voucherCode: code } : b));
-    setRebateBill((prev) => (prev && prev.id === id ? { ...prev, rebateStatus: "toSend" as const, voucherCode: code } : prev));
+    setBills(bills.map((b) => b.id === id ? { ...b, rebateStatus: "toSend" as const, voucherCode: code, voucherExpiryDays: rebateExpiryDays } : b));
+    setRebateBill((prev) => (prev && prev.id === id ? { ...prev, rebateStatus: "toSend" as const, voucherCode: code, voucherExpiryDays: rebateExpiryDays } : prev));
+    setRebateStep(2);
   };
 
   const handleSendVoucher = (id: string) => {
-    const now = format(new Date(), "yyyy-MM-dd HH:mm:ss");
-    setBills(bills.map((b) => b.id === id ? { ...b, rebateStatus: "sent" as const, sentAt: now } : b));
-    setRebateBill((prev) => (prev && prev.id === id ? { ...prev, rebateStatus: "sent" as const, sentAt: now } : prev));
+    const now = new Date();
+    const nowStr = format(now, "yyyy-MM-dd HH:mm:ss");
+    const days = rebateBill?.voucherExpiryDays ?? rebateExpiryDays ?? 60;
+    const expiry = addDays(now, days);
+    expiry.setHours(23, 59, 59, 0);
+    const expiryStr = format(expiry, "yyyy-MM-dd HH:mm:ss");
+    setBills(bills.map((b) => b.id === id ? { ...b, rebateStatus: "sent" as const, sentAt: nowStr, voucherExpiryDate: expiryStr, voucherExpiryDays: days } : b));
+    setRebateBill((prev) => (prev && prev.id === id ? { ...prev, rebateStatus: "sent" as const, sentAt: nowStr, voucherExpiryDate: expiryStr, voucherExpiryDays: days } : prev));
   };
 
   const getStatusBadge = (status: UserBillRecord["status"]) => {
@@ -1248,9 +1482,9 @@ function UserBillManagement() {
   const getRebateStatusBadge = (rebateStatus: RebateStatus) => {
     switch (rebateStatus) {
       case "none": return <Badge variant="outline" className="text-gray-500 border-gray-200 bg-gray-50 text-xs">无需返券</Badge>;
-      case "pending": return <Badge className="bg-red-500 text-white border-red-500 hover:bg-red-600 text-xs">待生成</Badge>;
-      case "toSend": return <Badge variant="outline" className="text-blue-600 border-blue-200 bg-blue-50 text-xs">待发送</Badge>;
-      case "sent": return <Badge className="bg-green-500 text-white border-green-500 hover:bg-green-600 text-xs">已发送</Badge>;
+      case "pending": return <Badge className="bg-red-500 text-white border-red-500 hover:bg-red-600 text-xs">待确认</Badge>;
+      case "toSend": return <Badge variant="outline" className="text-blue-600 border-blue-200 bg-blue-50 text-xs">待发放</Badge>;
+      case "sent": return <Badge className="bg-green-500 text-white border-green-500 hover:bg-green-600 text-xs">已发放</Badge>;
       default: return null;
     }
   };
@@ -1351,9 +1585,9 @@ function UserBillManagement() {
                 <SelectContent>
                   <SelectItem value="all">全部返券状态</SelectItem>
                   <SelectItem value="none">无需返券</SelectItem>
-                  <SelectItem value="pending">待生成</SelectItem>
-                  <SelectItem value="toSend">待发送</SelectItem>
-                  <SelectItem value="sent">已发送</SelectItem>
+                  <SelectItem value="pending">待确认</SelectItem>
+                  <SelectItem value="toSend">待发放</SelectItem>
+                  <SelectItem value="sent">已发放</SelectItem>
                 </SelectContent>
               </Select>
               <div className="relative">
@@ -1797,6 +2031,71 @@ function UserBillManagement() {
         </DialogContent>
       </Dialog>
 
+      {/* 重新生成账单二次确认弹窗 */}
+      <Dialog open={regenerateConfirmOpen} onOpenChange={setRegenerateConfirmOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>重新生成账单</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 space-y-2">
+              {regenerateConfirmType === "toSend" ? (
+                <p className="text-sm text-amber-700 leading-relaxed">
+                  当前账单已确认返券方案，重新生成账单后，原返券方案将失效，需重新核实返券金额并确认方案。是否继续重新生成？
+                </p>
+              ) : (
+                <>
+                  <p className="text-sm text-amber-700 leading-relaxed">
+                    当前客户该账期已发放代金券。重新生成后，系统将重新计算应返券金额，并与已发放金额进行差额对比，不会再次按完整金额发放代金券。
+                  </p>
+                  <p className="text-sm text-amber-700 leading-relaxed">
+                    若重算金额大于已发放金额，仅可补发差额；若重算金额小于已发放金额，需线下处理或后台调整。
+                  </p>
+                  <p className="text-sm text-amber-700 leading-relaxed">
+                    是否继续重新生成？
+                  </p>
+                </>
+              )}
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setRegenerateConfirmOpen(false)}>
+              取消
+            </Button>
+            <Button
+              onClick={handleDoRegenerate}
+              className="bg-blue-600 hover:bg-blue-700"
+            >
+              确认重新生成
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* 差额补发确认弹窗 */}
+      <Dialog open={diffConfirmOpen} onOpenChange={setDiffConfirmOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>确认补发差额</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 space-y-2">
+              <p className="text-sm text-amber-700 leading-relaxed">
+                系统将为客户「{rebateBill?.enterprise}」补发差额代金券，金额为 {formatCurrency((rebateBill?.rebateAmount || 0) - (rebateBill?.sentRebateAmount || 0))}，补发后客户代金券余额将立即增加。是否确认执行？
+              </p>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDiffConfirmOpen(false)}>
+              取消
+            </Button>
+            <Button onClick={handleSendDiffRebate} className="bg-blue-600 hover:bg-blue-700">
+              确认补发
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {/* 返券处理弹窗 */}
       <Dialog open={rebateDialogOpen} onOpenChange={setRebateDialogOpen}>
         <DialogContent className="sm:max-w-2xl max-h-[85vh] overflow-y-auto">
@@ -1826,8 +2125,8 @@ function UserBillManagement() {
               <div className="flex items-center gap-2">
                 {[
                   { label: "核实返券金额" },
-                  { label: "生成代金券" },
-                  { label: "发送给用户" },
+                  { label: "确认返券方案" },
+                  { label: "生成并发放" },
                 ].map((step, idx) => {
                   const isActive = rebateStep >= idx;
                   const isCurrent = rebateStep === idx;
@@ -1854,15 +2153,16 @@ function UserBillManagement() {
               </div>
 
               {/* 动态提示 */}
-              <div className="bg-amber-50 border border-amber-200 rounded-lg p-2.5">
-                <p className="text-xs text-amber-700 leading-relaxed">
-                  {rebateStep === 0 && "请核对应返券金额，确认无误后进入下一步生成代金券。"}
-                  {rebateStep === 1 && rebateBill.rebateStatus === "pending" && "请预览代金券信息，确认无误后生成代金券。生成后将在代金券列表新增待发送记录。"}
-                  {rebateStep === 1 && rebateBill.rebateStatus === "toSend" && "代金券已生成，可点击下一步进入发送环节。发送前用户暂不可见、不可使用。"}
-                  {rebateStep === 2 && rebateBill.rebateStatus === "toSend" && "代金券已生成，发送后将进入客户账户并可用于消费抵扣。此操作不可撤销，且发送后代金券不可再开票，请确认无误。"}
-                  {rebateStep === 2 && rebateBill.rebateStatus === "sent" && "代金券已发送至客户账户，客户可在账户明细中查看。"}
-                </p>
-              </div>
+              {(rebateStep === 0 || (rebateStep === 1 && rebateBill.rebateStatus === "pending") || (rebateStep === 2 && rebateBill.rebateStatus === "toSend")) && (
+                <div className="bg-amber-50 border border-amber-200 rounded-lg p-2.5">
+                  <p className="text-xs text-amber-700 leading-relaxed">
+                    {rebateStep === 0 && "请核对应返券金额，确认无误后进入下一步确认返券方案。"}
+                    {rebateStep === 1 && rebateBill.rebateStatus === "pending" && "请确认返券方案。确认后账单进入待发放状态，客户确认账单并完成打款后，可生成并发放代金券。"}
+
+                    {rebateStep === 2 && rebateBill.rebateStatus === "toSend" && "请确认客户已确认账单无误，并已完成打款。确认后系统将生成代金券并发放至客户账户，客户将立即可见并可用于消费抵扣。"}
+                  </p>
+                </div>
+              )}
 
               {/* Step 0: 核实返券金额 */}
               {rebateStep === 0 && (
@@ -1901,62 +2201,185 @@ function UserBillManagement() {
                 </div>
               )}
 
-              {/* Step 1: 生成代金券 */}
+              {/* Step 1: 确认返券方案 */}
               {rebateStep === 1 && (
                 <div className="space-y-3">
                   <div className="rounded-xl bg-blue-500 text-white p-4 space-y-3">
-                    <div className="flex items-center justify-between">
-                      <span className="text-[10px] font-mono bg-white/20 px-2 py-0.5 rounded">
-                        {rebateBill.rebateStatus === "pending" ? "生成后自动生成" : rebateBill.voucherCode || "—"}
-                      </span>
-                      <span className="text-[10px] bg-white/20 px-2 py-0.5 rounded">
-                        {rebateBill.rebateStatus === "pending" ? "未生成" : "已生成"}
-                      </span>
-                    </div>
                     <div className="text-center py-1">
                       <p className="text-xs text-blue-100 mb-0.5">代金券金额</p>
                       <p className="text-3xl font-bold font-mono">{formatCurrency(rebateBill.rebateAmount || 0)}</p>
                     </div>
                     <div className="grid grid-cols-2 gap-x-3 gap-y-2 text-xs text-blue-100">
                       <div className="flex items-center gap-1">
+                        <span className="text-blue-200 text-[10px]">有效期</span>
+                        <span>{rebateExpiryDays}天</span>
+                      </div>
+                      <div className="flex items-center gap-1">
                         <span className="text-blue-200 text-[10px]">可用范围</span>
                         <span>模型 API 服务</span>
                       </div>
                       <div className="flex items-center gap-1">
-                        <span className="text-blue-200 text-[10px]">有效期</span>
-                        <span>长期有效</span>
-                      </div>
-                      <div className="flex items-center gap-1">
-                        <span className="text-blue-200 text-[10px]">生成时间</span>
-                        <span>{rebateBill.rebateStatus === "pending" ? "—" : format(new Date(), "yyyy-MM-dd HH:mm")}</span>
+                        <span className="text-blue-200 text-[10px]">过期时间</span>
+                        <span>发放成功后自动生成</span>
                       </div>
                       <div className="flex items-center gap-1">
                         <span className="text-blue-200 text-[10px]">备注</span>
-                        <span>{rebateBill.periodStart.slice(0, 7)} 账期返券</span>
+                        <span>
+                          {rebateBill.periodStart.slice(0, 7)} 账期返券，自发放成功起{rebateExpiryDays}天有效
+                        </span>
                       </div>
                     </div>
                   </div>
                 </div>
               )}
 
-              {/* Step 2: 发送给用户 */}
+              {/* Step 2: 生成并发放 */}
               {rebateStep === 2 && (
                 <div className="space-y-3">
                   {rebateBill.rebateStatus === "sent" ? (
-                    <div className="bg-green-50 border border-green-200 rounded-lg p-6 text-center space-y-2">
-                      <CheckCircle2 className="w-8 h-8 text-green-600 mx-auto" />
-                      <p className="text-sm font-medium text-green-700">代金券已发送成功</p>
-                      <p className="text-xs text-green-600">
-                        金额：{formatCurrency(rebateBill.rebateAmount || 0)} · 接收方：{rebateBill.enterprise}
-                      </p>
-                      <p className="text-xs text-green-600 font-mono">代金券编号：{rebateBill.voucherCode || "—"}</p>
-                    </div>
+                    (() => {
+                      const isRegenerated = rebateBill.sentRebateAmount !== undefined;
+                      const newAmount = rebateBill.rebateAmount || 0;
+                      const sentAmount = rebateBill.sentRebateAmount || newAmount;
+                      const diff = newAmount - sentAmount;
+                      const remaining = rebateBill.voucherRemainingAmount ?? sentAmount;
+                      const used = rebateBill.voucherUsedAmount ?? (sentAmount - remaining);
+
+                      if (!isRegenerated) {
+                        return (
+                          <div className="bg-green-50 border border-green-200 rounded-lg p-6 text-center space-y-3">
+                            <CheckCircle2 className="w-8 h-8 text-green-600 mx-auto" />
+                            <p className="text-sm font-medium text-green-700">代金券已发放成功</p>
+                            <div className="space-y-1">
+                              <p className="text-base font-bold text-green-800 font-mono">{formatCurrency(newAmount)}</p>
+                              <p className="text-xs text-green-600">接收方：{rebateBill.enterprise}</p>
+                            </div>
+                            <p className="text-xs font-medium text-green-700 font-mono">代金券编号：{rebateBill.voucherCode || "—"}</p>
+                            <div className="space-y-1 pt-1">
+                              <p className="text-xs text-muted-foreground">有效期至：{rebateBill.voucherExpiryDate ? format(new Date(rebateBill.voucherExpiryDate), "yyyy-MM-dd HH:mm:ss") : "—"}</p>
+                              <p className="text-xs text-muted-foreground">备注：{rebateBill.periodStart.slice(0, 7)} 账期返券</p>
+                            </div>
+                          </div>
+                        );
+                      }
+
+                      // Case 1: 无差额
+                      if (diff === 0) {
+                        return (
+                          <div className="space-y-3">
+                            <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
+                              <p className="text-sm text-amber-700 leading-relaxed">
+                                账单已重新生成，系统已重新计算应返券金额，请查看下方差额结果并按提示处理。
+                              </p>
+                            </div>
+                            <div className="bg-blue-50 border border-blue-200 rounded-lg p-6 text-center space-y-3">
+                              <Info className="w-8 h-8 text-blue-600 mx-auto" />
+                              <p className="text-sm font-medium text-blue-700">重算后无差额</p>
+                              <div className="space-y-2 text-xs text-muted-foreground">
+                                <p>已发放金额：<span className="font-mono text-foreground">{formatCurrency(sentAmount)}</span></p>
+                                <p>重算应返券金额：<span className="font-mono text-foreground">{formatCurrency(newAmount)}</span></p>
+                                <p>差额：<span className="font-mono text-foreground">¥0.00</span></p>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      }
+
+                      // Case 2: 少发
+                      if (diff > 0) {
+                        const alreadySent = !!rebateBill.diffVoucherCode;
+                        return (
+                          <div className="space-y-3">
+                            <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
+                              <p className="text-sm text-amber-700 leading-relaxed">
+                                账单已重新生成，系统已重新计算应返券金额，请查看下方差额结果并按提示处理。
+                              </p>
+                            </div>
+                            {alreadySent ? (
+                              <div className="bg-blue-50 border border-blue-200 rounded-lg p-6 text-center space-y-3">
+                                <CheckCircle2 className="w-8 h-8 text-blue-600 mx-auto" />
+                                <p className="text-sm font-medium text-blue-700">差额补发成功</p>
+                                <div className="space-y-1">
+                                  <p className="text-base font-bold text-blue-800 font-mono">{formatCurrency(rebateBill.diffVoucherAmount || 0)}</p>
+                                  <p className="text-xs text-blue-600">接收方：{rebateBill.enterprise}</p>
+                                </div>
+                                <p className="text-xs font-medium text-blue-700 font-mono">代金券编号：{rebateBill.diffVoucherCode}</p>
+                                <div className="space-y-1 pt-1">
+                                  <p className="text-xs text-muted-foreground">来源账单：{rebateBill.id}</p>
+                                  <p className="text-xs text-muted-foreground">备注：{rebateBill.diffVoucherRemark || "—"}</p>
+                                </div>
+                              </div>
+                            ) : (
+                              <>
+                                <div className="bg-amber-50 border border-amber-200 rounded-lg p-6 text-center space-y-3">
+                                  <AlertCircle className="w-8 h-8 text-amber-600 mx-auto" />
+                                  <p className="text-sm font-medium text-amber-700">待补发差额</p>
+                                  <div className="space-y-2 text-xs text-muted-foreground">
+                                    <p>已发放金额：<span className="font-mono text-foreground">{formatCurrency(sentAmount)}</span></p>
+                                    <p>重算应返券金额：<span className="font-mono text-foreground">{formatCurrency(newAmount)}</span></p>
+                                    <p>待补发金额：<span className="font-mono text-red-600 font-bold">{formatCurrency(diff)}</span></p>
+                                  </div>
+                                </div>
+                                <div className="flex justify-end">
+                                  <Button
+                                    className="bg-blue-600 hover:bg-blue-700 text-white"
+                                    onClick={() => setDiffConfirmOpen(true)}
+                                  >
+                                    确认补发差额
+                                  </Button>
+                                </div>
+                              </>
+                            )}
+                          </div>
+                        );
+                      }
+
+                      // Case 3-5: 多发异常（统一页面）
+                      const overpaid = Math.abs(diff);
+                      const canInvalidate = Math.min(overpaid, remaining);
+                      const offlineAmount = overpaid - canInvalidate;
+                      return (
+                        <div className="space-y-3">
+                          <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
+                            <p className="text-sm text-amber-700 leading-relaxed">
+                              账单已重新生成，系统已重新计算应返券金额，请查看下方差额结果并按提示处理。
+                            </p>
+                          </div>
+                          <div className="bg-red-50 border border-red-200 rounded-lg p-6 text-center space-y-3">
+                            <AlertCircle className="w-8 h-8 text-red-600 mx-auto" />
+                            <p className="text-sm font-medium text-red-700">多发异常</p>
+                            <div className="space-y-2 text-xs text-muted-foreground">
+                              <p>上次已发放金额：<span className="font-mono text-foreground">{formatCurrency(sentAmount)}</span></p>
+                              <p>本次应发放金额：<span className="font-mono text-foreground">{formatCurrency(newAmount)}</span></p>
+                              <p>多发金额：<span className="font-mono text-red-600 font-bold">{formatCurrency(overpaid)}</span></p>
+                              {used > 0 && (
+                                <p>已使用金额：<span className="font-mono text-foreground">{formatCurrency(used)}</span></p>
+                              )}
+                              {canInvalidate > 0 && (
+                                <p>可失效金额：<span className="font-mono text-foreground">{formatCurrency(canInvalidate)}</span></p>
+                              )}
+                              {offlineAmount > 0 && (
+                                <p>需线下处理金额：<span className="font-mono text-foreground">{formatCurrency(offlineAmount)}</span></p>
+                              )}
+                            </div>
+                            {offlineAmount > 0 && (
+                              <p className="text-xs text-red-600">
+                                请联系系统管理员后台人工处理
+                              </p>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })()
                   ) : (
-                    <div className="bg-green-50 border border-green-200 rounded-lg p-6 text-center space-y-1">
-                      <p className="text-xs text-muted-foreground">即将发送至</p>
+                    <div className="bg-green-50 border border-green-200 rounded-lg p-6 text-center space-y-2">
+                      <p className="text-xs text-muted-foreground">即将发放至</p>
                       <p className="text-xl font-bold text-green-700">{rebateBill.enterprise}</p>
-                      <p className="text-sm font-mono text-green-600">{formatCurrency(rebateBill.rebateAmount || 0)}</p>
-                      <p className="text-xs text-muted-foreground font-mono mt-1">代金券编号：{rebateBill.voucherCode || "—"}</p>
+                      <p className="text-lg font-mono text-green-600">{formatCurrency(rebateBill.rebateAmount || 0)}</p>
+                      <div className="pt-2 space-y-1 text-xs text-muted-foreground">
+                        <p>有效期：发放成功后 {rebateBill.voucherExpiryDays ?? rebateExpiryDays ?? 60} 天</p>
+                        <p>备注：{rebateBill.periodStart.slice(0, 7)} 账期返券</p>
+                      </div>
                     </div>
                   )}
                 </div>
@@ -1983,23 +2406,13 @@ function UserBillManagement() {
                     >
                       上一步
                     </Button>
-                    {rebateBill.rebateStatus === "pending" ? (
-                      <Button
-                        size="sm"
-                        className="text-xs bg-blue-600 hover:bg-blue-700"
-                        onClick={() => rebateBill && handleGenerateVoucher(rebateBill.id)}
-                      >
-                        确认生成代金券
-                      </Button>
-                    ) : (
-                      <Button
-                        size="sm"
-                        className="text-xs bg-blue-600 hover:bg-blue-700"
-                        onClick={() => setRebateStep(2)}
-                      >
-                        下一步
-                      </Button>
-                    )}
+                    <Button
+                      size="sm"
+                      className="text-xs bg-blue-600 hover:bg-blue-700"
+                      onClick={() => rebateBill && handleGenerateVoucher(rebateBill.id)}
+                    >
+                      确认方案
+                    </Button>
                   </>
                 )}
                 {rebateStep === 2 && (
@@ -2020,7 +2433,17 @@ function UserBillManagement() {
                         className="text-xs bg-green-600 hover:bg-green-700"
                         onClick={() => rebateBill && handleSendVoucher(rebateBill.id)}
                       >
-                        确认发送
+                        确认并发放
+                      </Button>
+                    )}
+                    {rebateBill.rebateStatus === "sent" && rebateBill.sentRebateAmount !== undefined && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="text-xs"
+                        onClick={() => setRebateDialogOpen(false)}
+                      >
+                        关闭
                       </Button>
                     )}
                   </>
@@ -2071,17 +2494,29 @@ function UserBillManagement() {
                     <th className="px-3 py-2 text-left font-medium text-muted-foreground whitespace-nowrap">客户名称</th>
                     <th className="px-3 py-2 text-right font-medium text-muted-foreground whitespace-nowrap">代金券金额</th>
                     <th className="px-3 py-2 text-right font-medium text-muted-foreground whitespace-nowrap">剩余金额</th>
-                    <th className="px-3 py-2 text-center font-medium text-muted-foreground whitespace-nowrap">状态</th>
-                    <th className="px-3 py-2 text-left font-medium text-muted-foreground whitespace-nowrap">生成时间</th>
-                    <th className="px-3 py-2 text-left font-medium text-muted-foreground whitespace-nowrap">发送时间</th>
+                    <th className="px-3 py-2 text-center font-medium text-muted-foreground whitespace-nowrap">使用状态</th>
+                    <th className="px-3 py-2 text-left font-medium text-muted-foreground whitespace-nowrap">发放时间</th>
+                    <th className="px-3 py-2 text-left font-medium text-muted-foreground whitespace-nowrap">过期时间</th>
                     <th className="px-3 py-2 text-left font-medium text-muted-foreground whitespace-nowrap">操作人</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y">
                   {(() => {
-                    const allVouchers = bills.filter(b => b.rebateStatus === "toSend" || b.rebateStatus === "sent");
+                    type VoucherItem = { kind: 'main'; bill: UserBillRecord } | { kind: 'diff'; bill: UserBillRecord };
+                    const allVouchers: VoucherItem[] = bills
+                      .filter(b => b.rebateStatus === "sent")
+                      .flatMap(b => {
+                        const items: VoucherItem[] = [{ kind: 'main' as const, bill: b }];
+                        if (b.diffVoucherCode) {
+                          items.push({ kind: 'diff' as const, bill: b });
+                        }
+                        return items;
+                      });
                     const filtered = voucherSearchQuery
-                      ? allVouchers.filter(b => (b.voucherCode || "").toLowerCase().includes(voucherSearchQuery.toLowerCase()))
+                      ? allVouchers.filter(item => {
+                          const code = item.kind === 'main' ? item.bill.voucherCode : item.bill.diffVoucherCode;
+                          return (code || "").toLowerCase().includes(voucherSearchQuery.toLowerCase());
+                        })
                       : allVouchers;
                     const total = filtered.length;
                     const totalPages = Math.max(1, Math.ceil(total / voucherPageSize));
@@ -2099,26 +2534,37 @@ function UserBillManagement() {
                     }
                     return (
                       <>
-                        {pageItems.map((bill) => (
-                          <tr key={bill.id} className="hover:bg-muted/20">
-                            <td className="px-3 py-2 font-mono">{bill.voucherCode || "—"}</td>
-                            <td className="px-3 py-2 font-mono text-muted-foreground">{bill.id}</td>
-                            <td className="px-3 py-2 text-muted-foreground">{bill.periodStart.slice(0, 7)}</td>
-                            <td className="px-3 py-2">{bill.enterprise}</td>
-                            <td className="px-3 py-2 text-right font-mono">{formatCurrency(bill.rebateAmount || 0)}</td>
-                            <td className="px-3 py-2 text-right font-mono">{formatCurrency(bill.rebateStatus === "sent" ? (bill.rebateAmount || 0) * 0.85 : bill.rebateAmount || 0)}</td>
-                            <td className="px-3 py-2 text-center">
-                              {bill.rebateStatus === "toSend" && <Badge variant="outline" className="text-blue-600 border-blue-200 bg-blue-50 text-xs">待发送</Badge>}
-                              {bill.rebateStatus === "sent" && <Badge className="bg-green-500 text-white border-green-500 hover:bg-green-600 text-xs">已发送</Badge>}
-                            </td>
-                            <td className="px-3 py-2 text-muted-foreground">{bill.generatedAt}</td>
-                            <td className="px-3 py-2 text-muted-foreground">{bill.rebateStatus === "sent" ? (bill.sentAt || "—") : "—"}</td>
-                            <td className="px-3 py-2 text-muted-foreground whitespace-nowrap">张三</td>
-                          </tr>
-                        ))}
+                        {pageItems.map((item) => {
+                          const bill = item.bill;
+                          const isDiff = item.kind === 'diff';
+                          const code = isDiff ? bill.diffVoucherCode : bill.voucherCode;
+                          const amount = isDiff ? (bill.diffVoucherAmount || 0) : (bill.rebateAmount || 0);
+                          const remaining = isDiff ? (bill.diffVoucherAmount || 0) : (bill.voucherRemainingAmount ?? bill.rebateAmount ?? 0);
+                          const sentAt = isDiff ? bill.diffVoucherSentAt : (bill.rebateStatus === "sent" ? (bill.sentAt || "—") : "—");
+                          const expired = bill.voucherExpiryDate ? new Date(bill.voucherExpiryDate) < new Date() : false;
+                          const statusBadge = (() => {
+                            if (expired) return <Badge variant="outline" className="text-gray-500 border-gray-200 bg-gray-50 text-xs">已过期</Badge>;
+                            if (remaining <= 0) return <Badge variant="outline" className="text-orange-600 border-orange-200 bg-orange-50 text-xs">已用完</Badge>;
+                            return <Badge className="bg-green-500 text-white border-green-500 hover:bg-green-600 text-xs">使用中</Badge>;
+                          })();
+                          return (
+                            <tr key={isDiff ? `${bill.id}-diff` : bill.id} className="hover:bg-muted/20">
+                              <td className="px-3 py-2 font-mono">{code || "—"}</td>
+                              <td className="px-3 py-2 font-mono text-muted-foreground">{bill.id}</td>
+                              <td className="px-3 py-2 text-muted-foreground">{bill.periodStart.slice(0, 7)}</td>
+                              <td className="px-3 py-2">{bill.enterprise}</td>
+                              <td className="px-3 py-2 text-right font-mono">{formatCurrency(amount)}</td>
+                              <td className="px-3 py-2 text-right font-mono">{formatCurrency(remaining)}</td>
+                              <td className="px-3 py-2 text-center">{statusBadge}</td>
+                              <td className="px-3 py-2 text-muted-foreground">{sentAt || "—"}</td>
+                              <td className="px-3 py-2 text-muted-foreground">{bill.voucherExpiryDate || "—"}</td>
+                              <td className="px-3 py-2 text-muted-foreground whitespace-nowrap">张三</td>
+                            </tr>
+                          );
+                        })}
                         {total > voucherPageSize && (
                           <tr>
-                            <td colSpan={10} className="px-3 py-3">
+                            <td colSpan={9} className="px-3 py-3">
                               <div className="flex items-center justify-between">
                                 <span className="text-xs text-muted-foreground">
                                   共 {total} 条，第 {currentPage} / {totalPages} 页

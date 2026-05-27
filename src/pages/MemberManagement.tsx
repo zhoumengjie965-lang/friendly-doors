@@ -143,6 +143,19 @@ const MOCK_USERS: UserPoolMember[] = [
     ],
     apiKeyCount: 3
   },
+  { 
+    id: "5", 
+    uid: "UID:100005", 
+    phone: "13500135005", 
+    name: "孙七", 
+    username: "sunqi005",
+    status: "active", 
+    joinTime: "2024-05-12 10:00:00", 
+    departments: [
+      { id: "dept-005", name: "财务部", role: "企业管理员" }
+    ],
+    apiKeyCount: 8
+  },
 ];
 
 // ─── Components ──────────────────────────────────────────────────────────
@@ -180,6 +193,8 @@ export default function MemberManagement() {
   // 批量选择状态
   const [selectedUserIds, setSelectedUserIds] = useState<string[]>([]);
   const [batchDeleteDialogOpen, setBatchDeleteDialogOpen] = useState(false);
+  const [batchDeleteForbiddenOpen, setBatchDeleteForbiddenOpen] = useState(false);
+  const [singleDeleteForbiddenOpen, setSingleDeleteForbiddenOpen] = useState(false);
 
   // 查看已删除成员
   const [showDeletedUsers, setShowDeletedUsers] = useState(false);
@@ -228,6 +243,19 @@ export default function MemberManagement() {
       title: "批量删除成功",
       description: `已删除 ${selectedUserIds.length} 位成员`,
     });
+  };
+
+  // 打开批量删除弹窗（先校验角色）
+  const openBatchDeleteDialog = () => {
+    const selectedUsers = users.filter(u => selectedUserIds.includes(u.id));
+    const hasEnterpriseAdmin = selectedUsers.some(u =>
+      u.departments.some(d => d.role === "企业管理员")
+    );
+    if (hasEnterpriseAdmin) {
+      setBatchDeleteForbiddenOpen(true);
+    } else {
+      setBatchDeleteDialogOpen(true);
+    }
   };
 
   // Check if phone exists when user finishes typing
@@ -315,7 +343,12 @@ export default function MemberManagement() {
   // 打开删除确认弹窗
   const openDeleteConfirm = (user: UserPoolMember) => {
     setDeleteTarget(user);
-    setDeleteConfirmOpen(true);
+    const isEnterpriseAdmin = user.departments.some(d => d.role === "企业管理员");
+    if (isEnterpriseAdmin) {
+      setSingleDeleteForbiddenOpen(true);
+    } else {
+      setDeleteConfirmOpen(true);
+    }
   };
 
   // 确认删除
@@ -455,7 +488,7 @@ export default function MemberManagement() {
           <Button
             variant="outline"
             disabled={selectedUserIds.length === 0}
-            onClick={() => setBatchDeleteDialogOpen(true)}
+            onClick={openBatchDeleteDialog}
           >
             批量删除
             {selectedUserIds.length > 0 && ` (${selectedUserIds.length})`}
@@ -918,27 +951,47 @@ export default function MemberManagement() {
               {deleteTarget && `确认从企业中删除成员「${deleteTarget.name}」？`}
             </DialogTitle>
           </DialogHeader>
-          
           {deleteTarget && (
             <div className="space-y-4 py-2">
               <p className="text-sm text-foreground">
                 删除后，该成员将彻底失去企业权限，其名下所有部门的 Key 将被清空且不可恢复。
               </p>
-
-              <div className="rounded-lg border border-border bg-muted/40 p-3 space-y-2 text-sm">
-                <div className="flex items-center gap-2">
-                  <span className="text-muted-foreground shrink-0">成员：</span>
-                  <span className="font-medium text-foreground">{deleteTarget.name} ({deleteTarget.uid})</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <span className="text-muted-foreground shrink-0">名下 API Key：</span>
-                  <span className="font-medium text-foreground">{deleteTarget.apiKeyCount} 个</span>
-                </div>
-              </div>
-
-              <p className="text-xs text-muted-foreground bg-muted/50 p-2 rounded">
-                注：调用历史记录仍将保留用于统计审计。
-              </p>
+              {(() => {
+                const adminCountByDept: Record<string, number> = {};
+                users.forEach(u => {
+                  u.departments.forEach(d => {
+                    if (d.role === "admin" || d.role === "部门管理员") {
+                      adminCountByDept[d.name] = (adminCountByDept[d.name] || 0) + 1;
+                    }
+                  });
+                });
+                deleteTarget.departments.forEach(d => {
+                  if (d.role === "admin" || d.role === "部门管理员") {
+                    adminCountByDept[d.name] = (adminCountByDept[d.name] || 0) - 1;
+                  }
+                });
+                const emptyAdminDepts = Object.entries(adminCountByDept)
+                  .filter(([, count]) => count <= 0)
+                  .map(([name]) => name);
+                return (
+                  <div className="rounded-lg border border-border bg-muted/40 p-3 space-y-2 text-sm">
+                    <div className="flex items-center gap-2">
+                      <span className="text-muted-foreground shrink-0">成员：</span>
+                      <span className="font-medium text-foreground">{deleteTarget.name} ({deleteTarget.uid})</span>
+                    </div>
+                    {emptyAdminDepts.length > 0 && (
+                      <div className="flex items-center gap-2">
+                        <span className="text-muted-foreground shrink-0">删除后暂无部门管理员的部门：</span>
+                        <span className="font-medium text-foreground">{emptyAdminDepts.join("、")}</span>
+                      </div>
+                    )}
+                    <div className="flex items-center gap-2">
+                      <span className="text-muted-foreground shrink-0">名下 API Key：</span>
+                      <span className="font-medium text-foreground">{deleteTarget.apiKeyCount} 个</span>
+                    </div>
+                  </div>
+                );
+              })()}
             </div>
           )}
 
@@ -948,6 +1001,30 @@ export default function MemberManagement() {
             </Button>
             <Button variant="destructive" onClick={confirmDelete}>
               确认删除
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* 单个删除失败弹窗 */}
+      <Dialog open={singleDeleteForbiddenOpen} onOpenChange={setSingleDeleteForbiddenOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <span className="text-lg">⚠️</span>
+              成员暂不可删除
+            </DialogTitle>
+          </DialogHeader>
+          {deleteTarget && (
+            <div className="space-y-4 py-2">
+              <p className="text-sm text-foreground">
+                该成员为企业管理员，请先降级为其他角色后再删除。
+              </p>
+            </div>
+          )}
+          <DialogFooter className="gap-2">
+            <Button onClick={() => setSingleDeleteForbiddenOpen(false)}>
+              我知道了
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -1058,28 +1135,102 @@ export default function MemberManagement() {
               确认批量删除成员？
             </DialogTitle>
           </DialogHeader>
-          <div className="space-y-4 py-2">
-            <p className="text-sm text-foreground">
-              删除后，选中的 {selectedUserIds.length} 位成员将彻底失去企业权限，其名下所有部门的 Key 将被清空且不可恢复。
-            </p>
+          {(() => {
+            const selectedUsers = users.filter(u => selectedUserIds.includes(u.id));
+            const totalKeys = selectedUsers.reduce((sum, u) => sum + (u.apiKeyCount || 0), 0);
+            // 计算删除后暂无部门管理员的部门
+            const adminCountByDept: Record<string, number> = {};
+            users.forEach(u => {
+              u.departments.forEach(d => {
+                if (d.role === "admin" || d.role === "部门管理员") {
+                  adminCountByDept[d.name] = (adminCountByDept[d.name] || 0) + 1;
+                }
+              });
+            });
+            selectedUsers.forEach(u => {
+              u.departments.forEach(d => {
+                if (d.role === "admin" || d.role === "部门管理员") {
+                  adminCountByDept[d.name] = (adminCountByDept[d.name] || 0) - 1;
+                }
+              });
+            });
+            const emptyAdminDepts = Object.entries(adminCountByDept)
+              .filter(([, count]) => count <= 0)
+              .map(([name]) => name);
+            return (
+              <div className="space-y-4 py-2">
+                <p className="text-sm text-foreground">
+                  删除后，选中的 {selectedUserIds.length} 位成员将彻底失去企业权限，其名下所有部门的 Key 将被清空且不可恢复。
+                </p>
 
-            <div className="rounded-lg border border-border bg-muted/40 p-3 space-y-2 text-sm">
-              <div className="flex items-center gap-2">
-                <span className="text-muted-foreground shrink-0">待删除成员数：</span>
-                <span className="font-medium text-foreground">{selectedUserIds.length} 人</span>
+                <div className="rounded-lg border border-border bg-muted/40 p-3 space-y-2 text-sm">
+                  <div className="flex items-center gap-2">
+                    <span className="text-muted-foreground shrink-0">待删除成员数：</span>
+                    <span className="font-medium text-foreground">{selectedUserIds.length} 人</span>
+                  </div>
+                  {emptyAdminDepts.length > 0 && (
+                    <div className="flex items-center gap-2">
+                      <span className="text-muted-foreground shrink-0">删除后暂无部门管理员的部门：</span>
+                      <span className="font-medium text-foreground">{emptyAdminDepts.join("、")}</span>
+                    </div>
+                  )}
+                  <div className="flex items-center gap-2">
+                    <span className="text-muted-foreground shrink-0">名下 API Key：</span>
+                    <span className="font-medium text-foreground">{totalKeys} 个</span>
+                  </div>
+                </div>
               </div>
-            </div>
-
-            <p className="text-xs text-muted-foreground bg-muted/50 p-2 rounded">
-              注：调用历史记录仍将保留用于统计审计。
-            </p>
-          </div>
+            );
+          })()}
           <DialogFooter className="gap-2">
             <Button variant="outline" onClick={() => setBatchDeleteDialogOpen(false)}>
               取消
             </Button>
             <Button variant="destructive" onClick={handleBatchDelete}>
               确认删除
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* 批量删除失败弹窗 */}
+      <Dialog open={batchDeleteForbiddenOpen} onOpenChange={setBatchDeleteForbiddenOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <span className="text-lg">⚠️</span>
+              选中成员暂不可删除
+            </DialogTitle>
+          </DialogHeader>
+          {(() => {
+            const selectedUsers = users.filter(u => selectedUserIds.includes(u.id));
+            const enterpriseAdminCount = selectedUsers.filter(u =>
+              u.departments.some(d => d.role === "企业管理员")
+            ).length;
+            return (
+              <div className="space-y-4 py-2">
+                <p className="text-sm text-foreground">
+                  本次选中的成员中存在管理员身份限制，暂不支持批量删除。
+                </p>
+
+                <div className="rounded-lg border border-border bg-muted/40 p-3 space-y-2 text-sm">
+                  <div className="flex items-center gap-2">
+                    <span className="text-muted-foreground shrink-0">待删除成员：</span>
+                    <span className="font-medium text-foreground">{selectedUserIds.length} 人</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-muted-foreground shrink-0">其中：</span>
+                    <span className="font-medium text-foreground">
+                      企业管理员 {enterpriseAdminCount} 人，需先降级后删除
+                    </span>
+                  </div>
+                </div>
+              </div>
+            );
+          })()}
+          <DialogFooter className="gap-2">
+            <Button onClick={() => setBatchDeleteForbiddenOpen(false)}>
+              我知道了
             </Button>
           </DialogFooter>
         </DialogContent>
