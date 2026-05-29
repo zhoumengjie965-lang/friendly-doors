@@ -8,6 +8,12 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Dialog,
@@ -1312,9 +1318,14 @@ function UserBillManagement() {
   const [rebateBill, setRebateBill] = useState<UserBillRecord | null>(null);
   const [rebateStep, setRebateStep] = useState<0 | 1 | 2>(0);
   const [rebateExpiryDays, setRebateExpiryDays] = useState<number>(60);
+  const [specialExpiryOpen, setSpecialExpiryOpen] = useState(false);
+  const [use180Days, setUse180Days] = useState(false);
+  const [specialConfirmOpen, setSpecialConfirmOpen] = useState(false);
   // 代金券记录视图
   const [viewMode, setViewMode] = useState<"bills" | "vouchers">("bills");
   const [voucherSearchQuery, setVoucherSearchQuery] = useState("");
+  const [voucherEnterpriseQuery, setVoucherEnterpriseQuery] = useState("");
+  const [voucherStatusFilter, setVoucherStatusFilter] = useState<string[]>(["using", "used", "expired"]);
   const [voucherPage, setVoucherPage] = useState(1);
   const voucherPageSize = 10;
 
@@ -1449,13 +1460,17 @@ function UserBillManagement() {
     setRebateStep(initialStep as 0 | 1 | 2);
     // 若已生成/已发放且已有天数配置，则沿用；否则默认60天
     setRebateExpiryDays(targetBill.voucherExpiryDays ?? 60);
+    setSpecialExpiryOpen(false);
+    setUse180Days(false);
+    setSpecialConfirmOpen(false);
     setRebateDialogOpen(true);
   };
 
   const handleGenerateVoucher = (id: string) => {
     const code = `VC${id.slice(0, 8).toUpperCase()}${Math.floor(Math.random() * 10000).toString().padStart(4, '0')}`;
-    setBills(bills.map((b) => b.id === id ? { ...b, rebateStatus: "toSend" as const, voucherCode: code, voucherExpiryDays: rebateExpiryDays } : b));
-    setRebateBill((prev) => (prev && prev.id === id ? { ...prev, rebateStatus: "toSend" as const, voucherCode: code, voucherExpiryDays: rebateExpiryDays } : prev));
+    const finalDays = use180Days ? 180 : rebateExpiryDays;
+    setBills(bills.map((b) => b.id === id ? { ...b, rebateStatus: "toSend" as const, voucherCode: code, voucherExpiryDays: finalDays } : b));
+    setRebateBill((prev) => (prev && prev.id === id ? { ...prev, rebateStatus: "toSend" as const, voucherCode: code, voucherExpiryDays: finalDays } : prev));
     setRebateStep(2);
   };
 
@@ -2172,7 +2187,7 @@ function UserBillManagement() {
                       <tr>
                         <th className="px-3 py-2 text-left font-medium text-muted-foreground">模型名称</th>
                         <th className="px-3 py-2 text-right font-medium text-muted-foreground">充值余额支付</th>
-                        <th className="px-3 py-2 text-right font-medium text-muted-foreground">返券折扣</th>
+                        <th className="px-3 py-2 text-right font-medium text-muted-foreground">返券比例</th>
                         <th className="px-3 py-2 text-right font-medium text-muted-foreground">应返券金额</th>
                       </tr>
                     </thead>
@@ -2212,7 +2227,7 @@ function UserBillManagement() {
                     <div className="grid grid-cols-2 gap-x-3 gap-y-2 text-xs text-blue-100">
                       <div className="flex items-center gap-1">
                         <span className="text-blue-200 text-[10px]">有效期</span>
-                        <span>{rebateExpiryDays}天</span>
+                        <span>发放成功后 {use180Days ? 180 : rebateExpiryDays} 天有效</span>
                       </div>
                       <div className="flex items-center gap-1">
                         <span className="text-blue-200 text-[10px]">可用范围</span>
@@ -2225,11 +2240,42 @@ function UserBillManagement() {
                       <div className="flex items-center gap-1">
                         <span className="text-blue-200 text-[10px]">备注</span>
                         <span>
-                          {rebateBill.periodStart.slice(0, 7)} 账期返券，自发放成功起{rebateExpiryDays}天有效
+                          {rebateBill.periodStart.slice(0, 7)} 账期返券，自发放成功起{use180Days ? 180 : rebateExpiryDays}天有效
                         </span>
                       </div>
                     </div>
                   </div>
+
+                  {/* 特殊有效期配置 */}
+                  {rebateBill.rebateStatus === "pending" ? (
+                    <Collapsible open={specialExpiryOpen} onOpenChange={setSpecialExpiryOpen}>
+                      <CollapsibleTrigger asChild>
+                        <Button variant="ghost" size="sm" className="text-xs text-muted-foreground hover:text-foreground gap-1 h-7 px-2">
+                          <ChevronDown className={cn("w-3 h-3 transition-transform", specialExpiryOpen && "rotate-180")} />
+                          特殊有效期配置
+                        </Button>
+                      </CollapsibleTrigger>
+                      <CollapsibleContent>
+                        <div className="bg-muted/40 rounded-lg p-3 space-y-2 text-sm">
+                          <label className="flex items-start gap-2 cursor-pointer select-none">
+                            <Checkbox
+                              checked={use180Days}
+                              onCheckedChange={(checked) => setUse180Days(!!checked)}
+                              className="mt-0.5"
+                            />
+                            <div className="space-y-0.5">
+                              <p className="text-foreground">启用 180 天有效期</p>
+                              <p className="text-xs text-muted-foreground">该配置仅适用于已完成业务审批的特殊返券场景，默认不启用。</p>
+                            </div>
+                          </label>
+                        </div>
+                      </CollapsibleContent>
+                    </Collapsible>
+                  ) : (
+                    <div className="text-xs text-muted-foreground px-2">
+                      有效期配置已锁定：发放成功后 {(rebateBill.voucherExpiryDays ?? rebateExpiryDays)} 天有效
+                    </div>
+                  )}
                 </div>
               )}
 
@@ -2409,7 +2455,14 @@ function UserBillManagement() {
                     <Button
                       size="sm"
                       className="text-xs bg-blue-600 hover:bg-blue-700"
-                      onClick={() => rebateBill && handleGenerateVoucher(rebateBill.id)}
+                      onClick={() => {
+                        if (!rebateBill) return;
+                        if (use180Days) {
+                          setSpecialConfirmOpen(true);
+                        } else {
+                          handleGenerateVoucher(rebateBill.id);
+                        }
+                      }}
                     >
                       确认方案
                     </Button>
@@ -2454,6 +2507,37 @@ function UserBillManagement() {
         </DialogContent>
       </Dialog>
 
+      {/* 特殊有效期二次确认 */}
+      <Dialog open={specialConfirmOpen} onOpenChange={setSpecialConfirmOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-base">特殊返券场景确认</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3 py-2">
+            <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
+              <p className="text-sm text-amber-700 leading-relaxed">
+                该配置为特殊返券场景使用，仅适用于已完成业务审批的情况。启用 180 天有效期后，本次代金券的有效期将按发放成功后 180 天计算。确认后方可生效。
+              </p>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" size="sm" onClick={() => setSpecialConfirmOpen(false)}>
+              取消
+            </Button>
+            <Button
+              size="sm"
+              className="bg-blue-600 hover:bg-blue-700"
+              onClick={() => {
+                setSpecialConfirmOpen(false);
+                if (rebateBill) handleGenerateVoucher(rebateBill.id);
+              }}
+            >
+              确认生效
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       </>
       )}
 
@@ -2461,7 +2545,7 @@ function UserBillManagement() {
         <Card className="border shadow-sm">
           <CardHeader className="py-3 px-4 border-b">
             <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
+              <div className="flex items-center gap-3 flex-wrap">
                 <CardTitle className="text-sm font-medium">代金券记录</CardTitle>
                 <div className="relative">
                   <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
@@ -2469,15 +2553,56 @@ function UserBillManagement() {
                     placeholder="搜索代金券编号"
                     value={voucherSearchQuery}
                     onChange={(e) => { setVoucherSearchQuery(e.target.value); setVoucherPage(1); }}
-                    className="h-8 w-52 pl-8 text-xs"
+                    className="h-8 w-44 pl-8 text-xs"
                   />
                 </div>
+                <div className="relative">
+                  <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
+                  <Input
+                    placeholder="搜索主体名称"
+                    value={voucherEnterpriseQuery}
+                    onChange={(e) => { setVoucherEnterpriseQuery(e.target.value); setVoucherPage(1); }}
+                    className="h-8 w-44 pl-8 text-xs"
+                  />
+                </div>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button variant="outline" size="sm" className="h-8 text-xs gap-1">
+                      使用状态
+                      <ChevronDown className="w-3 h-3" />
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-40 p-2" align="start">
+                    <div className="space-y-2">
+                      {[
+                        { key: "using", label: "正常" },
+                        { key: "used", label: "已用完" },
+                        { key: "expired", label: "已过期" },
+                      ].map(({ key, label }) => (
+                        <label key={key} className="flex items-center gap-2 text-xs cursor-pointer select-none">
+                          <Checkbox
+                            checked={voucherStatusFilter.includes(key)}
+                            onCheckedChange={(checked) => {
+                              setVoucherStatusFilter(prev =>
+                                checked
+                                  ? [...prev, key]
+                                  : prev.filter(s => s !== key)
+                              );
+                              setVoucherPage(1);
+                            }}
+                          />
+                          <span>{label}</span>
+                        </label>
+                      ))}
+                    </div>
+                  </PopoverContent>
+                </Popover>
               </div>
               <Button
                 variant="outline"
                 size="sm"
                 className="h-8 text-xs"
-                onClick={() => { setViewMode("bills"); setVoucherSearchQuery(""); setVoucherPage(1); }}
+                onClick={() => { setViewMode("bills"); setVoucherSearchQuery(""); setVoucherEnterpriseQuery(""); setVoucherStatusFilter(["using", "used", "expired"]); setVoucherPage(1); }}
               >
                 返回账单管理
               </Button>
@@ -2492,6 +2617,7 @@ function UserBillManagement() {
                     <th className="px-3 py-2 text-left font-medium text-muted-foreground whitespace-nowrap">来源账单</th>
                     <th className="px-3 py-2 text-left font-medium text-muted-foreground whitespace-nowrap">来源账期</th>
                     <th className="px-3 py-2 text-left font-medium text-muted-foreground whitespace-nowrap">客户名称</th>
+                    <th className="px-3 py-2 text-left font-medium text-muted-foreground whitespace-nowrap">空间类型</th>
                     <th className="px-3 py-2 text-right font-medium text-muted-foreground whitespace-nowrap">代金券金额</th>
                     <th className="px-3 py-2 text-right font-medium text-muted-foreground whitespace-nowrap">剩余金额</th>
                     <th className="px-3 py-2 text-center font-medium text-muted-foreground whitespace-nowrap">使用状态</th>
@@ -2512,12 +2638,19 @@ function UserBillManagement() {
                         }
                         return items;
                       });
-                    const filtered = voucherSearchQuery
-                      ? allVouchers.filter(item => {
-                          const code = item.kind === 'main' ? item.bill.voucherCode : item.bill.diffVoucherCode;
-                          return (code || "").toLowerCase().includes(voucherSearchQuery.toLowerCase());
-                        })
-                      : allVouchers;
+                    const filtered = allVouchers.filter(item => {
+                      const bill = item.bill;
+                      const isDiff = item.kind === 'diff';
+                      const code = isDiff ? bill.diffVoucherCode : bill.voucherCode;
+                      const remaining = isDiff ? (bill.diffVoucherAmount || 0) : (bill.voucherRemainingAmount ?? bill.rebateAmount ?? 0);
+                      const expired = bill.voucherExpiryDate ? new Date(bill.voucherExpiryDate) < new Date() : false;
+                      const status = expired ? "expired" : remaining <= 0 ? "used" : "using";
+
+                      if (voucherSearchQuery && !(code || "").toLowerCase().includes(voucherSearchQuery.toLowerCase())) return false;
+                      if (voucherEnterpriseQuery && !bill.enterprise.toLowerCase().includes(voucherEnterpriseQuery.toLowerCase())) return false;
+                      if (!voucherStatusFilter.includes(status)) return false;
+                      return true;
+                    });
                     const total = filtered.length;
                     const totalPages = Math.max(1, Math.ceil(total / voucherPageSize));
                     const currentPage = Math.min(voucherPage, totalPages);
@@ -2526,7 +2659,7 @@ function UserBillManagement() {
                     if (total === 0) {
                       return (
                         <tr>
-                          <td colSpan={10} className="px-3 py-8 text-center text-muted-foreground">
+                          <td colSpan={11} className="px-3 py-8 text-center text-muted-foreground">
                             {voucherSearchQuery ? "未找到匹配的代金券" : "暂无代金券记录"}
                           </td>
                         </tr>
@@ -2545,7 +2678,7 @@ function UserBillManagement() {
                           const statusBadge = (() => {
                             if (expired) return <Badge variant="outline" className="text-gray-500 border-gray-200 bg-gray-50 text-xs">已过期</Badge>;
                             if (remaining <= 0) return <Badge variant="outline" className="text-orange-600 border-orange-200 bg-orange-50 text-xs">已用完</Badge>;
-                            return <Badge className="bg-green-500 text-white border-green-500 hover:bg-green-600 text-xs">使用中</Badge>;
+                            return <Badge className="bg-green-500 text-white border-green-500 hover:bg-green-600 text-xs">正常</Badge>;
                           })();
                           return (
                             <tr key={isDiff ? `${bill.id}-diff` : bill.id} className="hover:bg-muted/20">
@@ -2553,6 +2686,11 @@ function UserBillManagement() {
                               <td className="px-3 py-2 font-mono text-muted-foreground">{bill.id}</td>
                               <td className="px-3 py-2 text-muted-foreground">{bill.periodStart.slice(0, 7)}</td>
                               <td className="px-3 py-2">{bill.enterprise}</td>
+                              <td className="px-3 py-2">
+                                <Badge variant="outline" className="text-xs">
+                                  {bill.spaceType === "personal" ? "个人空间" : "企业空间"}
+                                </Badge>
+                              </td>
                               <td className="px-3 py-2 text-right font-mono">{formatCurrency(amount)}</td>
                               <td className="px-3 py-2 text-right font-mono">{formatCurrency(remaining)}</td>
                               <td className="px-3 py-2 text-center">{statusBadge}</td>
@@ -2564,7 +2702,7 @@ function UserBillManagement() {
                         })}
                         {total > voucherPageSize && (
                           <tr>
-                            <td colSpan={9} className="px-3 py-3">
+                            <td colSpan={11} className="px-3 py-3">
                               <div className="flex items-center justify-between">
                                 <span className="text-xs text-muted-foreground">
                                   共 {total} 条，第 {currentPage} / {totalPages} 页

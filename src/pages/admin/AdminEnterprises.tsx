@@ -18,7 +18,7 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sh
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem } from "@/components/ui/command";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Check, Search, ExternalLink, Zap, Ban, ChevronDown, Plus, X, Pencil } from "lucide-react";
+import { Check, Search, ExternalLink, Ban, ChevronDown, Plus, X, Pencil } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { getAdminSession } from "@/lib/adminAuth";
 
@@ -27,12 +27,7 @@ const MODEL_ACCESS_OPTIONS = [
   { value: "国际", label: "国际" },
 ];
 
-type BillingMode = "realtime" | "rebate";
 
-const BILLING_MODE_OPTIONS = [
-  { value: "realtime", label: "实时扣费", description: "调用时按分组倍率直接扣费" },
-  { value: "rebate", label: "账后返券", description: "调用时按原价扣费，月初按账单核算代金券返还" },
-];
 
 // 分组可搜索下拉选择器
 const GROUP_OPTIONS = [
@@ -49,23 +44,15 @@ const GROUP_OPTIONS = [
 function GroupCombobox({
   value,
   onChange,
-  billingMode = "all",
 }: {
   value: string;
   onChange: (value: string) => void;
-  billingMode?: BillingMode | "all";
 }) {
   const [open, setOpen] = useState(false);
   const selected = GROUP_OPTIONS.find((g) => g.value === value);
   const displayText = selected
     ? `${selected.name} (${selected.remark})`
     : "请选择分组";
-
-  const options = GROUP_OPTIONS.filter((group) => {
-    if (billingMode === "realtime") return !group.rebateEnabled;
-    if (billingMode === "rebate") return group.rebateEnabled;
-    return true;
-  });
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -78,13 +65,9 @@ function GroupCombobox({
       <PopoverContent className="p-0 w-[320px]" align="start">
         <Command shouldFilter>
           <CommandInput placeholder="搜索分组..." />
-          <CommandEmpty>
-            {options.length === 0
-              ? "当前计费模式下暂无可选分组"
-              : "未找到匹配的分组"}
-          </CommandEmpty>
+          <CommandEmpty>未找到匹配的分组</CommandEmpty>
           <CommandGroup>
-            {options.map((group) => {
+            {GROUP_OPTIONS.map((group) => {
               return (
                 <CommandItem
                   key={group.value}
@@ -535,8 +518,8 @@ export default function AdminEnterprises() {
     modelAccess: ["国际"] as string[],
     remarkType: "正式用户",
     remarkName: "",
-    billingMode: "realtime" as BillingMode,
-    group: GROUP_OPTIONS.filter((g) => !g.rebateEnabled)[0]?.value || "",
+    voucherEnabled: false,
+    group: GROUP_OPTIONS[0]?.value || "",
   });
 
   // 备注类型选项
@@ -548,13 +531,101 @@ export default function AdminEnterprises() {
   const [editTarget, setEditTarget] = useState<Enterprise | null>(null);
   const [editForm, setEditForm] = useState({
     name: "",
-    billingMode: "realtime" as BillingMode,
+    voucherEnabled: false,
     group: "default",
     modelAccess: ["国际"] as string[],
     remarkType: "正式用户",
     remarkName: "",
   });
   const [savingEnterprise, setSavingEnterprise] = useState(false);
+
+  // Voucher config dialog state
+  const [voucherConfigOpen, setVoucherConfigOpen] = useState(false);
+  const [voucherConfigTarget, setVoucherConfigTarget] = useState<Enterprise | null>(null);
+  const [voucherTypeTab, setVoucherTypeTab] = useState<"billing" | "other">("billing");
+  const [voucherConfigForm, setVoucherConfigForm] = useState({
+    enabled: false,
+    groupDiscounts: {} as Record<string, number>,
+    expiryDays: 60,
+    remark: "",
+  });
+  const [savingVoucherConfig, setSavingVoucherConfig] = useState(false);
+  // mock 存储：已保存的代金券配置（页面内有效）
+  const [voucherConfigMap, setVoucherConfigMap] = useState<Record<string, { enabled: boolean; voucherType: string }>>({});
+  // mock 存储完整配置，用于打开时回填
+  const [voucherConfigStore, setVoucherConfigStore] = useState<Record<string, { enabled: boolean; groupDiscounts: Record<string, number>; expiryDays: number; remark: string }>>({});
+  const [voucherConfigEditing, setVoucherConfigEditing] = useState(false);
+
+  const openVoucherConfig = (enterprise: Enterprise) => {
+    setVoucherConfigTarget(enterprise);
+    setVoucherTypeTab("billing");
+    setSavingVoucherConfig(false);
+    // 从 mock 存储加载已有配置
+    const saved = voucherConfigStore[enterprise.id];
+    if (saved) {
+      setVoucherConfigForm({
+        enabled: saved.enabled,
+        groupDiscounts: saved.groupDiscounts,
+        expiryDays: saved.expiryDays,
+        remark: saved.remark,
+      });
+      setVoucherConfigEditing(false);
+    } else {
+      setVoucherConfigForm({
+        enabled: false,
+        groupDiscounts: {},
+        expiryDays: 60,
+        remark: "",
+      });
+      setVoucherConfigEditing(true);
+    }
+    setVoucherConfigOpen(true);
+  };
+
+  const handleToggleEnabled = () => {
+    if (!voucherConfigTarget) return;
+    const newEnabled = !voucherConfigForm.enabled;
+    setVoucherConfigForm((prev) => ({ ...prev, enabled: newEnabled }));
+    // 如果已有保存的配置，直接同步更新 mock store
+    if (voucherConfigStore[voucherConfigTarget.id]) {
+      setVoucherConfigStore((prev) => ({
+        ...prev,
+        [voucherConfigTarget.id]: { ...prev[voucherConfigTarget.id], enabled: newEnabled },
+      }));
+      setVoucherConfigMap((prev) => ({
+        ...prev,
+        [voucherConfigTarget.id]: { enabled: newEnabled, voucherType: voucherTypeTab },
+      }));
+    }
+  };
+
+  const handleSaveVoucherConfig = async () => {
+    if (!voucherConfigTarget) return;
+    setSavingVoucherConfig(true);
+    try {
+      await new Promise((resolve) => setTimeout(resolve, 400));
+      // 保存到 mock 存储
+      setVoucherConfigStore((prev) => ({
+        ...prev,
+        [voucherConfigTarget.id]: {
+          enabled: voucherConfigForm.enabled,
+          groupDiscounts: { ...voucherConfigForm.groupDiscounts },
+          expiryDays: voucherConfigForm.expiryDays,
+          remark: voucherConfigForm.remark,
+        },
+      }));
+      setVoucherConfigMap((prev) => ({
+        ...prev,
+        [voucherConfigTarget.id]: { enabled: voucherConfigForm.enabled, voucherType: voucherTypeTab },
+      }));
+      toast({ title: "保存成功", description: `企业「${voucherConfigTarget.name}」的代金券配置已更新` });
+      setVoucherConfigEditing(false);
+    } catch (err: any) {
+      toast({ title: "保存失败", description: err.message || "未知错误", variant: "destructive" });
+    } finally {
+      setSavingVoucherConfig(false);
+    }
+  };
 
   const fetchData = async () => {
     setLoading(true);
@@ -755,7 +826,7 @@ export default function AdminEnterprises() {
 
       toast({ title: "企业创建成功", description: `企业「${addForm.enterpriseName}」已添加` });
       setAddDialogOpen(false);
-      setAddForm({ enterpriseName: "", adminPhone: "", modelAccess: ["国际"], remarkType: "正式用户", remarkName: "", billingMode: "realtime", group: GROUP_OPTIONS.filter((g) => !g.rebateEnabled)[0]?.value || "" });
+      setAddForm({ enterpriseName: "", adminPhone: "", modelAccess: ["国际"], remarkType: "正式用户", remarkName: "", voucherEnabled: false, group: GROUP_OPTIONS[0]?.value || "" });
       fetchData(); // 刷新企业列表
     } catch (err: any) {
       toast({ title: "创建失败", description: err.message || "未知错误", variant: "destructive" });
@@ -957,7 +1028,7 @@ export default function AdminEnterprises() {
                       setEditForm((prev) => ({
                         ...prev,
                         name: e.name,
-                        billingMode: GROUP_OPTIONS.find((g) => g.value === (e.group || "default"))?.rebateEnabled ? "rebate" : "realtime",
+                        voucherEnabled: false,
                         group: e.group || "default",
                         modelAccess: ["国际"],
                         remarkType: type,
@@ -976,6 +1047,20 @@ export default function AdminEnterprises() {
                     onClick={() => handleToggleStatus(e)}
                   >
                     {e.status === "disabled" ? <Check className="w-3.5 h-3.5" /> : <Ban className="w-3.5 h-3.5" />}
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-7 px-2 text-xs font-medium text-amber-700 border-amber-300 bg-amber-50 hover:bg-amber-100 hover:text-amber-800"
+                    onClick={() => openVoucherConfig(e)}
+                  >
+                    代金券配置
+                    {voucherConfigMap[e.id] && (
+                      <span className={`ml-1 inline-flex items-center gap-0.5 px-1 py-0 rounded text-[10px] font-medium ${voucherConfigMap[e.id].enabled ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-500"}`}>
+                        <span className={`w-1 h-1 rounded-full ${voucherConfigMap[e.id].enabled ? "bg-green-500" : "bg-gray-400"}`}></span>
+                        {voucherConfigMap[e.id].enabled ? "已启用" : "已配置"}
+                      </span>
+                    )}
                   </Button>
                 </div>
               </div>
@@ -1114,7 +1199,7 @@ export default function AdminEnterprises() {
               className="h-9 px-4"
               onClick={() => {
                 setAddDialogOpen(false);
-                setAddForm({ enterpriseName: "", adminPhone: "", modelAccess: ["国际"], remarkType: "正式用户", remarkName: "", billingMode: "realtime", group: GROUP_OPTIONS.filter((g) => !g.rebateEnabled)[0]?.value || "" });
+                setAddForm({ enterpriseName: "", adminPhone: "", modelAccess: ["国际"], remarkType: "正式用户", remarkName: "", voucherEnabled: false, group: GROUP_OPTIONS[0]?.value || "" });
               }}
             >
               取消
@@ -1154,42 +1239,6 @@ export default function AdminEnterprises() {
               />
             </div>
 
-            {/* 计费模式 */}
-            <div className="space-y-1.5">
-              <Label className="text-sm">
-                计费模式 <span className="text-red-500">*</span>
-              </Label>
-              <Select
-                value={editForm.billingMode}
-                onValueChange={(value) => {
-                  setEditForm((prev) => {
-                    const next = { ...prev, billingMode: value as BillingMode };
-                    const allowed = GROUP_OPTIONS.filter((group) =>
-                      value === "realtime" ? !group.rebateEnabled : group.rebateEnabled
-                    );
-                    if (!allowed.some((group) => group.value === next.group)) {
-                      next.group = allowed[0]?.value || "";
-                    }
-                    return next;
-                  });
-                }}
-              >
-                <SelectTrigger className="h-10 bg-gray-50/50 border-gray-200">
-                  <SelectValue placeholder="选择计费模式" />
-                </SelectTrigger>
-                <SelectContent>
-                  {BILLING_MODE_OPTIONS.map((mode) => (
-                    <SelectItem key={mode.value} value={mode.value}>
-                      {mode.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <p className="text-xs text-muted-foreground">
-                {BILLING_MODE_OPTIONS.find((m) => m.value === editForm.billingMode)?.description}
-              </p>
-            </div>
-
             {/* 分组 */}
             <div className="space-y-1.5">
               <Label className="text-sm">
@@ -1198,7 +1247,6 @@ export default function AdminEnterprises() {
               <GroupCombobox
                 value={editForm.group}
                 onChange={(value) => setEditForm((prev) => ({ ...prev, group: value }))}
-                billingMode={editForm.billingMode}
               />
               {editForm.group && (
                 <p className="text-xs text-muted-foreground mt-1">
@@ -1298,6 +1346,217 @@ export default function AdminEnterprises() {
           </div>
         </SheetContent>
       </Sheet>
+
+      {/* Voucher Config Dialog */}
+      <Dialog open={voucherConfigOpen} onOpenChange={setVoucherConfigOpen}>
+        <DialogContent className="sm:max-w-[560px] p-0 overflow-hidden">
+          <DialogHeader className="px-6 pt-5 pb-4 border-b">
+            <div className="flex items-center justify-between">
+              <DialogTitle className="text-base font-semibold">代金券配置</DialogTitle>
+            </div>
+          </DialogHeader>
+
+          {/* 客户信息 */}
+          <div className="px-6 pt-5 pb-3">
+            <div className="flex items-center gap-3 text-sm">
+              <span className="font-medium text-foreground">客户名称：{voucherConfigTarget?.name}</span>
+              <span className="text-muted-foreground">|</span>
+              <span className="text-muted-foreground">配置对象：企业空间</span>
+            </div>
+          </div>
+
+          {/* 选择代金券类型 */}
+          <div className="px-6 pb-1 border-b">
+            <div className="flex items-end gap-4">
+              <span className="text-sm font-medium text-foreground mb-2">选择代金券类型</span>
+              <div className="flex gap-1 bg-gray-100 rounded-t-md p-1">
+                <button
+                  className={`px-4 py-2 text-sm font-medium rounded-md transition-colors ${
+                    voucherTypeTab === "billing"
+                      ? "bg-white text-foreground shadow-sm"
+                      : "text-muted-foreground hover:text-foreground"
+                  }`}
+                  onClick={() => setVoucherTypeTab("billing")}
+                >
+                  账期返券
+                </button>
+                <button
+                  className={`px-4 py-2 text-sm font-medium rounded-md transition-colors ${
+                    voucherTypeTab === "other"
+                      ? "bg-white text-foreground shadow-sm"
+                      : "text-muted-foreground hover:text-foreground"
+                  }`}
+                  onClick={() => setVoucherTypeTab("other")}
+                >
+                  其他类型
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <div className="px-6 py-5 space-y-5 max-h-[60vh] overflow-y-auto">
+            {voucherTypeTab === "billing" && (
+              <>
+                {/* 返券说明 */}
+                <p className="text-xs text-muted-foreground leading-relaxed">
+                  返券说明：启用后，客户调用模型仍按实际价格扣费；月度账单生成后，系统根据本配置计算应返券金额。每个企业仅允许存在一套账期返券配置，修改账期返券配置后仅对后续生成的账单生效。
+                </p>
+
+                {/* 启用状态 */}
+                <div className="flex items-center justify-between py-1">
+                  <Label className="text-sm font-medium">启用状态</Label>
+                  <button
+                    type="button"
+                    role="switch"
+                    aria-checked={voucherConfigForm.enabled}
+                    onClick={handleToggleEnabled}
+                    className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                      voucherConfigForm.enabled ? "bg-blue-600" : "bg-gray-200"
+                    }`}
+                  >
+                    <span
+                      className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+                        voucherConfigForm.enabled ? "translate-x-5" : "translate-x-0"
+                      }`}
+                    />
+                  </button>
+                </div>
+
+                {/* 返券折扣配置 */}
+                <div className="space-y-3">
+                  <Label className="text-sm font-medium">返券比例配置</Label>
+                  <p className="text-xs text-muted-foreground leading-relaxed">
+                    请填写需返还给客户的比例，而非客户实际支付折扣。例：客户按 7 折结算，应填写返券比例 30%。
+                  </p>
+                  <div className="border rounded-lg overflow-hidden">
+                    <div className="grid grid-cols-[1fr_100px] gap-2 px-3 py-2 bg-muted/40 text-xs font-medium text-muted-foreground border-b">
+                      <span>令牌分组</span>
+                      <span className="text-right">返券比例</span>
+                    </div>
+                    {GROUP_OPTIONS.map((group) => {
+                      const discount = voucherConfigForm.groupDiscounts[group.value] || 0;
+                      return (
+                        <div key={group.value} className="grid grid-cols-[1fr_100px] gap-2 px-3 py-2.5 border-b last:border-0 items-center">
+                          <span className="text-sm">{group.name}</span>
+                          <div className="flex items-center gap-1 justify-end">
+                            {voucherConfigEditing ? (
+                              <>
+                                <Input
+                                  type="number"
+                                  min={0}
+                                  max={100}
+                                  step={1}
+                                  placeholder="0"
+                                  value={discount || ""}
+                                  onChange={(e) => {
+                                    const val = parseFloat(e.target.value);
+                                    setVoucherConfigForm((prev) => ({
+                                      ...prev,
+                                      groupDiscounts: {
+                                        ...prev.groupDiscounts,
+                                        [group.value]: isNaN(val) ? 0 : val,
+                                      },
+                                    }));
+                                  }}
+                                  className="h-7 w-16 text-sm text-right"
+                                />
+                                <span className="text-xs text-muted-foreground">%</span>
+                              </>
+                            ) : (
+                              <span className="text-sm text-muted-foreground w-16 text-right pr-1">{discount || 0}%</span>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* 备注 */}
+                <div className="space-y-1.5">
+                  <Label className="text-sm">备注</Label>
+                  {voucherConfigEditing ? (
+                    <Textarea
+                      placeholder="请输入备注"
+                      rows={3}
+                      value={voucherConfigForm.remark}
+                      onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) =>
+                        setVoucherConfigForm((prev) => ({ ...prev, remark: e.target.value }))
+                      }
+                      className="resize-none"
+                    />
+                  ) : (
+                    <p className="text-sm text-muted-foreground min-h-[1.5rem]">
+                      {voucherConfigForm.remark || "无备注"}
+                    </p>
+                  )}
+                </div>
+              </>
+            )}
+
+            {voucherTypeTab === "other" && (
+              <div className="py-8 text-center text-sm text-muted-foreground">
+                更多代金券类型即将开放，敬请期待
+              </div>
+            )}
+          </div>
+
+          <DialogFooter className="px-6 py-4 border-t bg-gray-50/50 flex-col items-stretch gap-3">
+            {voucherConfigEditing && (
+              <div className="flex items-start gap-2 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-md px-3 py-2">
+                <span className="mt-0.5 shrink-0">⚠️</span>
+                <span>修改后的折扣不适用于已出账的账单，将从下次账单开始生效。</span>
+              </div>
+            )}
+            <div className="flex justify-end gap-2">
+              {voucherConfigEditing ? (
+                <>
+                  <Button
+                    variant="outline"
+                    className="h-9 px-4"
+                    onClick={() => {
+                      const saved = voucherConfigTarget ? voucherConfigStore[voucherConfigTarget.id] : null;
+                      if (saved) {
+                        setVoucherConfigForm({
+                          enabled: saved.enabled,
+                          groupDiscounts: saved.groupDiscounts,
+                          expiryDays: saved.expiryDays,
+                          remark: saved.remark,
+                        });
+                      } else {
+                        setVoucherConfigForm({
+                          enabled: false,
+                          groupDiscounts: {},
+                          expiryDays: 60,
+                          remark: "",
+                        });
+                      }
+                      setVoucherConfigEditing(false);
+                    }}
+                  >
+                    取消
+                  </Button>
+                  <Button
+                    className="h-9 px-4 bg-blue-600 hover:bg-blue-700 text-white"
+                    onClick={handleSaveVoucherConfig}
+                    disabled={savingVoucherConfig}
+                  >
+                    {savingVoucherConfig ? "保存中…" : "保存配置"}
+                  </Button>
+                </>
+              ) : (
+                <Button
+                  variant="outline"
+                  className="h-9 px-4 border-blue-300 text-blue-700 hover:bg-blue-50 hover:text-blue-800"
+                  onClick={() => setVoucherConfigEditing(true)}
+                >
+                  编辑配置
+                </Button>
+              )}
+            </div>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

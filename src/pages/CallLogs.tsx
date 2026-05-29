@@ -292,7 +292,8 @@ function CallLogsTab({ role, globalOrg, globalMember }: {
     (new Date(dateEnd.replace(/-/g, "/")).getTime() - new Date(dateStart.replace(/-/g, "/")).getTime()) /
     (1000 * 60 * 60 * 24)
   );
-  const exceedLimit = filtered.length > 100000 || dateDiffDays > 31;
+  const exportRows = filtered.filter(r => r.type === "消费");
+  const exceedLimit = exportRows.length > 100000 || dateDiffDays > 31;
 
   const handleExport = () => {
     if (exceedLimit) return;
@@ -300,7 +301,7 @@ function CallLogsTab({ role, globalOrg, globalMember }: {
     setTimeout(() => {
       const csvContent = [
         headers.join(","),
-        ...filtered.map(row => headers.map(h => getCsvValue(row, h)).join(",")),
+        ...exportRows.map(row => headers.map(h => getCsvValue(row, h)).join(",")),
       ].join("\n");
       const filename = `调用日志_${dateStart.replace(/[:\s]/g, "")}_${dateEnd.replace(/[:\s]/g, "")}.csv`;
       downloadCSV(filename, csvContent);
@@ -491,15 +492,10 @@ function CallLogsTab({ role, globalOrg, globalMember }: {
               <span className="text-muted-foreground">时间范围</span>
               <span className="font-medium">{dateStart} ~ {dateEnd}</span>
             </div>
-            <div className="flex items-center justify-between">
-              <span className="text-muted-foreground">导出条数</span>
-              <span className="font-medium">{filtered.length.toLocaleString()} 条</span>
-            </div>
-            <div className="flex items-center justify-between">
-              <span className="text-muted-foreground">文件格式</span>
-              <span className="font-medium">CSV</span>
-            </div>
-            {filtered.length > 100000 && (
+            <p className="text-muted-foreground text-sm">
+              由于错误记录不产生实际扣费，不参与费用核算，因此本次导出仅包含消费日志。
+            </p>
+            {exportRows.length > 100000 && (
               <div className="bg-red-50 border border-red-200 rounded-md p-3 text-red-600">
                 导出条数超过 10 万条限制，请缩小时间范围或增加筛选条件后再试。
               </div>

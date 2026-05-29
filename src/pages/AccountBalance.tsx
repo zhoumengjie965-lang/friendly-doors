@@ -446,7 +446,7 @@ export default function AccountBalance({ enterprise, role }: Props) {
                 voucherRecords.map((r) => {
                   const remaining = r.remainingAmount ?? r.amount;
                   const expired = r.expiryDate ? new Date(r.expiryDate) < new Date() : false;
-                  let statusLabel = "使用中";
+                  let statusLabel = "正常";
                   let statusClass = "bg-green-500 text-white border-green-500";
                   if (remaining <= 0) {
                     statusLabel = "已用完";
