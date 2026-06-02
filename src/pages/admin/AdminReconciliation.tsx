@@ -1692,7 +1692,9 @@ function UserBillManagement() {
                       <td className="px-4 py-3 text-muted-foreground">{bill.generatedAt}</td>
                       <td className="px-4 py-3 text-center">{getRebateStatusBadge(bill.rebateStatus)}</td>
                       <td className="px-4 py-3 text-right font-mono">
-                        {bill.rebateStatus === "none" ? "—" : formatCurrency(bill.rebateAmount || 0)}
+                        {bill.rebateStatus === "toSend" || bill.rebateStatus === "sent"
+                          ? formatCurrency(bill.rebateAmount || 0)
+                          : "—"}
                       </td>
                       <td className="px-4 py-3 text-right">
                         <div className="flex items-center justify-end gap-2">
@@ -2172,7 +2174,7 @@ function UserBillManagement() {
                 <div className="bg-amber-50 border border-amber-200 rounded-lg p-2.5">
                   <p className="text-xs text-amber-700 leading-relaxed">
                     {rebateStep === 0 && "请核对应返券金额，确认无误后进入下一步确认返券方案。"}
-                    {rebateStep === 1 && rebateBill.rebateStatus === "pending" && "请确认返券方案。确认后账单进入待发放状态，客户确认账单并完成打款后，可生成并发放代金券。"}
+                    {rebateStep === 1 && rebateBill.rebateStatus === "pending" && "请确认返券方案，确认后进入待发放状态，有效期配置不可修改。"}
 
                     {rebateStep === 2 && rebateBill.rebateStatus === "toSend" && "请确认客户已确认账单无误，并已完成打款。确认后系统将生成代金券并发放至客户账户，客户将立即可见并可用于消费抵扣。"}
                   </p>
@@ -2470,16 +2472,6 @@ function UserBillManagement() {
                 )}
                 {rebateStep === 2 && (
                   <>
-                    {rebateBill.rebateStatus !== "sent" && (
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="text-xs"
-                        onClick={() => setRebateStep(1)}
-                      >
-                        上一步
-                      </Button>
-                    )}
                     {rebateBill.rebateStatus === "toSend" && (
                       <Button
                         size="sm"

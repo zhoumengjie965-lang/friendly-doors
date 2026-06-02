@@ -82,14 +82,14 @@ function EnterpriseGreenTag({ type, name }: { type?: "formal" | "test"; name: st
 
 // 用户分组配置
 const GROUP_OPTIONS = [
-  { value: "basic", name: "basic", remark: "试用客户", discountChannels: "gemini高速折扣通道 (x0.75)、grok高速折扣通道 (x0.85)、openai高速折扣通道 (x0.85)", rebateEnabled: false },
-  { value: "openai-basic", name: "openai-basic", remark: "正式客户", discountChannels: "openai高速折扣通道 (x0.85)", rebateEnabled: false },
-  { value: "grok-fast", name: "grok-fast", remark: "正式客户", discountChannels: "grok高速折扣通道 (x0.85)", rebateEnabled: false },
-  { value: "claudetest", name: "claude-test", remark: "正式客户", discountChannels: "claude高速折扣通道 (x0.85)", rebateEnabled: false },
-  { value: "vip-ep", name: "vip-ep", remark: "正式客户", discountChannels: "gemini高速折扣通道 (x0.75)、grok高速折扣通道 (x0.85)", rebateEnabled: true },
-  { value: "suno", name: "suno", remark: "正式客户", discountChannels: "suno高速折扣通道 (x0.8)", rebateEnabled: false },
-  { value: "gemini-fast", name: "gemini-fast", remark: "正式客户", discountChannels: "gemini高速折扣通道 (x0.75)", rebateEnabled: false },
-  { value: "vip-dp", name: "vip-dp", remark: "互联内结客户", discountChannels: "gemini高速折扣通道 (x0.75)、grok高速折扣通道 (x0.85)、claude高速折扣通道 (x0.85)", rebateEnabled: true },
+  { value: "basic", name: "basic", remark: "试用客户", models: ["Gemini 1.5", "Grok", "GPT-4o"], discountChannels: "gemini高速折扣通道 (x0.75)、grok高速折扣通道 (x0.85)、openai高速折扣通道 (x0.85)", rebateEnabled: false },
+  { value: "openai-basic", name: "openai-basic", remark: "正式客户", models: ["GPT-4o"], discountChannels: "openai高速折扣通道 (x0.85)", rebateEnabled: false },
+  { value: "grok-fast", name: "grok-fast", remark: "正式客户", models: ["Grok"], discountChannels: "grok高速折扣通道 (x0.85)", rebateEnabled: false },
+  { value: "claudetest", name: "claude-test", remark: "正式客户", models: ["Claude 3.5"], discountChannels: "claude高速折扣通道 (x0.85)", rebateEnabled: false },
+  { value: "vip-ep", name: "vip-ep", remark: "正式客户", models: ["Gemini 1.5", "Grok"], discountChannels: "gemini高速折扣通道 (x0.75)、grok高速折扣通道 (x0.85)", rebateEnabled: true },
+  { value: "suno", name: "suno", remark: "正式客户", models: ["Suno"], discountChannels: "suno高速折扣通道 (x0.8)", rebateEnabled: false },
+  { value: "gemini-fast", name: "gemini-fast", remark: "正式客户", models: ["Gemini 1.5"], discountChannels: "gemini高速折扣通道 (x0.75)", rebateEnabled: false },
+  { value: "vip-dp", name: "vip-dp", remark: "互联内结客户", models: ["Gemini 1.5", "Grok", "Claude 3.5"], discountChannels: "gemini高速折扣通道 (x0.75)、grok高速折扣通道 (x0.85)、claude高速折扣通道 (x0.85)", rebateEnabled: true },
 ];
 
 // 分组可搜索下拉选择器
@@ -1346,7 +1346,10 @@ export default function AdminUsers() {
                       const discount = voucherConfigForm.groupDiscounts[group.value] || 0;
                       return (
                         <div key={group.value} className="grid grid-cols-[1fr_100px] gap-2 px-3 py-2.5 border-b last:border-0 items-center">
-                          <span className="text-sm">{group.name}</span>
+                          <span className="text-sm">
+                            {group.name}
+                            <span className="text-xs text-muted-foreground ml-1">({group.models.join(", ")})</span>
+                          </span>
                           <div className="flex items-center gap-1 justify-end">
                             {voucherConfigEditing ? (
                               <>
