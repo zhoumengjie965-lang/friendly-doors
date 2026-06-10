@@ -2436,13 +2436,30 @@ function UserBillManagement() {
               {/* 底部操作按钮 */}
               <div className="flex justify-end items-center pt-3 border-t gap-2">
                 {rebateStep === 0 && (
-                  <Button
-                    size="sm"
-                    className="text-xs bg-blue-600 hover:bg-blue-700"
-                    onClick={() => setRebateStep(1)}
-                  >
-                    下一步
-                  </Button>
+                  <>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="text-xs"
+                      onClick={() => {
+                        // 重新计算应返券金额
+                        const recalculated = rebateBill.details.reduce(
+                          (sum, d) => sum + (d.balanceDeduction ?? d.subtotal) * ((d.rebateDiscount ?? 0) / 100),
+                          0
+                        );
+                        setRebateBill((prev) => (prev ? { ...prev, rebateAmount: recalculated } : prev));
+                      }}
+                    >
+                      重新计算
+                    </Button>
+                    <Button
+                      size="sm"
+                      className="text-xs bg-blue-600 hover:bg-blue-700"
+                      onClick={() => setRebateStep(1)}
+                    >
+                      下一步
+                    </Button>
+                  </>
                 )}
                 {rebateStep === 1 && (
                   <>

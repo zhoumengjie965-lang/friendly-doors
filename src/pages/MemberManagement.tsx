@@ -59,6 +59,7 @@ interface UserPoolMember {
   id: string;
   uid: string; // 系统生成的UID
   phone: string; // 完整手机号
+  email?: string; // 邮箱
   name: string; // 管理员填写的备注名
   username: string; // 系统用户名/登录名
   status: "active" | "inactive" | "pending";
@@ -70,6 +71,14 @@ interface UserPoolMember {
 // 脱敏手机号
 function maskPhone(phone: string) {
   return phone.replace(/(\d{3})\d{4}(\d{4})/, "$1****$2");
+}
+
+// 脱敏邮箱
+function maskEmail(email: string) {
+  const [local, domain] = email.split("@");
+  if (!local || !domain) return email;
+  if (local.length <= 2) return `*@${domain}`;
+  return `${local.slice(0, 2)}****@${domain}`;
 }
 
 interface ImportResult {
@@ -156,6 +165,36 @@ const MOCK_USERS: UserPoolMember[] = [
     ],
     apiKeyCount: 8
   },
+  // 仅有邮箱的假数据
+  { 
+    id: "6", 
+    uid: "UID:100006", 
+    phone: "-", 
+    email: "zhoul@company.com",
+    name: "周八", 
+    username: "user_883421",
+    status: "active", 
+    joinTime: "2024-06-01 09:00:00", 
+    departments: [
+      { id: "dept-001", name: "技术部", role: "成员" }
+    ],
+    apiKeyCount: 2
+  },
+  // 同时有手机号和邮箱的假数据
+  { 
+    id: "7", 
+    uid: "UID:100007", 
+    phone: "13100131007", 
+    email: "wuji@company.com",
+    name: "吴九", 
+    username: "wuji007",
+    status: "active", 
+    joinTime: "2024-06-10 14:30:00", 
+    departments: [
+      { id: "dept-003", name: "市场部", role: "部门管理员" }
+    ],
+    apiKeyCount: 6
+  },
 ];
 
 // ─── Components ──────────────────────────────────────────────────────────
@@ -172,13 +211,14 @@ export default function MemberManagement() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
 
-  // Add member form state - 只保留手机号和姓名
+  // Add member form state
   const [addForm, setAddForm] = useState({
     phone: "",
+    email: "",
     name: "",
   });
   const [detectedDisplayName, setDetectedDisplayName] = useState<string | null>(null);
-  const [formErrors, setFormErrors] = useState<{ phone?: string; name?: string }>({});
+  const [formErrors, setFormErrors] = useState<{ phone?: string; email?: string; name?: string }>({});
 
   // Edit member form state
   const [editForm, setEditForm] = useState<UserPoolMember | null>(null);
@@ -207,10 +247,11 @@ export default function MemberManagement() {
         u.departments.some(d => d.name === DEPARTMENTS.find(dept => dept.id === selectedDepartment)?.name);
       
       // 搜索筛选
-      const matchesSearch = 
+      const matchesSearch =
         u.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        u.username.toLowerCase().includes(searchQuery.toLowerCase()) ||
         u.phone.includes(searchQuery) ||
-        u.uid.toLowerCase().includes(searchQuery.toLowerCase());
+        (u.email?.toLowerCase().includes(searchQuery.toLowerCase()) ?? false);
       
       return matchesDepartment && matchesSearch;
     }
@@ -273,28 +314,61 @@ export default function MemberManagement() {
   };
 
   const handleAddMember = () => {
-    const errors: { phone?: string; name?: string } = {};
-    if (!addForm.phone) {
-      errors.phone = "请输入手机号";
+    const errors: { phone?: string; email?: string; name?: string } = {};
+
+    // 1. 手机号和邮箱至少填写一项
+    if (!addForm.phone && !addForm.email) {
+      errors.phone = "手机号和邮箱至少填写一项";
+      errors.email = "手机号和邮箱至少填写一项";
     }
+
+    // 2. 姓名必填
     if (!addForm.name) {
       errors.name = "请输入姓名";
     }
-    
+
     setFormErrors(errors);
-    
-    if (errors.phone || errors.name) {
+    if (Object.keys(errors).length > 0) {
       return;
+    }
+
+    // 3~5. 同时填写时判断是否属于同一账号（mock 逻辑）
+    if (addForm.phone && addForm.email) {
+      const phoneLastDigit = addForm.phone.slice(-1);
+      const isPhoneEven = parseInt(phoneLastDigit) % 2 === 0;
+      const phoneHasAccount = isPhoneEven && addForm.phone.length === 11;
+      const emailHasAccount = addForm.email.toLowerCase().includes("existing");
+
+      if (phoneHasAccount && emailHasAccount) {
+        // mock: 两者均已有账号，判断是否同一账号
+        // 手机号最后一位 + 邮箱首字符 ASCII 码之和为奇数 → 不同账号
+        const sum = parseInt(phoneLastDigit) + addForm.email.charCodeAt(0);
+        if (sum % 2 === 1) {
+          toast({
+            title: "添加失败",
+            description: "手机号和邮箱分别属于不同账号，请检查信息后重试",
+            variant: "destructive",
+          });
+          return;
+        }
+      }
+      // 其他情况（都未绑定 / 仅一方绑定 / 同一账号）→ 继续创建或关联
     }
 
     const now = new Date();
     const joinTimeStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')} ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}:${String(now.getSeconds()).padStart(2, '0')}`;
+
+    // 生成随机用户名（当按邮箱创建或同时填写时）
+    const randomSuffix = Math.floor(100000 + Math.random() * 900000);
+    const username = addForm.phone || `user_${randomSuffix}`;
+
     const newUser: UserPoolMember = {
       id: Date.now().toString(),
-      uid: `UID:${Math.floor(100000 + Math.random() * 900000)}`,
-      phone: addForm.phone,
+      uid: `UID:${randomSuffix}`,
+      phone: addForm.phone || "-",
+      ...(addForm.email ? { email: addForm.email } : {}),
       name: addForm.name,
-      username: addForm.phone, // 默认用户名为手机号
+      username,
       status: "pending",
       joinTime: joinTimeStr,
       departments: [],
@@ -303,11 +377,11 @@ export default function MemberManagement() {
 
     setUsers([newUser, ...users]);
     setAddDialogOpen(false);
-    setAddForm({ phone: "", name: "" });
+    setAddForm({ phone: "", email: "", name: "" });
     setDetectedDisplayName(null);
     setImportResult(null);
     setFormErrors({});
-    
+
     toast({
       title: "添加成功",
       description: `已成功添加成员 ${addForm.name} 到用户池`,
@@ -329,7 +403,7 @@ export default function MemberManagement() {
 
   const handleDialogClose = () => {
     setAddDialogOpen(false);
-    setAddForm({ phone: "", name: "" });
+    setAddForm({ phone: "", email: "", name: "" });
     setDetectedDisplayName(null);
     setImportResult(null);
     setFormErrors({});
@@ -510,10 +584,10 @@ export default function MemberManagement() {
           </Select>
           
           {/* 搜索框 */}
-          <div className="relative w-64">
+          <div className="relative w-72">
             <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
             <Input
-              placeholder="搜索姓名、手机号或UID"
+              placeholder="搜索姓名、用户名、手机号或邮箱"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="pl-10"
@@ -587,10 +661,16 @@ export default function MemberManagement() {
                     <TableCell>
                       <div className="font-medium">{user.name}</div>
                     </TableCell>
-                    {/* 账号信息列：脱敏手机号 + UID */}
+                    {/* 账号信息列：优先展示手机号（脱敏），无手机号展示邮箱（脱敏） */}
                     <TableCell>
-                      <div>{maskPhone(user.phone)}</div>
-                      <div className="text-xs text-muted-foreground">{user.uid}</div>
+                      <div>
+                        {user.phone && user.phone !== "-"
+                          ? maskPhone(user.phone)
+                          : user.email
+                            ? maskEmail(user.email)
+                            : "-"}
+                      </div>
+                      <div className="text-xs text-muted-foreground">{user.username}</div>
                     </TableCell>
                     {/* 加入部门：显示部门名称，多个时主部门+n */}
                     <TableCell>
@@ -679,21 +759,48 @@ export default function MemberManagement() {
           <div className="space-y-4 py-4">
             {/* Phone */}
             <div className="space-y-1.5">
-              <Label className="text-xs">
-                <span className="text-red-500">*</span> 手机号
-              </Label>
+              <Label className="text-xs">手机号</Label>
               <Input
                 placeholder="请输入手机号"
                 value={addForm.phone}
                 onChange={(e) => {
                   setAddForm({ ...addForm, phone: e.target.value });
-                  if (formErrors.phone) setFormErrors({ ...formErrors, phone: undefined });
+                  // 只要手机号有输入，就清除自身的错误；
+                  // 同时如果当前输入不为空，说明已满足"至少一项"，一并清除邮箱错误
+                  setFormErrors((prev) => ({
+                    ...prev,
+                    phone: undefined,
+                    ...(e.target.value ? { email: undefined } : {}),
+                  }));
                 }}
                 onBlur={handlePhoneBlur}
                 className={formErrors.phone ? "border-red-500 focus-visible:ring-red-500" : ""}
               />
               {formErrors.phone && (
                 <p className="text-xs text-red-500">{formErrors.phone}</p>
+              )}
+            </div>
+
+            {/* Email */}
+            <div className="space-y-1.5">
+              <Label className="text-xs">邮箱</Label>
+              <Input
+                placeholder="请输入邮箱"
+                value={addForm.email}
+                onChange={(e) => {
+                  setAddForm({ ...addForm, email: e.target.value });
+                  // 只要邮箱有输入，就清除自身的错误；
+                  // 同时如果当前输入不为空，说明已满足"至少一项"，一并清除手机号错误
+                  setFormErrors((prev) => ({
+                    ...prev,
+                    email: undefined,
+                    ...(e.target.value ? { phone: undefined } : {}),
+                  }));
+                }}
+                className={formErrors.email ? "border-red-500 focus-visible:ring-red-500" : ""}
+              />
+              {formErrors.email && (
+                <p className="text-xs text-red-500">{formErrors.email}</p>
               )}
             </div>
 
@@ -765,16 +872,22 @@ export default function MemberManagement() {
                 />
               </div>
 
-              {/* 字段2：手机号 - 只读展示（完整展示） */}
+              {/* 字段2：手机号 - 只读展示 */}
               <div className="space-y-1.5">
                 <Label className="text-xs">手机号</Label>
-                <Input value={editForm.phone} disabled className="bg-muted/50 text-muted-foreground border-muted" />
+                <Input value={editForm.phone === "-" ? "未绑定" : editForm.phone} disabled className="bg-muted/50 text-muted-foreground border-muted" />
               </div>
 
-              {/* 字段3：UID - 只读展示 */}
+              {/* 字段2.5：邮箱 - 只读展示 */}
               <div className="space-y-1.5">
-                <Label className="text-xs">UID</Label>
-                <Input value={editForm.uid} disabled className="bg-muted/50 text-muted-foreground border-muted" />
+                <Label className="text-xs">邮箱</Label>
+                <Input value={editForm.email || "未绑定"} disabled className="bg-muted/50 text-muted-foreground border-muted" />
+              </div>
+
+              {/* 字段3：用户名 - 只读展示 */}
+              <div className="space-y-1.5">
+                <Label className="text-xs">用户名</Label>
+                <Input value={editForm.username} disabled className="bg-muted/50 text-muted-foreground border-muted" />
               </div>
 
               {/* 字段4：加入部门情况 - 仅展示 */}
@@ -1275,8 +1388,14 @@ export default function MemberManagement() {
                       <TableCell className="text-center text-muted-foreground">{index + 1}</TableCell>
                       <TableCell>{user.name}</TableCell>
                       <TableCell>
-                        <div>{maskPhone(user.phone)}</div>
-                        <div className="text-xs text-muted-foreground">{user.uid}</div>
+                        <div>
+                          {user.phone && user.phone !== "-"
+                            ? maskPhone(user.phone)
+                            : user.email
+                              ? maskEmail(user.email)
+                              : "-"}
+                        </div>
+                        <div className="text-xs text-muted-foreground">{user.username}</div>
                       </TableCell>
                       <TableCell>
                         {user.departments.length === 0 ? (

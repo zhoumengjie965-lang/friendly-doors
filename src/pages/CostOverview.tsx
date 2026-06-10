@@ -48,7 +48,7 @@ export default function CostOverview({ enterprise, role }: Props) {
       <div className="bg-blue-50 border border-blue-100 rounded-lg p-4 text-sm text-blue-900">
         <p className="font-semibold mb-2">账单数据说明：</p>
         <ol className="list-decimal list-inside space-y-1 text-blue-800">
-          <li>当前账期数据为 T+1 汇总数据，展示截至昨日产生的预估费用，仅供费用查看参考。</li>
+          <li>当前账期数据为实时汇总数据，最多可能存在 30 分钟延迟，展示金额仅供参考。</li>
           <li>月度账单将在次月出账后生成，出账前金额可能随数据汇总、计费校准等情况发生变化。</li>
           <li>如需查看完整明细账单，请联系运营获取。</li>
         </ol>

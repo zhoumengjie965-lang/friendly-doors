@@ -424,7 +424,7 @@ export default function AccountBalance({ enterprise, role }: Props) {
             <TableHeader>
               <TableRow className="bg-muted/50 hover:bg-muted/50">
                 <TableHead className="text-muted-foreground">代金券编号</TableHead>
-                <TableHead className="text-muted-foreground">金额</TableHead>
+                <TableHead className="text-muted-foreground">发放金额</TableHead>
                 <TableHead className="text-muted-foreground">剩余金额</TableHead>
                 <TableHead className="text-muted-foreground">使用状态</TableHead>
                 <TableHead className="text-muted-foreground">发放时间</TableHead>

@@ -3,12 +3,13 @@
 
 const MOCK_DATA_KEY = "ai_gateway_mock_data";
 const CURRENT_PHONE_KEY = "ai_gateway_phone";
-const MOCK_DATA_VERSION = "1.4"; // 数据版本，修改mock数据时更新此版本号
+const MOCK_DATA_VERSION = "1.5"; // 数据版本，修改mock数据时更新此版本号
 
 // ===== 数据类型定义 =====
 export interface MockUser {
   id: string;
   phone: string;
+  email?: string;
   name: string | null;
   avatar: string | null;
   created_at: string;
@@ -221,6 +222,38 @@ const initialData: MockData = {
       created_at: getNow(),
       uid: `UID:${100002 + i}`,
     })),
+    // 仅有邮箱的用户（用于测试导入成员弹窗）
+    {
+      id: "user_email_1",
+      phone: "-",
+      email: "zhoul@company.com",
+      name: "周八",
+      avatar: null,
+      created_at: getNow(),
+      uid: "UID:400001",
+      user_type: "formal",
+    },
+    {
+      id: "user_email_2",
+      phone: "-",
+      email: "wuji@company.com",
+      name: "吴九",
+      avatar: null,
+      created_at: getNow(),
+      uid: "UID:400002",
+      user_type: "formal",
+    },
+    // 同时有手机号和邮箱的用户
+    {
+      id: "user_both_1",
+      phone: "13100131007",
+      email: "zhengshi@company.com",
+      name: "郑十",
+      avatar: null,
+      created_at: getNow(),
+      uid: "UID:500001",
+      user_type: "formal",
+    },
   ],
   enterprises: [
     {
@@ -557,6 +590,38 @@ const initialData: MockData = {
       role: "org_admin",
       status: "active",
       daily_limit: 500,
+      created_at: getNow(),
+    },
+    // 仅有邮箱的企业直属成员（未分配部门）
+    {
+      id: "member_email_1",
+      user_phone: "-",
+      enterprise_id: "ent_1",
+      organization_id: "org_root",
+      role: "member",
+      status: "active",
+      daily_limit: 800,
+      created_at: getNow(),
+    },
+    {
+      id: "member_email_2",
+      user_phone: "-",
+      enterprise_id: "ent_1",
+      organization_id: "org_root",
+      role: "member",
+      status: "active",
+      daily_limit: 600,
+      created_at: getNow(),
+    },
+    // 同时有手机号和邮箱的成员
+    {
+      id: "member_both_1",
+      user_phone: "13100131007",
+      enterprise_id: "ent_1",
+      organization_id: "org_root",
+      role: "member",
+      status: "active",
+      daily_limit: 1000,
       created_at: getNow(),
     },
   ],

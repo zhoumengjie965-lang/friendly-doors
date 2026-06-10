@@ -574,11 +574,11 @@ export default function DeptManagement({ enterprise, role }: DeptManagementProps
     }
 
     try {
-      for (const phone of selectedMembersForImport) {
+      for (const memberId of selectedMembersForImport) {
         // 更新现有成员的 organization_id 和 role
         const mockData = getMockData();
         const memberIndex = mockData.members.findIndex(
-          (m) => m.user_phone === phone && m.enterprise_id === currentEnterprise.id
+          (m) => m.id === memberId && m.enterprise_id === currentEnterprise.id
         );
         if (memberIndex !== -1) {
           mockData.members[memberIndex].organization_id = selectedOrg.id;
@@ -1263,10 +1263,15 @@ export default function DeptManagement({ enterprise, role }: DeptManagementProps
                         ) : (
                           filteredMembers.map((member) => {
                             const mockData = getMockData();
-                            const user = mockData.users.find(u => u.phone === member.user_phone);
+                            const user = mockData.users.find(u => u.phone === member.user_phone && member.user_phone !== "-")
+                              || mockData.users.find(u => u.phone === "-" && member.user_phone === "-");
                             const rawUid = user?.uid || "-";
                             const uid = rawUid.startsWith("UID:") ? rawUid.slice(4) : rawUid;
-                            const maskedPhone = maskPhone(member.user_phone);
+                            const maskedPhone = member.user_phone && member.user_phone !== "-"
+                              ? maskPhone(member.user_phone)
+                              : user?.email
+                                ? `${user.email.slice(0, 2)}****@${user.email.split("@")[1]}`
+                                : "-";
                             return (
                             <TableRow key={member.id} className="border-b border-gray-50">
                               <TableCell>
@@ -1287,7 +1292,13 @@ export default function DeptManagement({ enterprise, role }: DeptManagementProps
                                         <TooltipContent side="top">
                                           <div className="text-sm text-gray-500">
                                             <p>UID：{uid}</p>
-                                            <p>手机号：{maskedPhone}</p>
+                                            {member.user_phone && member.user_phone !== "-" ? (
+                                              <p>手机号：{maskedPhone}</p>
+                                            ) : user?.email ? (
+                                              <p>邮箱：{maskedPhone}</p>
+                                            ) : (
+                                              <p>账号：{maskedPhone}</p>
+                                            )}
                                           </div>
                                         </TooltipContent>
                                       </Tooltip>
@@ -2401,23 +2412,37 @@ export default function DeptManagement({ enterprise, role }: DeptManagementProps
             const availableMembers = enterpriseMembers
               .filter(m => !currentOrgMemberPhones.includes(m.user_phone) && m.role !== "admin")
               .map(m => {
-                const user = mockData.users.find(u => u.phone === m.user_phone);
+                // 优先通过 phone 查找用户；若为 "-" 则通过 email 匹配
+                let user = mockData.users.find(u => u.phone === m.user_phone && m.user_phone !== "-");
+                if (!user && m.user_phone === "-") {
+                  // 通过 member id 顺序匹配仅有邮箱的用户（简单 mock 关联）
+                  const emailUsers = mockData.users.filter(u => u.phone === "-" && u.email);
+                  const emailIndex = enterpriseMembers
+                    .filter(em => em.user_phone === "-" && em.role !== "admin")
+                    .findIndex(em => em.id === m.id);
+                  user = emailUsers[emailIndex] || emailUsers[0];
+                }
                 return {
+                  id: m.id,
                   phone: m.user_phone,
+                  email: user?.email,
                   name: user?.name || m.user_phone,
+                  username: user?.uid || "-",
                 };
               })
-              .filter(m => 
-                !importMemberSearch || 
+              .filter(m =>
+                !importMemberSearch ||
                 m.name.toLowerCase().includes(importMemberSearch.toLowerCase()) ||
-                m.phone.includes(importMemberSearch)
+                m.username.toLowerCase().includes(importMemberSearch.toLowerCase()) ||
+                m.phone.includes(importMemberSearch) ||
+                (m.email?.toLowerCase().includes(importMemberSearch.toLowerCase()) ?? false)
               );
-            
-            const selectedMemberDetails = selectedMembersForImport.map(phone => {
-              const user = mockData.users.find(u => u.phone === phone);
-              return { phone, name: user?.name || phone };
+
+            const selectedMemberDetails = selectedMembersForImport.map(id => {
+              const m = availableMembers.find(am => am.id === id);
+              return { id, name: m?.name || id };
             });
-            
+
             return (
               <div className="space-y-4 py-2">
                 {/* 双栏选择区域 */}
@@ -2429,7 +2454,7 @@ export default function DeptManagement({ enterprise, role }: DeptManagementProps
                     </div>
                     <div className="p-2 border-b">
                       <Input
-                        placeholder="搜索姓名或手机号"
+                        placeholder="搜索姓名、用户名、手机号或邮箱"
                         value={importMemberSearch}
                         onChange={(e) => setImportMemberSearch(e.target.value)}
                         className="h-8 text-sm"
@@ -2442,37 +2467,41 @@ export default function DeptManagement({ enterprise, role }: DeptManagementProps
                         </div>
                       ) : (
                         availableMembers.map(m => {
-                          const isSelected = selectedMembersForImport.includes(m.phone);
+                          const isSelected = selectedMembersForImport.includes(m.id);
+                          // 脱敏展示：有手机号展示脱敏手机号，无则展示脱敏邮箱
+                          const displayContact = m.phone && m.phone !== "-"
+                            ? `${m.phone.slice(0, 3)}****${m.phone.slice(-4)}`
+                            : m.email
+                              ? `${m.email.slice(0, 2)}****@${m.email.split("@")[1]}`
+                              : "-";
                           return (
                             <div
-                              key={m.phone}
+                              key={m.id}
                               className="flex items-center gap-2 px-3 py-2 hover:bg-gray-50 cursor-pointer"
                               onClick={() => {
                                 if (isSelected) {
-                                  setSelectedMembersForImport(prev => prev.filter(p => p !== m.phone));
+                                  setSelectedMembersForImport(prev => prev.filter(p => p !== m.id));
                                 } else {
-                                  setSelectedMembersForImport(prev => [...prev, m.phone]);
+                                  setSelectedMembersForImport(prev => [...prev, m.id]);
                                 }
                               }}
                             >
                               <Checkbox checked={isSelected} />
                               <span className="text-sm flex-1">{m.name}</span>
-                              <span className="text-xs text-gray-400">
-                                {m.phone.slice(0, 3)}****{m.phone.slice(-4)}
-                              </span>
+                              <span className="text-xs text-gray-400">{displayContact}</span>
                             </div>
                           );
                         })
                       )}
                     </div>
                   </div>
-                  
+
                   {/* 右侧：已选成员 */}
                   <div className="border rounded-lg overflow-hidden">
                     <div className="px-3 py-2 bg-gray-50 border-b flex items-center justify-between">
                       <span className="text-sm text-gray-600">已选择：{selectedMembersForImport.length}人</span>
                       {selectedMembersForImport.length > 0 && (
-                        <button 
+                        <button
                           className="text-xs text-blue-500 hover:text-blue-600"
                           onClick={() => setSelectedMembersForImport([])}
                         >
@@ -2487,11 +2516,11 @@ export default function DeptManagement({ enterprise, role }: DeptManagementProps
                         </div>
                       ) : (
                         selectedMemberDetails.map(m => (
-                          <div key={m.phone} className="flex items-center justify-between px-3 py-2 hover:bg-gray-50">
+                          <div key={m.id} className="flex items-center justify-between px-3 py-2 hover:bg-gray-50">
                             <span className="text-sm">{m.name}</span>
                             <button
                               className="text-gray-400 hover:text-gray-600"
-                              onClick={() => setSelectedMembersForImport(prev => prev.filter(p => p !== m.phone))}
+                              onClick={() => setSelectedMembersForImport(prev => prev.filter(p => p !== m.id))}
                             >
                               <span className="text-lg leading-none">×</span>
                             </button>
@@ -2576,11 +2605,37 @@ export default function DeptManagement({ enterprise, role }: DeptManagementProps
               <div className="space-y-2">
                 <Label className="text-sm text-gray-600">成员手机号</Label>
                 <Input
-                  value={editMember.user_phone}
+                  value={editMember.user_phone === "-" ? "无" : editMember.user_phone}
                   disabled
                   className="bg-gray-50 text-gray-500"
                 />
               </div>
+              {/* 邮箱 - 只读 */}
+              {(() => {
+                const mockData = getMockData();
+                let userEmail = "";
+                if (editMember.user_phone && editMember.user_phone !== "-") {
+                  const user = mockData.users.find(u => u.phone === editMember.user_phone);
+                  userEmail = user?.email || "";
+                } else {
+                  const emailUsers = mockData.users.filter(u => u.phone === "-" && u.email);
+                  const emailMembers = mockData.members.filter(
+                    m => m.enterprise_id === enterprise?.id && m.user_phone === "-" && m.role !== "admin"
+                  );
+                  const idx = emailMembers.findIndex(m => m.id === editMember.id);
+                  userEmail = emailUsers[idx]?.email || "";
+                }
+                return userEmail ? (
+                  <div className="space-y-2">
+                    <Label className="text-sm text-gray-600">邮箱</Label>
+                    <Input
+                      value={userEmail}
+                      disabled
+                      className="bg-gray-50 text-gray-500"
+                    />
+                  </div>
+                ) : null;
+              })()}
               {/* 姓名 - 只读 */}
               <div className="space-y-2">
                 <Label className="text-sm text-gray-600">姓名</Label>

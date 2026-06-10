@@ -348,7 +348,7 @@ export default function AdminUsers() {
         ...prev,
         [voucherConfigTarget.id]: { enabled: voucherConfigForm.enabled, voucherType: voucherTypeTab },
       }));
-      toast({ title: "保存成功", description: `用户「${voucherConfigTarget.name || voucherConfigTarget.phone}」的代金券配置已更新` });
+      toast({ title: "保存成功", description: `用户「${voucherConfigTarget.name || voucherConfigTarget.phone}」的返券配置已更新` });
       setVoucherConfigEditing(false);
     } catch (err: any) {
       toast({ title: "保存失败", description: err.message || "未知错误", variant: "destructive" });
@@ -864,7 +864,7 @@ export default function AdminUsers() {
                   className="h-7 px-2 text-xs font-medium text-amber-700 border-amber-300 bg-amber-50 hover:bg-amber-100 hover:text-amber-800"
                   onClick={() => openVoucherConfig(u)}
                 >
-                  代金券配置
+                  返券配置
                   {voucherConfigMap[u.id] && (
                     <span className={`ml-1 inline-flex items-center gap-0.5 px-1 py-0 rounded text-[10px] font-medium ${voucherConfigMap[u.id].enabled ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-500"}`}>
                       <span className={`w-1 h-1 rounded-full ${voucherConfigMap[u.id].enabled ? "bg-green-500" : "bg-gray-400"}`}></span>
@@ -1261,7 +1261,7 @@ export default function AdminUsers() {
         <DialogContent className="sm:max-w-[560px] p-0 overflow-hidden">
           <DialogHeader className="px-6 pt-5 pb-4 border-b">
             <div className="flex items-center justify-between">
-              <DialogTitle className="text-base font-semibold">代金券配置</DialogTitle>
+              <DialogTitle className="text-base font-semibold">返券配置</DialogTitle>
             </div>
           </DialogHeader>
 
@@ -1274,39 +1274,8 @@ export default function AdminUsers() {
             </div>
           </div>
 
-          {/* 选择代金券类型 */}
-          <div className="px-6 pb-1 border-b">
-            <div className="flex items-end gap-4">
-              <span className="text-sm font-medium text-foreground mb-2">选择代金券类型</span>
-              <div className="flex gap-1 bg-gray-100 rounded-t-md p-1">
-                <button
-                  className={`px-4 py-2 text-sm font-medium rounded-md transition-colors ${
-                    voucherTypeTab === "billing"
-                      ? "bg-white text-foreground shadow-sm"
-                      : "text-muted-foreground hover:text-foreground"
-                  }`}
-                  onClick={() => setVoucherTypeTab("billing")}
-                >
-                  账期返券
-                </button>
-                <button
-                  className={`px-4 py-2 text-sm font-medium rounded-md transition-colors ${
-                    voucherTypeTab === "other"
-                      ? "bg-white text-foreground shadow-sm"
-                      : "text-muted-foreground hover:text-foreground"
-                  }`}
-                  onClick={() => setVoucherTypeTab("other")}
-                >
-                  其他类型
-                </button>
-              </div>
-            </div>
-          </div>
-
           <div className="px-6 py-5 space-y-5 max-h-[60vh] overflow-y-auto">
-            {voucherTypeTab === "billing" && (
-              <>
-                {/* 返券说明 */}
+            {/* 返券说明 */}
                 <p className="text-xs text-muted-foreground leading-relaxed">
                   返券说明：启用后，客户调用模型仍按实际价格扣费；月度账单生成后，系统根据本配置计算应返券金额。每个用户仅允许存在一套账期返券配置，修改账期返券配置后仅对后续生成的账单生效。
                 </p>
@@ -1330,6 +1299,9 @@ export default function AdminUsers() {
                     />
                   </button>
                 </div>
+                <p className="text-xs text-muted-foreground leading-relaxed -mt-3">
+                  状态切换对已生成的账单无效，若需返券请重新生成账单
+                </p>
 
                 {/* 返券折扣配置 */}
                 <div className="space-y-3">
@@ -1403,14 +1375,6 @@ export default function AdminUsers() {
                     </p>
                   )}
                 </div>
-              </>
-            )}
-
-            {voucherTypeTab === "other" && (
-              <div className="py-8 text-center text-sm text-muted-foreground">
-                更多代金券类型即将开放，敬请期待
-              </div>
-            )}
           </div>
 
           <DialogFooter className="px-6 py-4 border-t bg-gray-50/50 flex-col items-stretch gap-3">
