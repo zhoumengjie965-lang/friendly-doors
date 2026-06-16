@@ -97,6 +97,7 @@ interface Model {
   icon?: string;
   endpointMappings?: EndpointMapping[];
   region?: string; // 可用地域
+  sourceTag?: "官方" | "三方"; // 模型来源标签（为空表示不展示）
   specs?: ModelSpecs; // 模型规格
 }
 
@@ -432,6 +433,11 @@ const REGIONS = [
   { value: "国际", label: "国际" },
 ];
 
+const SOURCE_TAG_OPTIONS = [
+  { value: "官方", label: "官方" },
+  { value: "三方", label: "三方" },
+];
+
 const FEATURE_OPTIONS = [
   "支持流式",
   "图片输入",
@@ -701,6 +707,7 @@ export default function AdminModels() {
               </TableHead>
               <TableHead className="w-10">图标</TableHead>
               <TableHead>模型名称</TableHead>
+              <TableHead>模型代号</TableHead>
               <TableHead>匹配模型类型</TableHead>
               <TableHead>参与官方同步</TableHead>
               <TableHead>描述</TableHead>
@@ -729,6 +736,7 @@ export default function AdminModels() {
                   </div>
                 </TableCell>
                 <TableCell className="font-medium">{model.name}</TableCell>
+                <TableCell className="text-xs text-muted-foreground">{model.id}</TableCell>
                 <TableCell>
                   <Badge variant="outline" className="text-xs">
                     {model.matchType}
@@ -1024,6 +1032,42 @@ export default function AdminModels() {
                       {REGIONS.map((r) => (
                         <SelectItem key={r.value} value={r.value}>
                           {r.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* 模型来源标签 */}
+                <div className="space-y-1.5">
+                  <Label className="text-sm">模型来源标签</Label>
+                  <Select
+                    value={editingModel.sourceTag || ""}
+                    onValueChange={(v) =>
+                      setEditingModel({ ...editingModel, sourceTag: v as "官方" | "三方" })
+                    }
+                  >
+                    <SelectTrigger className="h-10 pr-8 relative">
+                      <SelectValue placeholder="" />
+                      {editingModel.sourceTag && (
+                        <span
+                          role="button"
+                          tabIndex={0}
+                          className="absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 flex items-center justify-center text-muted-foreground hover:text-foreground cursor-pointer"
+                          onPointerDown={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            setEditingModel({ ...editingModel, sourceTag: undefined });
+                          }}
+                        >
+                          <X className="w-3 h-3" />
+                        </span>
+                      )}
+                    </SelectTrigger>
+                    <SelectContent>
+                      {SOURCE_TAG_OPTIONS.map((o) => (
+                        <SelectItem key={o.value} value={o.value}>
+                          {o.label}
                         </SelectItem>
                       ))}
                     </SelectContent>

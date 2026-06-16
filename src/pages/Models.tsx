@@ -73,6 +73,7 @@ interface Model {
     output: number;
   };
   isOfficialPrice?: boolean; // 是否为官方原价
+  sourceTag?: "官方" | "三方"; // 模型来源标签（不展示时不传）
   // 模型规格
   specs?: {
     maxContextWindow: string; // 如 "128K", "1M", "2M"
@@ -653,7 +654,18 @@ export default function Models() {
                     </p>
                   </div>
                 </div>
-                <div className="flex flex-wrap gap-1 justify-end">
+                <div className="flex flex-wrap gap-1.5 justify-end">
+                  {model.sourceTag && (
+                    <span
+                      className={`text-[12px] leading-[20px] px-[6px] py-[2px] rounded-[4px] ${
+                        model.sourceTag === "官方"
+                          ? "bg-orange-50 text-orange-600"
+                          : "bg-blue-50 text-blue-600"
+                      }`}
+                    >
+                      {model.sourceTag}
+                    </span>
+                  )}
                   {model.tags.map((tag) => (
                     <Badge
                       key={tag}

@@ -1,16 +1,16 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Input } from "@/components/ui/input";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
-import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem } from "@/components/ui/command";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Textarea } from "@/components/ui/textarea";
 import { Search, Plus, X, UserCircle, Eye, EyeOff, Shield, ChevronDown, RotateCcw, Check } from "lucide-react";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useToast } from "@/hooks/use-toast";
 
@@ -80,64 +80,466 @@ function EnterpriseGreenTag({ type, name }: { type?: "formal" | "test"; name: st
   );
 }
 
-// 用户分组配置
-const GROUP_OPTIONS = [
-  { value: "basic", name: "basic", remark: "试用客户", models: ["Gemini 1.5", "Grok", "GPT-4o"], discountChannels: "gemini高速折扣通道 (x0.75)、grok高速折扣通道 (x0.85)、openai高速折扣通道 (x0.85)", rebateEnabled: false },
-  { value: "openai-basic", name: "openai-basic", remark: "正式客户", models: ["GPT-4o"], discountChannels: "openai高速折扣通道 (x0.85)", rebateEnabled: false },
-  { value: "grok-fast", name: "grok-fast", remark: "正式客户", models: ["Grok"], discountChannels: "grok高速折扣通道 (x0.85)", rebateEnabled: false },
-  { value: "claudetest", name: "claude-test", remark: "正式客户", models: ["Claude 3.5"], discountChannels: "claude高速折扣通道 (x0.85)", rebateEnabled: false },
-  { value: "vip-ep", name: "vip-ep", remark: "正式客户", models: ["Gemini 1.5", "Grok"], discountChannels: "gemini高速折扣通道 (x0.75)、grok高速折扣通道 (x0.85)", rebateEnabled: true },
-  { value: "suno", name: "suno", remark: "正式客户", models: ["Suno"], discountChannels: "suno高速折扣通道 (x0.8)", rebateEnabled: false },
-  { value: "gemini-fast", name: "gemini-fast", remark: "正式客户", models: ["Gemini 1.5"], discountChannels: "gemini高速折扣通道 (x0.75)", rebateEnabled: false },
-  { value: "vip-dp", name: "vip-dp", remark: "互联内结客户", models: ["Gemini 1.5", "Grok", "Claude 3.5"], discountChannels: "gemini高速折扣通道 (x0.75)、grok高速折扣通道 (x0.85)、claude高速折扣通道 (x0.85)", rebateEnabled: true },
+// 分组模板选项
+const TEMPLATE_OPTIONS = [
+  {
+    value: "default",
+    name: "default",
+    remark: "默认分组",
+    description: "全量基础通道",
+    availableGroups: [
+      { name: "openai-fast", rate: 1, desc: "OpenAI 高速通道" },
+      { name: "gemini-fast", rate: 1, desc: "Gemini 高速通道" },
+      { name: "claude-fast", rate: 1, desc: "Claude 高速通道" },
+      { name: "grok-fast", rate: 1, desc: "Grok 高速通道" },
+      { name: "qwen", rate: 1, desc: "通义千问通道" },
+      { name: "glm", rate: 1, desc: "GLM 通道" },
+      { name: "deepseek", rate: 1, desc: "DeepSeek 通道" },
+      { name: "kimi", rate: 1, desc: "Kimi 通道" },
+    ],
+  },
+  {
+    value: "vip-cd",
+    name: "vip-cd",
+    remark: "VIP-CD 模板",
+    description: "VIP 客户优选通道",
+    availableGroups: [
+      { name: "openai-fast", rate: 0.9, desc: "OpenAI 高速通道" },
+      { name: "claude-fast", rate: 0.95, desc: "Claude 高速通道" },
+      { name: "gemini-fast", rate: 0.85, desc: "Gemini 高速通道" },
+      { name: "qwen", rate: 0.7, desc: "通义千问通道" },
+    ],
+  },
+  {
+    value: "vip-md",
+    name: "vip-md",
+    remark: "VIP-MD 模板",
+    description: "VIP 中度折扣",
+    availableGroups: [
+      { name: "openai-fast", rate: 0.85, desc: "OpenAI 高速通道" },
+      { name: "claude-fast", rate: 0.9, desc: "Claude 高速通道" },
+      { name: "deepseek", rate: 1, desc: "DeepSeek 通道" },
+      { name: "glm", rate: 1, desc: "GLM 通道" },
+    ],
+  },
+  {
+    value: "vip-cr",
+    name: "vip-cr",
+    remark: "VIP-CR 模板",
+    description: "VIP 全量通道",
+    availableGroups: [
+      { name: "openai-fast", rate: 0.88, desc: "OpenAI 高速通道" },
+      { name: "claude-fast", rate: 0.92, desc: "Claude 高速通道" },
+      { name: "gemini-fast", rate: 1, desc: "Gemini 高速通道" },
+      { name: "grok-fast", rate: 1, desc: "Grok 高速通道" },
+      { name: "qwen", rate: 1, desc: "通义千问通道" },
+      { name: "glm", rate: 1, desc: "GLM 通道" },
+      { name: "deepseek", rate: 1, desc: "DeepSeek 通道" },
+      { name: "kimi", rate: 1, desc: "Kimi 通道" },
+    ],
+  },
 ];
 
-// 分组可搜索下拉选择器
-function GroupCombobox({
-  value,
-  onChange,
+// 代理商选项
+const AGENT_OPTIONS = [
+  { value: "agent-001", label: "代理商A" },
+  { value: "agent-002", label: "代理商B" },
+  { value: "agent-003", label: "代理商C" },
+];
+
+// 所有可配置的基础令牌分组
+const ALL_BASE_GROUPS = [
+  { name: "openai-fast", desc: "OpenAI 高速通道", defaultRate: 1 },
+  { name: "gemini-fast", desc: "Gemini 高速通道", defaultRate: 1 },
+  { name: "claude-fast", desc: "Claude 高速通道", defaultRate: 1 },
+  { name: "claude-basic", desc: "Claude 基础通道", defaultRate: 1 },
+  { name: "grok-fast", desc: "Grok 高速通道", defaultRate: 1 },
+  { name: "qwen", desc: "通义千问通道", defaultRate: 1 },
+  { name: "glm", desc: "GLM 通道", defaultRate: 1 },
+  { name: "glm-zhipu", desc: "智谱 GLM 通道", defaultRate: 1 },
+  { name: "deepseek", desc: "DeepSeek 通道", defaultRate: 1 },
+  { name: "kimi", desc: "Kimi 通道", defaultRate: 1 },
+  { name: "minimax", desc: "MiniMax 通道", defaultRate: 1 },
+];
+
+// 返券配置使用的分组选项（兼容旧格式）
+const VOUCHER_GROUP_OPTIONS = [
+  ...ALL_BASE_GROUPS.map((g) => ({ value: g.name, name: g.name, remark: g.desc, models: [g.desc], discountChannels: `${g.desc} (x1)`, rebateEnabled: false })),
+];
+
+// 自定义分组条目类型
+interface CustomGroupEntry { available: boolean; rate: number; }
+
+// 历史分组选项（对应 GroupRateSettings 中 category=historical 的分组）
+const HISTORICAL_GROUP_OPTIONS = [
+  { value: "default-fast", label: "default-fast", remark: "", availableGroups: [
+    { name: "openai-fast", desc: "OpenAI 高速通道", rate: 1 },
+    { name: "gemini-fast", desc: "Gemini 高速通道", rate: 1 },
+    { name: "claude-fast", desc: "Claude 高速通道", rate: 1 },
+    { name: "grok-fast", desc: "Grok 高速通道", rate: 1 },
+  ]},
+  { value: "gemini-test", label: "gemini-test", remark: "", availableGroups: [
+    { name: "gemini-fast", desc: "Gemini 高速通道", rate: 1 },
+  ]},
+  { value: "claude-test", label: "claude-test", remark: "", availableGroups: [
+    { name: "claude-fast", desc: "Claude 高速通道", rate: 1 },
+  ]},
+  { value: "claude-official-test", label: "claude-official-test", remark: "", availableGroups: [
+    { name: "claude-fast", desc: "Claude 高速通道", rate: 1 },
+  ]},
+  { value: "guochan-test", label: "guochan-test", remark: "", availableGroups: [
+    { name: "qwen", desc: "通义千问通道", rate: 1 },
+    { name: "glm", desc: "GLM 通道", rate: 1 },
+    { name: "deepseek", desc: "DeepSeek 通道", rate: 1 },
+  ]},
+  { value: "glm-test", label: "glm-test", remark: "", availableGroups: [
+    { name: "glm", desc: "GLM 通道", rate: 1 },
+    { name: "glm-zhipu", desc: "智谱 GLM 通道", rate: 1 },
+  ]},
+  { value: "claude-fast-only", label: "claude-fast-only", remark: "", availableGroups: [
+    { name: "claude-fast", desc: "Claude 高速通道", rate: 1 },
+  ]},
+  { value: "claude-fast-test", label: "claude-fast-test", remark: "", availableGroups: [
+    { name: "claude-fast", desc: "Claude 高速通道", rate: 1 },
+    { name: "claude-basic", desc: "Claude 基础通道", rate: 1 },
+  ]},
+  { value: "youai-test", label: "youai-test", remark: "", availableGroups: [
+    { name: "qwen", desc: "通义千问通道", rate: 1 },
+  ]},
+  { value: "vip-vnet", label: "vip-vnet", remark: "", availableGroups: [
+    { name: "openai-fast", desc: "OpenAI 高速通道", rate: 1 },
+    { name: "claude-fast", desc: "Claude 高速通道", rate: 1 },
+    { name: "gemini-fast", desc: "Gemini 高速通道", rate: 1 },
+    { name: "grok-fast", desc: "Grok 高速通道", rate: 1 },
+    { name: "qwen", desc: "通义千问通道", rate: 1 },
+    { name: "glm", desc: "GLM 通道", rate: 1 },
+    { name: "deepseek", desc: "DeepSeek 通道", rate: 1 },
+    { name: "kimi", desc: "Kimi 通道", rate: 1 },
+  ]},
+  { value: "basic", label: "basic", remark: "", availableGroups: [
+    { name: "openai-fast", desc: "OpenAI 高速通道", rate: 1 },
+    { name: "gemini-fast", desc: "Gemini 高速通道", rate: 1 },
+    { name: "claude-fast", desc: "Claude 高速通道", rate: 1 },
+    { name: "grok-fast", desc: "Grok 高速通道", rate: 1 },
+    { name: "qwen", desc: "通义千问通道", rate: 1 },
+    { name: "glm", desc: "GLM 通道", rate: 1 },
+    { name: "deepseek", desc: "DeepSeek 通道", rate: 1 },
+    { name: "kimi", desc: "Kimi 通道", rate: 1 },
+  ]},
+  { value: "vip-dp", label: "vip-dp", remark: "", availableGroups: [
+    { name: "openai-fast", desc: "OpenAI 高速通道", rate: 1 },
+    { name: "claude-fast", desc: "Claude 高速通道", rate: 1 },
+    { name: "gemini-fast", desc: "Gemini 高速通道", rate: 1 },
+    { name: "qwen", desc: "通义千问通道", rate: 1 },
+  ]},
+  { value: "vip-pp", label: "vip-pp", remark: "", availableGroups: [
+    { name: "openai-fast", desc: "OpenAI 高速通道", rate: 1 },
+    { name: "claude-fast", desc: "Claude 高速通道", rate: 1 },
+    { name: "deepseek", desc: "DeepSeek 通道", rate: 1 },
+    { name: "glm", desc: "GLM 通道", rate: 1 },
+  ]},
+  { value: "vip-st", label: "vip-st", remark: "", availableGroups: [
+    { name: "openai-fast", desc: "OpenAI 高速通道", rate: 0.88 },
+    { name: "claude-fast", desc: "Claude 高速通道", rate: 0.92 },
+    { name: "gemini-fast", desc: "Gemini 高速通道", rate: 1 },
+    { name: "grok-fast", desc: "Grok 高速通道", rate: 1 },
+    { name: "qwen", desc: "通义千问通道", rate: 1 },
+    { name: "glm", desc: "GLM 通道", rate: 1 },
+    { name: "deepseek", desc: "DeepSeek 通道", rate: 1 },
+    { name: "kimi", desc: "Kimi 通道", rate: 1 },
+  ]},
+];
+
+// 分组配置选择器组件（模板 / 自定义 / 全部分组）
+function GroupConfigSelector({
+  groupMode,
+  setGroupMode,
+  selectedTemplate,
+  setSelectedTemplate,
+  selectedHistoricalGroup,
+  setSelectedHistoricalGroup,
+  customGroups,
+  setCustomGroups,
 }: {
-  value: string;
-  onChange: (value: string) => void;
+  groupMode: "template" | "custom" | "all";
+  setGroupMode: (mode: "template" | "custom" | "all") => void;
+  selectedTemplate: string;
+  setSelectedTemplate: (value: string) => void;
+  selectedHistoricalGroup: string;
+  setSelectedHistoricalGroup: (value: string) => void;
+  customGroups: Record<string, CustomGroupEntry>;
+  setCustomGroups: (groups: Record<string, CustomGroupEntry>) => void;
 }) {
-  const [open, setOpen] = useState(false);
-  const selected = GROUP_OPTIONS.find((g) => g.value === value);
-  const displayText = selected
-    ? `${selected.name} (${selected.remark})`
-    : "请选择分组";
+  // 二级弹窗状态
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [editingCustomGroups, setEditingCustomGroups] = useState<Record<string, CustomGroupEntry>>({});
+
+  const activeTemplate = TEMPLATE_OPTIONS.find((t) => t.value === selectedTemplate);
+
+  // 打开自定义分组弹窗前，快照当前数据
+  const handleOpenDialog = () => {
+    if (Object.keys(customGroups).length > 0) {
+      setEditingCustomGroups({ ...customGroups });
+    } else {
+      // 初始化：所有基础分组默认不可用，倍率=1
+      const init: Record<string, CustomGroupEntry> = {};
+      ALL_BASE_GROUPS.forEach((g) => { init[g.name] = { available: false, rate: g.defaultRate }; });
+      setEditingCustomGroups(init);
+    }
+    setDialogOpen(true);
+  };
+
+  // 保存二级弹窗中的自定义分组
+  const handleSaveCustomDialog = () => {
+    const validEntries = Object.fromEntries(
+      Object.entries(editingCustomGroups).filter(([, entry]) => entry.available)
+    );
+    setCustomGroups(validEntries);
+    setDialogOpen(false);
+  };
+
+  // 取消二级弹窗
+  const handleCancelCustomDialog = () => {
+    setDialogOpen(false);
+  };
+
+  // 在弹窗中切换某个分组的可用性
+  const toggleAvailableInDialog = (name: string, checked: boolean) => {
+    setEditingCustomGroups((prev) => ({
+      ...prev,
+      [name]: { ...prev[name], available: checked },
+    }));
+  };
+
+  // 在弹窗中修改倍率
+  const updateRateInDialog = (name: string, val: number) => {
+    setEditingCustomGroups((prev) => ({
+      ...prev,
+      [name]: { ...prev[name], rate: val },
+    }));
+  };
+
+  // ── 渲染：模板模式的文本摘要 ──
+  const templateSummaryText = activeTemplate
+    ? `对应令牌分组：${activeTemplate.availableGroups.map((g) => `${g.name} ${g.desc}（x${g.rate}）`).join("、")}`
+    : "";
+
+  // ── 渲染：全部分组（历史分组）模式的文本摘要 ──
+  const selectedHistoricalOption = HISTORICAL_GROUP_OPTIONS.find((h) => h.value === selectedHistoricalGroup);
+  const historicalSummaryText = selectedHistoricalOption?.availableGroups
+    ? `对应令牌分组：${selectedHistoricalOption.availableGroups.map((g) => `${g.name} ${g.desc}（x${g.rate}）`).join("、")}`
+    : "";
+
+  // ── 渲染：自定义模式的文本摘要 ──
+  const enabledCount = Object.values(customGroups).filter((e) => e.available).length;
+  const customSummaryParts = Object.entries(customGroups)
+    .filter(([, e]) => e.available)
+    .map(([name, e]) => `${name}（x${e.rate}）`);
 
   return (
-    <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger asChild>
-        <button className="flex h-10 w-full items-center justify-between rounded-md border border-gray-200 bg-gray-50/50 px-3 py-2 text-sm hover:bg-gray-100">
-          <span className={value ? "" : "text-muted-foreground"}>{displayText}</span>
-          <ChevronDown className="h-4 w-4 opacity-50" />
-        </button>
-      </PopoverTrigger>
-      <PopoverContent className="p-0 w-[320px]" align="start">
-        <Command shouldFilter>
-          <CommandInput placeholder="搜索分组..." />
-          <CommandEmpty>未找到匹配的分组</CommandEmpty>
-          <CommandGroup>
-            {GROUP_OPTIONS.map((group) => {
-              return (
-                <CommandItem
-                  key={group.value}
-                  value={group.name}
-                  onSelect={() => {
-                    onChange(group.value);
-                    setOpen(false);
-                  }}
-                >
-                  <Check className={`mr-2 h-4 w-4 ${value === group.value ? "opacity-100" : "opacity-0"}`} />
-                  <span>{group.name} ({group.remark})</span>
-                </CommandItem>
-              );
-            })}
-          </CommandGroup>
-        </Command>
-      </PopoverContent>
-    </Popover>
+    <div className="space-y-3">
+      {/* 模式切换：Radio 样式 */}
+      <div className="flex items-center gap-5">
+        <label className="flex items-center gap-2 cursor-pointer select-none">
+          <span
+            className={`w-4 h-4 rounded-full border flex items-center justify-center transition-colors ${
+              groupMode === "template"
+                ? "border-blue-500"
+                : "border-gray-300 hover:border-gray-400"
+            }`}
+            onClick={() => setGroupMode("template")}
+          >
+            {groupMode === "template" && (
+              <span className="w-2 h-2 rounded-full bg-blue-500" />
+            )}
+          </span>
+          <span
+            className={`text-sm ${groupMode === "template" ? "text-foreground font-medium" : "text-muted-foreground"}`}
+            onClick={() => setGroupMode("template")}
+          >
+            分组模板
+          </span>
+        </label>
+
+        <div className="flex items-center gap-2">
+          <label className="flex items-center gap-2 cursor-pointer select-none">
+            <span
+              className={`w-4 h-4 rounded-full border flex items-center justify-center transition-colors ${
+                groupMode === "custom"
+                  ? "border-blue-500"
+                  : "border-gray-300 hover:border-gray-400"
+              }`}
+              onClick={() => setGroupMode("custom")}
+            >
+              {groupMode === "custom" && (
+                <span className="w-2 h-2 rounded-full bg-blue-500" />
+              )}
+            </span>
+            <span
+              className={`text-sm ${groupMode === "custom" ? "text-foreground font-medium" : "text-muted-foreground"}`}
+              onClick={() => setGroupMode("custom")}
+            >
+              自定义分组
+            </span>
+          </label>
+          {groupMode === "custom" && (
+            <button
+              type="button"
+              onClick={handleOpenDialog}
+              className="text-xs text-blue-600 hover:text-blue-700 hover:underline font-medium"
+            >
+              去配置
+            </button>
+          )}
+        </div>
+
+        <label className="flex items-center gap-2 cursor-pointer select-none">
+          <span
+            className={`w-4 h-4 rounded-full border flex items-center justify-center transition-colors ${
+              groupMode === "all"
+                ? "border-blue-500"
+                : "border-gray-300 hover:border-gray-400"
+            }`}
+            onClick={() => { setGroupMode("all"); if (!selectedHistoricalGroup) setSelectedHistoricalGroup(HISTORICAL_GROUP_OPTIONS[0]?.value || ""); }}
+          >
+            {groupMode === "all" && (
+              <span className="w-2 h-2 rounded-full bg-blue-500" />
+            )}
+          </span>
+          <span
+            className={`text-sm ${groupMode === "all" ? "text-foreground font-medium" : "text-muted-foreground"}`}
+            onClick={() => { setGroupMode("all"); if (!selectedHistoricalGroup) setSelectedHistoricalGroup(HISTORICAL_GROUP_OPTIONS[0]?.value || ""); }}
+          >
+            全部分组
+          </span>
+        </label>
+      </div>
+
+      {/* ── 模板模式 ── */}
+      {groupMode === "template" && (
+        <div className="space-y-2">
+          <select
+            className="w-full h-9 px-3 border border-gray-200 rounded-md bg-white text-sm"
+            value={selectedTemplate}
+            onChange={(e) => setSelectedTemplate(e.target.value)}
+          >
+            {TEMPLATE_OPTIONS.map((t) => (
+              <option key={t.value} value={t.value}>
+                {t.name} ({t.remark})
+              </option>
+            ))}
+          </select>
+          {activeTemplate && (
+            <p className="text-xs text-muted-foreground leading-relaxed break-all">
+              {templateSummaryText}
+            </p>
+          )}
+        </div>
+      )}
+
+      {/* ── 全部分组模式：历史分组选择 ── */}
+      {groupMode === "all" && (
+        <div className="space-y-2">
+          <select
+            className="w-full h-9 px-3 border border-gray-200 rounded-md bg-white text-sm"
+            value={selectedHistoricalGroup}
+            onChange={(e) => setSelectedHistoricalGroup(e.target.value)}
+          >
+            {HISTORICAL_GROUP_OPTIONS.map((h) => (
+              <option key={h.value} value={h.value}>
+                {h.label}
+              </option>
+            ))}
+          </select>
+          {selectedHistoricalGroup && historicalSummaryText && (
+            <p className="text-xs text-muted-foreground leading-relaxed break-all">
+              {historicalSummaryText}
+            </p>
+          )}
+          {!selectedHistoricalGroup && (
+            <p className="text-xs text-muted-foreground">选择一个历史分组，该分组将作为用户/企业的默认分组</p>
+          )}
+        </div>
+      )}
+
+      {/* ── 自定义模式：摘要 ── */}
+      {groupMode === "custom" && enabledCount > 0 && (
+        <p className="text-xs text-muted-foreground leading-relaxed break-all">
+          已自定义配置 {enabledCount} 个令牌分组：
+          {customSummaryParts.length > 6
+            ? `${customSummaryParts.slice(0, 6).join("、")}等`
+            : customSummaryParts.join("、")
+          }
+        </p>
+      )}
+
+      {/* ── 自定义分组配置二级弹窗 ── */}
+      <Dialog open={dialogOpen} onOpenChange={(open) => { if (!open) handleCancelCustomDialog(); }}>
+        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>配置自定义分组</DialogTitle>
+          </DialogHeader>
+
+          <p className="text-xs text-muted-foreground mb-3">
+            勾选后，该令牌分组将对当前用户/企业生效，并按填写倍率计费；未勾选的令牌分组不会生效。
+          </p>
+
+          <div className="border rounded-lg overflow-hidden">
+            <table className="w-full text-sm">
+              <thead className="bg-muted/50">
+                <tr>
+                  <th className="px-3 py-1.5 text-left font-medium text-muted-foreground">基础令牌分组</th>
+                  <th className="px-3 py-1.5 text-center font-medium text-muted-foreground w-[90px]">是否可用</th>
+                  <th className="px-3 py-1.5 text-right font-medium text-muted-foreground w-[90px]">倍率</th>
+                  <th className="px-3 py-1.5 text-left font-medium text-muted-foreground">描述/模型系列</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y">
+                {ALL_BASE_GROUPS.map((bg) => {
+                  const entry = editingCustomGroups[bg.name] ?? { available: false, rate: bg.defaultRate };
+                  return (
+                    <tr key={bg.name} className={`${entry.available ? "" : "opacity-45"} hover:bg-muted/30`}>
+                      <td className="px-3 py-1.5 font-medium">{bg.name}</td>
+                      <td className="px-3 py-1.5 text-center">
+                        <Checkbox
+                          checked={entry.available}
+                          onCheckedChange={(v) => toggleAvailableInDialog(bg.name, !!v)}
+                        />
+                      </td>
+                      <td className="px-3 py-1.5 text-right">
+                        <Input
+                          type="number"
+                          step={0.05}
+                          min={0.01}
+                          disabled={!entry.available}
+                          value={entry.rate}
+                          onChange={(e) => {
+                            const val = parseFloat(e.target.value);
+                            updateRateInDialog(bg.name, isNaN(val) ? 1 : val);
+                          }}
+                          className={`h-7 text-sm w-full text-right ${!entry.available ? "opacity-40 cursor-not-allowed bg-muted" : ""}`}
+                        />
+                      </td>
+                      <td className="px-3 py-1.5 text-muted-foreground text-xs">{bg.desc}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={handleCancelCustomDialog}>取消</Button>
+            <Button
+              className="bg-blue-600 hover:bg-blue-700"
+              onClick={handleSaveCustomDialog}
+            >
+              确认配置
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
   );
 }
 
@@ -232,6 +634,7 @@ export default function AdminUsers() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [groupFilter, setGroupFilter] = useState<string>("all");
+  const [groupSearchQuery, setGroupSearchQuery] = useState("");
   const [tagFilter, setTagFilter] = useState<string>("all");
 
   // 标签类型选项
@@ -263,8 +666,12 @@ export default function AdminUsers() {
     remarkType: "正式用户",
     remarkName: "",
     voucherEnabled: false,
-    group: "default",
+    groupMode: "template" as "template" | "custom" | "all",
+    selectedTemplate: "default",
+    selectedHistoricalGroup: "",
+    customGroups: {} as Record<string, CustomGroupEntry>,
     modelAccess: [] as string[],
+    agentId: "",
   });
   const [showPassword, setShowPassword] = useState(false);
   const [savingUser, setSavingUser] = useState(false);
@@ -366,8 +773,12 @@ export default function AdminUsers() {
     remarkType: "正式用户",
     remarkName: "",
     voucherEnabled: false,
-    group: GROUP_OPTIONS[0]?.value || "",
+    groupMode: "template" as "template" | "custom" | "all",
+    selectedTemplate: TEMPLATE_OPTIONS[0]?.value || "default",
+    selectedHistoricalGroup: "",
+    customGroups: {} as Record<string, CustomGroupEntry>,
     modelAccess: ["国际"] as string[],
+    agentId: "",
   });
   const [addingUser, setAddingUser] = useState(false);
 
@@ -542,8 +953,12 @@ export default function AdminUsers() {
       remarkType: type,
       remarkName: name,
       voucherEnabled: false,
-      group: user.group || "default",
+      groupMode: "template",
+      selectedTemplate: user.group && TEMPLATE_OPTIONS.some(t => t.value === user.group) ? user.group : "default",
+      selectedHistoricalGroup: "",
+      customGroups: {},
       modelAccess: ["国际"],
+      agentId: "",
     });
     setShowPassword(false);
     setDrawerOpen(true);
@@ -628,7 +1043,7 @@ export default function AdminUsers() {
 
       toast({ title: "用户创建成功", description: `用户 ${addForm.username} 已添加` });
       setAddDialogOpen(false);
-      setAddForm({ username: "", displayName: "", password: "", remarkType: "正式用户", remarkName: "", voucherEnabled: false, group: GROUP_OPTIONS[0]?.value || "", modelAccess: ["国际"] });
+      setAddForm({ username: "", displayName: "", password: "", remarkType: "正式用户", remarkName: "", voucherEnabled: false, groupMode: "template" as const, selectedTemplate: TEMPLATE_OPTIONS[0]?.value || "default", selectedHistoricalGroup: "", customGroups: {}, modelAccess: ["国际"], agentId: "" });
       fetchAll();
     } catch (err: any) {
       toast({ title: "创建失败", description: err.message || "未知错误", variant: "destructive" });
@@ -710,17 +1125,42 @@ export default function AdminUsers() {
             className="pl-9 h-9 bg-white"
           />
         </div>
-        <Select value={groupFilter} onValueChange={setGroupFilter}>
-          <SelectTrigger className="w-32 h-9 bg-white">
-            <SelectValue placeholder="选择分组" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">全部分组</SelectItem>
-            <SelectItem value="default">default</SelectItem>
-            <SelectItem value="vip">VIP</SelectItem>
-            <SelectItem value="enterprise">企业用户</SelectItem>
-          </SelectContent>
-        </Select>
+        <Popover>
+          <PopoverTrigger asChild>
+            <Button variant="outline" className="w-32 h-9 justify-between bg-white">
+              <span className="truncate">{groupFilter === "all" ? "全部分组" : groupFilter}</span>
+              <ChevronDown className="w-4 h-4 opacity-50 shrink-0" />
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent className="w-[200px] p-0 align-start" align="start">
+            <div className="p-2 border-b">
+              <Input
+                placeholder="搜索分组模板..."
+                value={groupSearchQuery}
+                onChange={(e) => setGroupSearchQuery(e.target.value)}
+                className="h-8"
+              />
+            </div>
+            <div className="max-h-48 overflow-y-auto py-1">
+              <div
+                className={`px-3 py-1.5 text-sm cursor-pointer hover:bg-gray-50 ${groupFilter === "all" ? "bg-blue-50 text-blue-600 font-medium" : ""}`}
+                onClick={() => { setGroupFilter("all"); setGroupSearchQuery(""); }}
+              >
+                全部分组
+              </div>
+              {TEMPLATE_OPTIONS.filter(t => t.name.toLowerCase().includes(groupSearchQuery.toLowerCase())).map((t) => (
+                <div
+                  key={t.value}
+                  className={`px-3 py-1.5 text-sm cursor-pointer hover:bg-gray-50 ${groupFilter === t.value ? "bg-blue-50 text-blue-600 font-medium" : ""}`}
+                  onClick={() => { setGroupFilter(t.value); setGroupSearchQuery(""); }}
+                >
+                  <span>{t.name}</span>
+                  {t.remark && <span className="text-xs text-muted-foreground ml-2">({t.remark})</span>}
+                </div>
+              ))}
+            </div>
+          </PopoverContent>
+        </Popover>
         <Select value={tagFilter} onValueChange={setTagFilter}>
           <SelectTrigger className="w-[140px] h-9 bg-white">
             <SelectValue placeholder="标签筛选" />
@@ -986,6 +1426,34 @@ export default function AdminUsers() {
                 </div>
               </div>
 
+              {/* 所属代理商 */}
+              <div className="space-y-1.5">
+                <Label className="text-sm">所属代理商</Label>
+                <Select value={editForm.agentId || undefined} onValueChange={(v) => setEditForm((prev) => ({ ...prev, agentId: v }))}>
+                  <SelectTrigger className="w-full h-10 bg-white [&>span:not(.sr-only)]:line-clamp-none">
+                    <SelectValue placeholder="" style={{ display: 'none' }} />
+                    {editForm.agentId ? (
+                      <span
+                        role="button"
+                        className="inline-flex items-center gap-[2px] px-[6px] py-[1px] rounded-[4px] bg-blue-50 text-blue-600 text-xs leading-[18px] whitespace-nowrap"
+                        onPointerDown={(e) => { e.preventDefault(); e.stopPropagation(); }}
+                        onClick={(e) => { e.stopPropagation(); setEditForm(prev => ({ ...prev, agentId: "" })); }}
+                      >
+                        {AGENT_OPTIONS.find(a => a.value === editForm.agentId)?.label || editForm.agentId}
+                        <X className="h-3 w-3" />
+                      </span>
+                    ) : null}
+                  </SelectTrigger>
+                  <SelectContent>
+                    {AGENT_OPTIONS.map((a) => (
+                      <SelectItem key={a.value} value={a.value}>
+                        {a.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
               {/* Section B: 权限设置 */}
               <div className="space-y-4">
                 <div className="flex items-center gap-3">
@@ -1003,15 +1471,16 @@ export default function AdminUsers() {
                     <Label className="text-sm">
                       分组 <span className="text-red-500">*</span>
                     </Label>
-                    <GroupCombobox
-                      value={editForm.group}
-                      onChange={(value) => setEditForm((prev) => ({ ...prev, group: value }))}
+                    <GroupConfigSelector
+                      groupMode={editForm.groupMode}
+                      setGroupMode={(mode) => setEditForm((prev) => ({ ...prev, groupMode: mode }))}
+                      selectedTemplate={editForm.selectedTemplate}
+                      setSelectedTemplate={(value) => setEditForm((prev) => ({ ...prev, selectedTemplate: value }))}
+                      selectedHistoricalGroup={editForm.selectedHistoricalGroup || ""}
+                      setSelectedHistoricalGroup={(value) => setEditForm((prev) => ({ ...prev, selectedHistoricalGroup: value }))}
+                      customGroups={editForm.customGroups}
+                      setCustomGroups={(groups) => setEditForm((prev) => ({ ...prev, customGroups: groups }))}
                     />
-                    {editForm.group && (
-                      <p className="text-xs text-muted-foreground mt-1">
-                        对应令牌分组：{GROUP_OPTIONS.find((g) => g.value === editForm.group)?.discountChannels}
-                      </p>
-                    )}
                   </div>
 
                   <div className="space-y-1.5">
@@ -1114,14 +1583,27 @@ export default function AdminUsers() {
                       toast({ title: "请输入用户名", variant: "destructive" });
                       return;
                     }
-                    if (!editForm.group.trim()) {
-                      toast({ title: "请选择分组", variant: "destructive" });
+                    if (editForm.groupMode === "template" && !editForm.selectedTemplate.trim()) {
+                      toast({ title: "请选择分组模板", variant: "destructive" });
+                      return;
+                    }
+                    if (editForm.groupMode === "custom" && Object.keys(editForm.customGroups).length === 0) {
+                      toast({ title: "请至少配置一个令牌分组", variant: "destructive" });
+                      return;
+                    }
+                    if (editForm.groupMode === "all" && !editForm.selectedHistoricalGroup?.trim()) {
+                      toast({ title: "请选择历史分组", variant: "destructive" });
                       return;
                     }
                     setSavingUser(true);
                     setTimeout(() => {
+                      const groupLabel = editForm.groupMode === "template"
+                        ? `模板「${editForm.selectedTemplate}」`
+                        : editForm.groupMode === "all"
+                        ? `历史分组「${editForm.selectedHistoricalGroup}」`
+                        : `自定义分组(${Object.keys(editForm.customGroups).length}个通道)`;
                       setSavingUser(false);
-                      toast({ title: "保存成功", description: `用户「${editForm.username}」的分组已更新为「${editForm.group}」` });
+                      toast({ title: "保存成功", description: `用户「${editForm.username}」的分组已更新为${groupLabel}` });
                       setDrawerOpen(false);
                     }, 500);
                   }}
@@ -1223,6 +1705,33 @@ export default function AdminUsers() {
               </div>
 
               <div className="space-y-1.5">
+                <Label className="text-sm">所属代理商</Label>
+                <Select value={addForm.agentId || undefined} onValueChange={(v) => setAddForm((prev) => ({ ...prev, agentId: v }))}>
+                  <SelectTrigger className="w-full h-10 bg-gray-50/50 border-gray-200 [&>span:not(.sr-only)]:line-clamp-none">
+                    <SelectValue placeholder="" style={{ display: 'none' }} />
+                    {addForm.agentId ? (
+                      <span
+                        role="button"
+                        className="inline-flex items-center gap-[2px] px-[6px] py-[1px] rounded-[4px] bg-blue-50 text-blue-600 text-xs leading-[18px] whitespace-nowrap"
+                        onPointerDown={(e) => { e.preventDefault(); e.stopPropagation(); }}
+                        onClick={(e) => { e.stopPropagation(); setAddForm(prev => ({ ...prev, agentId: "" })); }}
+                      >
+                        {AGENT_OPTIONS.find(a => a.value === addForm.agentId)?.label || addForm.agentId}
+                        <X className="h-3 w-3" />
+                      </span>
+                    ) : null}
+                  </SelectTrigger>
+                  <SelectContent>
+                    {AGENT_OPTIONS.map((a) => (
+                      <SelectItem key={a.value} value={a.value}>
+                        {a.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-1.5">
                 <Label className="text-sm">
                   模型访问权限 <span className="text-red-500">*</span>
                 </Label>
@@ -1240,7 +1749,7 @@ export default function AdminUsers() {
               className="h-9 px-4"
               onClick={() => {
                 setAddDialogOpen(false);
-                setAddForm({ username: "", displayName: "", password: "", remarkType: "正式用户", remarkName: "", voucherEnabled: false, group: GROUP_OPTIONS[0]?.value || "", modelAccess: ["国际"] });
+                setAddForm({ username: "", displayName: "", password: "", remarkType: "正式用户", remarkName: "", voucherEnabled: false, groupMode: "template" as const, selectedTemplate: TEMPLATE_OPTIONS[0]?.value || "default", selectedHistoricalGroup: "", customGroups: {}, modelAccess: ["国际"], agentId: "" });
               }}
             >
               取消
@@ -1314,7 +1823,7 @@ export default function AdminUsers() {
                       <span>令牌分组</span>
                       <span className="text-right">返券比例</span>
                     </div>
-                    {GROUP_OPTIONS.map((group) => {
+                    {VOUCHER_GROUP_OPTIONS.map((group) => {
                       const discount = voucherConfigForm.groupDiscounts[group.value] || 0;
                       return (
                         <div key={group.value} className="grid grid-cols-[1fr_100px] gap-2 px-3 py-2.5 border-b last:border-0 items-center">
