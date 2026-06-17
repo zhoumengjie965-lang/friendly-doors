@@ -9,7 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
-import { Search, Plus, X, UserCircle, Eye, EyeOff, Shield, ChevronDown, RotateCcw, Check } from "lucide-react";
+import { Search, Plus, X, UserCircle, Eye, EyeOff, Shield, ChevronDown, RotateCcw, Check, Download } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useToast } from "@/hooks/use-toast";
@@ -1179,6 +1179,38 @@ export default function AdminUsers() {
         <Button variant="ghost" className="h-9" onClick={handleReset}>
           <RotateCcw className="w-4 h-4 mr-1" />
           重置
+        </Button>
+        <Button
+          variant="outline"
+          className="h-9 gap-1.5 bg-white ml-auto"
+          onClick={() => {
+            if (filtered.length === 0) { toast({ title: "暂无数据可导出", variant: "destructive" }); return; }
+            const headers = ["ID","用户名","状态","个人余额(元)","个人总消耗(元)","分组","角色","所属企业","注册时间","邀请人数","邀请收入"];
+            const rows = filtered.map(u => [
+              u.id.slice(0, 8),
+              u.name || u.phone,
+              u.status === "active" ? "已启用" : "已禁用",
+              formatNumber(u.personal_balance),
+              formatNumber(u.personal_total),
+              u.group,
+              u.role,
+              u.enterprises.map(e => e.name).join(";"),
+              new Date(u.created_at).toLocaleDateString("zh-CN"),
+              String(u.invite_count),
+              formatNumber(u.invite_revenue),
+            ]);
+            const csv = [headers, ...rows].map(r => r.map(c => `"${String(c).replace(/"/g, '""')}"`).join(",")).join("\n");
+            const BOM = "\uFEFF";
+            const blob = new Blob([BOM + csv], { type: "text/csv;charset=utf-8;" });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement("a");
+            a.href = url; a.download = `用户管理_${new Date().toLocaleDateString("zh-CN")}.csv`;
+            a.click(); URL.revokeObjectURL(url);
+            toast({ title: "导出成功", description: `已导出 ${filtered.length} 条用户数据` });
+          }}
+        >
+          <Download className="w-4 h-4" />
+          导出
         </Button>
       </div>
 

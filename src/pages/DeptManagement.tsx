@@ -275,9 +275,11 @@ export default function DeptManagement({ enterprise, role }: DeptManagementProps
   const [selectedMembersForImport, setSelectedMembersForImport] = useState<string[]>([]);
   const [importMemberRole, setImportMemberRole] = useState("member");
   const [importDailyLimit, setImportDailyLimit] = useState("2000");
+  const [importBudgetType, setImportBudgetType] = useState<"unlimited" | "daily" | "monthly">("daily");
 
   const [budgetDialogOpen, setBudgetDialogOpen] = useState(false);
   const [budgetValue, setBudgetValue] = useState("");
+  const [budgetType, setBudgetType] = useState<"unlimited" | "daily" | "monthly">("daily");
 
   // 二次确认弹窗状态
   const [memberRemoveConfirm, setMemberRemoveConfirm] = useState<Member | null>(null);
@@ -1245,7 +1247,8 @@ export default function DeptManagement({ enterprise, role }: DeptManagementProps
                           <TableHead className="text-gray-500 font-normal">角色</TableHead>
                           <TableHead className="text-gray-500 font-normal">今日消耗</TableHead>
                           <TableHead className="text-gray-500 font-normal">本月消耗</TableHead>
-                          <TableHead className="text-gray-500 font-normal">单日上限</TableHead>
+                          <TableHead className="text-gray-500 font-normal">预算类型</TableHead>
+                          <TableHead className="text-gray-500 font-normal">预算上限</TableHead>
                           <TableHead className="text-gray-500 font-normal">状态</TableHead>
                           <TableHead className="text-gray-500 font-normal text-right">操作</TableHead>
                         </TableRow>
@@ -1254,7 +1257,7 @@ export default function DeptManagement({ enterprise, role }: DeptManagementProps
                         {filteredMembers.length === 0 ? (
                           <TableRow>
                             <TableCell
-                              colSpan={7}
+                              colSpan={8}
                               className="text-center text-gray-400 py-12"
                             >
                               暂无成员
@@ -1323,6 +1326,17 @@ export default function DeptManagement({ enterprise, role }: DeptManagementProps
                               </TableCell>
                               <TableCell className="text-sm text-gray-600">
                                 ¥{(member.month_consumed || 0).toFixed(2)}
+                              </TableCell>
+                              <TableCell>
+                                <span className={`text-sm px-2 py-0.5 rounded-full ${
+                                  member.budget_type === "monthly" 
+                                    ? "bg-blue-50 text-blue-600" 
+                                    : member.budget_type === "daily"
+                                    ? "bg-green-50 text-green-600" 
+                                    : "bg-gray-50 text-gray-500"
+                                }`}>
+                                  {member.budget_type === "monthly" ? "按月循环" : member.budget_type === "daily" ? "按日循环" : "不限制"}
+                                </span>
                               </TableCell>
                               <TableCell>
                                 <div className="flex items-center gap-2">
@@ -2531,35 +2545,9 @@ export default function DeptManagement({ enterprise, role }: DeptManagementProps
                   </div>
                 </div>
                 
-                {/* 角色和单日上限设置 */}
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label className="text-sm text-gray-600">角色</Label>
-                    <Select value={importMemberRole} onValueChange={setImportMemberRole}>
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="member">普通成员</SelectItem>
-                        <SelectItem value="org_admin">部门管理员</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-2">
-                    <Label className="text-sm text-gray-600">单日上限（元）</Label>
-                    <Input
-                      type="number"
-                      value={importDailyLimit}
-                      onChange={(e) => setImportDailyLimit(e.target.value)}
-                      min={0}
-                    />
-                  </div>
-                </div>
-                
                 {/* 提示信息 */}
                 <div className="text-xs text-gray-400 space-y-1">
-                  <p>• 以上为尚未分配至本部门的成员</p>
-                  <p>• 如需添加新成员，请先在「成员管理」页面创建</p>
+                  <p>以上为企业成员池中尚未分配至本部门的成员。导入后默认为普通成员，预算默认不限制；如需调整，请在成员列表中设置。</p>
                 </div>
               </div>
             );
@@ -2572,6 +2560,7 @@ export default function DeptManagement({ enterprise, role }: DeptManagementProps
                 setSelectedMembersForImport([]);
                 setImportMemberRole("member");
                 setImportDailyLimit("2000");
+                setImportBudgetType("daily");
                 setAddMemberOpen(false);
               }}
             >
@@ -2690,28 +2679,78 @@ export default function DeptManagement({ enterprise, role }: DeptManagementProps
 
       {/* Batch Budget Dialog */}
       <Dialog open={budgetDialogOpen} onOpenChange={setBudgetDialogOpen}>
-        <DialogContent>
+        <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>一键配置预算</DialogTitle>
-            <DialogDescription>为所有成员设置单日上限</DialogDescription>
+            <DialogTitle>一键配置成员预算</DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
+            {/* 预算类型 */}
             <div className="space-y-2">
-              <Label>单日上限（元）</Label>
-              <Input
-                type="number"
-                placeholder="请输入金额"
-                value={budgetValue}
-                onChange={(e) => setBudgetValue(e.target.value)}
-                min={0}
-              />
+              <Label>预算类型</Label>
+              <div className="flex gap-3">
+                <label className="flex items-center gap-1.5 cursor-pointer">
+                  <input
+                    type="radio"
+                    name="budgetType"
+                    value="unlimited"
+                    checked={budgetType === "unlimited"}
+                    onChange={() => setBudgetType("unlimited")}
+                    className="w-4 h-4 text-blue-600"
+                  />
+                  <span className="text-sm text-gray-700">不限制</span>
+                </label>
+                <label className="flex items-center gap-1.5 cursor-pointer">
+                  <input
+                    type="radio"
+                    name="budgetType"
+                    value="daily"
+                    checked={budgetType === "daily"}
+                    onChange={() => setBudgetType("daily")}
+                    className="w-4 h-4 text-blue-600"
+                  />
+                  <span className="text-sm text-gray-700">按天</span>
+                </label>
+                <label className="flex items-center gap-1.5 cursor-pointer">
+                  <input
+                    type="radio"
+                    name="budgetType"
+                    value="monthly"
+                    checked={budgetType === "monthly"}
+                    onChange={() => setBudgetType("monthly")}
+                    className="w-4 h-4 text-blue-600"
+                  />
+                  <span className="text-sm text-gray-700">按月</span>
+                </label>
+              </div>
             </div>
+
+            {/* 预算上限 */}
+            <div className="space-y-2">
+              <Label>预算上限</Label>
+              <div className="relative flex items-center">
+                <Input
+                  type="number"
+                  placeholder=""
+                  value={budgetValue}
+                  onChange={(e) => setBudgetValue(e.target.value)}
+                  min={0}
+                  disabled={budgetType === "unlimited"}
+                  className={`pr-12 ${budgetType === "unlimited" ? "bg-gray-100 cursor-not-allowed" : ""}`}
+                />
+                <span className="absolute right-3 text-sm text-gray-500">{budgetType === "daily" ? "元/天" : budgetType === "monthly" ? "元/月" : ""}</span>
+              </div>
+            </div>
+
+            {/* 说明文字 */}
+            <p className="text-xs text-gray-400 leading-relaxed">
+              当前共 {members.length} 位成员，设置后将统一应用此预算规则。若成员已有预算配置，将被本次配置覆盖。
+            </p>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setBudgetDialogOpen(false)}>
               取消
             </Button>
-            <Button onClick={handleBatchBudget}>确认</Button>
+            <Button onClick={handleBatchBudget}>确定</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

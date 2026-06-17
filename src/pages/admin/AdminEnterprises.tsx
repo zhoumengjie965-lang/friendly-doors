@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+﻿import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -17,7 +17,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Check, Search, ExternalLink, Ban, ChevronDown, Plus, X, Pencil } from "lucide-react";
+import { Search, ExternalLink, ChevronDown, Plus, X, Pencil, Trash2, Power, Download } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { getAdminSession } from "@/lib/adminAuth";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -599,6 +599,7 @@ interface Enterprise {
   admins: AdminInfo[];
   enterprise_type?: "formal" | "test";
   group?: string;
+  has_business_data?: boolean;
 }
 
 const CERT_STATUS: Record<string, { label: string; variant: "default" | "secondary" | "destructive" | "outline" }> = {
@@ -625,6 +626,7 @@ const MOCK_ENTERPRISES: Enterprise[] = [
     api_key_count: 12,
     admins: [{ phone: "13800138001", name: "张三", user_type: "formal" }],
     enterprise_type: "formal",
+    has_business_data: true,
   },
   {
     id: "mock-002",
@@ -641,6 +643,7 @@ const MOCK_ENTERPRISES: Enterprise[] = [
     api_key_count: 20,
     admins: [{ phone: "13800138002", name: "李四", user_type: "formal" }],
     enterprise_type: "formal",
+    has_business_data: true,
   },
   {
     id: "mock-003",
@@ -650,13 +653,14 @@ const MOCK_ENTERPRISES: Enterprise[] = [
     created_at: "2024-03-10T14:20:00Z",
     cert_status: "pending",
     status: "enabled",
-    balance: 98000.00,
+    balance: 0,
     total_consumed: 32000.00,
     org_count: 3,
     member_count: 89,
     api_key_count: 8,
     admins: [{ phone: "13800138003", name: "王五", user_type: "formal" }],
     enterprise_type: undefined,
+    has_business_data: true,
   },
   {
     id: "mock-004",
@@ -666,13 +670,14 @@ const MOCK_ENTERPRISES: Enterprise[] = [
     created_at: "2024-04-05T09:45:00Z",
     cert_status: "uncertified",
     status: "enabled",
-    balance: 45000.00,
+    balance: 0,
     total_consumed: 15000.00,
     org_count: 2,
     member_count: 45,
     api_key_count: 5,
     admins: [{ phone: "13800138004", name: "赵六", user_type: "test" }],
     enterprise_type: undefined,
+    has_business_data: true,
   },
   {
     id: "mock-005",
@@ -689,6 +694,7 @@ const MOCK_ENTERPRISES: Enterprise[] = [
     api_key_count: 25,
     admins: [{ phone: "13800138005", name: "孙七", user_type: "formal" }],
     enterprise_type: undefined,
+    has_business_data: true,
   },
   {
     id: "mock-006",
@@ -698,13 +704,14 @@ const MOCK_ENTERPRISES: Enterprise[] = [
     created_at: "2024-06-08T16:00:00Z",
     cert_status: "rejected",
     status: "enabled",
-    balance: 12000.00,
-    total_consumed: 8000.00,
+    balance: 0,
+    total_consumed: 0,
     org_count: 1,
     member_count: 23,
     api_key_count: 3,
     admins: [{ phone: "13800138006", name: "周八", user_type: "test" }],
     enterprise_type: "test",
+    has_business_data: false,
   },
   {
     id: "mock-007",
@@ -714,13 +721,14 @@ const MOCK_ENTERPRISES: Enterprise[] = [
     created_at: "2024-07-20T08:00:00Z",
     cert_status: "approved",
     status: "enabled",
-    balance: 186500.00,
+    balance: 0,
     total_consumed: 65000.00,
     org_count: 6,
     member_count: 168,
     api_key_count: 15,
     admins: [{ phone: "13800138007", name: "吴九", user_type: "formal" }],
     enterprise_type: "formal",
+    has_business_data: true,
   },
   {
     id: "mock-008",
@@ -737,6 +745,7 @@ const MOCK_ENTERPRISES: Enterprise[] = [
     api_key_count: 35,
     admins: [{ phone: "13800138008", name: "郑十", user_type: "formal" }],
     enterprise_type: undefined,
+    has_business_data: true,
   },
   {
     id: "mock-009",
@@ -746,13 +755,14 @@ const MOCK_ENTERPRISES: Enterprise[] = [
     created_at: "2024-09-01T10:20:00Z",
     cert_status: "uncertified",
     status: "enabled",
-    balance: 28000.00,
+    balance: 0,
     total_consumed: 12000.00,
     org_count: 2,
     member_count: 38,
     api_key_count: 4,
     admins: [{ phone: "13800138009", name: "钱十一", user_type: "test" }],
     enterprise_type: undefined,
+    has_business_data: false,
   },
   {
     id: "mock-010",
@@ -769,6 +779,7 @@ const MOCK_ENTERPRISES: Enterprise[] = [
     api_key_count: 22,
     admins: [{ phone: "13800138010", name: "陈十二", user_type: "formal" }],
     enterprise_type: "formal",
+    has_business_data: true,
   },
 ];
 
@@ -797,47 +808,6 @@ function UserGreenTag({ type, name }: { type?: "formal" | "test"; name: string }
       {prefix}-{name}管理员
     </span>
   );
-}
-
-function AdminCell({ admins }: { admins: AdminInfo[] }) {
-  if (admins.length === 0) {
-    return <span className="text-xs text-muted-foreground">—</span>;
-  }
-
-  const first = admins[0];
-  const extra = admins.length - 1;
-
-  const adminList = (
-    <div className="flex items-start gap-2">
-      <div className="min-w-0">
-        <p className="text-xs font-medium text-foreground leading-4 truncate">{first.name || "用户"}</p>
-        <p className="text-xs text-muted-foreground leading-4">{maskPhone(first.phone)}</p>
-      </div>
-      {extra > 0 && (
-        <TooltipProvider>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <span className="flex-shrink-0 mt-0.5 inline-flex items-center justify-center h-4 min-w-4 px-1 rounded-full bg-muted text-muted-foreground text-[10px] font-medium cursor-default">
-                +{extra}
-              </span>
-            </TooltipTrigger>
-            <TooltipContent side="top" className="max-w-48">
-              <div className="space-y-1.5">
-                {admins.map((a) => (
-                  <div key={a.phone}>
-                    <p className="text-xs font-medium">{a.name || "用户"}</p>
-                    <p className="text-xs text-muted-foreground">{maskPhone(a.phone)}</p>
-                  </div>
-                ))}
-              </div>
-            </TooltipContent>
-          </Tooltip>
-        </TooltipProvider>
-      )}
-    </div>
-  );
-
-  return adminList;
 }
 
 // 带标签的管理员单元格
@@ -1059,7 +1029,7 @@ export default function AdminEnterprises() {
 
     const { data: ents, error } = await supabase
       .from("enterprises")
-      .select("id,name,owner_phone,enterprise_code,created_at,status")
+      .select("id,name,owner_phone,enterprise_code,created_at,status,remark")
       .order("created_at", { ascending: false });
     
     if (error) {
@@ -1118,18 +1088,29 @@ export default function AdminEnterprises() {
     const memberCount = (members || []).reduce((acc, m) => { acc[m.enterprise_id] = (acc[m.enterprise_id] || 0) + 1; return acc; }, {} as Record<string, number>);
     const apiKeyCount = (apiKeys || []).reduce((acc, k) => { acc[k.enterprise_id] = (acc[k.enterprise_id] || 0) + 1; return acc; }, {} as Record<string, number>);
 
-    setEnterprises(ents.map((e) => ({
-      ...e,
-      cert_status: certMap[e.id] || "uncertified",
-      status: (e.status as "enabled" | "disabled") || "enabled",
-      balance: balMap[e.id]?.balance ?? 0,
-      total_consumed: balMap[e.id]?.total_consumed ?? 0,
-      org_count: orgCount[e.id] ?? 0,
-      member_count: memberCount[e.id] ?? 0,
-      api_key_count: apiKeyCount[e.id] ?? 0,
-      admins: adminsMap[e.id] ?? [],
-      enterprise_type: "test",
-    })));
+    setEnterprises(ents.map((e) => {
+      // Parse remark field (format: "类型_名称" e.g. "正式用户_腾讯")
+      const remarkParts = (e.remark || "").split("_");
+      const remarkType = remarkParts[0] || undefined;
+      // Derive enterprise_type from remark
+      const enterpriseType: "formal" | "test" | undefined =
+        remarkType === "正式用户" ? "formal" :
+        remarkType === "测试用户" || remarkType === "测试用户（付费）" ? "test" :
+        undefined;
+      return {
+        ...e,
+        cert_status: certMap[e.id] || "uncertified",
+        status: (e.status as "enabled" | "disabled") || "enabled",
+        balance: balMap[e.id]?.balance ?? 0,
+        total_consumed: balMap[e.id]?.total_consumed ?? 0,
+        org_count: orgCount[e.id] ?? 0,
+        member_count: memberCount[e.id] ?? 0,
+        api_key_count: apiKeyCount[e.id] ?? 0,
+        admins: adminsMap[e.id] ?? [],
+        enterprise_type: enterpriseType,
+        has_business_data: (balMap[e.id]?.total_consumed ?? 0) > 0 || (apiKeyCount[e.id] ?? 0) > 0,
+      };
+    }));
     setLoading(false);
   };
 
@@ -1168,13 +1149,19 @@ export default function AdminEnterprises() {
         e.enterprise_code.includes(search);
       const matchCert = certFilter ? e.cert_status === certFilter : true;
       // 分组筛选
-      const matchGroup = groupFilter === "all" ? (e.group === undefined || e.group === null) : e.group === groupFilter;
-      // 标签筛选逻辑
+      const matchGroup = groupFilter === "all" ? true : e.group === groupFilter;
+      // 标签筛选逻辑：映射中文标签到 enterprise_type
       let matchTag = true;
       if (tagFilter === "none") {
         matchTag = e.enterprise_type === undefined;
       } else if (tagFilter !== "all") {
-        matchTag = e.enterprise_type !== undefined;
+        const typeMap: Record<string, "formal" | "test"> = {
+          "正式用户": "formal",
+          "测试用户": "test",
+          "测试用户（付费）": "test",
+        };
+        const mappedType = typeMap[tagFilter];
+        matchTag = mappedType ? e.enterprise_type === mappedType : e.enterprise_type !== undefined;
       }
       return matchSearch && matchCert && matchGroup && matchTag;
     }
@@ -1251,28 +1238,11 @@ export default function AdminEnterprises() {
     }
   };
 
-  // 切换企业启用/禁用状态
-  const handleToggleStatus = async (enterprise: Enterprise) => {
-    const newStatus = enterprise.status === "disabled" ? "enabled" : "disabled";
-    const actionText = newStatus === "enabled" ? "启用" : "禁用";
-    
-    try {
-      const { error } = await supabase
-        .from("enterprises")
-        .update({ status: newStatus })
-        .eq("id", enterprise.id);
-      
-      if (error) {
-        toast({ title: `${actionText}失败`, description: error.message, variant: "destructive" });
-        return;
-      }
-      
-      toast({ title: `已${actionText}企业「${enterprise.name}」` });
-      fetchData();
-    } catch (err: any) {
-      toast({ title: `${actionText}失败`, description: err.message || "未知错误", variant: "destructive" });
-    }
-  };
+  // Delete enterprise dialog state
+  const [deleteTarget, setDeleteTarget] = useState<Enterprise | null>(null);
+
+  // Toggle enterprise status (enable/disable) dialog state
+  const [toggleStatusTarget, setToggleStatusTarget] = useState<Enterprise | null>(null);
 
   const COLS = "grid-cols-[2fr_1.5fr_80px_1fr_1.2fr_1fr_80px_100px_88px]";
 
@@ -1351,6 +1321,37 @@ export default function AdminEnterprises() {
               </div>
             </PopoverContent>
           </Popover>
+          <Button
+            variant="outline"
+            className="h-9 gap-1.5 bg-white"
+            onClick={() => {
+              if (filtered.length === 0) { toast({ title: "暂无数据可导出", variant: "destructive" }); return; }
+              const headers = ["企业名称","企业管理员","状态","认证状态","余额(元)","历史消耗(元)","部门数","成员数","API Key 数","注册时间"];
+              const rows = filtered.map(e => [
+                e.name,
+                e.admins.map(a => a.name || a.phone).join(";"),
+                e.status === "enabled" ? "已启用" : "已禁用",
+                { uncertified:"未认证", pending:"待审核", approved:"已通过", rejected:"已拒绝" }[e.cert_status] || e.cert_status,
+                e.balance.toFixed(2),
+                e.total_consumed.toFixed(2),
+                String(e.org_count),
+                String(e.member_count),
+                String(e.api_key_count),
+                new Date(e.created_at).toLocaleDateString("zh-CN"),
+              ]);
+              const csv = [headers, ...rows].map(r => r.map(c => `"${String(c).replace(/"/g, '""')}"`).join(",")).join("\n");
+              const BOM = "\uFEFF";
+              const blob = new Blob([BOM + csv], { type: "text/csv;charset=utf-8;" });
+              const url = URL.createObjectURL(blob);
+              const a = document.createElement("a");
+              a.href = url; a.download = `企业管理_${new Date().toLocaleDateString("zh-CN")}.csv`;
+              a.click(); URL.revokeObjectURL(url);
+              toast({ title: "导出成功", description: `已导出 ${filtered.length} 条企业数据` });
+            }}
+          >
+            <Download className="w-4 h-4" />
+            导出
+          </Button>
         </div>
       </div>
 
@@ -1497,11 +1498,20 @@ export default function AdminEnterprises() {
                   <Button
                     size="sm"
                     variant="ghost"
-                    className={`h-7 w-7 p-0 ${e.status === "disabled" ? "text-green-600 hover:text-green-700 hover:bg-green-50" : "text-muted-foreground hover:text-destructive hover:bg-destructive/10"}`}
-                    title={e.status === "disabled" ? "启用企业" : "禁用企业"}
-                    onClick={() => handleToggleStatus(e)}
+                    className="h-7 w-7 p-0 text-muted-foreground hover:text-orange-600 hover:bg-orange-50"
+                    title={e.status === "enabled" ? "禁用企业" : "启用企业"}
+                    onClick={() => setToggleStatusTarget(e)}
                   >
-                    {e.status === "disabled" ? <Check className="w-3.5 h-3.5" /> : <Ban className="w-3.5 h-3.5" />}
+                    <Power className="w-3.5 h-3.5" />
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="h-7 w-7 p-0 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+                    title="删除企业"
+                    onClick={() => setDeleteTarget(e)}
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
                   </Button>
                   <Button
                     size="sm"
@@ -2041,6 +2051,112 @@ export default function AdminEnterprises() {
                 </Button>
               )}
             </div>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Enterprise Dialog */}
+      <Dialog open={!!deleteTarget} onOpenChange={(open) => { if (!open) setDeleteTarget(null); }}>
+        <DialogContent className="sm:max-w-[440px] p-0 overflow-hidden [&>button]:hidden">
+          <DialogHeader className="px-6 pt-6 pb-0">
+            {(deleteTarget?.balance ?? 0) !== 0 ? (
+              /* 样式1：余额不为零，无法操作 */
+              <DialogTitle className="text-base font-semibold">
+                当前企业仍有可用余额，请先处理余额后再删除。
+              </DialogTitle>
+            ) : deleteTarget?.has_business_data ? (
+              /* 样式2：注销企业（有业务数据） */
+              <>
+                <DialogTitle className="text-base font-semibold">
+                  确认注销企业「{deleteTarget?.name}」？
+                </DialogTitle>
+                <p className="text-sm text-muted-foreground mt-3 leading-relaxed">
+                  该企业存在业务数据。注销后，该企业下的部门、成员关系、预算配置和 API Key 将失效；账单、调用日志、充值记录和审计日志将保留。该操作不可恢复。
+                </p>
+              </>
+            ) : (
+              /* 样式3：物理删除（无业务数据） */
+              <>
+                <DialogTitle className="text-base font-semibold">
+                  确认删除企业「{deleteTarget?.name}」？
+                </DialogTitle>
+                <p className="text-sm text-muted-foreground mt-3 leading-relaxed">
+                  该企业暂无业务数据，删除后企业、默认部门及成员关系将被永久删除，不可恢复。
+                </p>
+              </>
+            )}
+          </DialogHeader>
+
+          <DialogFooter className="px-6 py-5 border-t bg-gray-50/50">
+            <Button
+              variant="outline"
+              className="h-9 px-4"
+              onClick={() => setDeleteTarget(null)}
+            >
+              取消
+            </Button>
+            {(deleteTarget?.balance ?? 0) === 0 && (
+              <Button
+                variant={deleteTarget?.has_business_data ? "destructive" : "default"}
+                className="h-9 px-4"
+                onClick={() => {
+                  toast({
+                    title: deleteTarget?.has_business_data ? "企业已注销" : "企业已删除",
+                    description: `企业「${deleteTarget?.name}」已${deleteTarget?.has_business_data ? "注销" : "删除"}`,
+                  });
+                  setDeleteTarget(null);
+                }}
+              >
+                {deleteTarget?.has_business_data ? "确认" : "确认删除企业"}
+              </Button>
+            )}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      {/* Toggle Enable/Disable Enterprise Dialog */}
+      <Dialog open={!!toggleStatusTarget} onOpenChange={(open) => { if (!open) setToggleStatusTarget(null); }}>
+        <DialogContent className="sm:max-w-[440px] p-0 overflow-hidden [&>button]:hidden">
+          <DialogHeader className="px-6 pt-6 pb-4 border-b">
+            <DialogTitle className="text-base font-semibold">
+              {toggleStatusTarget?.status === "enabled"
+                ? `确认禁用企业「${toggleStatusTarget?.name}」？`
+                : `确认启用企业「${toggleStatusTarget?.name}」？`}
+            </DialogTitle>
+            <p className="text-sm text-muted-foreground mt-3 leading-relaxed">
+              {toggleStatusTarget?.status === "enabled"
+                ? "禁用后，该企业成员将无法进入企业空间，企业下所有 API Key 将无法继续调用服务。企业数据、账单、调用日志和充值记录将保留，后续可重新启用。"
+                : "启用后，该企业成员可重新进入企业空间，原本可用的 API Key 将恢复调用能力。"}
+            </p>
+          </DialogHeader>
+
+          <DialogFooter className="px-6 py-5 border-t bg-gray-50/50">
+            <Button
+              variant="outline"
+              className="h-9 px-4"
+              onClick={() => setToggleStatusTarget(null)}
+            >
+              取消
+            </Button>
+            <Button
+              variant={toggleStatusTarget?.status === "enabled" ? "destructive" : "default"}
+              className="h-9 px-4"
+              onClick={() => {
+                const newStatus = toggleStatusTarget!.status === "enabled" ? "disabled" as const : "enabled" as const;
+                // 更新本地状态（mock 模式）
+                setEnterprises((prev) =>
+                  prev.map((ent) =>
+                    ent.id === toggleStatusTarget!.id ? { ...ent, status: newStatus } : ent
+                  )
+                );
+                toast({
+                  title: newStatus === "disabled" ? "企业已禁用" : "企业已启用",
+                  description: `企业「${toggleStatusTarget!.name}」已${newStatus === "disabled" ? "禁用" : "启用"}`,
+                });
+                setToggleStatusTarget(null);
+              }}
+            >
+              {toggleStatusTarget?.status === "enabled" ? "确认禁用" : "确认启用"}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

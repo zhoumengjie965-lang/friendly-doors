@@ -57,6 +57,7 @@ export interface MockMember {
   role: "admin" | "org_admin" | "member";
   status?: string;
   daily_limit?: number | null;
+  budget_type?: "monthly" | "daily" | "unlimited"; // 预算类型：按月循环/按日循环/不限制
   created_at: string;
 }
 
@@ -456,6 +457,7 @@ const initialData: MockData = {
       role: "member",
       status: "active",
       daily_limit: 1000,
+      budget_type: "monthly",
       created_at: getNow(),
     },
     {
@@ -466,6 +468,7 @@ const initialData: MockData = {
       role: "member",
       status: "active",
       daily_limit: 800,
+      budget_type: "daily",
       created_at: getNow(),
     },
     {
@@ -476,6 +479,7 @@ const initialData: MockData = {
       role: "member",
       status: "active",
       daily_limit: 800,
+      budget_type: "unlimited",
       created_at: getNow(),
     },
     {
@@ -486,6 +490,7 @@ const initialData: MockData = {
       role: "member",
       status: "active",
       daily_limit: 1000,
+      budget_type: "monthly",
       created_at: getNow(),
     },
     {
@@ -517,6 +522,7 @@ const initialData: MockData = {
       role: "org_admin",
       status: "active",
       daily_limit: 1000,
+      budget_type: "daily",
       created_at: getNow(),
     },
     {
@@ -527,6 +533,7 @@ const initialData: MockData = {
       role: "member",
       status: "active",
       daily_limit: 800,
+      budget_type: "monthly",
       created_at: getNow(),
     },
     {
@@ -537,6 +544,7 @@ const initialData: MockData = {
       role: "member",
       status: "active",
       daily_limit: 800,
+      budget_type: "unlimited",
       created_at: getNow(),
     },
     {
@@ -547,6 +555,7 @@ const initialData: MockData = {
       role: "org_admin",
       status: "active",
       daily_limit: 1200,
+      budget_type: "daily",
       created_at: getNow(),
     },
     // 普通成员 - 前端组
@@ -558,6 +567,7 @@ const initialData: MockData = {
       role: "member",
       status: "active",
       daily_limit: 500,
+      budget_type: "unlimited",
       created_at: getNow(),
     },
     // 产品运营部成员
@@ -569,6 +579,7 @@ const initialData: MockData = {
       role: "org_admin",
       status: "active",
       daily_limit: 600,
+      budget_type: "monthly",
       created_at: getNow(),
     },
     {
@@ -579,6 +590,7 @@ const initialData: MockData = {
       role: "member",
       status: "active",
       daily_limit: 700,
+      budget_type: "daily",
       created_at: getNow(),
     },
     // 市场销售部成员
@@ -590,6 +602,7 @@ const initialData: MockData = {
       role: "org_admin",
       status: "active",
       daily_limit: 500,
+      budget_type: "unlimited",
       created_at: getNow(),
     },
     // 仅有邮箱的企业直属成员（未分配部门）
@@ -601,6 +614,7 @@ const initialData: MockData = {
       role: "member",
       status: "active",
       daily_limit: 800,
+      budget_type: "daily",
       created_at: getNow(),
     },
     {
@@ -611,6 +625,7 @@ const initialData: MockData = {
       role: "member",
       status: "active",
       daily_limit: 600,
+      budget_type: "monthly",
       created_at: getNow(),
     },
     // 同时有手机号和邮箱的成员
@@ -622,6 +637,7 @@ const initialData: MockData = {
       role: "member",
       status: "active",
       daily_limit: 1000,
+      budget_type: "unlimited",
       created_at: getNow(),
     },
   ],

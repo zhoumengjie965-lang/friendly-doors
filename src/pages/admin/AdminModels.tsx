@@ -95,6 +95,7 @@ interface Model {
   updatedAt: string;
   enabled: boolean;
   icon?: string;
+  modelCode?: string; // 模型代号（非必填）
   endpointMappings?: EndpointMapping[];
   region?: string; // 可用地域
   sourceTag?: "官方" | "三方"; // 模型来源标签（为空表示不展示）
@@ -966,6 +967,19 @@ export default function AdminModels() {
                       请点击我 <ExternalLink className="w-3 h-3" />
                     </a>
                   </p>
+                </div>
+
+                {/* 模型代号 */}
+                <div className="space-y-1.5">
+                  <Label className="text-sm">模型代号</Label>
+                  <Input
+                    placeholder="请输入模型代号"
+                    value={editingModel.modelCode || ""}
+                    onChange={(e) =>
+                      setEditingModel({ ...editingModel, modelCode: e.target.value })
+                    }
+                    className="h-10"
+                  />
                 </div>
 
                 {/* 描述 */}

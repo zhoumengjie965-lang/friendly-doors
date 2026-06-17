@@ -65,18 +65,61 @@ function getCsvValue(row: typeof mockUsageLogs[0], header: string): string {
   return v;
 }
 
+// ── Consumption log detail interface ──
+interface ConsumptionDetail {
+  // ── 用量详情 ──
+  inputTokens?: number;
+  outputTokens?: number;
+  cacheTokens?: number;          // 缓存读取
+  cacheCreationTokens?: number;  // 缓存创建
+  billingCount?: number;         // 计费次数
+  operationType?: string;        // 操作类型
+  hitTier?: string;              // 命中档位
+  // ── 计费规则 ──
+  billingMethod: string;         // 计费方式
+  inputPrice?: number;           // 输入单价
+  outputPrice?: number;          // 输出单价
+  cachePrice?: number;           // 缓存单价
+  cacheCreationPrice?: number;   // 缓存创建单价
+  perCallPrice?: number;         // 单次价格
+  hitTierPrice?: string;         // 命中档位（计费规则中展示）
+  // ── 计费过程 ──
+  inputFee?: number;
+  outputFee?: number;
+  cacheFee?: number;
+  cacheCreationFee?: number;
+  modelFee?: number;             // 模型费用（按次计费时使用）
+  totalFee: number;              // 本次合计
+  preDeductFee?: number;         // 预扣费用
+  supplementalFee?: number;      // 补扣费用
+  refundFee?: number;            // 退回费用
+}
+
 // ── Mock data ──
 const mockUsageLogs = [
-  { time: "2026-05-27 08:36:04", apiKey: "通用分组key", group: "default", org: "技术部", member: "张三", type: "消费", model: "suno_brics", duration: "0.1", streaming: "流首", input: 0, output: 0, cost: 0.029968, ip: "10.244.109.64", detail: "价格：¥0.030000 * 专属倍率：1" },
-  { time: "2026-05-27 08:36:01", apiKey: "通用分组key", group: "default", org: "技术部", member: "张三", type: "错误", model: "gpt-oss-120b", duration: "0.0", streaming: "异常", input: 0, output: 0, cost: 0, ip: "10.244.109.64", detail: "分组gpt官网 下模型 gpt-oss-120b 无可用通道（distribution error）" },
+  // 示例 1：普通 Token 计费
+  { time: "2026-05-27 08:36:04", apiKey: "通用分组key", group: "default", org: "技术部", member: "张三", type: "消费", model: "o3-pro", duration: "3.2", streaming: "流首", input: 20, output: 38, cost: 0.007350, ip: "10.244.109.64", detail: "模型：1.25 * 分组倍率：1",
+    calc: { inputTokens: 20, outputTokens: 38, billingMethod: "按实际用量计费", inputPrice: 35, outputPrice: 175, inputFee: 0.000700, outputFee: 0.006650, totalFee: 0.007350 } as ConsumptionDetail },
+  // 示例 2：带缓存读取的 Token 计费
+  { time: "2026-05-27 08:35:42", apiKey: "通用分组key", group: "default", org: "技术部", member: "张三", type: "消费", model: "qwen2.5-flash", duration: "2.1", streaming: "流首", input: 28, output: 1, cost: 0.002285, ip: "10.244.109.64", detail: "模型：0.085714286 * 分组倍率：1",
+    calc: { inputTokens: 28, cacheTokens: 5280, outputTokens: 1, billingMethod: "按实际用量计费", inputPrice: 2.1, cachePrice: 0.42, outputPrice: 8.4, inputFee: 0.000059, cacheFee: 0.002218, outputFee: 0.000008, totalFee: 0.002285 } as ConsumptionDetail },
+  // 示例 3：带缓存创建的 Token 计费
+  { time: "2026-05-27 08:35:40", apiKey: "通用分组key", group: "default", org: "技术部", member: "张三", type: "消费", model: "gpt-4o", duration: "1.1", streaming: "流首", input: 3, output: 1, cost: 1.484849, ip: "10.244.109.64", detail: "模型：1.25 * 分组倍率：1",
+    calc: { inputTokens: 3, cacheCreationTokens: 33857, outputTokens: 1, billingMethod: "按实际用量计费", inputPrice: 35, cacheCreationPrice: 43.75, outputPrice: 175, inputFee: 0.000105, cacheCreationFee: 1.481094, outputFee: 0.000175, totalFee: 1.484849 } as ConsumptionDetail },
+  // 示例 4：上下文阶梯计费
+  { time: "2026-05-27 08:35:38", apiKey: "通用分组key", group: "default", org: "技术部", member: "张三", type: "消费", model: "gemini-2.5-flash", duration: "6.1", streaming: "流首", input: 6, output: 223, cost: 0.005388, ip: "10.244.109.64", detail: "模型：0.042857143 * 分组倍率：1",
+    calc: { inputTokens: 6, outputTokens: 223, hitTier: "≤32K", billingMethod: "按上下文长度计费", hitTierPrice: "≤32K", inputPrice: 6.000001, outputPrice: 23.999997, inputFee: 0.000036, outputFee: 0.005352, totalFee: 0.005388 } as ConsumptionDetail },
+  // 示例 5：固定价格 / 歌词生成类模型
+  { time: "2026-05-27 08:36:01", apiKey: "通用分组key", group: "default", org: "技术部", member: "张三", type: "消费", model: "suno_brics", duration: "0.1", streaming: "流首", input: 0, output: 0, cost: 0.030000, ip: "10.244.109.64", detail: "价格：¥0.030000 / 次",
+    calc: { operationType: "LYRICS", billingCount: 1, billingMethod: "按次计费", perCallPrice: 0.03, modelFee: 0.03, totalFee: 0.03 } as ConsumptionDetail },
+  // 示例 6：图片生成 / 固定价格模型
+  { time: "2026-05-27 08:35:39", apiKey: "通用分组key", group: "default", org: "技术部", member: "张三", type: "消费", model: "dall-e-3", duration: "1.5", streaming: "非流", input: 0, output: 0, cost: 0.800000, ip: "10.244.109.64", detail: "价格：¥0.800000 / 次",
+    calc: { billingCount: 1, billingMethod: "按次计费", perCallPrice: 0.8, modelFee: 0.8, totalFee: 0.8 } as ConsumptionDetail },
+  // 错误日志（无 calc）
   { time: "2026-05-27 08:35:54", apiKey: "通用分组key", group: "default", org: "技术部", member: "张三", type: "错误", model: "gpt-oss-120b", duration: "0.0", streaming: "异常", input: 0, output: 0, cost: 0, ip: "10.244.109.64", detail: "分组gpt官网 下模型 gpt-oss-120b 无可用通道（distribution error）" },
   { time: "2026-05-27 08:35:48", apiKey: "通用分组key", group: "default", org: "技术部", member: "张三", type: "错误", model: "gpt-oss-120b", duration: "0.0", streaming: "异常", input: 0, output: 0, cost: 0, ip: "10.244.109.64", detail: "分组gpt官网 下模型 gpt-oss-120b 无可用通道（distribution error）" },
-  { time: "2026-05-27 08:35:42", apiKey: "通用分组key", group: "default", org: "技术部", member: "张三", type: "消费", model: "qwen2.5-flash", duration: "2.1", streaming: "流首", input: 11, output: 272, cost: 0.001974, ip: "10.244.109.64", detail: "模型：0.085714286 * 分组倍率：1" },
-  { time: "2026-05-27 08:35:40", apiKey: "通用分组key", group: "default", org: "技术部", member: "张三", type: "消费", model: "gpt-4o", duration: "1.1", streaming: "流首", input: 8, output: 11, cost: 0.000910, ip: "10.244.109.64", detail: "模型：1.25 * 分组倍率：1" },
-  { time: "2026-05-27 08:35:39", apiKey: "通用分组key", group: "default", org: "技术部", member: "张三", type: "消费", model: "gpt-4o", duration: "1.1", streaming: "流首", input: 7, output: 11, cost: 0.001274, ip: "10.244.109.64", detail: "模型：1.25 * 分组倍率：1" },
-  { time: "2026-05-27 08:35:38", apiKey: "通用分组key", group: "default", org: "技术部", member: "张三", type: "消费", model: "glm-5.1", duration: "6.1", streaming: "流首", input: 6, output: 194, cost: 0.004090, ip: "10.244.109.64", detail: "模型：0.042857143 * 分组倍率：1" },
-  { time: "2026-05-27 08:35:33", apiKey: "通用分组key", group: "default", org: "技术部", member: "张三", type: "消费", model: "qwen2.5-max-preview", duration: "10.1", streaming: "流首", input: 11, output: 354, cost: 0.019222, ip: "10.244.109.64", detail: "模型：0.642857143 * 分组倍率：1" },
-  { time: "2026-05-27 08:35:31", apiKey: "通用分组key", group: "default", org: "技术部", member: "张三", type: "消费", model: "deepseek-v4-flash", duration: "3.1", streaming: "流首", input: 5, output: 222, cost: 0.000448, ip: "10.244.109.64", detail: "模型：0.071428571 * 分组倍率：1" },
+  { time: "2026-05-27 08:35:33", apiKey: "通用分组key", group: "default", org: "技术部", member: "张三", type: "消费", model: "glm-5.1", duration: "6.1", streaming: "流首", input: 6, output: 194, cost: 0.004090, ip: "10.244.109.64", detail: "模型：0.042857143 * 分组倍率：1",
+    calc: { inputTokens: 6, outputTokens: 194, billingMethod: "按实际用量计费", inputPrice: 8, outputPrice: 6, inputFee: 0.000048, outputFee: 0.004042, totalFee: 0.004090, preDeductFee: 0.004100, supplementalFee: -0.000010 } as ConsumptionDetail },
 ];
 
 // ── Merged task logs (drawing + async tasks) ──
@@ -253,6 +296,7 @@ function CallLogsTab({ role, globalOrg, globalMember }: {
   const [filterType, setFilterType] = useState("all");
   const [exportOpen, setExportOpen] = useState(false);
   const [exporting, setExporting] = useState(false);
+  const [selectedDetail, setSelectedDetail] = useState<typeof mockUsageLogs[0] | null>(null);
 
   const isEnterpriseAdmin = role === "enterprise_admin";
   const isOrgAdmin = role === "org_admin";
@@ -466,7 +510,18 @@ function CallLogsTab({ role, globalOrg, globalMember }: {
                   <td className="px-3 py-2.5 text-xs text-foreground">{row.input}</td>
                   <td className="px-3 py-2.5 text-xs text-foreground">{row.output}</td>
                   <td className="px-3 py-2.5 text-xs text-foreground">¥{Number(row.cost).toFixed(4)}</td>
-                  <td className="px-3 py-2.5 text-xs text-muted-foreground max-w-[200px] truncate">{row.detail}</td>
+                  <td className="px-3 py-2.5 text-xs max-w-[200px]">
+                    {row.type === "消费" ? (
+                      <button
+                        className="text-blue-600 hover:text-blue-700 hover:underline cursor-pointer truncate block text-left"
+                        onClick={() => setSelectedDetail(row)}
+                      >
+                        {row.detail}
+                      </button>
+                    ) : (
+                      <span className="text-muted-foreground truncate block">{row.detail}</span>
+                    )}
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -514,6 +569,114 @@ function CallLogsTab({ role, globalOrg, globalMember }: {
               {exporting ? "导出中…" : "确认导出"}
             </Button>
           </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Consumption detail dialog */}
+      <Dialog open={!!selectedDetail} onOpenChange={(open) => { if (!open) setSelectedDetail(null); }}>
+        <DialogContent className="sm:max-w-[760px] p-0 overflow-hidden">
+          <DialogHeader className="px-6 pt-5 pb-3 border-b">
+            <DialogTitle className="text-base font-semibold">详情</DialogTitle>
+          </DialogHeader>
+          {selectedDetail && selectedDetail.calc && (() => {
+            const c = selectedDetail.calc;
+            const fmt = (v: number) => `¥${v.toFixed(6)}`;
+
+            // 用量详情 items
+            const usageItems: { label: string; value: string }[] = [];
+            if (c.inputTokens !== undefined && c.inputTokens > 0) usageItems.push({ label: "输入 Tokens", value: String(c.inputTokens) });
+            if (c.cacheTokens !== undefined && c.cacheTokens > 0) usageItems.push({ label: "缓存 Tokens", value: String(c.cacheTokens) });
+            if (c.cacheCreationTokens !== undefined && c.cacheCreationTokens > 0) usageItems.push({ label: "缓存创建 Tokens", value: String(c.cacheCreationTokens) });
+            if (c.outputTokens !== undefined && c.outputTokens > 0) usageItems.push({ label: "输出 Tokens", value: String(c.outputTokens) });
+            if (c.billingCount !== undefined && c.billingCount > 0) usageItems.push({ label: "计费次数", value: String(c.billingCount) });
+            if (c.operationType) usageItems.push({ label: "操作类型", value: c.operationType });
+            if (c.hitTier) usageItems.push({ label: "命中档位", value: c.hitTier });
+
+            // 计费规则 items
+            const ruleItems: { label: string; value: string }[] = [];
+            ruleItems.push({ label: "计费方式", value: c.billingMethod });
+            if (c.hitTierPrice) ruleItems.push({ label: "命中档位", value: c.hitTierPrice });
+            if (c.inputPrice !== undefined && c.inputPrice > 0) ruleItems.push({ label: "输入单价", value: `${fmt(c.inputPrice)} / 1M tokens` });
+            if (c.cachePrice !== undefined && c.cachePrice > 0) ruleItems.push({ label: "缓存单价", value: `${fmt(c.cachePrice)} / 1M tokens` });
+            if (c.cacheCreationPrice !== undefined && c.cacheCreationPrice > 0) ruleItems.push({ label: "5 分钟缓存创建单价", value: `${fmt(c.cacheCreationPrice)} / 1M tokens` });
+            if (c.outputPrice !== undefined && c.outputPrice > 0) ruleItems.push({ label: "输出单价", value: `${fmt(c.outputPrice)} / 1M tokens` });
+            if (c.perCallPrice !== undefined && c.perCallPrice > 0) ruleItems.push({ label: "单次价格", value: `${fmt(c.perCallPrice)} / 次` });
+
+            // 计费过程 items
+            const processItems: { label: string; value: React.ReactNode }[] = [];
+            if (c.inputFee !== undefined) processItems.push({ label: "输入费用", value: <>{c.inputTokens} tokens / 1M tokens × {fmt(c.inputPrice!)} = <span className="text-foreground font-medium">{fmt(c.inputFee)}</span></> });
+            if (c.cacheFee !== undefined) processItems.push({ label: "缓存费用", value: <>{c.cacheTokens} tokens / 1M tokens × {fmt(c.cachePrice!)} = <span className="text-foreground font-medium">{fmt(c.cacheFee)}</span></> });
+            if (c.cacheCreationFee !== undefined) processItems.push({ label: "缓存创建费用", value: <>{c.cacheCreationTokens} tokens / 1M tokens × {fmt(c.cacheCreationPrice!)} = <span className="text-foreground font-medium">{fmt(c.cacheCreationFee)}</span></> });
+            if (c.outputFee !== undefined) processItems.push({ label: "输出费用", value: <>{c.outputTokens} token{c.outputTokens !== 1 ? "s" : ""} / 1M tokens × {fmt(c.outputPrice!)} = <span className="text-foreground font-medium">{fmt(c.outputFee)}</span></> });
+            if (c.modelFee !== undefined) processItems.push({ label: "模型费用", value: <>{c.billingCount} 次 × {fmt(c.perCallPrice!)} / 次 = <span className="text-foreground font-medium">{fmt(c.modelFee)}</span></> });
+            if (c.preDeductFee !== undefined) processItems.push({ label: "预扣费用", value: <span className="text-foreground font-medium">{fmt(c.preDeductFee)}</span> });
+            if (c.supplementalFee !== undefined) processItems.push({ label: "补扣费用", value: <span className="text-foreground font-medium">{fmt(c.supplementalFee)}</span> });
+            if (c.refundFee !== undefined) processItems.push({ label: "退回费用", value: <span className="text-foreground font-medium">{fmt(c.refundFee)}</span> });
+
+            return (
+              <div className="text-sm">
+                <table className="w-full">
+                  <tbody>
+                    {/* ── 第一行：用量详情 ── */}
+                    <tr className="border-b border-border">
+                      <td className="px-5 py-3 align-top bg-muted/30 w-[100px] border-r border-border">
+                        <span className="text-xs font-medium text-muted-foreground">用量详情</span>
+                      </td>
+                      <td className="px-5 py-3">
+                        <div className="space-y-1.5">
+                          {usageItems.map(item => (
+                            <div key={item.label} className="flex items-center gap-1.5">
+                              <span className="text-xs text-muted-foreground whitespace-nowrap">{item.label}：</span>
+                              <span className="text-xs text-foreground">{item.value}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </td>
+                    </tr>
+                    {/* ── 第二行：计费规则 ── */}
+                    <tr className="border-b border-border">
+                      <td className="px-5 py-3 align-top bg-muted/30 w-[100px] border-r border-border">
+                        <span className="text-xs font-medium text-muted-foreground">计费规则</span>
+                      </td>
+                      <td className="px-5 py-3">
+                        <div className="space-y-1.5">
+                          {ruleItems.map(item => (
+                            <div key={item.label} className="flex items-center gap-1.5">
+                              <span className="text-xs text-muted-foreground whitespace-nowrap">{item.label}：</span>
+                              <span className="text-xs text-foreground">{item.value}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </td>
+                    </tr>
+                    {/* ── 第三行：计费过程 ── */}
+                    <tr>
+                      <td className="px-5 py-3 align-top bg-muted/30 w-[100px] border-r border-border">
+                        <span className="text-xs font-medium text-muted-foreground">计费过程</span>
+                      </td>
+                      <td className="px-5 py-3">
+                        <div className="space-y-1.5">
+                          {processItems.map(item => (
+                            <div key={item.label} className="flex items-start gap-1.5">
+                              <span className="text-xs text-muted-foreground whitespace-nowrap">{item.label}：</span>
+                              <span className="text-xs text-muted-foreground">{item.value}</span>
+                            </div>
+                          ))}
+                          <div className="flex items-center gap-1.5 pt-2 border-t border-border mt-2">
+                            <span className="text-xs font-medium text-foreground">本次合计：</span>
+                            <span className="text-sm font-semibold text-foreground">{fmt(c.totalFee)}</span>
+                          </div>
+                        </div>
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+                <div className="px-5 py-3 border-t border-border text-xs text-muted-foreground">
+                  仅供参考，以实际扣费为准
+                </div>
+              </div>
+            );
+          })()}
         </DialogContent>
       </Dialog>
     </div>
