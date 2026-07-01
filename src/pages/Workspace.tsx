@@ -12,6 +12,7 @@ import MemberManagement from "@/pages/MemberManagement";
 import Profile from "@/pages/Profile";
 import ApiKeys from "@/pages/ApiKeys";
 import PersonalApiKeys from "@/pages/PersonalApiKeys";
+import ManageApiCredentials from "@/pages/ManageApiCredentials";
 import ResourceStats from "@/pages/ResourceStats";
 import CallLogs from "@/pages/CallLogs";
 import Models from "@/pages/Models";
@@ -437,6 +438,8 @@ export default function Workspace() {
                 <Models />
               ) : location.pathname === "/workspace/keys" ? (
                 <PersonalApiKeys />
+              ) : location.pathname === "/workspace/manage-api-credentials" ? (
+                <ManageApiCredentials />
               ) : location.pathname === "/workspace/stats" ? (
                 <ResourceStats enterprise={null} role="member" />
               ) : location.pathname === "/workspace/logs" ? (
@@ -529,6 +532,8 @@ export default function Workspace() {
           <div className="flex-1 p-6 bg-background overflow-auto">
             {location.pathname === "/workspace/enterprise/info" ? (
               <EnterpriseInfo enterprise={enterprise} role={role} />
+            ) : location.pathname === "/workspace/enterprise/key-management" ? (
+              <ManageApiCredentials showBackButton={false} />
             ) : location.pathname === "/workspace/enterprise/balance" ? (
               <AccountBalance enterprise={enterprise} role={role} />
             ) : location.pathname === "/workspace/enterprise/cost-overview" ? (

@@ -26,6 +26,7 @@ import {
   Monitor,
   MessageSquare,
   Calculator,
+  TrendingUp,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import AdminDashboard from "./AdminDashboard";
@@ -41,6 +42,8 @@ import AdminEnterpriseDetail from "./AdminEnterpriseDetail";
 import AdminChannelMonitor from "./AdminChannelMonitor";
 import AdminSystemDataDashboard from "./AdminSystemDataDashboard";
 import AdminReconciliation from "./AdminReconciliation";
+import AdminConsumptionTrends from "./AdminConsumptionTrends";
+import AdminServiceAvailability from "./AdminServiceAvailability";
 
 // 一级菜单页面（空页面）
 function AdminHome() {
@@ -168,9 +171,11 @@ const CONSOLE_NAV_GROUPS = [
     items: [
       { label: "企业管理", icon: Building2, path: "enterprises" },
       { label: "用户管理", icon: Users, path: "users" },
+      { label: "消费趋势", icon: TrendingUp, path: "consumption-trends" },
       { label: "兑换码管理", icon: Ticket, path: "billing" },
       { label: "调用日志", icon: FileText, path: "call-logs" },
       { label: "渠道监控", icon: Activity, path: "channel-monitor" },
+      { label: "服务可用性监控", icon: Shield, path: "service-availability" },
       { label: "收支对账中心", icon: Calculator, path: "reconciliation" },
     ],
   },
@@ -262,6 +267,7 @@ function ConsoleLayout() {
           <Route path="enterprises" element={<AdminEnterprises />} />
           <Route path="enterprises/:id" element={<AdminEnterpriseDetail />} />
           <Route path="users" element={<AdminUsers />} />
+          <Route path="consumption-trends" element={<AdminConsumptionTrends />} />
           <Route path="billing" element={<AdminBilling />} />
           <Route path="channels" element={<AdminChannels />} />
           <Route path="models" element={<AdminModels />} />
@@ -269,6 +275,7 @@ function ConsoleLayout() {
           <Route path="settings" element={<AdminSettings />} />
           <Route path="call-logs" element={<AdminCallLogs />} />
           <Route path="channel-monitor" element={<AdminChannelMonitor />} />
+          <Route path="service-availability" element={<AdminServiceAvailability />} />
           <Route path="reconciliation" element={<AdminReconciliation />} />
           <Route path="data-dashboard" element={<AdminDataDashboard />} />
           <Route path="token-management" element={<AdminTokenManagement />} />

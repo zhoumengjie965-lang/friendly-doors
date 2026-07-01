@@ -31,6 +31,7 @@ import {
 import { Plus, Check, Pencil, Trash2, Search } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import GroupRateSettings from "./GroupRateSettings";
+import RateLimitSettings from "./RateLimitSettings";
 
 // 模型价格数据接口
 type PricingMode = "by_volume" | "by_count";
@@ -361,6 +362,8 @@ export default function AdminSettings() {
     showCacheHitPrice: false,
     showCacheCreatePrice: false,
   });
+
+  // 速率限制设置状态已迁移至 RateLimitSettings 组件
 
   const pageSize = 10;
 
@@ -695,6 +698,7 @@ export default function AdminSettings() {
           <TabsTrigger value="visual-rate">可视化倍率设置</TabsTrigger>
           <TabsTrigger value="unset-rate">未设置倍率模型</TabsTrigger>
           <TabsTrigger value="upstream-sync">上游倍率同步</TabsTrigger>
+          <TabsTrigger value="rate-limit">速率限制设置</TabsTrigger>
         </TabsList>
       </Tabs>
 
@@ -993,6 +997,9 @@ export default function AdminSettings() {
           <p>上游倍率同步功能开发中...</p>
         </div>
       )}
+
+      {/* 速率限制设置 */}
+      {currentTab === "rate-limit" && <RateLimitSettings />}
 
       {/* 编辑对话框 */}
       <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>

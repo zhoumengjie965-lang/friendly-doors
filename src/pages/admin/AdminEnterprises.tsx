@@ -865,6 +865,8 @@ export default function AdminEnterprises() {
   const [tagFilter, setTagFilter] = useState<string>("all");
   const [groupFilter, setGroupFilter] = useState<string>("all");
   const [groupSearchQuery, setGroupSearchQuery] = useState("");
+  const [tokenGroupFilter, setTokenGroupFilter] = useState<string>("all");
+  const [tokenGroupSearchQuery, setTokenGroupSearchQuery] = useState("");
 
   // 标签类型选项
   const TAG_TYPE_OPTIONS = [
@@ -1288,34 +1290,91 @@ export default function AdminEnterprises() {
           <Popover>
             <PopoverTrigger asChild>
               <Button variant="outline" className="w-32 h-9 justify-between bg-white">
-                <span className="truncate">{groupFilter === "all" ? "全部分组" : groupFilter}</span>
+                <span className="truncate">{groupFilter === "all" ? "全部用户分组" : groupFilter}</span>
                 <ChevronDown className="w-4 h-4 opacity-50 shrink-0" />
               </Button>
             </PopoverTrigger>
             <PopoverContent className="w-[200px] p-0 align-start">
               <div className="p-2 border-b">
                 <Input
-                  placeholder="搜索分组模板..."
+                  placeholder={groupFilter === "all" ? "全部用户分组" : "搜索分组模板..."}
                   value={groupSearchQuery}
                   onChange={(e) => setGroupSearchQuery(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === "Enter" && !groupSearchQuery.trim()) setGroupFilter("all"); }}
                   className="h-8"
                 />
               </div>
-              <div className="max-h-48 overflow-y-auto py-1">
-                <div
-                  className={`px-3 py-1.5 text-sm cursor-pointer hover:bg-gray-50 ${groupFilter === "all" ? "bg-blue-50 text-blue-600 font-medium" : ""}`}
-                  onClick={() => { setGroupFilter("all"); setGroupSearchQuery(""); }}
-                >
-                  全部分组
+              <div className="max-h-64 overflow-y-auto py-1">
+                {/* 分组模板 */}
+                {TEMPLATE_OPTIONS.filter(t => t.name.toLowerCase().includes(groupSearchQuery.toLowerCase())).length > 0 && (
+                  <>
+                    <div className="px-3 py-1 text-xs text-muted-foreground font-medium sticky top-0 bg-white">分组模板</div>
+                    {TEMPLATE_OPTIONS.filter(t => t.name.toLowerCase().includes(groupSearchQuery.toLowerCase())).map((t) => (
+                      <div
+                        key={t.value}
+                        className={`px-3 py-1.5 text-sm cursor-pointer hover:bg-gray-50 pl-6 ${groupFilter === t.value ? "bg-blue-50 text-blue-600 font-medium" : ""}`}
+                        onClick={() => { setGroupFilter(t.value); setGroupSearchQuery(""); }}
+                      >
+                        <span>{t.name}</span>
+                        {t.remark && <span className="text-xs text-muted-foreground ml-2">({t.remark})</span>}
+                      </div>
+                    ))}
+                  </>
+                )}
+
+                {/* 自定义分组 */}
+                <div className="px-3 py-1 text-xs text-muted-foreground font-medium sticky top-0 bg-white mt-1">自定义分组</div>
+                <div className="px-3 py-1.5 text-sm cursor-pointer hover:bg-gray-50 pl-6 text-muted-foreground">
+                  自定义分组
                 </div>
-                {TEMPLATE_OPTIONS.filter(t => t.name.toLowerCase().includes(groupSearchQuery.toLowerCase())).map((t) => (
+
+                {/* 历史分组 */}
+                {HISTORICAL_GROUP_OPTIONS.filter(h => h.label.toLowerCase().includes(groupSearchQuery.toLowerCase())).length > 0 && (
+                  <>
+                    <div className="px-3 py-1 text-xs text-muted-foreground font-medium sticky top-0 bg-white mt-1">历史分组</div>
+                    {HISTORICAL_GROUP_OPTIONS.filter(h => h.label.toLowerCase().includes(groupSearchQuery.toLowerCase())).map((h) => (
+                      <div
+                        key={h.value}
+                        className={`px-3 py-1.5 text-sm cursor-pointer hover:bg-gray-50 pl-6 ${groupFilter === h.value ? "bg-blue-50 text-blue-600 font-medium" : ""}`}
+                        onClick={() => { setGroupFilter(h.value); setGroupSearchQuery(""); }}
+                      >
+                        <span>{h.label}</span>
+                      </div>
+                    ))}
+                  </>
+                )}
+              </div>
+            </PopoverContent>
+          </Popover>
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button variant="outline" className="w-32 h-9 justify-between bg-white">
+                <span className="truncate">{tokenGroupFilter === "all" ? "全部令牌分组" : tokenGroupFilter}</span>
+                <ChevronDown className="w-4 h-4 opacity-50 shrink-0" />
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-[200px] p-0 align-start">
+              <div className="p-2 border-b">
+                <Input
+                  placeholder={tokenGroupFilter === "all" ? "全部令牌分组" : "搜索令牌分组..."}
+                  value={tokenGroupSearchQuery}
+                  onChange={(e) => setTokenGroupSearchQuery(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === "Enter" && !tokenGroupSearchQuery.trim()) setTokenGroupFilter("all"); }}
+                  className="h-8"
+                />
+              </div>
+              <div className="max-h-64 overflow-y-auto py-1">
+                {ALL_BASE_GROUPS.filter(g =>
+                  g.name.toLowerCase().includes(tokenGroupSearchQuery.toLowerCase()) ||
+                  g.desc.toLowerCase().includes(tokenGroupSearchQuery.toLowerCase())
+                ).map((g) => (
                   <div
-                    key={t.value}
-                    className={`px-3 py-1.5 text-sm cursor-pointer hover:bg-gray-50 ${groupFilter === t.value ? "bg-blue-50 text-blue-600 font-medium" : ""}`}
-                    onClick={() => { setGroupFilter(t.value); setGroupSearchQuery(""); }}
+                    key={g.name}
+                    className={`px-3 py-1.5 text-sm cursor-pointer hover:bg-gray-50 ${tokenGroupFilter === g.name ? "bg-blue-50 text-blue-600 font-medium" : ""}`}
+                    onClick={() => { setTokenGroupFilter(g.name); setTokenGroupSearchQuery(""); }}
                   >
-                    <span>{t.name}</span>
-                    {t.remark && <span className="text-xs text-muted-foreground ml-2">({t.remark})</span>}
+                    <span>{g.name}</span>
+                    <span className="text-xs text-muted-foreground ml-2">({g.desc})</span>
                   </div>
                 ))}
               </div>

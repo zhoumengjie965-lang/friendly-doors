@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo, useRef } from "react";
+import { useNavigate } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
 import { getMockData } from "@/lib/mockData";
 import { getCurrentPhone } from "@/lib/auth";
@@ -19,7 +20,7 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import {
   Plus, Search, RotateCcw, Copy, Check, Pencil, Trash2, Eye, EyeOff, Settings,
-  ChevronDown, GripVertical, X,
+  ChevronDown, GripVertical, X, ArrowRight,
 } from "lucide-react";
 import { format } from "date-fns";
 import {
@@ -346,6 +347,7 @@ const GROUP_OPTIONS = [
 ];
 
 export default function PersonalApiKeys() {
+  const navigate = useNavigate();
   const { toast } = useToast();
   const [apiKeys, setApiKeys] = useState<ApiKeyItem[]>(MOCK_API_KEYS);
   const [loading, setLoading] = useState(false);
@@ -593,6 +595,10 @@ export default function PersonalApiKeys() {
       {/* 标题栏 */}
       <div className="flex items-center justify-between">
         <h1 className="text-xl font-bold text-foreground">API Key</h1>
+        <Button variant="outline" className="gap-2 text-sm" onClick={() => navigate("/workspace/manage-api-credentials")}>
+          管理 API 凭证
+          <ArrowRight className="w-4 h-4" />
+        </Button>
       </div>
 
       {/* 搜索和操作栏 */}

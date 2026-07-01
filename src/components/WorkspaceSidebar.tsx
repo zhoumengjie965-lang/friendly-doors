@@ -24,6 +24,7 @@ const enterpriseNavItems: NavItem[] = [
   {
     title: "企业管理", icon: Building2, children: [
       { title: "企业信息", url: "/workspace/enterprise/info", icon: Settings },
+      { title: "密钥管理", url: "/workspace/enterprise/key-management", icon: Key },
       { title: "账户余额", url: "/workspace/enterprise/balance", icon: Wallet },
       { title: "费用总览", url: "/workspace/enterprise/cost-overview", icon: PieChart },
       { title: "费用账单", url: "/workspace/enterprise/bills", icon: Receipt },
