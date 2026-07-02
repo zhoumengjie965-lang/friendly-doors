@@ -1,7 +1,6 @@
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, Key, Plus, Copy, Check, Trash2, MoreVertical, Pencil, Power, PowerOff } from "lucide-react";
+import { Key, Plus, Copy, Check, Trash2, MoreVertical, Pencil, Power, PowerOff } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
@@ -42,11 +41,9 @@ const MOCK_CREDENTIALS: ManageCredential[] = [
 ];
 
 interface ManageApiCredentialsProps {
-  showBackButton?: boolean;
 }
 
-export default function ManageApiCredentials({ showBackButton = true }: ManageApiCredentialsProps) {
-  const navigate = useNavigate();
+export default function ManageApiCredentials(_props: ManageApiCredentialsProps) {
   const { toast } = useToast();
 
   const [credentials, setCredentials] = useState<ManageCredential[]>(MOCK_CREDENTIALS);
@@ -150,12 +147,7 @@ export default function ManageApiCredentials({ showBackButton = true }: ManageAp
     <div className="p-6 space-y-4">
       {/* 标题栏 */}
       <div className="flex items-center gap-3">
-        {showBackButton && (
-          <Button variant="ghost" size="icon" onClick={() => navigate("/workspace/keys")}>
-            <ArrowLeft className="w-4 h-4" />
-          </Button>
-        )}
-        <h1 className="text-xl font-bold text-foreground">管理 API 凭证</h1>
+        <h1 className="text-xl font-bold text-foreground">密钥管理</h1>
       </div>
 
       {/* 页面说明 */}

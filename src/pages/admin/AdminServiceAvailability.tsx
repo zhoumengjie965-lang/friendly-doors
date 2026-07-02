@@ -223,15 +223,6 @@ const ERROR_RATE_DATA: ErrorRatePoint[] = [
   { time: "18:08", errorRate: 6.5, slaErrorRate: 4.2 }, { time: "18:10", errorRate: 2.0, slaErrorRate: 0.8 },
 ];
 
-const TIMEOUT_DATA: ErrorRatePoint[] = [
-  { time: "17:15", errorRate: 0.0 }, { time: "17:20", errorRate: 0.0 },
-  { time: "17:25", errorRate: 0.1 }, { time: "17:30", errorRate: 0.0 },
-  { time: "17:35", errorRate: 0.2 }, { time: "17:40", errorRate: 0.0 },
-  { time: "17:45", errorRate: 0.0 }, { time: "17:50", errorRate: 0.1 },
-  { time: "17:55", errorRate: 0.0 }, { time: "18:00", errorRate: 0.3 },
-  { time: "18:05", errorRate: 0.5 }, { time: "18:10", errorRate: 0.0 },
-];
-
 const COMMON_ERRORS: CommonErrorMessage[] = [
   { message: "upstream_request_failed: connection reset by peer", occurrences: 23, affectedUsers: 5, affectedModels: 3 },
   { message: "rate_limit_exceeded: quota exceeded for model deepseek-v4-flash", occurrences: 12, affectedUsers: 8, affectedModels: 2 },
@@ -269,19 +260,21 @@ export default function AdminServiceAvailability() {
   const [refreshInterval, setRefreshInterval] = useState("30s");
   const [activeTab, setActiveTab] = useState<TabKey>("performance");
   const [errorRateMetric, setErrorRateMetric] = useState<"total" | "sla">("total");
+  const [pieScope, setPieScope] = useState<"total" | "sla">("total");
   const [pieDimension, setPieDimension] = useState<"errorType" | "attribution" | "httpStatus">("errorType");
-  const [slaIncludedFilter, setSlaIncludedFilter] = useState<"all" | "yes" | "no" | "pending">("all");
 
-  // 饼图筛选后的数据
-  const filteredPieData = useMemo(() => {
-    const source = pieDimension === "errorType"
-      ? PIE_DATA_BY_TYPE
-      : pieDimension === "attribution"
-        ? PIE_DATA_BY_ATTRIBUTION
-        : PIE_DATA_BY_HTTP;
-    if (slaIncludedFilter === "all") return source;
-    return source.filter((d) => d.slaIncluded === slaIncludedFilter);
-  }, [pieDimension, slaIncludedFilter]);
+  // 获取指定维度的全部数据
+  const getPieDataByDimension = (dim: "errorType" | "attribution" | "httpStatus") => {
+    if (dim === "errorType") return PIE_DATA_BY_TYPE;
+    if (dim === "attribution") return PIE_DATA_BY_ATTRIBUTION;
+    return PIE_DATA_BY_HTTP;
+  };
+
+  // 当前饼图数据：总错误=全量，SLA 错误=仅 yes
+  const currentPieData = useMemo(() => {
+    const base = getPieDataByDimension(pieDimension);
+    return pieScope === "sla" ? base.filter((d) => d.slaIncluded === "yes") : base;
+  }, [pieScope, pieDimension]);
 
   const handleRefresh = () => { toast({ title: "数据已刷新" }); };
 
@@ -531,80 +524,78 @@ export default function AdminServiceAvailability() {
               </p>
             </DashboardPanel>
 
+            {/* 错误类型分布饼图（总错误 / SLA 错误 切换） */}
             <DashboardPanel title="错误类型分布">
-              {/* 维度切换 */}
-              <div className="flex items-center gap-1 mb-3">
-                {(["errorType", "attribution", "httpStatus"] as const).map((d) => (
-                  <button
-                    key={d}
-                    onClick={() => { setPieDimension(d); setSlaIncludedFilter("all"); }}
-                    className={`px-2.5 py-1 text-[11px] font-medium rounded transition-colors ${
-                      pieDimension === d
-                        ? "bg-[#4ade80] text-[#0b0d10]"
-                        : "bg-[#1a1d24] text-gray-400 hover:text-gray-200 border border-[#232831]"
-                    }`}
-                  >
-                    {d === "errorType" ? "按错误类型" : d === "attribution" ? "按错误归因" : "按 HTTP 状态码"}
-                  </button>
-                ))}
+              <div className="flex items-center gap-2 mb-3">
+                {/* 口径切换：总错误 / SLA 错误 */}
+                <div className="flex items-center gap-1">
+                  {(["total", "sla"] as const).map((s) => (
+                    <button
+                      key={s}
+                      onClick={() => setPieScope(s)}
+                      className={`px-2.5 py-1 text-[11px] font-medium rounded transition-colors ${
+                        pieScope === s
+                          ? "bg-[#4ade80] text-[#0b0d10]"
+                          : "bg-[#1a1d24] text-gray-400 hover:text-gray-200 border border-[#232831]"
+                      }`}
+                    >
+                      {s === "total" ? "总错误" : "SLA 错误"}
+                    </button>
+                  ))}
+                </div>
+                {/* 维度切换 */}
+                <div className="flex items-center gap-1 ml-auto">
+                  {(["errorType", "attribution", "httpStatus"] as const).map((d) => (
+                    <button
+                      key={d}
+                      onClick={() => setPieDimension(d)}
+                      className={`px-2.5 py-1 text-[11px] font-medium rounded transition-colors ${
+                        pieDimension === d
+                          ? "bg-[#4ade80]/20 text-[#4ade80] border border-[#4ade80]/40"
+                          : "bg-[#1a1d24] text-gray-400 hover:text-gray-200 border border-[#232831]"
+                      }`}
+                    >
+                      {d === "errorType" ? "Error Code" : d === "attribution" ? "错误归因" : "HTTP 状态码"}
+                    </button>
+                  ))}
+                </div>
               </div>
-              {/* SLA 筛选 */}
-              <div className="flex items-center gap-1.5 mb-3">
-                <span className="text-[10px] text-gray-500">纳入有效且失败：</span>
-                {(["all", "yes", "no", "pending"] as const).map((f) => (
-                  <button
-                    key={f}
-                    onClick={() => setSlaIncludedFilter(f)}
-                    className={`px-2 py-0.5 text-[10px] font-medium rounded transition-colors ${
-                      slaIncludedFilter === f
-                        ? "bg-[#4ade80]/20 text-[#4ade80] border border-[#4ade80]/40"
-                        : "bg-[#1a1d24] text-gray-400 hover:text-gray-200 border border-[#232831]"
-                    }`}
-                  >
-                    {f === "all" ? "全部" : f === "yes" ? "是" : f === "no" ? "否" : "待确认"}
-                  </button>
-                ))}
-              </div>
-              {filteredPieData.length > 0 ? (
-                <ResponsiveContainer width="100%" height={220}>
+              {currentPieData.length > 0 ? (
+                <ResponsiveContainer width="100%" height={260}>
                   <PieChart>
-                    <Pie data={filteredPieData} cx="50%" cy="50%" outerRadius={85} dataKey="value" paddingAngle={1} label={({ name, value }: any) => `${name} (${value})`} labelLine={{ stroke: "#444", strokeWidth: 0.5 }}>
-                      {filteredPieData.map((entry) => (<Cell key={entry.name} fill={PIE_COLORS[entry.name] || "#666"} />))}
+                    <Pie
+                      data={currentPieData}
+                      cx="50%"
+                      cy="50%"
+                      outerRadius={85}
+                      dataKey="value"
+                      paddingAngle={1}
+                      label={({ name, value }: any) => `${name} (${value})`}
+                      labelLine={{ stroke: "#444", strokeWidth: 0.5 }}
+                    >
+                      {currentPieData.map((entry) => (
+                        <Cell key={entry.name} fill={PIE_COLORS[entry.name] || "#666"} />
+                      ))}
                     </Pie>
-                    <Tooltip contentStyle={DARK_TOOLTIP} formatter={(value: number, name: string) => [value, name]} />
+                    <Tooltip
+                      contentStyle={{ ...DARK_TOOLTIP, zIndex: 9999 }}
+                      formatter={(value: number, name: string) => {
+                        const total = currentPieData.reduce((s, d) => s + d.value, 0);
+                        const pct = total > 0 ? ((value / total) * 100).toFixed(1) : "0.0";
+                        return [`${value} (${pct}%)`, name];
+                      }}
+                    />
                     <Legend wrapperStyle={{ fontSize: 11, color: "#9ca3af" }} iconType="circle" iconSize={7} />
                   </PieChart>
                 </ResponsiveContainer>
               ) : (
-                <div className="flex items-center justify-center h-[180px] text-gray-500 text-xs">当前筛选条件下无数据</div>
+                <div className="flex items-center justify-center h-[220px] text-gray-500 text-xs">当前筛选条件下无数据</div>
               )}
-              <p className="text-[10px] text-gray-500 mt-1.5">
-                纳入标记：是 = 已确认纳入 SLA 错误率口径；否 = 不纳入；待确认 = 待进一步归因判定
-              </p>
             </DashboardPanel>
           </div>
 
-          {/* Row 2-2: 请求超时 + 最常见错误消息 */}
-          <div className="grid grid-cols-2 gap-4">
-            <DashboardPanel title="请求超时">
-              <ResponsiveContainer width="100%" height={260}>
-                <AreaChart data={TIMEOUT_DATA} margin={{ top: 8, right: 16, left: 0, bottom: 0 }}>
-                  <defs>
-                    <linearGradient id="timeoutGradient" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stopColor="#ec4899" stopOpacity={0.25} />
-                      <stop offset="100%" stopColor="#ec4899" stopOpacity={0.02} />
-                    </linearGradient>
-                  </defs>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#1e2330" vertical={false} />
-                  <XAxis dataKey="time" tick={{ fontSize: 11, fill: "#6b7280" }} axisLine={{ stroke: "#2d3340" }} tickLine={false} />
-                  <YAxis tick={{ fontSize: 11, fill: "#6b7280" }} tickFormatter={(v: number) => `${v}%`} domain={[0, "auto"]} width={40} axisLine={{ stroke: "#2d3340" }} tickLine={false} />
-                  <Tooltip contentStyle={DARK_TOOLTIP} formatter={(value: number) => [`${value}%`, "超时率"]} />
-                  <Area type="monotone" dataKey="errorRate" stroke="#ec4899" strokeWidth={1.5} fill="url(#timeoutGradient)" />
-                </AreaChart>
-              </ResponsiveContainer>
-            </DashboardPanel>
-
-            <DashboardPanel title="最常见错误消息">
+          {/* Row 2-2: 最常见错误消息 */}
+          <DashboardPanel title="最常见错误消息">
               <div className="overflow-x-auto">
                 <Table>
                   <TableHeader>
@@ -628,7 +619,6 @@ export default function AdminServiceAvailability() {
                 </Table>
               </div>
             </DashboardPanel>
-          </div>
 
           {/* Row 2-3: 受影响用户排行 */}
           <DashboardPanel title="受影响用户排行">

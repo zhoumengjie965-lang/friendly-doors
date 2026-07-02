@@ -18,7 +18,7 @@ import CallLogs from "@/pages/CallLogs";
 import Models from "@/pages/Models";
 import {
   Building2, LogOut, ChevronDown,
-  ChevronRight, Check, Plus, UserCircle
+  ChevronRight, Check, Plus, UserCircle, Key
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Input } from "@/components/ui/input";
@@ -378,6 +378,12 @@ export default function Workspace() {
               <UserCircle className="w-4 h-4 text-muted-foreground" />个人信息
             </button>
             <button
+              onClick={() => { navigate(enterprise ? "/workspace/enterprise/key-management" : "/workspace/manage-api-credentials"); setUserMenuOpen(false); }}
+              className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-foreground hover:bg-muted transition-colors"
+            >
+              <Key className="w-4 h-4 text-muted-foreground" />密钥管理
+            </button>
+            <button
               onClick={handleLogout}
               className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-foreground hover:bg-muted transition-colors"
             >
@@ -533,7 +539,7 @@ export default function Workspace() {
             {location.pathname === "/workspace/enterprise/info" ? (
               <EnterpriseInfo enterprise={enterprise} role={role} />
             ) : location.pathname === "/workspace/enterprise/key-management" ? (
-              <ManageApiCredentials showBackButton={false} />
+              <ManageApiCredentials />
             ) : location.pathname === "/workspace/enterprise/balance" ? (
               <AccountBalance enterprise={enterprise} role={role} />
             ) : location.pathname === "/workspace/enterprise/cost-overview" ? (

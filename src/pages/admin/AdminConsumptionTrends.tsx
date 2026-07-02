@@ -243,6 +243,22 @@ function genMockSpendData(accountId: string, startDate: string, endDate: string)
   return records;
 }
 
+function genMockCallCountData(accountId: string, startDate: string, endDate: string): ModelUsageRecord[] {
+  if (!MOCK_ACCOUNTS[accountId]) return [];
+  const start = new Date(startDate);
+  const end = new Date(endDate);
+  const records: ModelUsageRecord[] = [];
+  for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
+    const key = d.toISOString().slice(0, 10);
+    const rec: ModelUsageRecord = { date: formatDateShort(key) };
+    MODEL_LIST.forEach((m) => {
+      rec[m] = Math.floor(Math.random() * 3000 + 100);
+    });
+    records.push(rec);
+  }
+  return records;
+}
+
 const MODEL_COLOR_LIST = [
   "#10b981", "#34d399", "#8b5cf6", "#3b82f6", "#f59e0b", "#ef4444", "#ec4899", "#14b8a6", "#a855f7", "#f97316", "#94a3b8",
 ];
@@ -303,15 +319,17 @@ export default function AdminConsumptionTrends() {
   const [loading, setLoading] = useState(false);
 
   const [usageData, setUsageData] = useState<ModelUsageRecord[]>([]);
+  const [callCountData, setCallCountData] = useState<ModelUsageRecord[]>([]);
   const [spendData, setSpendData] = useState<DailySpendRecord[]>([]);
   const [hasData, setHasData] = useState(true);
+  const [chartMode, setChartMode] = useState<"usage" | "calls">("usage");
 
-  // Top 10 models + Others（Others 聚合已在 doQuery 中完成，这里只负责提取 keys）
-  const modelKeys = useMemo(() => {
-    if (usageData.length === 0) return [];
-    const keys = Object.keys(usageData[0]).filter((k) => k !== "date");
-    return keys;
-  }, [usageData]);
+  // 当前图表展示的数据（根据 mode 切换）
+  const currentChartData = chartMode === "usage" ? usageData : callCountData;
+  const currentModelKeys = useMemo(() => {
+    if (currentChartData.length === 0) return [];
+    return Object.keys(currentChartData[0]).filter((k) => k !== "date");
+  }, [currentChartData]);
 
   // Summary metrics
   const summary = useMemo(() => {
@@ -319,7 +337,7 @@ export default function AdminConsumptionTrends() {
     const totalRequests = spendData.reduce((s, r) => s + r.requestCount, 0);
     const totalTokens = spendData.reduce((s, r) => s + r.tokenCount, 0);
 
-    // Top model
+    // Top model by token usage
     const modelTotals: Record<string, number> = {};
     usageData.forEach((rec) => {
       Object.keys(rec).forEach((k) => {
@@ -329,10 +347,22 @@ export default function AdminConsumptionTrends() {
       });
     });
     const sortedModels = Object.entries(modelTotals).sort((a, b) => b[1] - a[1]);
-    const topModel = sortedModels.length > 0 ? sortedModels[0][0] : "-";
+    const topTokenModel = sortedModels.length > 0 ? sortedModels[0][0] : "-";
 
-    return { totalAmount, totalRequests, totalTokens, topModel };
-  }, [spendData, usageData]);
+    // Top model by call count
+    const callTotals: Record<string, number> = {};
+    callCountData.forEach((rec) => {
+      Object.keys(rec).forEach((k) => {
+        if (k !== "date" && k !== "Others") {
+          callTotals[k] = (callTotals[k] || 0) + ((rec[k] as number) || 0);
+        }
+      });
+    });
+    const sortedCalls = Object.entries(callTotals).sort((a, b) => b[1] - a[1]);
+    const topCallModel = sortedCalls.length > 0 ? sortedCalls[0][0] : "-";
+
+    return { totalAmount, totalRequests, totalTokens, topTokenModel, topCallModel };
+  }, [spendData, usageData, callCountData]);
 
   // ── Handlers ──
   const handleSearch = (value: string) => {
@@ -414,7 +444,22 @@ export default function AdminConsumptionTrends() {
       }
 
       const sData = genMockSpendData(accountId, startStr, endStr);
+
+      // 生成并聚合调用次数数据（与 usageData 相同的 Others 聚合逻辑）
+      let ccData = genMockCallCountData(accountId, startStr, endStr);
+      if (remaining.length > 0) {
+        ccData = ccData.map((rec) => {
+          const othersVal = remaining.reduce((s, k) => s + ((rec[k] as number) || 0), 0);
+          const newRec: ModelUsageRecord = { ...rec, Others: othersVal };
+          remaining.forEach((k) => {
+            delete (newRec as Record<string, unknown>)[k];
+          });
+          return newRec;
+        });
+      }
+
       setUsageData(uData);
+      setCallCountData(ccData);
       setSpendData(sData);
       setHasData(uData.length > 0);
       setLoading(false);
@@ -427,8 +472,10 @@ export default function AdminConsumptionTrends() {
     setSearchResults([]);
     setDateRange(undefined);
     setUsageData([]);
+    setCallCountData([]);
     setSpendData([]);
     setHasData(true);
+    setChartMode("usage");
   };
 
   // ─── Render ─────────────────────────────────────────────────────────────
@@ -439,7 +486,7 @@ export default function AdminConsumptionTrends() {
       <div>
         <h1 className="text-xl font-semibold text-foreground">消费趋势</h1>
         <p className="text-sm text-muted-foreground mt-0.5">
-          查看单个客户主体在指定时间范围内的模型用量和消费金额趋势
+          查看单个客户主体在指定时间范围内的调用量和消费金额趋势
         </p>
       </div>
 
@@ -594,8 +641,8 @@ export default function AdminConsumptionTrends() {
       {selectedAccount && hasData && !loading && spendData.length > 0 && (
         <div className="grid grid-cols-3 gap-4">
           <SummaryCard icon={TrendingUp} label="查询周期消费金额" value={formatMoney(summary.totalAmount)} color="text-primary" />
-          <SummaryCard icon={Layers} label="查询周期 Token 用量" value={formatToken(summary.totalTokens)} color="text-green-600" />
-          <SummaryCard icon={Crown} label="Top 消费模型" value={summary.topModel} color="text-purple-600" />
+          <SummaryCardWithModel icon={Layers} label="查询周期 Token 用量" value={formatToken(summary.totalTokens)} modelLabel="Top 调用量模型" modelValue={summary.topTokenModel} color="text-green-600" />
+          <SummaryCardWithModel icon={Crown} label="查询周期调用次数" value={formatNumber(summary.totalRequests)} modelLabel="Top 调用次数模型" modelValue={summary.topCallModel} color="text-purple-600" />
         </div>
       )}
 
@@ -610,34 +657,7 @@ export default function AdminConsumptionTrends() {
         <EmptyState message="当前时间范围内暂无消费数据" />
       ) : (
         <div className="space-y-5">
-          {/* 图表一：模型用量分布 */}
-          <div className="bg-card border rounded-xl p-5 shadow-sm">
-            <h3 className="text-sm font-semibold text-foreground mb-4">模型用量分布</h3>
-            {usageData.length > 0 ? (
-              <ResponsiveContainer width="100%" height={320}>
-                <BarChart data={usageData} margin={{ top: 0, right: 0, left: 0, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
-                  <XAxis dataKey="date" tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }} interval={Math.max(0, Math.ceil(usageData.length / 12) - 1)} />
-                  <YAxis tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }} tickFormatter={formatToken} width={60} />
-                  <Tooltip content={<UsageTooltipContent />} cursor={{ fill: "hsl(var(--muted))" }} />
-                  {modelKeys.map((key, idx) => (
-                    <Bar
-                      key={key}
-                      dataKey={key}
-                      name={key}
-                      stackId="usage"
-                      fill={MODEL_COLOR_LIST[idx % MODEL_COLOR_LIST.length]}
-                      radius={key === modelKeys[modelKeys.length - 1] ? [3, 3, 0, 0] : [0, 0, 0, 0]}
-                    />
-                  ))}
-                </BarChart>
-              </ResponsiveContainer>
-            ) : (
-              <EmptyState message="当前时间范围内暂无用量数据" compact />
-            )}
-          </div>
-
-          {/* 图表二：每日消费金额 */}
+          {/* 图表一：每日消费金额 */}
           <div className="bg-card border rounded-xl p-5 shadow-sm">
             <h3 className="text-sm font-semibold text-foreground mb-4">每日消费金额</h3>
             {spendData.length > 0 ? (
@@ -658,6 +678,59 @@ export default function AdminConsumptionTrends() {
               </ResponsiveContainer>
             ) : (
               <EmptyState message="当前时间范围内暂无消费数据" compact />
+            )}
+          </div>
+
+          {/* 图表二：调用量分布 / 调用次数分布 */}
+          <div className="bg-card border rounded-xl p-5 shadow-sm">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-sm font-semibold text-foreground">{chartMode === "usage" ? "调用量分布" : "调用次数分布"}</h3>
+              <div className="flex items-center rounded-lg bg-muted p-0.5">
+                <button
+                  onClick={() => setChartMode("usage")}
+                  className={cn(
+                    "px-3 py-1 text-xs font-medium rounded-md transition-all",
+                    chartMode === "usage"
+                      ? "bg-background text-foreground shadow-sm"
+                      : "text-muted-foreground hover:text-foreground"
+                  )}
+                >
+                  调用量
+                </button>
+                <button
+                  onClick={() => setChartMode("calls")}
+                  className={cn(
+                    "px-3 py-1 text-xs font-medium rounded-md transition-all",
+                    chartMode === "calls"
+                      ? "bg-background text-foreground shadow-sm"
+                      : "text-muted-foreground hover:text-foreground"
+                  )}
+                >
+                  调用次数
+                </button>
+              </div>
+            </div>
+            {currentChartData.length > 0 ? (
+              <ResponsiveContainer width="100%" height={320}>
+                <BarChart data={currentChartData} margin={{ top: 0, right: 0, left: 0, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
+                  <XAxis dataKey="date" tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }} interval={Math.max(0, Math.ceil(currentChartData.length / 12) - 1)} />
+                  <YAxis tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }} tickFormatter={chartMode === "calls" ? formatNumber : formatToken} width={60} />
+                  <Tooltip content={<UsageTooltipContent />} cursor={{ fill: "hsl(var(--muted))" }} />
+                  {currentModelKeys.map((key, idx) => (
+                    <Bar
+                      key={key}
+                      dataKey={key}
+                      name={key}
+                      stackId="usage"
+                      fill={MODEL_COLOR_LIST[idx % MODEL_COLOR_LIST.length]}
+                      radius={key === currentModelKeys[currentModelKeys.length - 1] ? [3, 3, 0, 0] : [0, 0, 0, 0]}
+                    />
+                  ))}
+                </BarChart>
+              </ResponsiveContainer>
+            ) : (
+              <EmptyState message="当前时间范围内暂无用量数据" compact />
             )}
           </div>
         </div>
@@ -710,6 +783,38 @@ function SummaryCard({
         {label}
       </p>
       <p className={`text-xl font-semibold ${color}`}>{value}</p>
+    </div>
+  );
+}
+
+function SummaryCardWithModel({
+  icon: IconComp,
+  label,
+  value,
+  modelLabel,
+  modelValue,
+  color,
+}: {
+  icon: React.ComponentType<{ className?: string }>;
+  label: string;
+  value: string;
+  modelLabel: string;
+  modelValue: string;
+  color: string;
+}) {
+  return (
+    <div className="bg-card border rounded-xl p-4 shadow-sm">
+      <div className="flex items-center justify-between">
+        <p className="text-xs text-muted-foreground flex items-center gap-1">
+          <IconComp className={`w-3.5 h-3.5 ${color}`} />
+          {label}
+        </p>
+        <span className={`text-xl font-semibold ${color}`}>{value}</span>
+      </div>
+      <div className="flex items-center justify-between mt-2">
+        <span className="text-xs text-muted-foreground">{modelLabel}</span>
+        <span className={`text-lg font-semibold ${color}`}>{modelValue}</span>
+      </div>
     </div>
   );
 }
