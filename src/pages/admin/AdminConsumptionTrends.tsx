@@ -62,6 +62,7 @@ interface AccountInfo {
   phone?: string;
   email?: string;
   enterprise?: string; // 归属企业（个人）/ 管理员（企业）
+  enterpriseId?: string;
   adminName?: string;
   memberCount?: number;
   remarkType?: string; // 备注类型：正式用户/测试用户/内结用户等
