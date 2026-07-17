@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label";
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
-import { Wallet, TrendingUp, Activity, Ticket, Mail, MessageSquare, ChevronLeft, ChevronRight, Inbox, Download, HelpCircle } from "lucide-react";
+import { Wallet, Ticket, Mail, MessageSquare, ChevronLeft, ChevronRight, Inbox, Download, HelpCircle, CreditCard } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { toast } from "sonner";
@@ -20,8 +20,7 @@ interface BalanceData {
   enterprise_id: string;
   balance: number;
   voucher_balance: number;
-  total_consumed: number;
-  total_recharge: number;
+  credit_balance: number; // 授信可用余额
   request_count: number;
   alert_threshold: number | null;
   alert_email: string | null;
@@ -30,7 +29,7 @@ interface BalanceData {
 
 interface BalanceRecord {
   id: string;
-  type: "voucher_recharge" | "redeem_recharge" | "admin_recharge" | "admin_adjust";
+  type: "voucher_recharge" | "redeem_recharge" | "admin_recharge" | "admin_adjust" | "credit_recharge";
   source: string; // 二级来源
   amount: number; // 正数=收入，负数=支出
   balance_after: number; // 操作后余额
@@ -53,8 +52,7 @@ export default function AccountBalance({ enterprise, role }: Props) {
     enterprise_id: enterprise?.id ?? "personal",
     balance: 600.00,
     voucher_balance: 11492.55,
-    total_consumed: 0,
-    total_recharge: 600,
+    credit_balance: 4770.00,
     request_count: 0,
     alert_threshold: null,
     alert_email: null,
@@ -69,6 +67,7 @@ export default function AccountBalance({ enterprise, role }: Props) {
   // Mock 数据（已按时间倒序）
   const allMockRecords: BalanceRecord[] = [
     { id: "v1", type: "voucher_recharge", source: "系统", amount: 11492.55, balance_after: 12092.55, operator: "系统", remark: "2026-03 账期返券", expiryDate: "2026-05-31T23:59:59", remainingAmount: 11492.55, created_at: "2026-04-02T10:30:00" },
+    { id: "c1", type: "credit_recharge", source: "授信充值", amount: 5000, balance_after: 5000, operator: "系统", remark: "企业开通授信额度", created_at: "2026-03-01T09:00:00" },
     { id: "r1", type: "redeem_recharge", source: "兑换码充值", amount: 500, balance_after: 550, operator: "18833334444", remark: "兑换码: TEST2024", created_at: "2026-02-27T14:25:48" },
     { id: "r2", type: "admin_recharge", source: "后台充值", amount: 100, balance_after: 650, operator: "管理员", remark: "后台手动充值", created_at: "2026-02-27T14:25:48" },
     { id: "a1", type: "admin_adjust", source: "后台调额", amount: -50, balance_after: 600, operator: "管理员", remark: "额度调整", created_at: "2026-02-26T10:30:00" },
@@ -124,8 +123,8 @@ export default function AccountBalance({ enterprise, role }: Props) {
     <div className="max-w-5xl space-y-6">
       {/* Header */}
       <div>
-        <h1 className="text-2xl font-bold text-foreground">账户余额</h1>
-        <p className="text-muted-foreground mt-1 text-sm">查看企业账户余额及充值消耗记录</p>
+        <h1 className="text-2xl font-bold text-foreground">充值余额</h1>
+        <p className="text-muted-foreground mt-1 text-sm">查看企业充值余额及充值消耗记录</p>
       </div>
 
       {/* Balance Overview Card */}
@@ -138,8 +137,8 @@ export default function AccountBalance({ enterprise, role }: Props) {
         <div className="absolute -bottom-8 -left-8 w-36 h-36 rounded-full bg-white/5" />
 
         <div className="relative flex flex-col sm:flex-row sm:items-center gap-6">
-          {/* Left: main balance */}
-          <div className="flex-1">
+          {/* 充值余额 */}
+          <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 mb-1">
               <Wallet className="w-4 h-4 text-white/70" />
               <span className="text-white/70 text-sm">充值余额</span>
@@ -149,8 +148,8 @@ export default function AccountBalance({ enterprise, role }: Props) {
             </p>
           </div>
 
-          {/* Voucher balance */}
-          <div className="flex-1">
+          {/* 代金券余额 */}
+          <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 mb-1">
               <Ticket className="w-4 h-4 text-white/70" />
               <span className="text-white/70 text-sm">代金券余额</span>
@@ -170,35 +169,28 @@ export default function AccountBalance({ enterprise, role }: Props) {
             </p>
           </div>
 
-          {/* Right: stats */}
-          <div className="flex gap-8">
-            <div>
-              <div className="flex items-center gap-1.5 mb-1">
-                <TrendingUp className="w-3.5 h-3.5 text-white/60" />
-                <span className="text-white/60 text-xs">历史消耗</span>
-              </div>
-              <p className="text-xl font-semibold">¥{(balanceData?.total_consumed ?? 0).toFixed(2)}</p>
+          {/* 授信余额 */}
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2 mb-1">
+              <CreditCard className="w-4 h-4 text-white/70" />
+              <span className="text-white/70 text-sm">授信余额</span>
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <HelpCircle className="w-3.5 h-3.5 text-white/70 cursor-pointer" />
+                  </TooltipTrigger>
+                  <TooltipContent side="top" className="max-w-xs">
+                    平台授予企业的先用后付可用额度，账期内优先使用充值余额与代金券抵扣，不足部分由授信余额垫付；账单出账后需在约定期限内补缴。
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
             </div>
-            <div>
-              <div className="flex items-center gap-1.5 mb-1">
-                <Activity className="w-3.5 h-3.5 text-white/60" />
-                <span className="text-white/60 text-xs">累计充值</span>
-                <TooltipProvider>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <HelpCircle className="w-3 h-3 text-white/60 cursor-pointer" />
-                    </TooltipTrigger>
-                    <TooltipContent side="top" className="max-w-xs">
-                      累计充值仅统计客户真实充值金额，不包含平台发放的代金券金额。
-                    </TooltipContent>
-                  </Tooltip>
-                </TooltipProvider>
-              </div>
-              <p className="text-xl font-semibold">¥{(balanceData?.total_recharge ?? 0).toFixed(2)}</p>
-            </div>
+            <p className="text-4xl font-bold tracking-tight">
+              ¥{(balanceData?.credit_balance ?? 0).toFixed(2)}
+            </p>
           </div>
 
-          {/* Right: button */}
+          {/* 兑换码充值按钮 */}
           <Button
             variant="secondary"
             className="shrink-0 bg-white text-primary hover:bg-white/90 font-medium"
@@ -214,7 +206,10 @@ export default function AccountBalance({ enterprise, role }: Props) {
         <div className="bg-card border border-border rounded-xl p-5">
           {/* Title row with save button */}
           <div className="flex items-center justify-between mb-4">
-            <h2 className="font-semibold text-foreground">余额预警设置</h2>
+            <div>
+              <h2 className="font-semibold text-foreground">充值余额预警设置</h2>
+              <p className="text-xs text-muted-foreground mt-0.5">当充值余额低于预警金额时，将通过所选方式通知您（授信额度与代金券不计入预警判断）</p>
+            </div>
             <Button onClick={handleSaveAlert} disabled={savingAlert} size="sm">
               {savingAlert ? "保存中..." : "保存设置"}
             </Button>
@@ -331,6 +326,7 @@ export default function AccountBalance({ enterprise, role }: Props) {
                   <SelectItem value="redeem_recharge">兑换充值</SelectItem>
                   <SelectItem value="admin_recharge">后台充值</SelectItem>
                   <SelectItem value="admin_adjust">后台调额</SelectItem>
+                  <SelectItem value="credit_recharge">授信充值</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -363,7 +359,13 @@ export default function AccountBalance({ enterprise, role }: Props) {
                   <TableRow key={r.id} className="hover:bg-muted/30">
                     <TableCell className="text-sm text-muted-foreground">{r.id}</TableCell>
                     <TableCell className="text-sm">
-                      {r.type === "voucher_recharge" ? "代金券" : r.type === "redeem_recharge" ? "兑换充值" : r.type === "admin_recharge" ? "后台充值" : "后台调额"}
+                      {
+                        r.type === "voucher_recharge" ? "代金券"
+                          : r.type === "redeem_recharge" ? "兑换充值"
+                          : r.type === "admin_recharge" ? "后台充值"
+                          : r.type === "admin_adjust" ? "后台调额"
+                          : "授信充值"
+                      }
                     </TableCell>
                     <TableCell className="text-sm text-muted-foreground whitespace-nowrap">
                       {new Date(r.created_at).toLocaleString("zh-CN", {

@@ -982,7 +982,7 @@ function PersonalHome({ userName, phone }: { userName?: string | null; phone?: s
   const stats = [
     { label: "今日调用", value: "—", icon: TrendingUp, color: "hsl(224,76%,48%)" },
     { label: "API 密钥", value: "—", icon: Key, color: "hsl(262,60%,58%)" },
-    { label: "账户余额", value: "¥0.00", icon: Wallet, color: "hsl(142,70%,45%)" },
+    { label: "充值余额", value: "¥0.00", icon: Wallet, color: "hsl(142,70%,45%)" },
     { label: "本月用量", value: "—", icon: BarChart3, color: "hsl(32,90%,55%)" },
   ];
 
@@ -1054,7 +1054,7 @@ function PersonalBalance() {
     <div className="max-w-2xl">
       <div className="mb-6">
         <h1 className="text-2xl font-bold text-foreground">余额充值</h1>
-        <p className="text-muted-foreground mt-1">管理您的账户余额</p>
+        <p className="text-muted-foreground mt-1">管理您的充值余额</p>
       </div>
 
       <div className="bg-card border border-border rounded-xl p-6 mb-6">

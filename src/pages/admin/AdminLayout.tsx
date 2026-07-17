@@ -27,6 +27,8 @@ import {
   MessageSquare,
   Calculator,
   TrendingUp,
+  Target,
+  Repeat,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import AdminDashboard from "./AdminDashboard";
@@ -44,6 +46,15 @@ import AdminSystemDataDashboard from "./AdminSystemDataDashboard";
 import AdminReconciliation from "./AdminReconciliation";
 import AdminConsumptionTrends from "./AdminConsumptionTrends";
 import AdminServiceAvailability from "./AdminServiceAvailability";
+import AdminSubscriptionManagement from "./AdminSubscriptionManagement";
+import AdminSubscriptionList from "./AdminSubscriptionList";
+import AdminSubscriptionDetail from "./AdminSubscriptionDetail";
+import AdminDeductionRules from "./AdminDeductionRules";
+import AdminVoucherRecords from "./AdminVoucherRecords";
+import AdminOrderManagement from "./AdminOrderManagement";
+import AdminOrderDetail from "./AdminOrderDetail";
+import AdminEntitlementManagement from "./AdminEntitlementManagement";
+import AdminEntitlementDetail from "./AdminEntitlementDetail";
 
 // 一级菜单页面（空页面）
 function AdminHome() {
@@ -172,11 +183,21 @@ const CONSOLE_NAV_GROUPS = [
       { label: "企业管理", icon: Building2, path: "enterprises" },
       { label: "用户管理", icon: Users, path: "users" },
       { label: "消费趋势", icon: TrendingUp, path: "consumption-trends" },
-      { label: "兑换码管理", icon: Ticket, path: "billing" },
       { label: "调用日志", icon: FileText, path: "call-logs" },
-      { label: "渠道监控", icon: Activity, path: "channel-monitor" },
       { label: "服务可用性监控", icon: Shield, path: "service-availability" },
-      { label: "收支对账中心", icon: Calculator, path: "reconciliation" },
+      { label: "渠道监控", icon: Activity, path: "channel-monitor" },
+    ],
+  },
+  {
+    label: "财务与权益",
+    items: [
+      { label: "账单管理", icon: Calculator, path: "reconciliation" },
+      { label: "代金券管理", icon: Ticket, path: "voucher-records" },
+      { label: "商品配置", icon: Target, path: "products" },
+      { label: "订阅管理", icon: Repeat, path: "subscription-management" },
+      { label: "订单管理", icon: FileText, path: "order-management" },
+      { label: "权益管理", icon: Key, path: "entitlement-management" },
+      { label: "兑换码管理", icon: Ticket, path: "billing" },
     ],
   },
   {
@@ -268,6 +289,14 @@ function ConsoleLayout() {
           <Route path="enterprises/:id" element={<AdminEnterpriseDetail />} />
           <Route path="users" element={<AdminUsers />} />
           <Route path="consumption-trends" element={<AdminConsumptionTrends />} />
+          <Route path="products" element={<AdminSubscriptionManagement />} />
+          <Route path="subscription-management" element={<AdminSubscriptionList />} />
+          <Route path="subscription-management/:id" element={<AdminSubscriptionDetail />} />
+          <Route path="order-management" element={<AdminOrderManagement />} />
+          <Route path="order-management/:id" element={<AdminOrderDetail />} />
+          <Route path="entitlement-management" element={<AdminEntitlementManagement />} />
+          <Route path="entitlement-management/:id" element={<AdminEntitlementDetail />} />
+          <Route path="deduction-rules" element={<AdminDeductionRules />} />
           <Route path="billing" element={<AdminBilling />} />
           <Route path="channels" element={<AdminChannels />} />
           <Route path="models" element={<AdminModels />} />
@@ -277,6 +306,7 @@ function ConsoleLayout() {
           <Route path="channel-monitor" element={<AdminChannelMonitor />} />
           <Route path="service-availability" element={<AdminServiceAvailability />} />
           <Route path="reconciliation" element={<AdminReconciliation />} />
+          <Route path="voucher-records" element={<AdminVoucherRecords />} />
           <Route path="data-dashboard" element={<AdminDataDashboard />} />
           <Route path="token-management" element={<AdminTokenManagement />} />
           <Route path="wallet-management" element={<AdminWalletManagement />} />

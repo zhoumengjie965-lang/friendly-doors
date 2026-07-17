@@ -204,8 +204,8 @@ export default function AccountBalance({ enterprise, role }: Props) {
     <div className="max-w-5xl space-y-6">
       {/* Header */}
       <div>
-        <h1 className="text-2xl font-bold text-foreground">账户余额</h1>
-        <p className="text-muted-foreground mt-1 text-sm">查看企业账户余额及充值消耗记录</p>
+        <h1 className="text-2xl font-bold text-foreground">充值余额</h1>
+        <p className="text-muted-foreground mt-1 text-sm">查看企业充值余额及充值消耗记录</p>
       </div>
 
       {/* Balance Overview Card */}

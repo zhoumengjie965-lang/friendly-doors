@@ -268,22 +268,27 @@ function GroupConfigSelector({
     }));
   };
 
-  // ── 渲染：模板模式的文本摘要 ──
-  const templateSummaryText = activeTemplate
-    ? `对应令牌分组：${activeTemplate.availableGroups.map((g) => `${g.name} ${g.desc}（x${g.rate}）`).join("、")}`
-    : "";
+  // ── 渲染：模板模式的分组列表（按名称排序） ──
+  const templateGroupItems = activeTemplate
+    ? [...activeTemplate.availableGroups]
+        .sort((a, b) => a.name.localeCompare(b.name, "zh-Hans-CN"))
+        .map((g) => ({ key: `tpl-${g.name}`, name: g.name, desc: g.desc, rate: g.rate }))
+    : [];
 
-  // ── 渲染：全部分组（历史分组）模式的文本摘要 ──
+  // ── 渲染：全部分组（历史分组）模式的分组列表（按名称排序） ──
   const selectedHistoricalOption = HISTORICAL_GROUP_OPTIONS.find((h) => h.value === selectedHistoricalGroup);
-  const historicalSummaryText = selectedHistoricalOption?.availableGroups
-    ? `对应令牌分组：${selectedHistoricalOption.availableGroups.map((g) => `${g.name} ${g.desc}（x${g.rate}）`).join("、")}`
-    : "";
+  const historicalGroupItems = selectedHistoricalOption?.availableGroups
+    ? [...selectedHistoricalOption.availableGroups]
+        .sort((a, b) => a.name.localeCompare(b.name, "zh-Hans-CN"))
+        .map((g) => ({ key: `his-${g.name}`, name: g.name, desc: g.desc, rate: g.rate }))
+    : [];
 
-  // ── 渲染：自定义模式的文本摘要 ──
+  // ── 渲染：自定义模式的分组列表（按名称排序） ──
   const enabledCount = Object.values(customGroups).filter((e) => e.available).length;
-  const customSummaryParts = Object.entries(customGroups)
+  const customGroupItems = Object.entries(customGroups)
     .filter(([, e]) => e.available)
-    .map(([name, e]) => `${name}（x${e.rate}）`);
+    .sort(([a], [b]) => a.localeCompare(b, "zh-Hans-CN"))
+    .map(([name, e]) => ({ key: `cus-${name}`, name, desc: undefined as string | undefined, rate: e.rate }));
 
   return (
     <div className="space-y-3">
@@ -379,9 +384,20 @@ function GroupConfigSelector({
             ))}
           </select>
           {activeTemplate && (
-            <p className="text-xs text-muted-foreground leading-relaxed break-all">
-              {templateSummaryText}
-            </p>
+            <div className="border border-gray-200 rounded-md bg-white p-2 max-h-32 overflow-y-auto">
+              <p className="text-xs text-muted-foreground mb-1 sticky top-0 bg-white">
+                对应令牌分组（{templateGroupItems.length}）：
+              </p>
+              <ul className="space-y-1">
+                {templateGroupItems.map((g) => (
+                  <li key={g.key} className="text-xs text-muted-foreground">
+                    {g.name}
+                    {g.desc ? ` ${g.desc}` : ""}
+                    （x{g.rate}）
+                  </li>
+                ))}
+              </ul>
+            </div>
           )}
         </div>
       )}
@@ -400,10 +416,21 @@ function GroupConfigSelector({
               </option>
             ))}
           </select>
-          {selectedHistoricalGroup && historicalSummaryText && (
-            <p className="text-xs text-muted-foreground leading-relaxed break-all">
-              {historicalSummaryText}
-            </p>
+          {selectedHistoricalGroup && historicalGroupItems.length > 0 && (
+            <div className="border border-gray-200 rounded-md bg-white p-2 max-h-32 overflow-y-auto">
+              <p className="text-xs text-muted-foreground mb-1 sticky top-0 bg-white">
+                对应令牌分组（{historicalGroupItems.length}）：
+              </p>
+              <ul className="space-y-1">
+                {historicalGroupItems.map((g) => (
+                  <li key={g.key} className="text-xs text-muted-foreground">
+                    {g.name}
+                    {g.desc ? ` ${g.desc}` : ""}
+                    （x{g.rate}）
+                  </li>
+                ))}
+              </ul>
+            </div>
           )}
           {!selectedHistoricalGroup && (
             <p className="text-xs text-muted-foreground">选择一个历史分组，该分组将作为用户/企业的默认分组</p>
@@ -411,15 +438,20 @@ function GroupConfigSelector({
         </div>
       )}
 
-      {/* ── 自定义模式：摘要 ── */}
+      {/* ── 自定义模式：分组列表 ── */}
       {groupMode === "custom" && enabledCount > 0 && (
-        <p className="text-xs text-muted-foreground leading-relaxed break-all">
-          已自定义配置 {enabledCount} 个令牌分组：
-          {customSummaryParts.length > 6
-            ? `${customSummaryParts.slice(0, 6).join("、")}等`
-            : customSummaryParts.join("、")
-          }
-        </p>
+        <div className="border border-gray-200 rounded-md bg-white p-2 max-h-32 overflow-y-auto">
+          <p className="text-xs text-muted-foreground mb-1 sticky top-0 bg-white">
+            已自定义配置 {enabledCount} 个令牌分组：
+          </p>
+          <ul className="space-y-1">
+            {customGroupItems.map((g) => (
+              <li key={g.key} className="text-xs text-muted-foreground">
+                {g.name}（x{g.rate}）
+              </li>
+            ))}
+          </ul>
+        </div>
       )}
 
       {/* ── 自定义分组配置二级弹窗 ── */}
@@ -592,6 +624,7 @@ interface Enterprise {
   cert_status: string;
   status: "enabled" | "disabled";
   balance: number;
+  credit_balance: number;
   total_consumed: number;
   org_count: number;
   member_count: number;
@@ -620,6 +653,7 @@ const MOCK_ENTERPRISES: Enterprise[] = [
     cert_status: "approved",
     status: "enabled",
     balance: 158000.50,
+    credit_balance: 50000.00,
     total_consumed: 45200.00,
     org_count: 5,
     member_count: 128,
@@ -637,6 +671,7 @@ const MOCK_ENTERPRISES: Enterprise[] = [
     cert_status: "approved",
     status: "enabled",
     balance: 256000.00,
+    credit_balance: 100000.00,
     total_consumed: 89000.00,
     org_count: 8,
     member_count: 256,
@@ -654,6 +689,7 @@ const MOCK_ENTERPRISES: Enterprise[] = [
     cert_status: "pending",
     status: "enabled",
     balance: 0,
+    credit_balance: 20000.00,
     total_consumed: 32000.00,
     org_count: 3,
     member_count: 89,
@@ -671,6 +707,7 @@ const MOCK_ENTERPRISES: Enterprise[] = [
     cert_status: "uncertified",
     status: "enabled",
     balance: 0,
+    credit_balance: 0,
     total_consumed: 15000.00,
     org_count: 2,
     member_count: 45,
@@ -688,6 +725,7 @@ const MOCK_ENTERPRISES: Enterprise[] = [
     cert_status: "approved",
     status: "disabled",
     balance: 320000.00,
+    credit_balance: 80000.00,
     total_consumed: 120000.00,
     org_count: 10,
     member_count: 512,
@@ -705,6 +743,7 @@ const MOCK_ENTERPRISES: Enterprise[] = [
     cert_status: "rejected",
     status: "enabled",
     balance: 0,
+    credit_balance: 0,
     total_consumed: 0,
     org_count: 1,
     member_count: 23,
@@ -722,6 +761,7 @@ const MOCK_ENTERPRISES: Enterprise[] = [
     cert_status: "approved",
     status: "enabled",
     balance: 0,
+    credit_balance: 30000.00,
     total_consumed: 65000.00,
     org_count: 6,
     member_count: 168,
@@ -739,6 +779,7 @@ const MOCK_ENTERPRISES: Enterprise[] = [
     cert_status: "pending",
     status: "enabled",
     balance: 500000.00,
+    credit_balance: 200000.00,
     total_consumed: 200000.00,
     org_count: 12,
     member_count: 800,
@@ -756,6 +797,7 @@ const MOCK_ENTERPRISES: Enterprise[] = [
     cert_status: "uncertified",
     status: "enabled",
     balance: 0,
+    credit_balance: 0,
     total_consumed: 12000.00,
     org_count: 2,
     member_count: 38,
@@ -773,6 +815,7 @@ const MOCK_ENTERPRISES: Enterprise[] = [
     cert_status: "approved",
     status: "enabled",
     balance: 375000.00,
+    credit_balance: 150000.00,
     total_consumed: 150000.00,
     org_count: 9,
     member_count: 350,
@@ -883,9 +926,17 @@ export default function AdminEnterprises() {
 
   // Quick recharge dialog
   const [rechargeTarget, setRechargeTarget] = useState<Enterprise | null>(null);
+  const [rechargeType, setRechargeType] = useState<"balance" | "credit">("balance");
   const [rechargeAmount, setRechargeAmount] = useState("");
   const [rechargeRemark, setRechargeRemark] = useState("");
   const [rechargeLoading, setRechargeLoading] = useState(false);
+
+  const openRechargeDialog = (enterprise: Enterprise) => {
+    setRechargeTarget(enterprise);
+    setRechargeType("balance");
+    setRechargeAmount("");
+    setRechargeRemark("");
+  };
 
   // Add enterprise dialog state
   const [addDialogOpen, setAddDialogOpen] = useState(false);
@@ -1119,28 +1170,46 @@ export default function AdminEnterprises() {
   useEffect(() => { fetchData(); }, []);
 
   const handleRecharge = async () => {
-    if (!rechargeTarget || !rechargeAmount) return;
+    if (!rechargeTarget || rechargeAmount === "" || rechargeAmount === null) return;
     const amount = parseFloat(rechargeAmount);
-    if (isNaN(amount) || amount <= 0) {
+    if (isNaN(amount)) {
       toast({ title: "请输入有效金额", variant: "destructive" });
       return;
     }
     setRechargeLoading(true);
-    const { error } = await supabase.rpc("admin_recharge_enterprise", {
-      p_enterprise_id: rechargeTarget.id,
-      p_amount: amount,
-      p_operator: session?.phone || "admin",
-      p_remark: rechargeRemark || null,
-    });
-    setRechargeLoading(false);
-    if (error) {
-      toast({ title: "充值失败", description: error.message, variant: "destructive" });
-    } else {
-      toast({ title: `已为「${rechargeTarget.name}」充值 ¥${amount.toFixed(2)}` });
+    try {
+      // Mock 模式直接更新本地数据
+      const useMockData = true;
+      if (useMockData) {
+        await new Promise(resolve => setTimeout(resolve, 400));
+        setEnterprises(prev => prev.map(e => {
+          if (e.id !== rechargeTarget.id) return e;
+          if (rechargeType === "balance") {
+            return { ...e, balance: e.balance + amount };
+          } else {
+            return { ...e, credit_balance: e.credit_balance + amount };
+          }
+        }));
+      } else {
+        const { error } = await supabase.rpc("admin_recharge_enterprise", {
+          p_enterprise_id: rechargeTarget.id,
+          p_amount: amount,
+          p_operator: session?.phone || "admin",
+          p_remark: rechargeRemark || null,
+          p_type: rechargeType,
+        });
+        if (error) throw error;
+      }
+      const typeLabel = rechargeType === "balance" ? "充值余额" : "授信额度";
+      toast({ title: `已为「${rechargeTarget.name}」${typeLabel} ¥${amount.toFixed(2)}` });
       setRechargeTarget(null);
       setRechargeAmount("");
       setRechargeRemark("");
-      fetchData();
+      if (!useMockData) fetchData();
+    } catch (err: any) {
+      toast({ title: "充值失败", description: err.message || "未知错误", variant: "destructive" });
+    } finally {
+      setRechargeLoading(false);
     }
   };
 
@@ -1519,6 +1588,14 @@ export default function AdminEnterprises() {
                   <Button
                     size="sm"
                     variant="ghost"
+                    className="h-7 px-2 text-xs text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+                    onClick={() => openRechargeDialog(e)}
+                  >
+                    充值
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="ghost"
                     className="h-7 w-7 p-0 text-muted-foreground hover:text-foreground"
                     title="查看详情"
                     onClick={() => navigate(`/admin/enterprises/${e.id}`)}
@@ -1595,41 +1672,114 @@ export default function AdminEnterprises() {
 
       {/* Quick Recharge Dialog */}
       <Dialog open={!!rechargeTarget} onOpenChange={(open) => { if (!open) setRechargeTarget(null); }}>
-        <DialogContent className="sm:max-w-sm">
+        <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>快速充值</DialogTitle>
+            <DialogTitle>手动充值</DialogTitle>
           </DialogHeader>
-          <div className="space-y-1 py-1">
-            <p className="text-sm text-muted-foreground">企业：<span className="text-foreground font-medium">{rechargeTarget?.name}</span></p>
-          </div>
-          <div className="space-y-3">
-            <div className="space-y-1.5">
-              <Label>充值金额（元）</Label>
-              <Input
-                type="number"
-                min="0.01"
-                step="0.01"
-                placeholder="请输入金额"
-                value={rechargeAmount}
-                onChange={(e) => setRechargeAmount(e.target.value)}
-              />
-            </div>
-            <div className="space-y-1.5">
-              <Label>备注（可选）</Label>
-              <Textarea
-                placeholder="充值备注…"
-                rows={2}
-                value={rechargeRemark}
-                onChange={(e) => setRechargeRemark(e.target.value)}
-              />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setRechargeTarget(null)}>取消</Button>
-            <Button onClick={handleRecharge} disabled={rechargeLoading}>
-              {rechargeLoading ? "处理中…" : "确认充值"}
-            </Button>
-          </DialogFooter>
+          {rechargeTarget && (() => {
+            const currentBalance = rechargeType === "balance" ? rechargeTarget.balance : rechargeTarget.credit_balance;
+            const amountNum = parseFloat(rechargeAmount);
+            const delta = isNaN(amountNum) ? 0 : amountNum;
+            const newBalance = currentBalance + delta;
+            return (
+              <>
+                <div className="space-y-1.5 py-1 text-sm">
+                  <p className="text-muted-foreground">
+                    企业：<span className="text-foreground font-medium">{rechargeTarget.name}</span>
+                    <span className="text-muted-foreground">（ID: {rechargeTarget.id.slice(0, 8)}）</span>
+                  </p>
+                  <p className="text-muted-foreground">
+                    当前{rechargeType === "balance" ? "余额" : "授信额度"}：
+                    <span className="text-foreground font-medium tabular-nums">¥{currentBalance.toFixed(2)}</span>
+                  </p>
+                </div>
+                <div className="space-y-4">
+                  <div className="space-y-2">
+                    <Label>充值类型</Label>
+                    <div className="flex gap-3">
+                      <label className="flex items-center gap-2 cursor-pointer flex-1 p-3 border rounded-md hover:border-blue-300 hover:bg-blue-50/30 transition-colors has-[:checked]:border-blue-500 has-[:checked]:bg-blue-50">
+                        <input
+                          type="radio"
+                          name="rechargeType"
+                          value="balance"
+                          checked={rechargeType === "balance"}
+                          onChange={() => setRechargeType("balance")}
+                          className="w-4 h-4 text-blue-600"
+                        />
+                        <div>
+                          <p className="text-sm font-medium">充值余额</p>
+                          <p className="text-xs text-muted-foreground">普通现金余额，可直接消费</p>
+                        </div>
+                      </label>
+                      <label className="flex items-center gap-2 cursor-pointer flex-1 p-3 border rounded-md hover:border-blue-300 hover:bg-blue-50/30 transition-colors has-[:checked]:border-blue-500 has-[:checked]:bg-blue-50">
+                        <input
+                          type="radio"
+                          name="rechargeType"
+                          value="credit"
+                          checked={rechargeType === "credit"}
+                          onChange={() => setRechargeType("credit")}
+                          className="w-4 h-4 text-blue-600"
+                        />
+                        <div>
+                          <p className="text-sm font-medium">授信额度</p>
+                          <p className="text-xs text-muted-foreground">先用后付额度，账期后结算</p>
+                        </div>
+                      </label>
+                    </div>
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label>充值金额 <span className="text-red-500">*</span></Label>
+                    <div className="relative">
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">¥</span>
+                      <Input
+                        type="number"
+                        step="0.01"
+                        placeholder="请输入充值金额（支持负数）"
+                        value={rechargeAmount}
+                        onChange={(e) => setRechargeAmount(e.target.value)}
+                        className="pl-7"
+                      />
+                    </div>
+                    <p className="text-sm text-muted-foreground tabular-nums">
+                      新{rechargeType === "balance" ? "余额" : "授信额度"}：
+                      <span className="text-foreground">¥{currentBalance.toFixed(2)}</span>
+                      {delta !== 0 && (
+                        <>
+                          <span className="mx-1">{delta >= 0 ? "+" : "-"}</span>
+                          <span className="text-foreground">¥{Math.abs(delta).toFixed(2)}</span>
+                          <span className="mx-1">=</span>
+                          <span className={`font-semibold ${newBalance < 0 ? "text-red-600" : "text-foreground"}`}>¥{newBalance.toFixed(2)}</span>
+                        </>
+                      )}
+                      {delta === 0 && (
+                        <>
+                          <span className="mx-1">+</span>
+                          <span className="text-foreground">¥0.00</span>
+                          <span className="mx-1">=</span>
+                          <span className="text-foreground font-semibold">¥{newBalance.toFixed(2)}</span>
+                        </>
+                      )}
+                    </p>
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label>备注（可选）</Label>
+                    <Textarea
+                      placeholder="充值备注…"
+                      rows={2}
+                      value={rechargeRemark}
+                      onChange={(e) => setRechargeRemark(e.target.value)}
+                    />
+                  </div>
+                </div>
+                <DialogFooter>
+                  <Button variant="outline" onClick={() => setRechargeTarget(null)}>取消</Button>
+                  <Button onClick={handleRecharge} disabled={rechargeLoading || rechargeAmount === "" || isNaN(amountNum)}>
+                    {rechargeLoading ? "处理中…" : "确认充值"}
+                  </Button>
+                </DialogFooter>
+              </>
+            );
+          })()}
         </DialogContent>
       </Dialog>
 

@@ -6,18 +6,21 @@ import {
 } from "recharts";
 import {
   Wallet, Activity, Database, Zap, BarChart2, CalendarIcon, RefreshCw, LayoutGrid,
-  PieChart as PieChartIcon, Users, Search, Building2, TrendingUp, X, ChevronRight,
+  PieChart as PieChartIcon, Users, Search, Building2, TrendingUp, X, ChevronRight, Bell,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
+import { Switch } from "@/components/ui/switch";
+import { Slider } from "@/components/ui/slider";
 import { cn } from "@/lib/utils";
 import type { DateRange } from "react-day-picker";
 import OrgTreeSelect from "@/components/OrgTreeSelect";
 import { Tooltip as ShadcnTooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { getMockData } from "@/lib/mockData";
+import { useToast } from "@/hooks/use-toast";
 
 interface Props {
   enterprise: { id: string; name: string; enterprise_code: string };
@@ -466,6 +469,7 @@ function EmptyState() {
 }
 
 export default function ResourceStats({ enterprise }: Props) {
+  const { toast } = useToast();
   const [dateRange, setDateRange] = useState<DateRange | undefined>({
     from: startOfMonth(new Date("2024-02-01")),
     to: endOfMonth(new Date("2024-02-01")),
@@ -497,6 +501,12 @@ export default function ResourceStats({ enterprise }: Props) {
   // Org admin: impersonated member state for viewing member's "my view"
   const [impersonatedMember, setImpersonatedMember] = useState<string | null>(null);
 
+  // Personal budget alert settings
+  const [alertDialogOpen, setAlertDialogOpen] = useState(false);
+  const [alertEnabled, setAlertEnabled] = useState(false);
+  const [alertThreshold, setAlertThreshold] = useState(80);
+  const [alertSaving, setAlertSaving] = useState(false);
+
   void enterprise;
 
   const handleSearch = () => {
@@ -516,6 +526,26 @@ export default function ResourceStats({ enterprise }: Props) {
     setEnterpriseMemberFilter("");
     setCommittedEnterpriseMember("");
   };
+
+  const handleSaveAlert = () => {
+    setAlertSaving(true);
+    setTimeout(() => {
+      setAlertSaving(false);
+      setAlertDialogOpen(false);
+      toast({
+        title: alertEnabled ? "预警已开启" : "预警已关闭",
+        description: alertEnabled
+          ? `当个人预算消耗达到 ${alertThreshold}% 时，将通过短信通知您。`
+          : "您将不再收到个人预算预警短信。",
+      });
+    }, 500);
+  };
+
+  // Whether to show the alert settings button (personal quota banners)
+  const showPersonalAlertBtn =
+    (viewRole === "member") ||
+    (viewRole === "org_admin" && orgAdminViewMode === "my") ||
+    (viewRole === "enterprise_admin" && enterpriseAdminViewMode === "my");
 
   const chartData = activeSubTab === "consumption" ? mockDayData : mockCallData;
   const yLabel = activeSubTab === "consumption" ? "Tokens" : "次数";
@@ -768,7 +798,7 @@ export default function ResourceStats({ enterprise }: Props) {
             <span className="text-muted-foreground">归属部门：</span>
             <span className="font-medium text-foreground">研发一组</span>
           </div>
-          <div className="rounded-lg bg-blue-50 border border-blue-200 px-4 py-3 flex items-center gap-4 flex-wrap">
+          <div className="rounded-lg bg-blue-50 border border-blue-200 px-4 py-3 flex items-center gap-4">
             <div className="flex items-center gap-2 shrink-0">
               <div className="w-7 h-7 rounded-full bg-blue-100 flex items-center justify-center">
                 <Wallet className="w-4 h-4 text-blue-600" />
@@ -779,11 +809,81 @@ export default function ResourceStats({ enterprise }: Props) {
             <span className="text-sm text-blue-600 shrink-0">
               今日剩余可用预算/今日预算上限：<span className="font-bold text-blue-800">¥ {(total - consumed).toFixed(2)}</span> / ¥ {total.toFixed(2)}
             </span>
-            <div className="flex items-center gap-2 flex-1 min-w-[160px]">
+            <div className="flex items-center gap-2 w-[280px] shrink-0">
               <div className="flex-1 h-2 rounded-full bg-blue-100 overflow-hidden">
                 <div className="h-full bg-blue-500 rounded-full transition-all" style={{ width: `${consumedPct}%` }} />
               </div>
               <span className="text-xs text-blue-500 shrink-0">{consumedPct}% 已消耗</span>
+            </div>
+            <div className="ml-auto shrink-0">
+              <Popover open={alertDialogOpen} onOpenChange={setAlertDialogOpen}>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant={alertEnabled ? "default" : "outline"}
+                    size="sm"
+                    className={cn(
+                      "h-8 gap-1.5 text-xs",
+                      alertEnabled ? "bg-amber-500 hover:bg-amber-600 text-white border-amber-500" : "border-blue-200 text-blue-700 hover:bg-blue-100 hover:text-blue-800"
+                    )}
+                  >
+                    <Bell className="w-3.5 h-3.5" />
+                    {alertEnabled ? `预警 ${alertThreshold}%` : "预警设置"}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-72 p-4" align="end">
+                  <div className="space-y-4">
+                    <div>
+                      <h4 className="font-semibold text-sm flex items-center gap-2">
+                        <Bell className="w-4 h-4 text-amber-500" />
+                        个人预算预警
+                      </h4>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        预算消耗达到阈值时通过短信通知您
+                      </p>
+                    </div>
+
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm">开启预警</span>
+                      <Switch checked={alertEnabled} onCheckedChange={setAlertEnabled} />
+                    </div>
+
+                    <div className={cn("space-y-3", alertEnabled ? "" : "opacity-50 pointer-events-none")}>
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm">预警阈值</span>
+                        <span className="text-sm font-bold text-amber-600">{alertThreshold}%</span>
+                      </div>
+                      <Slider
+                        value={[alertThreshold]}
+                        min={50}
+                        max={100}
+                        step={5}
+                        onValueChange={(v) => setAlertThreshold(v[0])}
+                      />
+                      <div className="flex justify-between text-xs text-muted-foreground">
+                        <span>50%</span>
+                        <span>75%</span>
+                        <span>100%</span>
+                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        当前预算 ¥{total.toFixed(2)}，达到 ¥{(total * alertThreshold / 100).toFixed(2)} 时触发预警
+                      </p>
+                      <div className="rounded-lg border border-border px-3 py-2 bg-muted/30 text-xs">
+                        <span className="text-muted-foreground">通知方式：</span>
+                        <span className="font-medium">短信至 138****8888</span>
+                      </div>
+                    </div>
+
+                    <Button
+                      size="sm"
+                      className="w-full"
+                      onClick={handleSaveAlert}
+                      disabled={alertSaving}
+                    >
+                      {alertSaving ? "保存中..." : "保存设置"}
+                    </Button>
+                  </div>
+                </PopoverContent>
+              </Popover>
             </div>
           </div>
         </div>
@@ -791,7 +891,7 @@ export default function ResourceStats({ enterprise }: Props) {
 
       {/* Quota banner — org_admin (my view - personal quota) */}
       {viewRole === "org_admin" && orgAdminViewMode === "my" && (
-        <div className="mb-4 rounded-lg bg-blue-50 border border-blue-200 px-4 py-3 flex items-center gap-4 flex-wrap">
+        <div className="mb-4 rounded-lg bg-blue-50 border border-blue-200 px-4 py-3 flex items-center gap-4">
           <div className="flex items-center gap-2 shrink-0">
             <div className="w-7 h-7 rounded-full bg-blue-100 flex items-center justify-center">
               <Wallet className="w-4 h-4 text-blue-600" />
@@ -802,11 +902,81 @@ export default function ResourceStats({ enterprise }: Props) {
           <span className="text-sm text-blue-600 shrink-0">
             今日剩余可用预算/今日预算上限：<span className="font-bold text-blue-800">¥ {(total - consumed).toFixed(2)}</span> / ¥ {total.toFixed(2)}
           </span>
-          <div className="flex items-center gap-2 flex-1 min-w-[160px]">
+          <div className="flex items-center gap-2 w-[280px] shrink-0">
             <div className="flex-1 h-2 rounded-full bg-blue-100 overflow-hidden">
               <div className="h-full bg-blue-500 rounded-full transition-all" style={{ width: `${consumedPct}%` }} />
             </div>
             <span className="text-xs text-blue-500 shrink-0">{consumedPct}% 已消耗</span>
+          </div>
+          <div className="ml-auto shrink-0">
+            <Popover open={alertDialogOpen} onOpenChange={setAlertDialogOpen}>
+              <PopoverTrigger asChild>
+                <Button
+                  variant={alertEnabled ? "default" : "outline"}
+                  size="sm"
+                  className={cn(
+                    "h-8 gap-1.5 text-xs",
+                    alertEnabled ? "bg-amber-500 hover:bg-amber-600 text-white border-amber-500" : "border-blue-200 text-blue-700 hover:bg-blue-100 hover:text-blue-800"
+                  )}
+                >
+                  <Bell className="w-3.5 h-3.5" />
+                  {alertEnabled ? `预警 ${alertThreshold}%` : "预警设置"}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-72 p-4" align="end">
+                <div className="space-y-4">
+                  <div>
+                    <h4 className="font-semibold text-sm flex items-center gap-2">
+                      <Bell className="w-4 h-4 text-amber-500" />
+                      个人预算预警
+                    </h4>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      预算消耗达到阈值时通过短信通知您
+                    </p>
+                  </div>
+
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm">开启预警</span>
+                    <Switch checked={alertEnabled} onCheckedChange={setAlertEnabled} />
+                  </div>
+
+                  <div className={cn("space-y-3", alertEnabled ? "" : "opacity-50 pointer-events-none")}>
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm">预警阈值</span>
+                      <span className="text-sm font-bold text-amber-600">{alertThreshold}%</span>
+                    </div>
+                    <Slider
+                      value={[alertThreshold]}
+                      min={50}
+                      max={100}
+                      step={5}
+                      onValueChange={(v) => setAlertThreshold(v[0])}
+                    />
+                    <div className="flex justify-between text-xs text-muted-foreground">
+                      <span>50%</span>
+                      <span>75%</span>
+                      <span>100%</span>
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      当前预算 ¥{total.toFixed(2)}，达到 ¥{(total * alertThreshold / 100).toFixed(2)} 时触发预警
+                    </p>
+                    <div className="rounded-lg border border-border px-3 py-2 bg-muted/30 text-xs">
+                      <span className="text-muted-foreground">通知方式：</span>
+                      <span className="font-medium">短信至 138****8888</span>
+                    </div>
+                  </div>
+
+                  <Button
+                    size="sm"
+                    className="w-full"
+                    onClick={handleSaveAlert}
+                    disabled={alertSaving}
+                  >
+                    {alertSaving ? "保存中..." : "保存设置"}
+                  </Button>
+                </div>
+              </PopoverContent>
+            </Popover>
           </div>
         </div>
       )}
@@ -862,7 +1032,7 @@ export default function ResourceStats({ enterprise }: Props) {
 
       {/* Enterprise banner — my view (personal quota) */}
       {viewRole === "enterprise_admin" && enterpriseAdminViewMode === "my" && (
-        <div className="mb-4 rounded-lg bg-blue-50 border border-blue-200 px-4 py-3 flex items-center gap-4 flex-wrap">
+        <div className="mb-4 rounded-lg bg-blue-50 border border-blue-200 px-4 py-3 flex items-center gap-4">
           <div className="flex items-center gap-2 shrink-0">
             <div className="w-7 h-7 rounded-full bg-blue-100 flex items-center justify-center">
               <Wallet className="w-4 h-4 text-blue-600" />
@@ -873,11 +1043,81 @@ export default function ResourceStats({ enterprise }: Props) {
           <span className="text-sm text-blue-600 shrink-0">
             今日剩余可用预算/今日预算上限：<span className="font-bold text-blue-800">¥ {(total - consumed).toFixed(2)}</span> / ¥ {total.toFixed(2)}
           </span>
-          <div className="flex items-center gap-2 flex-1 min-w-[160px]">
+          <div className="flex items-center gap-2 w-[280px] shrink-0">
             <div className="flex-1 h-2 rounded-full bg-blue-100 overflow-hidden">
               <div className="h-full bg-blue-500 rounded-full transition-all" style={{ width: `${consumedPct}%` }} />
             </div>
             <span className="text-xs text-blue-500 shrink-0">{consumedPct}% 已消耗</span>
+          </div>
+          <div className="ml-auto shrink-0">
+            <Popover open={alertDialogOpen} onOpenChange={setAlertDialogOpen}>
+              <PopoverTrigger asChild>
+                <Button
+                  variant={alertEnabled ? "default" : "outline"}
+                  size="sm"
+                  className={cn(
+                    "h-8 gap-1.5 text-xs",
+                    alertEnabled ? "bg-amber-500 hover:bg-amber-600 text-white border-amber-500" : "border-blue-200 text-blue-700 hover:bg-blue-100 hover:text-blue-800"
+                  )}
+                >
+                  <Bell className="w-3.5 h-3.5" />
+                  {alertEnabled ? `预警 ${alertThreshold}%` : "预警设置"}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-72 p-4" align="end">
+                <div className="space-y-4">
+                  <div>
+                    <h4 className="font-semibold text-sm flex items-center gap-2">
+                      <Bell className="w-4 h-4 text-amber-500" />
+                      个人预算预警
+                    </h4>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      预算消耗达到阈值时通过短信通知您
+                    </p>
+                  </div>
+
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm">开启预警</span>
+                    <Switch checked={alertEnabled} onCheckedChange={setAlertEnabled} />
+                  </div>
+
+                  <div className={cn("space-y-3", alertEnabled ? "" : "opacity-50 pointer-events-none")}>
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm">预警阈值</span>
+                      <span className="text-sm font-bold text-amber-600">{alertThreshold}%</span>
+                    </div>
+                    <Slider
+                      value={[alertThreshold]}
+                      min={50}
+                      max={100}
+                      step={5}
+                      onValueChange={(v) => setAlertThreshold(v[0])}
+                    />
+                    <div className="flex justify-between text-xs text-muted-foreground">
+                      <span>50%</span>
+                      <span>75%</span>
+                      <span>100%</span>
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      当前预算 ¥{total.toFixed(2)}，达到 ¥{(total * alertThreshold / 100).toFixed(2)} 时触发预警
+                    </p>
+                    <div className="rounded-lg border border-border px-3 py-2 bg-muted/30 text-xs">
+                      <span className="text-muted-foreground">通知方式：</span>
+                      <span className="font-medium">短信至 138****8888</span>
+                    </div>
+                  </div>
+
+                  <Button
+                    size="sm"
+                    className="w-full"
+                    onClick={handleSaveAlert}
+                    disabled={alertSaving}
+                  >
+                    {alertSaving ? "保存中..." : "保存设置"}
+                  </Button>
+                </div>
+              </PopoverContent>
+            </Popover>
           </div>
         </div>
       )}

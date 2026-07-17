@@ -27,6 +27,28 @@ interface Enterprise { id: string; name: string; }
 interface Organization { id: string; name: string; enterprise_id: string; }
 interface Member { id: string; name: string; phone: string; }
 
+// ── 扣费来源类型 ──
+type BillingSource =
+  | { type: "subscription"; name: string }
+  | { type: "resource_pack"; name: string }
+  | { type: "voucher" }
+  | { type: "balance" };
+
+function getBillingSourceLabel(source: BillingSource): string {
+  switch (source.type) {
+    case "subscription": return source.name;
+    case "resource_pack": return source.name;
+    case "voucher": return "代金券";
+    case "balance": return "充值余额";
+  }
+}
+
+function getActualPayment(cost: number, type: string, source: BillingSource): number {
+  if (type === "错误") return 0;
+  if (source.type === "subscription" || source.type === "resource_pack" || source.type === "voucher") return 0;
+  return cost;
+}
+
 // ── Generic Combobox ──
 function FilterCombobox({
   items, value, onChange, placeholder, emptyText, width = "w-48",
@@ -78,16 +100,16 @@ function FilterCombobox({
 
 // ── Mock data ──
 const mockUsageLogs = [
-  { time: "2026-03-03 11:15:44", enterprise: "极光科技", apiKey: "test", group: "default", org: "技术部", member: "张三", type: "错误", model: "mock-error", channel: "Azure", retryChannel: "-", duration: "0s", streaming: "非流", input: 0, output: 0, cost: 0, detail: "Incorrect API key provided.", isPersonal: false },
-  { time: "2026-03-03 11:14:22", enterprise: "蓝海智能", apiKey: "prod", group: "default", org: "产品部", member: "李四", type: "消费", model: "gpt-4o", channel: "OpenAI", retryChannel: "Azure", duration: "1.2s", streaming: "流式", input: 156, output: 312, cost: 0.003, detail: "Request completed successfully.", isPersonal: false },
-  { time: "2026-03-03 11:13:01", enterprise: "个人", apiKey: "test", group: "dev", org: "-", member: "王五", type: "错误", model: "mock-error", channel: "Azure", retryChannel: "OpenAI", duration: "0s", streaming: "非流", input: 0, output: 0, cost: 0, detail: "Rate limit exceeded.", isPersonal: true },
-  { time: "2026-03-03 11:12:55", enterprise: "云启数字", apiKey: "prod", group: "default", org: "产品部", member: "赵六", type: "消费", model: "claude-3-5-sonnet", channel: "Anthropic", retryChannel: "-", duration: "2.3s", streaming: "流式", input: 240, output: 480, cost: 0.008, detail: "Request completed successfully.", isPersonal: false },
-  { time: "2026-03-03 11:11:33", enterprise: "个人", apiKey: "dev-key", group: "dev", org: "-", member: "张三", type: "消费", model: "gpt-4o-mini", channel: "OpenAI", retryChannel: "-", duration: "0.8s", streaming: "非流", input: 88, output: 120, cost: 0.001, detail: "Request completed successfully.", isPersonal: true },
-  { time: "2026-03-03 11:10:14", enterprise: "极光科技", apiKey: "test", group: "default", org: "技术部", member: "李四", type: "错误", model: "mock-error", channel: "Azure", retryChannel: "Anthropic", duration: "0s", streaming: "非流", input: 0, output: 0, cost: 0, detail: "Incorrect API key provided.", isPersonal: false },
-  { time: "2026-03-03 11:09:02", enterprise: "云启数字", apiKey: "prod", group: "finance", org: "财务部", member: "王五", type: "消费", model: "gpt-4o", channel: "OpenAI", retryChannel: "-", duration: "1.8s", streaming: "流式", input: 320, output: 640, cost: 0.012, detail: "Request completed successfully.", isPersonal: false },
-  { time: "2026-03-03 11:08:47", enterprise: "个人", apiKey: "dev-key", group: "dev", org: "-", member: "赵六", type: "消费", model: "claude-3-haiku", channel: "Anthropic", retryChannel: "OpenAI", duration: "0.5s", streaming: "非流", input: 64, output: 96, cost: 0.001, detail: "Request completed successfully.", isPersonal: true },
-  { time: "2026-03-03 11:07:30", enterprise: "极光科技", apiKey: "test", group: "default", org: "技术部", member: "张三", type: "错误", model: "mock-error", channel: "Azure", retryChannel: "-", duration: "0s", streaming: "非流", input: 0, output: 0, cost: 0, detail: "Incorrect API key provided.", isPersonal: false },
-  { time: "2026-03-03 11:06:15", enterprise: "云启数字", apiKey: "prod", group: "default", org: "产品部", member: "李四", type: "消费", model: "gpt-4o", channel: "OpenAI", retryChannel: "Azure", duration: "1.5s", streaming: "流式", input: 200, output: 400, cost: 0.007, detail: "Request completed successfully.", isPersonal: false },
+  { time: "2026-03-03 11:15:44", enterprise: "极光科技", apiKey: "test", group: "default", org: "技术部", member: "张三", type: "错误", model: "mock-error", channel: "Azure", retryChannel: "-", duration: "0s", streaming: "非流", input: 0, output: 0, cost: 0, detail: "Incorrect API key provided.", isPersonal: false, billingSource: { type: "balance" } as BillingSource },
+  { time: "2026-03-03 11:14:22", enterprise: "蓝海智能", apiKey: "prod", group: "default", org: "产品部", member: "李四", type: "消费", model: "gpt-4o", channel: "OpenAI", retryChannel: "Azure", duration: "1.2s", streaming: "流式", input: 156, output: 312, cost: 0.003, detail: "Request completed successfully.", isPersonal: false, billingSource: { type: "subscription", name: "企业旗舰版·年包" } as BillingSource },
+  { time: "2026-03-03 11:13:01", enterprise: "个人", apiKey: "test", group: "dev", org: "-", member: "王五", type: "错误", model: "mock-error", channel: "Azure", retryChannel: "OpenAI", duration: "0s", streaming: "非流", input: 0, output: 0, cost: 0, detail: "Rate limit exceeded.", isPersonal: true, billingSource: { type: "balance" } as BillingSource },
+  { time: "2026-03-03 11:12:55", enterprise: "云启数字", apiKey: "prod", group: "default", org: "产品部", member: "赵六", type: "消费", model: "claude-3-5-sonnet", channel: "Anthropic", retryChannel: "-", duration: "2.3s", streaming: "流式", input: 240, output: 480, cost: 0.008, detail: "Request completed successfully.", isPersonal: false, billingSource: { type: "resource_pack", name: "Token 资源包 500万" } as BillingSource },
+  { time: "2026-03-03 11:11:33", enterprise: "个人", apiKey: "dev-key", group: "dev", org: "-", member: "张三", type: "消费", model: "gpt-4o-mini", channel: "OpenAI", retryChannel: "-", duration: "0.8s", streaming: "非流", input: 88, output: 120, cost: 0.001, detail: "Request completed successfully.", isPersonal: true, billingSource: { type: "voucher" } as BillingSource },
+  { time: "2026-03-03 11:10:14", enterprise: "极光科技", apiKey: "test", group: "default", org: "技术部", member: "李四", type: "错误", model: "mock-error", channel: "Azure", retryChannel: "Anthropic", duration: "0s", streaming: "非流", input: 0, output: 0, cost: 0, detail: "Incorrect API key provided.", isPersonal: false, billingSource: { type: "balance" } as BillingSource },
+  { time: "2026-03-03 11:09:02", enterprise: "云启数字", apiKey: "prod", group: "finance", org: "财务部", member: "王五", type: "消费", model: "gpt-4o", channel: "OpenAI", retryChannel: "-", duration: "1.8s", streaming: "流式", input: 320, output: 640, cost: 0.012, detail: "Request completed successfully.", isPersonal: false, billingSource: { type: "balance" } as BillingSource },
+  { time: "2026-03-03 11:08:47", enterprise: "个人", apiKey: "dev-key", group: "dev", org: "-", member: "赵六", type: "消费", model: "claude-3-haiku", channel: "Anthropic", retryChannel: "OpenAI", duration: "0.5s", streaming: "非流", input: 64, output: 96, cost: 0.001, detail: "Request completed successfully.", isPersonal: true, billingSource: { type: "balance" } as BillingSource },
+  { time: "2026-03-03 11:07:30", enterprise: "极光科技", apiKey: "test", group: "default", org: "技术部", member: "张三", type: "错误", model: "mock-error", channel: "Azure", retryChannel: "-", duration: "0s", streaming: "非流", input: 0, output: 0, cost: 0, detail: "Incorrect API key provided.", isPersonal: false, billingSource: { type: "balance" } as BillingSource },
+  { time: "2026-03-03 11:06:15", enterprise: "云启数字", apiKey: "prod", group: "default", org: "产品部", member: "李四", type: "消费", model: "gpt-4o", channel: "OpenAI", retryChannel: "Azure", duration: "1.5s", streaming: "流式", input: 200, output: 400, cost: 0.007, detail: "Request completed successfully.", isPersonal: false, billingSource: { type: "subscription", name: "企业旗舰版·年包" } as BillingSource },
 ];
 
 const mockTaskLogs = [
@@ -283,7 +305,7 @@ function CallLogsTab({ globalEnterpriseId, globalOrgId, globalMember, enterprise
   });
 
   const paginated = filtered.slice((page - 1) * pageSize, page * pageSize);
-  const headers = ["时间", "APIKey", "企业", "组织", "成员", "分组", "类型", "模型", "上游渠道", "重试渠道", "用时/首字", "输入", "输出", "花费", "详情"];
+  const headers = ["时间", "APIKey", "企业", "组织", "成员", "分组", "类型", "模型", "上游渠道", "重试渠道", "用时/首字", "输入", "输出", "扣费来源", "消耗金额", "实际支付", "详情"];
 
   return (
     <div className="space-y-4">
@@ -415,8 +437,31 @@ function CallLogsTab({ globalEnterpriseId, globalOrgId, globalMember, enterprise
                   </td>
                   <td className="px-3 py-2.5 text-xs text-foreground">{row.input}</td>
                   <td className="px-3 py-2.5 text-xs text-foreground">{row.output}</td>
+                  {/* 扣费来源 */}
+                  <td className="px-3 py-2.5 text-xs text-foreground whitespace-nowrap">
+                    {getBillingSourceLabel(row.billingSource)}
+                  </td>
+                  {/* 消耗金额 */}
                   <td className="px-3 py-2.5 text-xs text-foreground">¥{Number(row.cost).toFixed(4)}</td>
-                  <td className="px-3 py-2.5 text-xs text-muted-foreground max-w-[200px] truncate">{row.detail}</td>
+                  {/* 实际支付 */}
+                  <td className="px-3 py-2.5 text-xs text-foreground">
+                    {getActualPayment(row.cost, row.type, row.billingSource) === 0
+                      ? <span className="text-muted-foreground">¥0.0000</span>
+                      : <span>¥{getActualPayment(row.cost, row.type, row.billingSource).toFixed(4)}</span>
+                    }
+                  </td>
+                  <td className="px-3 py-2.5 text-xs">
+                    {row.type === "消费" ? (
+                      <button
+                        className="text-blue-600 hover:text-blue-700 hover:underline cursor-pointer"
+                        title={row.detail}
+                      >
+                        查看详情
+                      </button>
+                    ) : (
+                      <span className="text-muted-foreground truncate block max-w-[200px]" title={row.detail}>{row.detail}</span>
+                    )}
+                  </td>
                 </tr>
               ))}
             </tbody>

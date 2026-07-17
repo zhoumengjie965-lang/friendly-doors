@@ -24,6 +24,7 @@ interface UserRow {
   status: string;
   enterprises: EnterpriseRef[];
   personal_balance: number;
+  personal_credit_balance: number;
   personal_total: number;
   group: string;
   role: string;
@@ -44,6 +45,7 @@ interface MemberDetail {
 interface DrawerDetail {
   personal_enterprise_id: string | null;
   personal_balance: number;
+  personal_credit_balance: number;
   personal_total: number;
   members: MemberDetail[];
 }
@@ -319,22 +321,27 @@ function GroupConfigSelector({
     }));
   };
 
-  // ── 渲染：模板模式的文本摘要 ──
-  const templateSummaryText = activeTemplate
-    ? `对应令牌分组：${activeTemplate.availableGroups.map((g) => `${g.name} ${g.desc}（x${g.rate}）`).join("、")}`
-    : "";
+  // ── 渲染：模板模式的分组列表（按名称排序） ──
+  const templateGroupItems = activeTemplate
+    ? [...activeTemplate.availableGroups]
+        .sort((a, b) => a.name.localeCompare(b.name, "zh-Hans-CN"))
+        .map((g) => ({ key: `tpl-${g.name}`, name: g.name, desc: g.desc, rate: g.rate }))
+    : [];
 
-  // ── 渲染：全部分组（历史分组）模式的文本摘要 ──
+  // ── 渲染：全部分组（历史分组）模式的分组列表（按名称排序） ──
   const selectedHistoricalOption = HISTORICAL_GROUP_OPTIONS.find((h) => h.value === selectedHistoricalGroup);
-  const historicalSummaryText = selectedHistoricalOption?.availableGroups
-    ? `对应令牌分组：${selectedHistoricalOption.availableGroups.map((g) => `${g.name} ${g.desc}（x${g.rate}）`).join("、")}`
-    : "";
+  const historicalGroupItems = selectedHistoricalOption?.availableGroups
+    ? [...selectedHistoricalOption.availableGroups]
+        .sort((a, b) => a.name.localeCompare(b.name, "zh-Hans-CN"))
+        .map((g) => ({ key: `his-${g.name}`, name: g.name, desc: g.desc, rate: g.rate }))
+    : [];
 
-  // ── 渲染：自定义模式的文本摘要 ──
+  // ── 渲染：自定义模式的分组列表（按名称排序） ──
   const enabledCount = Object.values(customGroups).filter((e) => e.available).length;
-  const customSummaryParts = Object.entries(customGroups)
+  const customGroupItems = Object.entries(customGroups)
     .filter(([, e]) => e.available)
-    .map(([name, e]) => `${name}（x${e.rate}）`);
+    .sort(([a], [b]) => a.localeCompare(b, "zh-Hans-CN"))
+    .map(([name, e]) => ({ key: `cus-${name}`, name, desc: undefined as string | undefined, rate: e.rate }));
 
   return (
     <div className="space-y-3">
@@ -430,9 +437,20 @@ function GroupConfigSelector({
             ))}
           </select>
           {activeTemplate && (
-            <p className="text-xs text-muted-foreground leading-relaxed break-all">
-              {templateSummaryText}
-            </p>
+            <div className="border border-gray-200 rounded-md bg-white p-2 max-h-32 overflow-y-auto">
+              <p className="text-xs text-muted-foreground mb-1 sticky top-0 bg-white">
+                对应令牌分组（{templateGroupItems.length}）：
+              </p>
+              <ul className="space-y-1">
+                {templateGroupItems.map((g) => (
+                  <li key={g.key} className="text-xs text-muted-foreground">
+                    {g.name}
+                    {g.desc ? ` ${g.desc}` : ""}
+                    （x{g.rate}）
+                  </li>
+                ))}
+              </ul>
+            </div>
           )}
         </div>
       )}
@@ -451,10 +469,21 @@ function GroupConfigSelector({
               </option>
             ))}
           </select>
-          {selectedHistoricalGroup && historicalSummaryText && (
-            <p className="text-xs text-muted-foreground leading-relaxed break-all">
-              {historicalSummaryText}
-            </p>
+          {selectedHistoricalGroup && historicalGroupItems.length > 0 && (
+            <div className="border border-gray-200 rounded-md bg-white p-2 max-h-32 overflow-y-auto">
+              <p className="text-xs text-muted-foreground mb-1 sticky top-0 bg-white">
+                对应令牌分组（{historicalGroupItems.length}）：
+              </p>
+              <ul className="space-y-1">
+                {historicalGroupItems.map((g) => (
+                  <li key={g.key} className="text-xs text-muted-foreground">
+                    {g.name}
+                    {g.desc ? ` ${g.desc}` : ""}
+                    （x{g.rate}）
+                  </li>
+                ))}
+              </ul>
+            </div>
           )}
           {!selectedHistoricalGroup && (
             <p className="text-xs text-muted-foreground">选择一个历史分组，该分组将作为用户/企业的默认分组</p>
@@ -462,15 +491,20 @@ function GroupConfigSelector({
         </div>
       )}
 
-      {/* ── 自定义模式：摘要 ── */}
+      {/* ── 自定义模式：分组列表 ── */}
       {groupMode === "custom" && enabledCount > 0 && (
-        <p className="text-xs text-muted-foreground leading-relaxed break-all">
-          已自定义配置 {enabledCount} 个令牌分组：
-          {customSummaryParts.length > 6
-            ? `${customSummaryParts.slice(0, 6).join("、")}等`
-            : customSummaryParts.join("、")
-          }
-        </p>
+        <div className="border border-gray-200 rounded-md bg-white p-2 max-h-32 overflow-y-auto">
+          <p className="text-xs text-muted-foreground mb-1 sticky top-0 bg-white">
+            已自定义配置 {enabledCount} 个令牌分组：
+          </p>
+          <ul className="space-y-1">
+            {customGroupItems.map((g) => (
+              <li key={g.key} className="text-xs text-muted-foreground">
+                {g.name}（x{g.rate}）
+              </li>
+            ))}
+          </ul>
+        </div>
       )}
 
       {/* ── 自定义分组配置二级弹窗 ── */}
@@ -659,6 +693,52 @@ export default function AdminUsers() {
   const [drawerLoading, setDrawerLoading] = useState(false);
   const [editBalance, setEditBalance] = useState("");
   const [savingBalance, setSavingBalance] = useState(false);
+
+  // Recharge dialog state
+  const [rechargeTarget, setRechargeTarget] = useState<UserRow | null>(null);
+  const [rechargeType, setRechargeType] = useState<"balance" | "credit">("balance");
+  const [rechargeAmount, setRechargeAmount] = useState("");
+  const [rechargeRemark, setRechargeRemark] = useState("");
+  const [rechargeLoading, setRechargeLoading] = useState(false);
+
+  const openRechargeDialog = (user: UserRow) => {
+    setRechargeTarget(user);
+    setRechargeType("balance");
+    setRechargeAmount("");
+    setRechargeRemark("");
+  };
+
+  const handleRecharge = async () => {
+    if (!rechargeTarget || rechargeAmount === "" || rechargeAmount === null) return;
+    const amount = parseFloat(rechargeAmount);
+    if (isNaN(amount)) {
+      toast({ title: "请输入有效金额", variant: "destructive" });
+      return;
+    }
+    setRechargeLoading(true);
+    try {
+      await new Promise(resolve => setTimeout(resolve, 400));
+      // 更新本地 mock 数据
+      setUsers(prev => prev.map(u => {
+        if (u.id !== rechargeTarget.id) return u;
+        if (rechargeType === "balance") {
+          return { ...u, personal_balance: u.personal_balance + amount };
+        } else {
+          return { ...u, personal_credit_balance: (u.personal_credit_balance || 0) + amount };
+        }
+      }));
+      const typeLabel = rechargeType === "balance" ? "充值余额" : "授信额度";
+      const userName = rechargeTarget.name || rechargeTarget.phone;
+      toast({ title: `已为「${userName}」${typeLabel} ¥${amount.toFixed(2)}` });
+      setRechargeTarget(null);
+      setRechargeAmount("");
+      setRechargeRemark("");
+    } catch (err: any) {
+      toast({ title: "充值失败", description: err.message || "未知错误", variant: "destructive" });
+    } finally {
+      setRechargeLoading(false);
+    }
+  };
 
   // Edit user form state
   const [editForm, setEditForm] = useState({
@@ -872,6 +952,7 @@ export default function AdminUsers() {
           ...u,
           enterprises: userEnts,
           personal_balance: ownerBal.balance,
+          personal_credit_balance: 0,
           personal_total: ownerBal.total,
           group: "default",
           role: isOwner ? "企业主" : (userEnts.length > 0 ? "成员" : "普通用户"),
@@ -913,7 +994,7 @@ export default function AdminUsers() {
       .eq("user_phone", phone);
 
     if (!membersRaw || membersRaw.length === 0) {
-      setDrawerDetail({ personal_enterprise_id: personalEntId, personal_balance: personalBalance, personal_total: personalTotal, members: [] });
+      setDrawerDetail({ personal_enterprise_id: personalEntId, personal_balance: personalBalance, personal_credit_balance: 0, personal_total: personalTotal, members: [] });
       setDrawerLoading(false);
       return;
     }
@@ -936,7 +1017,7 @@ export default function AdminUsers() {
       role: m.role,
     }));
 
-    setDrawerDetail({ personal_enterprise_id: personalEntId, personal_balance: personalBalance, personal_total: personalTotal, members });
+    setDrawerDetail({ personal_enterprise_id: personalEntId, personal_balance: personalBalance, personal_credit_balance: 0, personal_total: personalTotal, members });
     setDrawerLoading(false);
   };
 
@@ -1357,6 +1438,14 @@ export default function AdminUsers() {
                 {u.invite_count}人/¥{formatNumber(u.invite_revenue)}
               </span>
               <div className="flex items-center justify-center gap-1 px-3 py-3.5">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 px-2 text-xs text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+                  onClick={() => openRechargeDialog(u)}
+                >
+                  充值
+                </Button>
                 <Button
                   variant="ghost"
                   size="sm"
@@ -2031,6 +2120,119 @@ export default function AdminUsers() {
               )}
             </div>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Recharge Dialog */}
+      <Dialog open={!!rechargeTarget} onOpenChange={(open) => { if (!open) setRechargeTarget(null); }}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>添加金额</DialogTitle>
+          </DialogHeader>
+          {rechargeTarget && (() => {
+            const currentBalance = rechargeType === "balance" ? rechargeTarget.personal_balance : (rechargeTarget.personal_credit_balance || 0);
+            const amountNum = parseFloat(rechargeAmount);
+            const delta = isNaN(amountNum) ? 0 : amountNum;
+            const newBalance = currentBalance + delta;
+            const userName = rechargeTarget.name || rechargeTarget.phone;
+            return (
+              <>
+                <div className="space-y-1.5 py-1 text-sm">
+                  <p className="text-muted-foreground">
+                    用户：<span className="text-foreground font-medium">{userName}</span>
+                    <span className="text-muted-foreground">（ID: {rechargeTarget.id.slice(0, 8)}）</span>
+                  </p>
+                  <p className="text-muted-foreground">
+                    当前{rechargeType === "balance" ? "余额" : "授信额度"}：
+                    <span className="text-foreground font-medium tabular-nums">¥{currentBalance.toFixed(2)}</span>
+                  </p>
+                </div>
+                <div className="space-y-4">
+                  <div className="space-y-2">
+                    <Label>充值类型</Label>
+                    <div className="flex gap-3">
+                      <label className="flex items-center gap-2 cursor-pointer flex-1 p-3 border rounded-md hover:border-blue-300 hover:bg-blue-50/30 transition-colors has-[:checked]:border-blue-500 has-[:checked]:bg-blue-50">
+                        <input
+                          type="radio"
+                          name="userRechargeType"
+                          value="balance"
+                          checked={rechargeType === "balance"}
+                          onChange={() => setRechargeType("balance")}
+                          className="w-4 h-4 text-blue-600"
+                        />
+                        <div>
+                          <p className="text-sm font-medium">充值余额</p>
+                          <p className="text-xs text-muted-foreground">普通现金余额，可直接消费</p>
+                        </div>
+                      </label>
+                      <label className="flex items-center gap-2 cursor-pointer flex-1 p-3 border rounded-md hover:border-blue-300 hover:bg-blue-50/30 transition-colors has-[:checked]:border-blue-500 has-[:checked]:bg-blue-50">
+                        <input
+                          type="radio"
+                          name="userRechargeType"
+                          value="credit"
+                          checked={rechargeType === "credit"}
+                          onChange={() => setRechargeType("credit")}
+                          className="w-4 h-4 text-blue-600"
+                        />
+                        <div>
+                          <p className="text-sm font-medium">授信额度</p>
+                          <p className="text-xs text-muted-foreground">先用后付额度，账期后结算</p>
+                        </div>
+                      </label>
+                    </div>
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label>充值金额 <span className="text-red-500">*</span></Label>
+                    <div className="relative">
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">¥</span>
+                      <Input
+                        type="number"
+                        step="0.01"
+                        placeholder="请输入充值金额（支持负数）"
+                        value={rechargeAmount}
+                        onChange={(e) => setRechargeAmount(e.target.value)}
+                        className="pl-7"
+                      />
+                    </div>
+                    <p className="text-sm text-muted-foreground tabular-nums">
+                      新{rechargeType === "balance" ? "余额" : "授信额度"}：
+                      <span className="text-foreground">¥{currentBalance.toFixed(2)}</span>
+                      {delta !== 0 ? (
+                        <>
+                          <span className="mx-1">{delta >= 0 ? "+" : "-"}</span>
+                          <span className="text-foreground">¥{Math.abs(delta).toFixed(2)}</span>
+                          <span className="mx-1">=</span>
+                          <span className={`font-semibold ${newBalance < 0 ? "text-red-600" : "text-foreground"}`}>¥{newBalance.toFixed(2)}</span>
+                        </>
+                      ) : (
+                        <>
+                          <span className="mx-1">+</span>
+                          <span className="text-foreground">¥0.00</span>
+                          <span className="mx-1">=</span>
+                          <span className="text-foreground font-semibold">¥{newBalance.toFixed(2)}</span>
+                        </>
+                      )}
+                    </p>
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label>备注（可选）</Label>
+                    <Textarea
+                      placeholder="充值备注…"
+                      rows={2}
+                      value={rechargeRemark}
+                      onChange={(e) => setRechargeRemark(e.target.value)}
+                    />
+                  </div>
+                </div>
+                <DialogFooter>
+                  <Button variant="outline" onClick={() => setRechargeTarget(null)}>取消</Button>
+                  <Button onClick={handleRecharge} disabled={rechargeLoading || rechargeAmount === "" || isNaN(amountNum)}>
+                    {rechargeLoading ? "处理中…" : "确定"}
+                  </Button>
+                </DialogFooter>
+              </>
+            );
+          })()}
         </DialogContent>
       </Dialog>
     </div>

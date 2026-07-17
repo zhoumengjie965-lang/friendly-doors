@@ -9,10 +9,11 @@ import { Collapsible, CollapsibleTrigger, CollapsibleContent } from "@/component
 import {
   LayoutGrid, Key, BarChart3, FileText, Building2, Users,
   ChevronDown, ChevronRight, Wallet, Network, Settings, UserCog, UserCircle,
-  Receipt, UserPlus, PieChart
+  Receipt, UserPlus, PieChart, Sparkles, CreditCard, Package, ClipboardList,
+  Crown
 } from "lucide-react";
 
-interface NavChild { title: string; url: string; icon: React.ElementType }
+interface NavChild { title: string; url: string; icon: React.ElementType; isNew?: boolean }
 interface NavItem { title: string; url?: string; icon: React.ElementType; children?: NavChild[] }
 
 // 企业空间菜单
@@ -24,9 +25,17 @@ const enterpriseNavItems: NavItem[] = [
   {
     title: "企业管理", icon: Building2, children: [
       { title: "企业信息", url: "/workspace/enterprise/info", icon: Settings },
-      { title: "账户余额", url: "/workspace/enterprise/balance", icon: Wallet },
+      { title: "充值余额", url: "/workspace/enterprise/balance", icon: Wallet },
       { title: "费用总览", url: "/workspace/enterprise/cost-overview", icon: PieChart },
       { title: "费用账单", url: "/workspace/enterprise/bills", icon: Receipt },
+    ],
+  },
+  {
+    title: "资源与订阅", icon: Sparkles, children: [
+      { title: "token plan", url: "/workspace/token-plan", icon: CreditCard, isNew: true },
+      { title: "订单管理", url: "/workspace/resource-orders", icon: ClipboardList },
+      { title: "我的权益包", url: "/workspace/resource-packages", icon: Package },
+      { title: "我的订阅包", url: "/workspace/my-subscriptions", icon: Crown },
     ],
   },
   { title: "部门管理", url: "/workspace/dept", icon: Users },
@@ -41,6 +50,14 @@ const personalNavItems: NavItem[] = [
   { title: "调用日志", url: "/workspace/logs", icon: FileText },
   { title: "余额充值", url: "/workspace/balance", icon: Wallet },
   { title: "费用总览", url: "/workspace/cost-overview", icon: PieChart },
+  {
+    title: "资源与订阅", icon: Sparkles, children: [
+      { title: "token plan", url: "/workspace/token-plan", icon: CreditCard, isNew: true },
+      { title: "订单管理", url: "/workspace/resource-orders", icon: ClipboardList },
+      { title: "我的权益包", url: "/workspace/resource-packages", icon: Package },
+      { title: "我的订阅包", url: "/workspace/my-subscriptions", icon: Crown },
+    ],
+  },
   { title: "个人中心", url: "/workspace/profile", icon: UserCircle },
 ];
 
@@ -102,7 +119,14 @@ export default function WorkspaceSidebar({ enterpriseName, enterpriseCode, isPer
                                   activeClassName="bg-white/15 text-white font-medium"
                                 >
                                   <child.icon className="w-3.5 h-3.5 shrink-0" />
-                                  <span>{child.title}</span>
+                                  <span className="flex-1 inline-flex items-center gap-1.5">
+                                    {child.title}
+                                    {child.isNew && (
+                                      <span className="px-1.5 py-0.5 text-[10px] font-semibold leading-none rounded-md bg-gradient-to-r from-pink-500 to-rose-500 text-white shadow-sm">
+                                        New
+                                      </span>
+                                    )}
+                                  </span>
                                 </NavLink>
                               </SidebarMenuButton>
                             </SidebarMenuItem>

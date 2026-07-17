@@ -966,8 +966,9 @@ interface UserBillRecord {
   totalAmount: number;
   currency: string;
   generatedAt: string;
-  status: "pending" | "sent" | "confirmed";
-  sentAt?: string;
+  status: "unbilled" | "unsettled" | "settled";  // 未出账 / 未结清 / 已结清
+  settledAt?: string;  // 结清时间
+  sentAt?: string;     // 返券发放时间
   rebateStatus: RebateStatus;
   rebateAmount?: number;
   voucherCode?: string;
@@ -981,6 +982,7 @@ interface UserBillRecord {
   diffVoucherSentAt?: string;  // 差额补发时间
   diffVoucherRemark?: string;  // 差额补发备注
   details: UserBillDetail[];
+  subscriptionOrders?: SubscriptionOrder[]; // 订阅购买明细
 }
 
 interface UserBillDetail {
@@ -998,8 +1000,23 @@ interface UserBillDetail {
   rebateDiscount?: number;   // 返券折扣(%)
   callCount?: number;        // 调用次数（按次计费时有效）
   callPrice?: number;        // 调用单价（元/次，按次计费时有效）
+  subscriptionDeduction?: number; // 订阅包抵扣
+  resourcePackDeduction?: number; // 资源包抵扣
   voucherDeduction?: number; // 代金券抵扣
   balanceDeduction?: number; // 充值余额支付
+  creditDeduction?: number;  // 授信额度支付
+}
+
+interface SubscriptionOrder {
+  orderNo: string;           // 订单号
+  productName: string;       // 商品名称
+  productType: "订阅包" | "资源包"; // 商品类型
+  orderType: "新购" | "续费" | "升级"; // 订单类型
+  orderAmount: number;       // 订单金额
+  paymentMethod: string;     // 支付方式
+  createdAt: string;         // 创建时间
+  paidAt: string;            // 支付时间
+  status: "已支付" | "待支付" | "已取消"; // 订单状态
 }
 
 // Mock 数据 - 用户账单
@@ -1014,7 +1031,7 @@ const MOCK_USER_BILLS: UserBillRecord[] = [
     totalAmount: 158000.50,
     currency: "CNY",
     generatedAt: "2026-04-01 00:05:23",
-    status: "pending",
+    status: "unsettled",
     rebateStatus: "toSend",
     rebateAmount: 11492.55,
     voucherCode: "VCBILL-2029379",
@@ -1035,6 +1052,11 @@ const MOCK_USER_BILLS: UserBillRecord[] = [
       { modelName: "dall-e-3", billingType: "call", inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheCreateTokens: 0, inputPrice: 0, outputPrice: 0, cacheDiscount: 1, tierDiscount: 1, subtotal: 5120.00, callCount: 6400, callPrice: 0.8, voucherDeduction: 0, balanceDeduction: 5120.00 },
       // tts-1 按次计费（语音合成）
       { modelName: "tts-1", billingType: "call", inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheCreateTokens: 0, inputPrice: 0, outputPrice: 0, cacheDiscount: 1, tierDiscount: 1, subtotal: 3600.00, callCount: 12000, callPrice: 0.3, voucherDeduction: 0, balanceDeduction: 3600.00 },
+    ],
+    subscriptionOrders: [
+      { orderNo: "ORD20260314001", productName: "Enterprise 标准版", productType: "订阅包", orderType: "新购", orderAmount: 2999.00, paymentMethod: "充值余额", createdAt: "2026-03-14 10:23:18", paidAt: "2026-03-14 10:23:25", status: "已支付" },
+      { orderNo: "ORD20260320002", productName: "Token 资源包 1000万", productType: "资源包", orderType: "新购", orderAmount: 999.00, paymentMethod: "充值余额", createdAt: "2026-03-20 09:15:02", paidAt: "2026-03-20 09:15:40", status: "已支付" },
+      { orderNo: "ORD20260325003", productName: "Enterprise 标准版", productType: "订阅包", orderType: "续费", orderAmount: 2999.00, paymentMethod: "充值余额", createdAt: "2026-03-25 14:05:00", paidAt: "2026-03-25 14:05:30", status: "已支付" },
     ]
   },
   {
@@ -1047,8 +1069,8 @@ const MOCK_USER_BILLS: UserBillRecord[] = [
     totalAmount: 89500.00,
     currency: "CNY",
     generatedAt: "2026-04-01 00:05:45",
-    status: "sent",
-    sentAt: "2026-04-02 10:30:00",
+    status: "settled",
+    settledAt: "2026-04-02 10:30:00",
     rebateStatus: "sent",
     rebateAmount: 5237.00,
     voucherCode: "VCBILL-2029380",
@@ -1076,8 +1098,8 @@ const MOCK_USER_BILLS: UserBillRecord[] = [
     totalAmount: 256000.80,
     currency: "CNY",
     generatedAt: "2026-04-01 00:06:12",
-    status: "confirmed",
-    sentAt: "2026-04-03 14:20:00",
+    status: "settled",
+    settledAt: "2026-04-03 14:20:00",
     rebateStatus: "pending",
     rebateAmount: 26048.06,
     details: [
@@ -1096,7 +1118,7 @@ const MOCK_USER_BILLS: UserBillRecord[] = [
     totalAmount: 45600.25,
     currency: "CNY",
     generatedAt: "2026-04-01 00:06:38",
-    status: "pending",
+    status: "unsettled",
     rebateStatus: "toSend",
     rebateAmount: 4231.62,
     voucherCode: "VCBILL-2029381",
@@ -1123,7 +1145,7 @@ const MOCK_USER_BILLS: UserBillRecord[] = [
     totalAmount: 67800.60,
     currency: "CNY",
     generatedAt: "2026-04-01 00:07:05",
-    status: "pending",
+    status: "unsettled",
     rebateStatus: "none",
     details: [
       { modelName: "gpt-4o", billingType: "token", inputTokens: 60000000, outputTokens: 25000000, cacheReadTokens: 4000000, cacheCreateTokens: 1000000, inputPrice: 0.00015, outputPrice: 0.0006, cacheDiscount: 0.5, tierDiscount: 0.95, subtotal: 22800.60 },
@@ -1142,8 +1164,8 @@ const MOCK_USER_BILLS: UserBillRecord[] = [
     totalAmount: 32000.00,
     currency: "CNY",
     generatedAt: "2026-04-01 00:08:12",
-    status: "sent",
-    sentAt: "2026-04-05 09:15:00",
+    status: "settled",
+    settledAt: "2026-04-05 09:15:00",
     rebateStatus: "sent",
     rebateAmount: 3000.00,
     voucherCode: "VCBILL-2029382",
@@ -1165,8 +1187,8 @@ const MOCK_USER_BILLS: UserBillRecord[] = [
     totalAmount: 95000.00,
     currency: "CNY",
     generatedAt: "2026-03-01 00:03:45",
-    status: "sent",
-    sentAt: "2026-03-03 11:20:00",
+    status: "settled",
+    settledAt: "2026-03-03 11:20:00",
     rebateStatus: "sent",
     rebateAmount: 8500.00,
     voucherCode: "VCBILL-2029383",
@@ -1189,7 +1211,7 @@ const MOCK_USER_BILLS: UserBillRecord[] = [
     totalAmount: 68000.00,
     currency: "CNY",
     generatedAt: "2026-04-01 00:08:00",
-    status: "confirmed",
+    status: "settled",
     rebateStatus: "sent",
     rebateAmount: 5200.00,
     sentRebateAmount: 5200.00,
@@ -1213,7 +1235,7 @@ const MOCK_USER_BILLS: UserBillRecord[] = [
     totalAmount: 88000.00,
     currency: "CNY",
     generatedAt: "2026-04-01 00:08:30",
-    status: "confirmed",
+    status: "settled",
     rebateStatus: "sent",
     rebateAmount: 7500.00,
     sentRebateAmount: 5000.00,
@@ -1237,7 +1259,7 @@ const MOCK_USER_BILLS: UserBillRecord[] = [
     totalAmount: 55000.00,
     currency: "CNY",
     generatedAt: "2026-04-01 00:09:00",
-    status: "confirmed",
+    status: "settled",
     rebateStatus: "sent",
     rebateAmount: 3500.00,
     sentRebateAmount: 5000.00,
@@ -1261,7 +1283,7 @@ const MOCK_USER_BILLS: UserBillRecord[] = [
     totalAmount: 62000.00,
     currency: "CNY",
     generatedAt: "2026-04-01 00:09:30",
-    status: "confirmed",
+    status: "settled",
     rebateStatus: "sent",
     rebateAmount: 3000.00,
     sentRebateAmount: 5000.00,
@@ -1285,7 +1307,7 @@ const MOCK_USER_BILLS: UserBillRecord[] = [
     totalAmount: 48000.00,
     currency: "CNY",
     generatedAt: "2026-04-01 00:10:00",
-    status: "confirmed",
+    status: "settled",
     rebateStatus: "sent",
     rebateAmount: 2800.00,
     sentRebateAmount: 5000.00,
@@ -1321,14 +1343,6 @@ function UserBillManagement() {
   const [specialExpiryOpen, setSpecialExpiryOpen] = useState(false);
   const [use180Days, setUse180Days] = useState(false);
   const [specialConfirmOpen, setSpecialConfirmOpen] = useState(false);
-  // 代金券记录视图
-  const [viewMode, setViewMode] = useState<"bills" | "vouchers">("bills");
-  const [voucherSearchQuery, setVoucherSearchQuery] = useState("");
-  const [voucherEnterpriseQuery, setVoucherEnterpriseQuery] = useState("");
-  const [voucherStatusFilter, setVoucherStatusFilter] = useState<string[]>(["using", "used", "expired"]);
-  const [voucherPage, setVoucherPage] = useState(1);
-  const voucherPageSize = 10;
-
   // 重新生成账单相关状态
   const [regenerateOpen, setRegenerateOpen] = useState(false);
   const [regeneratePeriod, setRegeneratePeriod] = useState<string>("");
@@ -1371,20 +1385,14 @@ function UserBillManagement() {
     }
   };
 
-  const handleMarkAsSent = (id: string) => {
-    setBills(bills.map((b) => b.id === id ? { ...b, status: "sent" as const, sentAt: format(new Date(), "yyyy-MM-dd HH:mm:ss") } : b));
+  // 标记已结清（运营确认收到款项）
+  const handleMarkSettled = (id: string) => {
+    setBills(bills.map((b) => b.id === id ? { ...b, status: "settled" as const, settledAt: format(new Date(), "yyyy-MM-dd HH:mm:ss") } : b));
   };
 
-  const handleConfirm = (id: string) => {
-    setBills(bills.map((b) => b.id === id ? { ...b, status: "confirmed" as const } : b));
-  };
-
-  const handleUndoSent = (id: string) => {
-    setBills(bills.map((b) => b.id === id ? { ...b, status: "pending" as const } : b));
-  };
-
-  const handleUndoConfirm = (id: string) => {
-    setBills(bills.map((b) => b.id === id ? { ...b, status: "sent" as const } : b));
+  // 撤销结清（款项未到账或误操作）
+  const handleUndoSettled = (id: string) => {
+    setBills(bills.map((b) => b.id === id ? { ...b, status: "unsettled" as const, settledAt: undefined } : b));
   };
 
   const handleBatchDownload = () => {
@@ -1487,9 +1495,16 @@ function UserBillManagement() {
 
   const getStatusBadge = (status: UserBillRecord["status"]) => {
     switch (status) {
-      case "pending": return <Badge variant="outline" className="text-amber-600 border-amber-200 bg-amber-50 text-xs">待结清</Badge>;
-      case "sent": return <Badge variant="outline" className="text-blue-600 border-blue-200 bg-blue-50 text-xs">已发送</Badge>;
-      case "confirmed": return <Badge variant="outline" className="text-green-600 border-green-200 bg-green-50 text-xs">已确认</Badge>;
+      case "unbilled":
+        return <Badge variant="outline" className="text-blue-600 border-blue-200 bg-blue-50 text-xs">未出账</Badge>;
+      case "unsettled":
+        return <Badge variant="outline" className="text-orange-600 border-orange-200 bg-orange-50 text-xs">
+          <span className="w-1.5 h-1.5 rounded-full bg-orange-500 mr-1" />未结清
+        </Badge>;
+      case "settled":
+        return <Badge variant="outline" className="text-green-600 border-green-200 bg-green-50 text-xs">
+          <span className="w-1.5 h-1.5 rounded-full bg-green-500 mr-1" />已结清
+        </Badge>;
       default: return null;
     }
   };
@@ -1519,8 +1534,6 @@ function UserBillManagement() {
 
   return (
     <div className="space-y-4">
-      {viewMode === "bills" && (
-      <>
       {/* Bills Table */}
       <Card className="border shadow-sm">
         <CardHeader className="py-3 px-4 border-b">
@@ -1533,12 +1546,6 @@ function UserBillManagement() {
               )}
             </div>
             <div className="flex items-center gap-2">
-              <button
-                onClick={() => setViewMode("vouchers")}
-                className="text-xs text-blue-600 hover:text-blue-700 hover:underline"
-              >
-                查看代金券记录
-              </button>
               <Button 
                 onClick={handleRegenerate} 
                 variant="outline" 
@@ -1578,9 +1585,9 @@ function UserBillManagement() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">全部状态</SelectItem>
-                  <SelectItem value="pending">待结清</SelectItem>
-                  <SelectItem value="sent">已发送</SelectItem>
-                  <SelectItem value="confirmed">已确认</SelectItem>
+                  <SelectItem value="unbilled">未出账</SelectItem>
+                  <SelectItem value="unsettled">未结清</SelectItem>
+                  <SelectItem value="settled">已结清</SelectItem>
                 </SelectContent>
               </Select>
               <Select value={spaceTypeFilter} onValueChange={setSpaceTypeFilter}>
@@ -1736,28 +1743,39 @@ function UserBillManagement() {
       {/* Preview Dialog */}
       <Dialog open={previewOpen} onOpenChange={setPreviewOpen}>
         <DialogContent className="sm:max-w-[95vw] max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle className="text-base">账单明细报告</DialogTitle>
+          <DialogHeader className="flex flex-row items-center justify-between pr-2">
+            <DialogTitle className="text-base flex items-center gap-3">
+              账单明细报告
+              {previewBill && getStatusBadge(previewBill.status)}
+              {previewBill?.settledAt && (
+                <span className="text-xs font-normal text-muted-foreground">结清时间：{previewBill.settledAt}</span>
+              )}
+            </DialogTitle>
+            <Badge variant="outline" className="text-sm font-normal px-3 py-1">
+              账期：{previewBill?.periodStart?.slice(0, 7)}
+            </Badge>
           </DialogHeader>
           {previewBill && (
             <div className="space-y-6 py-2">
               {/* 明细表格 */}
               <div>
-                <h4 className="text-sm font-medium mb-3 text-foreground border-l-4 border-blue-500 pl-2">消费明细</h4>
+                <h4 className="text-sm font-medium mb-3 text-foreground border-l-4 border-blue-500 pl-2">按量消费明细</h4>
                 <div className="border rounded-lg overflow-hidden">
                   <table className="w-full text-xs">
                     <thead className="bg-muted/50">
                       {/* 一级表头 */}
                       <tr className="border-b">
                         <th rowSpan={2} className="px-3 py-2.5 text-left font-medium text-muted-foreground border-r">用户名称</th>
-                        <th rowSpan={2} className="px-3 py-2.5 text-left font-medium text-muted-foreground border-r">账期</th>
                         <th rowSpan={2} className="px-3 py-2.5 text-left font-medium text-muted-foreground border-r">模型名称</th>
                         <th colSpan={8} className="px-3 py-1.5 text-center font-medium text-muted-foreground border-b border-r bg-muted/30">按量计费</th>
                         <th colSpan={2} className="px-3 py-1.5 text-center font-medium text-muted-foreground border-b border-r bg-muted/30">按次计费</th>
                         <th rowSpan={2} className="px-3 py-2.5 text-center font-medium text-muted-foreground border-r">阶梯折扣</th>
-                        <th rowSpan={2} className="px-3 py-2.5 text-right font-medium text-muted-foreground border-r">单项费用</th>
+                        <th rowSpan={2} className="px-3 py-2.5 text-right font-medium text-muted-foreground border-r">实际消费</th>
+                        <th rowSpan={2} className="px-3 py-2.5 text-right font-medium text-muted-foreground border-r">订阅包抵扣</th>
+                        <th rowSpan={2} className="px-3 py-2.5 text-right font-medium text-muted-foreground border-r">资源包抵扣</th>
                         <th rowSpan={2} className="px-3 py-2.5 text-right font-medium text-muted-foreground border-r">代金券抵扣</th>
-                        <th rowSpan={2} className="px-3 py-2.5 text-right font-medium text-muted-foreground">充值余额支付</th>
+                        <th rowSpan={2} className="px-3 py-2.5 text-right font-medium text-muted-foreground border-r">充值余额支付</th>
+                        <th rowSpan={2} className="px-3 py-2.5 text-right font-medium text-muted-foreground">授信额度支付</th>
                       </tr>
                       {/* 二级表头 */}
                       <tr className="border-b">
@@ -1788,7 +1806,6 @@ function UserBillManagement() {
                         return (
                           <tr key={idx} className="hover:bg-muted/20">
                             <td className="px-3 py-2 font-medium">{previewBill.enterprise}</td>
-                            <td className="px-3 py-2 text-muted-foreground">{previewBill.periodStart.slice(0, 7)}</td>
                             <td className="px-3 py-2">
                               <Badge variant="outline" className="text-xs font-mono">{detail.modelName}</Badge>
                             </td>
@@ -1809,8 +1826,11 @@ function UserBillManagement() {
                               <span className="text-green-600">{(detail.tierDiscount * 100).toFixed(0)}%</span>
                             </td>
                             <td className="px-3 py-2 text-right font-mono font-medium border-r">{formatCurrency(detail.subtotal)}</td>
+                            <td className="px-3 py-2 text-right font-mono font-medium border-r text-blue-600">{formatCurrency(detail.subscriptionDeduction ?? 0)}</td>
+                            <td className="px-3 py-2 text-right font-mono font-medium border-r text-purple-600">{formatCurrency(detail.resourcePackDeduction ?? 0)}</td>
                             <td className="px-3 py-2 text-right font-mono font-medium border-r text-amber-600">{formatCurrency(detail.voucherDeduction ?? 0)}</td>
-                            <td className="px-3 py-2 text-right font-mono font-medium">{formatCurrency(detail.balanceDeduction ?? detail.subtotal)}</td>
+                            <td className="px-3 py-2 text-right font-mono font-medium border-r">{formatCurrency(detail.balanceDeduction ?? detail.subtotal)}</td>
+                            <td className="px-3 py-2 text-right font-mono font-medium text-red-600">{formatCurrency(detail.creditDeduction ?? 0)}</td>
                           </tr>
                         );
                       })}
@@ -1822,11 +1842,14 @@ function UserBillManagement() {
                         const totalCacheReadTokens = sortedDetails.reduce((sum, d) => sum + d.cacheReadTokens, 0);
                         const totalCacheCreateTokens = sortedDetails.reduce((sum, d) => sum + d.cacheCreateTokens, 0);
                         const totalCallCount = sortedDetails.reduce((sum, d) => sum + (d.callCount || 0), 0);
+                        const totalSubscriptionDeduction = sortedDetails.reduce((sum, d) => sum + (d.subscriptionDeduction ?? 0), 0);
+                        const totalResourcePackDeduction = sortedDetails.reduce((sum, d) => sum + (d.resourcePackDeduction ?? 0), 0);
                         const totalVoucherDeduction = sortedDetails.reduce((sum, d) => sum + (d.voucherDeduction ?? 0), 0);
                         const totalBalanceDeduction = sortedDetails.reduce((sum, d) => sum + (d.balanceDeduction ?? d.subtotal), 0);
+                        const totalCreditDeduction = sortedDetails.reduce((sum, d) => sum + (d.creditDeduction ?? 0), 0);
                         return (
                           <tr className="bg-muted/50 border-t-2 border-muted font-medium">
-                            <td className="px-3 py-3 font-medium text-muted-foreground" colSpan={3}>月度汇总</td>
+                            <td className="px-3 py-3 font-medium text-muted-foreground" colSpan={2}>月度汇总</td>
                             {/* 按量计费汇总 */}
                             <td className="px-3 py-3 text-right font-mono">{formatNumber(totalInputTokens)}</td>
                             <td className="px-3 py-3 text-right font-mono">{formatNumber(totalOutputTokens)}</td>
@@ -1842,78 +1865,159 @@ function UserBillManagement() {
                             {/* 公共列 */}
                             <td className="px-3 py-3 text-center border-r">-</td>
                             <td className="px-3 py-3 text-right font-mono font-bold text-green-700 border-r">{formatCurrency(previewBill.totalAmount)}</td>
+                            <td className="px-3 py-3 text-right font-mono font-bold text-blue-600 border-r">{formatCurrency(totalSubscriptionDeduction)}</td>
+                            <td className="px-3 py-3 text-right font-mono font-bold text-purple-600 border-r">{formatCurrency(totalResourcePackDeduction)}</td>
                             <td className="px-3 py-3 text-right font-mono font-bold text-amber-600 border-r">{formatCurrency(totalVoucherDeduction)}</td>
-                            <td className="px-3 py-3 text-right font-mono font-bold">{formatCurrency(totalBalanceDeduction)}</td>
+                            <td className="px-3 py-3 text-right font-mono font-bold border-r">{formatCurrency(totalBalanceDeduction)}</td>
+                            <td className="px-3 py-3 text-right font-mono font-bold text-red-600">{formatCurrency(totalCreditDeduction)}</td>
                           </tr>
                         );
                       })()}
                     </tbody>
                   </table>
                   <div className="px-3 py-2 text-xs text-muted-foreground border-t bg-muted/20">
-                    说明：本期可开票金额为充值余额支付金额，代金券抵扣金额不可开票。
+                    说明：本期可开票金额为充值余额支付金额 + 订阅/资源包购买金额，代金券抵扣、授信额度支付金额不可开票。
                   </div>
                 </div>
               </div>
 
+              {/* 权益购买明细表格 */}
+              <div>
+                <h4 className="text-sm font-medium mb-3 text-foreground border-l-4 border-purple-500 pl-2">权益购买明细</h4>
+                <div className="border rounded-lg overflow-hidden">
+                  <table className="w-full text-xs">
+                    <thead className="bg-muted/50">
+                      <tr className="border-b">
+                        <th className="px-3 py-2.5 text-left font-medium text-muted-foreground">用户名称</th>
+                        <th className="px-3 py-2.5 text-left font-medium text-muted-foreground">订单号</th>
+                        <th className="px-3 py-2.5 text-left font-medium text-muted-foreground">商品名称</th>
+                        <th className="px-3 py-2.5 text-left font-medium text-muted-foreground">商品类型</th>
+                        <th className="px-3 py-2.5 text-center font-medium text-muted-foreground">订单类型</th>
+                        <th className="px-3 py-2.5 text-right font-medium text-muted-foreground">订单金额</th>
+                        <th className="px-3 py-2.5 text-left font-medium text-muted-foreground">支付方式</th>
+                        <th className="px-3 py-2.5 text-left font-medium text-muted-foreground">创建时间</th>
+                        <th className="px-3 py-2.5 text-left font-medium text-muted-foreground">支付时间</th>
+                        <th className="px-3 py-2.5 text-center font-medium text-muted-foreground">订单状态</th>
+                        <th className="px-3 py-2.5 text-right font-medium text-muted-foreground">充值余额支付</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y">
+                      {(previewBill.subscriptionOrders || []).length === 0 ? (
+                        <tr>
+                          <td colSpan={11} className="px-3 py-8 text-center text-muted-foreground">本期无权益购买记录</td>
+                        </tr>
+                      ) : (
+                        <>
+                          {(previewBill.subscriptionOrders || []).map((order, idx) => (
+                            <tr key={idx} className="hover:bg-muted/20">
+                              <td className="px-3 py-2 font-medium">{previewBill.enterprise}</td>
+                              <td className="px-3 py-2 font-mono text-muted-foreground">{order.orderNo}</td>
+                              <td className="px-3 py-2 font-medium">{order.productName}</td>
+                              <td className="px-3 py-2 text-muted-foreground">{order.productType}</td>
+                              <td className="px-3 py-2 text-center">
+                                <Badge
+                                  variant="outline"
+                                  className={`text-xs ${
+                                    order.orderType === "新购"
+                                      ? "text-blue-600 border-blue-200 bg-blue-50"
+                                      : order.orderType === "续费"
+                                      ? "text-purple-600 border-purple-200 bg-purple-50"
+                                      : "text-amber-600 border-amber-200 bg-amber-50"
+                                  }`}
+                                >
+                                  {order.orderType}
+                                </Badge>
+                              </td>
+                              <td className="px-3 py-2 text-right font-mono font-medium">{formatCurrency(order.orderAmount)}</td>
+                              <td className="px-3 py-2 text-muted-foreground">{order.paymentMethod}</td>
+                              <td className="px-3 py-2 text-muted-foreground">{order.createdAt}</td>
+                              <td className="px-3 py-2 text-muted-foreground">{order.paidAt}</td>
+                              <td className="px-3 py-2 text-center">
+                                <Badge
+                                  variant="outline"
+                                  className={`text-xs ${
+                                    order.status === "已支付"
+                                      ? "text-green-600 border-green-200 bg-green-50"
+                                      : order.status === "待支付"
+                                      ? "text-amber-600 border-amber-200 bg-amber-50"
+                                      : "text-gray-600 border-gray-200 bg-gray-50"
+                                  }`}
+                                >
+                                  {order.status}
+                                </Badge>
+                              </td>
+                              <td className="px-3 py-2 text-right font-mono font-medium">{formatCurrency(order.orderAmount)}</td>
+                            </tr>
+                          ))}
+                          {/* 汇总行 */}
+                          <tr className="bg-muted/50 border-t-2 border-muted font-medium">
+                            <td className="px-3 py-3 font-medium text-muted-foreground" colSpan={5}>权益购买汇总</td>
+                            <td className="px-3 py-3 text-right font-mono font-bold">
+                              {formatCurrency((previewBill.subscriptionOrders || []).reduce((sum, o) => sum + o.orderAmount, 0))}
+                            </td>
+                            <td className="px-3 py-3" colSpan={4}></td>
+                            <td className="px-3 py-3 text-right font-mono font-bold">
+                              {formatCurrency((previewBill.subscriptionOrders || []).reduce((sum, o) => sum + o.orderAmount, 0))}
+                            </td>
+                          </tr>
+                        </>
+                      )}
+                    </tbody>
+                  </table>
+                  <div className="px-3 py-2 text-xs text-muted-foreground border-t bg-muted/20">
+                    说明：权益（订阅包/资源包）购买仅支持充值余额支付，全部金额可开票。
+                  </div>
+                </div>
+              </div>
+
+              {/* 金额汇总 - 弹窗最底部 */}
+              <div className="flex items-center justify-end gap-8 pt-3 pb-1 border-t text-base">
+                <span className="font-medium">可开票金额：<span className="font-mono text-green-700 text-lg font-bold">
+                  {formatCurrency(
+                    previewBill.details.reduce((sum, d) => sum + (d.balanceDeduction ?? d.subtotal), 0) +
+                    (previewBill.subscriptionOrders || []).reduce((sum, o) => sum + o.orderAmount, 0)
+                  )}
+                </span></span>
+                <span className="font-medium">待支付金额：<span className="font-mono text-red-600 text-lg font-bold">
+                  {formatCurrency(previewBill.details.reduce((sum, d) => sum + (d.creditDeduction ?? 0), 0))}
+                </span></span>
+              </div>
+
               {/* 底部操作 */}
-              <div className="flex justify-end gap-3 pt-2 border-t">
+              <div className="flex justify-end gap-3 pt-2">
                 <Button variant="outline" size="sm" className="gap-1">
                   <FileSpreadsheet className="w-3.5 h-3.5" />
                   导出Excel
                 </Button>
-                {previewBill.status === "pending" && (
+                {previewBill.status === "unsettled" && (
                   <Button
                     size="sm"
-                    className="gap-1"
+                    className="gap-1 bg-green-600 hover:bg-green-700"
                     onClick={() => {
-                      handleMarkAsSent(previewBill.id);
+                      handleMarkSettled(previewBill.id);
                       setPreviewOpen(false);
                     }}
                   >
                     <CheckCircle2 className="w-3.5 h-3.5" />
-                    标记已发送
+                    标记已结清
                   </Button>
                 )}
-                {previewBill.status === "sent" && (
-                  <>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="gap-1 text-amber-600 hover:text-amber-700 hover:bg-amber-50"
-                      onClick={() => {
-                        handleUndoSent(previewBill.id);
-                        setPreviewOpen(false);
-                      }}
-                    >
-                      <AlertCircle className="w-3.5 h-3.5" />
-                      撤销发送
-                    </Button>
-                    <Button
-                      size="sm"
-                      className="gap-1"
-                      onClick={() => {
-                        handleConfirm(previewBill.id);
-                        setPreviewOpen(false);
-                      }}
-                    >
-                      <CheckCircle2 className="w-3.5 h-3.5" />
-                      确认账单
-                    </Button>
-                  </>
-                )}
-                {previewBill.status === "confirmed" && (
+                {previewBill.status === "settled" && (
                   <Button
                     variant="outline"
                     size="sm"
-                    className="gap-1 text-amber-600 hover:text-amber-700 hover:bg-amber-50"
+                    className="gap-1 text-orange-600 hover:text-orange-700 hover:bg-orange-50 border-orange-200"
                     onClick={() => {
-                      handleUndoConfirm(previewBill.id);
+                      handleUndoSettled(previewBill.id);
                       setPreviewOpen(false);
                     }}
                   >
                     <AlertCircle className="w-3.5 h-3.5" />
-                    撤销确认
+                    撤销结清
                   </Button>
+                )}
+                {previewBill.status === "unbilled" && (
+                  <span className="text-xs text-muted-foreground px-2">当月账单未出账，无法操作</span>
                 )}
               </div>
             </div>
@@ -2546,209 +2650,6 @@ function UserBillManagement() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-
-      </>
-      )}
-
-      {viewMode === "vouchers" && (
-        <Card className="border shadow-sm">
-          <CardHeader className="py-3 px-4 border-b">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3 flex-wrap">
-                <CardTitle className="text-sm font-medium">代金券记录</CardTitle>
-                <div className="relative">
-                  <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
-                  <Input
-                    placeholder="搜索代金券编号"
-                    value={voucherSearchQuery}
-                    onChange={(e) => { setVoucherSearchQuery(e.target.value); setVoucherPage(1); }}
-                    className="h-8 w-44 pl-8 text-xs"
-                  />
-                </div>
-                <div className="relative">
-                  <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
-                  <Input
-                    placeholder="搜索主体名称"
-                    value={voucherEnterpriseQuery}
-                    onChange={(e) => { setVoucherEnterpriseQuery(e.target.value); setVoucherPage(1); }}
-                    className="h-8 w-44 pl-8 text-xs"
-                  />
-                </div>
-                <Popover>
-                  <PopoverTrigger asChild>
-                    <Button variant="outline" size="sm" className="h-8 text-xs gap-1">
-                      使用状态
-                      <ChevronDown className="w-3 h-3" />
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-40 p-2" align="start">
-                    <div className="space-y-2">
-                      {[
-                        { key: "using", label: "正常" },
-                        { key: "used", label: "已用完" },
-                        { key: "expired", label: "已过期" },
-                      ].map(({ key, label }) => (
-                        <label key={key} className="flex items-center gap-2 text-xs cursor-pointer select-none">
-                          <Checkbox
-                            checked={voucherStatusFilter.includes(key)}
-                            onCheckedChange={(checked) => {
-                              setVoucherStatusFilter(prev =>
-                                checked
-                                  ? [...prev, key]
-                                  : prev.filter(s => s !== key)
-                              );
-                              setVoucherPage(1);
-                            }}
-                          />
-                          <span>{label}</span>
-                        </label>
-                      ))}
-                    </div>
-                  </PopoverContent>
-                </Popover>
-              </div>
-              <Button
-                variant="outline"
-                size="sm"
-                className="h-8 text-xs"
-                onClick={() => { setViewMode("bills"); setVoucherSearchQuery(""); setVoucherEnterpriseQuery(""); setVoucherStatusFilter(["using", "used", "expired"]); setVoucherPage(1); }}
-              >
-                返回账单管理
-              </Button>
-            </div>
-          </CardHeader>
-          <CardContent className="p-0">
-            <div className="overflow-x-auto">
-              <table className="w-full text-xs">
-                <thead className="bg-muted/50 border-b">
-                  <tr>
-                    <th className="px-3 py-2 text-left font-medium text-muted-foreground whitespace-nowrap">代金券编号</th>
-                    <th className="px-3 py-2 text-left font-medium text-muted-foreground whitespace-nowrap">来源账单</th>
-                    <th className="px-3 py-2 text-left font-medium text-muted-foreground whitespace-nowrap">来源账期</th>
-                    <th className="px-3 py-2 text-left font-medium text-muted-foreground whitespace-nowrap">客户名称</th>
-                    <th className="px-3 py-2 text-left font-medium text-muted-foreground whitespace-nowrap">空间类型</th>
-                    <th className="px-3 py-2 text-right font-medium text-muted-foreground whitespace-nowrap">代金券金额</th>
-                    <th className="px-3 py-2 text-right font-medium text-muted-foreground whitespace-nowrap">剩余金额</th>
-                    <th className="px-3 py-2 text-center font-medium text-muted-foreground whitespace-nowrap">使用状态</th>
-                    <th className="px-3 py-2 text-left font-medium text-muted-foreground whitespace-nowrap">发放时间</th>
-                    <th className="px-3 py-2 text-left font-medium text-muted-foreground whitespace-nowrap">过期时间</th>
-                    <th className="px-3 py-2 text-left font-medium text-muted-foreground whitespace-nowrap">操作人</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y">
-                  {(() => {
-                    type VoucherItem = { kind: 'main'; bill: UserBillRecord } | { kind: 'diff'; bill: UserBillRecord };
-                    const allVouchers: VoucherItem[] = bills
-                      .filter(b => b.rebateStatus === "sent")
-                      .flatMap(b => {
-                        const items: VoucherItem[] = [{ kind: 'main' as const, bill: b }];
-                        if (b.diffVoucherCode) {
-                          items.push({ kind: 'diff' as const, bill: b });
-                        }
-                        return items;
-                      });
-                    const filtered = allVouchers.filter(item => {
-                      const bill = item.bill;
-                      const isDiff = item.kind === 'diff';
-                      const code = isDiff ? bill.diffVoucherCode : bill.voucherCode;
-                      const remaining = isDiff ? (bill.diffVoucherAmount || 0) : (bill.voucherRemainingAmount ?? bill.rebateAmount ?? 0);
-                      const expired = bill.voucherExpiryDate ? new Date(bill.voucherExpiryDate) < new Date() : false;
-                      const status = expired ? "expired" : remaining <= 0 ? "used" : "using";
-
-                      if (voucherSearchQuery && !(code || "").toLowerCase().includes(voucherSearchQuery.toLowerCase())) return false;
-                      if (voucherEnterpriseQuery && !bill.enterprise.toLowerCase().includes(voucherEnterpriseQuery.toLowerCase())) return false;
-                      if (!voucherStatusFilter.includes(status)) return false;
-                      return true;
-                    });
-                    const total = filtered.length;
-                    const totalPages = Math.max(1, Math.ceil(total / voucherPageSize));
-                    const currentPage = Math.min(voucherPage, totalPages);
-                    const start = (currentPage - 1) * voucherPageSize;
-                    const pageItems = filtered.slice(start, start + voucherPageSize);
-                    if (total === 0) {
-                      return (
-                        <tr>
-                          <td colSpan={11} className="px-3 py-8 text-center text-muted-foreground">
-                            {voucherSearchQuery ? "未找到匹配的代金券" : "暂无代金券记录"}
-                          </td>
-                        </tr>
-                      );
-                    }
-                    return (
-                      <>
-                        {pageItems.map((item) => {
-                          const bill = item.bill;
-                          const isDiff = item.kind === 'diff';
-                          const code = isDiff ? bill.diffVoucherCode : bill.voucherCode;
-                          const amount = isDiff ? (bill.diffVoucherAmount || 0) : (bill.rebateAmount || 0);
-                          const remaining = isDiff ? (bill.diffVoucherAmount || 0) : (bill.voucherRemainingAmount ?? bill.rebateAmount ?? 0);
-                          const sentAt = isDiff ? bill.diffVoucherSentAt : (bill.rebateStatus === "sent" ? (bill.sentAt || "—") : "—");
-                          const expired = bill.voucherExpiryDate ? new Date(bill.voucherExpiryDate) < new Date() : false;
-                          const statusBadge = (() => {
-                            if (expired) return <Badge variant="outline" className="text-gray-500 border-gray-200 bg-gray-50 text-xs">已过期</Badge>;
-                            if (remaining <= 0) return <Badge variant="outline" className="text-orange-600 border-orange-200 bg-orange-50 text-xs">已用完</Badge>;
-                            return <Badge className="bg-green-500 text-white border-green-500 hover:bg-green-600 text-xs">正常</Badge>;
-                          })();
-                          return (
-                            <tr key={isDiff ? `${bill.id}-diff` : bill.id} className="hover:bg-muted/20">
-                              <td className="px-3 py-2 font-mono">{code || "—"}</td>
-                              <td className="px-3 py-2 font-mono text-muted-foreground">{bill.id}</td>
-                              <td className="px-3 py-2 text-muted-foreground">{bill.periodStart.slice(0, 7)}</td>
-                              <td className="px-3 py-2">{bill.enterprise}</td>
-                              <td className="px-3 py-2">
-                                <Badge variant="outline" className="text-xs">
-                                  {bill.spaceType === "personal" ? "个人空间" : "企业空间"}
-                                </Badge>
-                              </td>
-                              <td className="px-3 py-2 text-right font-mono">{formatCurrency(amount)}</td>
-                              <td className="px-3 py-2 text-right font-mono">{formatCurrency(remaining)}</td>
-                              <td className="px-3 py-2 text-center">{statusBadge}</td>
-                              <td className="px-3 py-2 text-muted-foreground">{sentAt || "—"}</td>
-                              <td className="px-3 py-2 text-muted-foreground">{bill.voucherExpiryDate || "—"}</td>
-                              <td className="px-3 py-2 text-muted-foreground whitespace-nowrap">张三</td>
-                            </tr>
-                          );
-                        })}
-                        {total > voucherPageSize && (
-                          <tr>
-                            <td colSpan={11} className="px-3 py-3">
-                              <div className="flex items-center justify-between">
-                                <span className="text-xs text-muted-foreground">
-                                  共 {total} 条，第 {currentPage} / {totalPages} 页
-                                </span>
-                                <div className="flex items-center gap-1">
-                                  <Button
-                                    variant="outline"
-                                    size="sm"
-                                    className="h-7 text-xs"
-                                    disabled={currentPage <= 1}
-                                    onClick={() => setVoucherPage(currentPage - 1)}
-                                  >
-                                    上一页
-                                  </Button>
-                                  <Button
-                                    variant="outline"
-                                    size="sm"
-                                    className="h-7 text-xs"
-                                    disabled={currentPage >= totalPages}
-                                    onClick={() => setVoucherPage(currentPage + 1)}
-                                  >
-                                    下一页
-                                  </Button>
-                                </div>
-                              </div>
-                            </td>
-                          </tr>
-                        )}
-                      </>
-                    );
-                  })()}
-                </tbody>
-              </table>
-            </div>
-          </CardContent>
-        </Card>
-      )}
     </div>
   );
 }
@@ -2760,7 +2661,7 @@ export default function AdminReconciliation() {
     <div className="p-6 space-y-6 overflow-y-auto">
       {/* Header */}
       <div>
-        <h1 className="text-xl font-semibold text-foreground">收支对账中心</h1>
+        <h1 className="text-xl font-semibold text-foreground">账单管理</h1>
         <p className="text-sm text-muted-foreground mt-0.5">
           下游收入与上游成本对账分析，差异率超过 1% 自动预警
         </p>

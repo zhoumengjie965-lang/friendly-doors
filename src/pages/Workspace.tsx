@@ -16,6 +16,14 @@ import ManageApiCredentials from "@/pages/ManageApiCredentials";
 import ResourceStats from "@/pages/ResourceStats";
 import CallLogs from "@/pages/CallLogs";
 import Models from "@/pages/Models";
+import TokenPlan from "@/pages/resource-subscription/TokenPlan";
+import ResourcePackages from "@/pages/resource-subscription/ResourcePackages";
+import EntitlementDetail from "@/pages/resource-subscription/EntitlementDetail";
+import MySubscriptions from "@/pages/resource-subscription/MySubscriptions";
+import SubscriptionDetail from "@/pages/resource-subscription/SubscriptionDetail";
+import ResourceOrders from "@/pages/resource-subscription/ResourceOrders";
+import OrderDetail from "@/pages/resource-subscription/OrderDetail";
+import ConfirmOrder from "@/pages/resource-subscription/ConfirmOrder";
 import {
   Building2, LogOut, ChevronDown,
   ChevronRight, Check, Plus, UserCircle, Key
@@ -454,6 +462,22 @@ export default function Workspace() {
                 <AccountBalance enterprise={null} role="member" />
               ) : location.pathname === "/workspace/cost-overview" ? (
                 <CostOverview enterprise={null} role="member" />
+              ) : location.pathname === "/workspace/token-plan" ? (
+                <TokenPlan mode="personal" />
+              ) : location.pathname === "/workspace/resource-packages" ? (
+                <ResourcePackages mode="personal" />
+              ) : location.pathname.startsWith("/workspace/resource-packages/") ? (
+                <EntitlementDetail />
+              ) : location.pathname === "/workspace/my-subscriptions" ? (
+                <MySubscriptions mode="personal" />
+              ) : location.pathname.startsWith("/workspace/my-subscriptions/") ? (
+                <SubscriptionDetail />
+              ) : location.pathname === "/workspace/resource-orders" ? (
+                <ResourceOrders mode="personal" />
+              ) : location.pathname.startsWith("/workspace/resource-orders/") ? (
+                <OrderDetail mode="personal" />
+              ) : location.pathname === "/workspace/confirm-order" ? (
+                <ConfirmOrder mode="personal" />
               ) : location.pathname === "/workspace/profile" ? (
                 <Profile />
               ) : (
@@ -565,6 +589,22 @@ export default function Workspace() {
                   .filter(e => e.enterprise.id === enterprise.id && e.role === "org_admin" && e.org)
                   .map(e => e.org!)}
               />
+            ) : location.pathname === "/workspace/token-plan" ? (
+              <TokenPlan mode="enterprise" role={role} />
+            ) : location.pathname === "/workspace/resource-packages" ? (
+              <ResourcePackages mode="enterprise" role={role} />
+            ) : location.pathname.startsWith("/workspace/resource-packages/") ? (
+              <EntitlementDetail />
+            ) : location.pathname === "/workspace/my-subscriptions" ? (
+              <MySubscriptions mode="enterprise" role={role} />
+            ) : location.pathname.startsWith("/workspace/my-subscriptions/") ? (
+              <SubscriptionDetail />
+            ) : location.pathname === "/workspace/resource-orders" ? (
+              <ResourceOrders mode="enterprise" role={role} />
+            ) : location.pathname.startsWith("/workspace/resource-orders/") ? (
+              <OrderDetail mode="enterprise" />
+            ) : location.pathname === "/workspace/confirm-order" ? (
+              <ConfirmOrder mode="enterprise" role={role} />
             ) : location.pathname === "/workspace/profile" ? (
               <Profile />
             ) : (

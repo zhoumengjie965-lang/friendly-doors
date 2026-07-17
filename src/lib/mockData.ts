@@ -3,7 +3,7 @@
 
 const MOCK_DATA_KEY = "ai_gateway_mock_data";
 const CURRENT_PHONE_KEY = "ai_gateway_phone";
-const MOCK_DATA_VERSION = "1.5"; // 数据版本，修改mock数据时更新此版本号
+const MOCK_DATA_VERSION = "1.6"; // 数据版本，修改mock数据时更新此版本号
 
 // ===== 数据类型定义 =====
 export interface MockUser {
@@ -45,6 +45,7 @@ export interface MockOrganization {
   budget_override?: number | null;
   alert_enabled?: boolean;
   alert_threshold?: number;
+  key_template_id?: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -108,6 +109,24 @@ export interface MockInvitation {
   created_at: string;
 }
 
+export interface MockKeyTemplate {
+  id: string;
+  enterprise_id: string;
+  name: string;
+  description: string | null;
+  config: {
+    groups: string[];
+    expires: string;
+    quota: string;
+    unlimited: boolean;
+    models: string[];
+    ipWhitelist: string;
+  };
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
 interface MockData {
   users: MockUser[];
   enterprises: MockEnterprise[];
@@ -116,6 +135,7 @@ interface MockData {
   apiKeys: MockApiKey[];
   models: MockModel[];
   invitations: MockInvitation[];
+  keyTemplates: MockKeyTemplate[];
 }
 
 // ===== 工具函数 =====
@@ -333,6 +353,7 @@ const initialData: MockData = {
       monthly_budget: 20000,
       current_month_budget: 8000,
       admin_phone: "13800138001",
+      key_template_id: "tpl_tech",
       created_at: getNow(),
       updated_at: getNow(),
     },
@@ -347,6 +368,7 @@ const initialData: MockData = {
       monthly_budget: 15000,
       current_month_budget: 3000,
       admin_phone: "13800138002",
+      key_template_id: "tpl_biz",
       created_at: getNow(),
       updated_at: getNow(),
     },
@@ -361,6 +383,7 @@ const initialData: MockData = {
       monthly_budget: 10000,
       current_month_budget: 500,
       admin_phone: "13800138003",
+      key_template_id: "tpl_biz",
       created_at: getNow(),
       updated_at: getNow(),
     },
@@ -404,6 +427,7 @@ const initialData: MockData = {
       monthly_budget: 12000,
       current_month_budget: 6000,
       admin_phone: "13800138006",
+      key_template_id: "tpl_ai",
       created_at: getNow(),
       updated_at: getNow(),
     },
@@ -929,6 +953,76 @@ const initialData: MockData = {
       use_count: 0,
       expires_at: getFutureDate(7),
       created_at: getNow(),
+    },
+  ],
+  keyTemplates: [
+    {
+      id: "tpl_tech",
+      enterprise_id: "ent_1",
+      name: "研发部模板",
+      description: "技术研发部门专用，开放高端模型",
+      config: {
+        groups: ["生产通道（×0.95）", "开发环境（×0.8）"],
+        expires: "",
+        quota: "",
+        unlimited: true,
+        models: ["gpt-4o", "claude-3-5-sonnet", "gpt-4o-mini"],
+        ipWhitelist: "",
+      },
+      created_by: TEST_PHONE,
+      created_at: getNow(),
+      updated_at: getNow(),
+    },
+    {
+      id: "tpl_ai",
+      enterprise_id: "ent_1",
+      name: "AI算法组模板",
+      description: "AI算法研究专用，全模型开放，额度充足",
+      config: {
+        groups: ["生产通道（×0.95）"],
+        expires: "",
+        quota: "",
+        unlimited: true,
+        models: ["gpt-4o", "claude-3-5-sonnet", "gemini-1.5-pro", "gemini-1.5-flash"],
+        ipWhitelist: "192.168.1.0/24",
+      },
+      created_by: TEST_PHONE,
+      created_at: getNow(),
+      updated_at: getNow(),
+    },
+    {
+      id: "tpl_biz",
+      enterprise_id: "ent_1",
+      name: "业务部门模板",
+      description: "产品/运营/市场使用，限制为低成本模型",
+      config: {
+        groups: ["生产通道（×0.95）"],
+        expires: "",
+        quota: "500",
+        unlimited: false,
+        models: ["gpt-4o-mini", "claude-3-haiku"],
+        ipWhitelist: "",
+      },
+      created_by: TEST_PHONE,
+      created_at: getNow(),
+      updated_at: getNow(),
+    },
+    {
+      id: "tpl_test",
+      enterprise_id: "ent_1",
+      name: "测试环境模板",
+      description: "测试环境专用，低额度",
+      config: {
+        groups: ["测试环境（×0.85）"],
+        expires: "",
+        quota: "100",
+        unlimited: false,
+        models: ["gpt-4o-mini"],
+        ipWhitelist: "",
+      },
+      created_by: TEST_PHONE,
+      created_at: getNow(),
+      updated_at: getNow(),
     },
   ],
 };
@@ -1692,6 +1786,149 @@ export function getPersonalWorkspace(phone: string): {
   const WORKSPACE_KEY = `personal_workspace_${phone}`;
   const data = localStorage.getItem(WORKSPACE_KEY);
   return data ? JSON.parse(data) : null;
+}
+
+// ===== Key 配置模板 API =====
+export async function listKeyTemplates(enterpriseId: string) {
+  await delay(200);
+  const data = getMockData();
+  const templates = data.keyTemplates.filter(t => t.enterprise_id === enterpriseId);
+  return templates.map(t => ({
+    id: t.id,
+    name: t.name,
+    description: t.description,
+    config: t.config,
+    created_at: t.created_at,
+    updated_at: t.updated_at,
+    bound_orgs: data.organizations.filter(o => o.key_template_id === t.id).length,
+  }));
+}
+
+export async function createKeyTemplate(args: {
+  enterprise_id: string;
+  name: string;
+  description: string | null;
+  config: any;
+  bound_org_ids: string[] | null;
+  created_by?: string;
+}) {
+  await delay(200);
+  const data = getMockData();
+  const tpl: MockKeyTemplate = {
+    id: "tpl_" + Date.now(),
+    enterprise_id: args.enterprise_id,
+    name: args.name,
+    description: args.description,
+    config: args.config,
+    created_by: args.created_by || null,
+    created_at: getNow(),
+    updated_at: getNow(),
+  };
+  data.keyTemplates.push(tpl);
+  // 绑定部门
+  if (args.bound_org_ids && args.bound_org_ids.length > 0) {
+    data.organizations.forEach(o => {
+      if (args.bound_org_ids!.includes(o.id)) {
+        o.key_template_id = tpl.id;
+      }
+    });
+  }
+  saveMockData(data);
+  return tpl;
+}
+
+export async function updateKeyTemplate(args: {
+  id: string;
+  name: string;
+  description: string | null;
+  config: any;
+  bound_org_ids: string[] | null;
+}) {
+  await delay(200);
+  const data = getMockData();
+  const tpl = data.keyTemplates.find(t => t.id === args.id);
+  if (!tpl) throw new Error("模板不存在");
+  tpl.name = args.name;
+  tpl.description = args.description;
+  tpl.config = args.config;
+  tpl.updated_at = getNow();
+  // 重新计算绑定：原来绑在本模板但不在新列表 → 解绑
+  data.organizations.forEach(o => {
+    if (o.key_template_id === args.id && (!args.bound_org_ids || !args.bound_org_ids.includes(o.id))) {
+      o.key_template_id = null;
+    }
+  });
+  // 新列表里的部门 → 绑到本模板（覆盖其他模板绑定）
+  if (args.bound_org_ids && args.bound_org_ids.length > 0) {
+    data.organizations.forEach(o => {
+      if (args.bound_org_ids!.includes(o.id)) {
+        o.key_template_id = args.id;
+      }
+    });
+  }
+  saveMockData(data);
+  return tpl;
+}
+
+export async function deleteKeyTemplate(id: string) {
+  await delay(200);
+  const data = getMockData();
+  const idx = data.keyTemplates.findIndex(t => t.id === id);
+  if (idx === -1) return;
+  data.keyTemplates.splice(idx, 1);
+  // 解绑部门
+  data.organizations.forEach(o => {
+    if (o.key_template_id === id) o.key_template_id = null;
+  });
+  saveMockData(data);
+}
+
+export async function copyKeyTemplate(id: string) {
+  await delay(200);
+  const data = getMockData();
+  const orig = data.keyTemplates.find(t => t.id === id);
+  if (!orig) throw new Error("模板不存在");
+  const tpl: MockKeyTemplate = {
+    id: "tpl_" + Date.now(),
+    enterprise_id: orig.enterprise_id,
+    name: orig.name + "（副本）",
+    description: orig.description,
+    config: JSON.parse(JSON.stringify(orig.config)),
+    created_by: orig.created_by,
+    created_at: getNow(),
+    updated_at: getNow(),
+  };
+  data.keyTemplates.push(tpl);
+  saveMockData(data);
+  return tpl;
+}
+
+export async function getMemberKeyTemplate(phone: string, enterpriseId: string) {
+  await delay(100);
+  const data = getMockData();
+  const member = data.members.find(m => m.user_phone === phone && m.enterprise_id === enterpriseId && m.status === "active");
+  if (!member || !member.organization_id) return null;
+  const org = data.organizations.find(o => o.id === member.organization_id);
+  if (!org || !org.key_template_id) return null;
+  const tpl = data.keyTemplates.find(t => t.id === org.key_template_id);
+  return tpl ? tpl.config : null;
+}
+
+export async function getOrgKeyTemplate(orgId: string) {
+  await delay(100);
+  const data = getMockData();
+  const org = data.organizations.find(o => o.id === orgId);
+  if (!org || !org.key_template_id) return null;
+  const tpl = data.keyTemplates.find(t => t.id === org.key_template_id);
+  return tpl ? tpl.config : null;
+}
+
+export async function getOrgsWithTemplate(enterpriseId: string) {
+  await delay(100);
+  const data = getMockData();
+  return data.organizations
+    .filter(o => o.enterprise_id === enterpriseId && o.status === "active")
+    .map(o => ({ id: o.id, name: o.name, key_template_id: o.key_template_id || null }));
 }
 
 // 初始化
