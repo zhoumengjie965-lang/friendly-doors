@@ -132,6 +132,8 @@ export type Database = {
           alert_threshold: number | null
           balance: number
           created_at: string
+          credit_balance: number
+          credit_limit: number
           enterprise_id: string
           id: string
           request_count: number
@@ -144,6 +146,8 @@ export type Database = {
           alert_threshold?: number | null
           balance?: number
           created_at?: string
+          credit_balance?: number
+          credit_limit?: number
           enterprise_id: string
           id?: string
           request_count?: number
@@ -156,6 +160,8 @@ export type Database = {
           alert_threshold?: number | null
           balance?: number
           created_at?: string
+          credit_balance?: number
+          credit_limit?: number
           enterprise_id?: string
           id?: string
           request_count?: number
@@ -483,6 +489,34 @@ export type Database = {
           p_enterprise_id: string
           p_operator: string
           p_remark?: string
+          p_type?: string
+          p_extra_remark?: string
+        }
+        Returns: undefined
+      }
+      admin_restore_credit: {
+        Args: {
+          p_enterprise_id: string
+          p_operator: string
+          p_extra_remark?: string
+        }
+        Returns: undefined
+      }
+      admin_set_credit_balance: {
+        Args: {
+          p_enterprise_id: string
+          p_new_balance: number
+          p_operator: string
+          p_extra_remark?: string
+        }
+        Returns: undefined
+      }
+      admin_set_credit_limit: {
+        Args: {
+          p_enterprise_id: string
+          p_new_limit: number
+          p_operator: string
+          p_extra_remark?: string
         }
         Returns: undefined
       }

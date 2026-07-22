@@ -31,7 +31,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { ArrowLeft, Calculator, Save, Search, Pencil, X } from "lucide-react";
+import { ArrowLeft, Calculator, Search, Pencil, Save, X } from "lucide-react";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -65,9 +65,7 @@ interface DeductionRow {
   unit: string;
   condition?: string;
   listPrice: number;
-  defaultCoefficient: number;
   extraCoefficient: number;
-  finalCoefficient: number;
   defaultDeduction: number;
   finalDeduction: number;
   modelEnabled: boolean;
@@ -301,8 +299,7 @@ const formatPrice = (val: number) =>
 const formatCoeff = (val: number) => val.toFixed(4);
 const formatCredit = (val: number) =>
   val.toLocaleString("zh-CN", { maximumFractionDigits: 2 });
-const formatRatio = (val: number) =>
-  val.toLocaleString("zh-CN", { maximumFractionDigits: 6 });
+
 
 const unique = (arr: string[]) => Array.from(new Set(arr));
 
@@ -312,28 +309,27 @@ export default function AdminDeductionRules() {
   const navigate = useNavigate();
   const { toast } = useToast();
 
-  const [basePrice, setBasePrice] = useState<number>(4);
-  const [creditTokenRatio, setCreditTokenRatio] = useState<number>(1);
+  // Credit 定价：1 元人民币折合多少 Credit
+  const [creditsPerYuan, setCreditsPerYuan] = useState<number>(25);
   const [isEditingBasePrice, setIsEditingBasePrice] = useState(false);
-  const [draftBasePrice, setDraftBasePrice] = useState<number>(basePrice);
-  const [draftCreditTokenRatio, setDraftCreditTokenRatio] = useState<number>(creditTokenRatio);
+  const [draftCreditsPerYuan, setDraftCreditsPerYuan] = useState<number>(creditsPerYuan);
   const [confirmOpen, setConfirmOpen] = useState(false);
 
+  // 1 Credit 对应的人民币价值
   const creditValue = useMemo(() => {
-    if (basePrice <= 0 || creditTokenRatio <= 0) return 0;
-    return (basePrice * creditTokenRatio) / 1_000_000;
-  }, [basePrice, creditTokenRatio]);
+    if (creditsPerYuan <= 0) return 0;
+    return 1 / creditsPerYuan;
+  }, [creditsPerYuan]);
 
   const displayCreditValue = useMemo(() => {
-    const price = isEditingBasePrice ? draftBasePrice : basePrice;
-    const ratio = isEditingBasePrice ? draftCreditTokenRatio : creditTokenRatio;
-    if (price <= 0 || ratio <= 0) return 0;
-    return (price * ratio) / 1_000_000;
-  }, [isEditingBasePrice, draftBasePrice, basePrice, draftCreditTokenRatio, creditTokenRatio]);
+    const val = isEditingBasePrice ? draftCreditsPerYuan : creditsPerYuan;
+    if (val <= 0) return 0;
+    return 1 / val;
+  }, [isEditingBasePrice, draftCreditsPerYuan, creditsPerYuan]);
 
-  const [extraMap, setExtraMap] = useState<Record<string, number>>({});
-  const [isEditingRows, setIsEditingRows] = useState(false);
-  const [draftExtraMap, setDraftExtraMap] = useState<Record<string, number>>({});
+  // 额外抵扣系数：从权益分组折扣自动导入（权益分组 ≈ 原价 1.0，个别模型可单独调高折扣）
+  // 本页只读展示，不提供编辑入口
+  const [extraMap] = useState<Record<string, number>>({});
 
   const [search, setSearch] = useState("");
   const [filterType, setFilterType] = useState<string>("all");
@@ -341,9 +337,7 @@ export default function AdminDeductionRules() {
   const [nonTokenSearch, setNonTokenSearch] = useState("");
   const [nonTokenFilterType, setNonTokenFilterType] = useState<string>("all");
 
-  const currentExtraMap = useMemo<Record<string, number>>(() => {
-    return isEditingRows ? draftExtraMap : extraMap;
-  }, [isEditingRows, draftExtraMap, extraMap]);
+  const currentExtraMap = extraMap;
 
   const rowsByModel = useMemo<Record<string, DeductionRow[]>>(() => {
     const map: Record<string, DeductionRow[]> = {};
@@ -351,7 +345,7 @@ export default function AdminDeductionRules() {
       const modelExtra = currentExtraMap[m.id] ?? 1;
       map[m.id] = m.billingItems.map((item) => {
         const key = `${m.id}#${item.key}`;
-        const defaultCoefficient = basePrice > 0 ? item.listPrice / basePrice : 0;
+        // 默认抵扣量 = 刊例价 / Credit 单位价值（元）
         const defaultDeduction = creditValue > 0 ? item.listPrice / creditValue : 0;
         return {
           key,
@@ -365,9 +359,7 @@ export default function AdminDeductionRules() {
           unit: item.unit,
           condition: item.condition,
           listPrice: item.listPrice,
-          defaultCoefficient,
           extraCoefficient: modelExtra,
-          finalCoefficient: defaultCoefficient * modelExtra,
           defaultDeduction,
           finalDeduction: defaultDeduction * modelExtra,
           modelEnabled: m.enabled,
@@ -375,7 +367,7 @@ export default function AdminDeductionRules() {
       });
     }
     return map;
-  }, [basePrice, creditValue, currentExtraMap]);
+  }, [creditValue, currentExtraMap]);
 
   const filteredModels = useMemo(() => {
     return TOKEN_MODELS.filter((m) => {
@@ -400,8 +392,7 @@ export default function AdminDeductionRules() {
   const nonTokenTypes = useMemo(() => unique(NON_TOKEN_MODELS.map((m) => m.type)), []);
 
   const startEditBasePrice = () => {
-    setDraftBasePrice(basePrice);
-    setDraftCreditTokenRatio(creditTokenRatio);
+    setDraftCreditsPerYuan(creditsPerYuan);
     setIsEditingBasePrice(true);
   };
 
@@ -410,15 +401,11 @@ export default function AdminDeductionRules() {
   };
 
   const requestSaveBasePrice = () => {
-    if (draftBasePrice <= 0) {
-      toast({ title: "基准价格必须大于 0", variant: "destructive" });
+    if (draftCreditsPerYuan <= 0) {
+      toast({ title: "Credit 兑换比例必须大于 0", variant: "destructive" });
       return;
     }
-    if (draftCreditTokenRatio <= 0) {
-      toast({ title: "Credit:token 换算比例必须大于 0", variant: "destructive" });
-      return;
-    }
-    if (draftBasePrice === basePrice && draftCreditTokenRatio === creditTokenRatio) {
+    if (draftCreditsPerYuan === creditsPerYuan) {
       setIsEditingBasePrice(false);
       return;
     }
@@ -426,34 +413,10 @@ export default function AdminDeductionRules() {
   };
 
   const confirmSaveBasePrice = () => {
-    setBasePrice(draftBasePrice);
-    setCreditTokenRatio(draftCreditTokenRatio);
+    setCreditsPerYuan(draftCreditsPerYuan);
     setIsEditingBasePrice(false);
     setConfirmOpen(false);
-    toast({ title: "保存成功", description: "基准价格与 Credit:token 换算已更新，模型默认抵扣系数/抵扣量已重新计算" });
-  };
-
-  const startEditRows = () => {
-    const initial: Record<string, number> = {};
-    for (const m of MODEL_PRICE_CONFIG) {
-      initial[m.id] = extraMap[m.id] ?? 1;
-    }
-    setDraftExtraMap(initial);
-    setIsEditingRows(true);
-  };
-
-  const cancelEditRows = () => {
-    setIsEditingRows(false);
-  };
-
-  const saveEditRows = () => {
-    setExtraMap(draftExtraMap);
-    setIsEditingRows(false);
-    toast({ title: "保存成功", description: "模型额外抵扣系数已更新" });
-  };
-
-  const updateDraftExtra = (modelId: string, value: number) => {
-    setDraftExtraMap((prev) => ({ ...prev, [modelId]: value }));
+    toast({ title: "保存成功", description: "Credit 定价已更新，模型默认抵扣量已重新计算" });
   };
 
   return (
@@ -482,9 +445,9 @@ export default function AdminDeductionRules() {
           <div>
             <CardTitle className="text-base flex items-center gap-2">
               <Calculator className="w-4 h-4 text-primary" />
-              基准价格配置
+              Credit 定价配置
             </CardTitle>
-            <CardDescription>统一基准价格与 Credit:token 换算共同决定 Credit 基准价值，用于换算默认抵扣系数/抵扣量</CardDescription>
+            <CardDescription>Credit 是权益包的独立消耗单位，定义其货币价值后用于换算各模型的默认抵扣量</CardDescription>
           </div>
           <div className="flex items-center gap-2">
             {!isEditingBasePrice ? (
@@ -506,57 +469,36 @@ export default function AdminDeductionRules() {
           </div>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div className="space-y-2">
-              <Label htmlFor="basePrice" className="text-sm">
-                统一基准价格
-              </Label>
-              <div className="relative">
-                <Input
-                  id="basePrice"
-                  type="number"
-                  min={0.01}
-                  step={0.01}
-                  value={isEditingBasePrice ? draftBasePrice : basePrice}
-                  onChange={(e) => setDraftBasePrice(parseFloat(e.target.value) || 0)}
-                  readOnly={!isEditingBasePrice}
-                  className={`pr-24 ${isEditingBasePrice ? "" : "bg-muted"}`}
-                />
-                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">
-                  元 / M tokens
-                </span>
-              </div>
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="creditTokenRatio" className="text-sm">
-                Credit:token 换算
+              <Label htmlFor="creditPrice" className="text-sm">
+                Credit 兑换比例
               </Label>
               <div className="relative">
                 <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">
-                  1 Credit =
+                  1 元 =
                 </span>
                 <Input
-                  id="creditTokenRatio"
+                  id="creditPrice"
                   type="number"
                   min={0.01}
                   step={0.01}
-                  value={isEditingBasePrice ? draftCreditTokenRatio : creditTokenRatio}
-                  onChange={(e) => setDraftCreditTokenRatio(parseFloat(e.target.value) || 0)}
+                  value={isEditingBasePrice ? draftCreditsPerYuan : creditsPerYuan}
+                  onChange={(e) => setDraftCreditsPerYuan(parseFloat(e.target.value) || 0)}
                   readOnly={!isEditingBasePrice}
-                  className={`pl-20 pr-14 ${isEditingBasePrice ? "" : "bg-muted"}`}
+                  className={`pl-14 pr-14 ${isEditingBasePrice ? "" : "bg-muted"}`}
                 />
                 <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">
-                  token
+                  Credit
                 </span>
               </div>
             </div>
 
             <div className="space-y-2">
-              <Label className="text-sm">Credit 基准价值</Label>
+              <Label className="text-sm">Credit 单位价值</Label>
               <div className="h-10 flex items-center px-3 border rounded-md bg-muted/40 text-sm">
                 <span className="text-muted-foreground">
-                  1 Credit = {formatRatio(displayCreditValue)} 元
+                  1 Credit = {displayCreditValue.toFixed(4)} 元
                 </span>
               </div>
             </div>
@@ -566,31 +508,12 @@ export default function AdminDeductionRules() {
 
       {/* Section 2: Token model deduction coefficient table */}
       <Card>
-        <CardHeader className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2">
+        <CardHeader>
           <div>
             <CardTitle className="text-base">token类模型抵扣系数表</CardTitle>
             <CardDescription className="mt-1">
-              默认抵扣系数由模型刊例价与统一基准价格自动计算，最终抵扣系数 = 默认抵扣系数 × 额外抵扣系数；额外抵扣系数按模型统一配置。
+              默认抵扣量（Credit / M tokens）由模型刊例价与 Credit 单位价值自动计算，最终抵扣量 = 默认抵扣量 × 分组折扣系数；分组折扣系数由权益分组配置自动同步，本页只读展示。
             </CardDescription>
-          </div>
-          <div className="flex items-center gap-2">
-            {!isEditingRows ? (
-              <Button variant="outline" size="sm" onClick={startEditRows}>
-                <Pencil className="w-4 h-4 mr-1.5" />
-                编辑
-              </Button>
-            ) : (
-              <>
-                <Button variant="outline" size="sm" onClick={cancelEditRows}>
-                  <X className="w-4 h-4 mr-1.5" />
-                  取消
-                </Button>
-                <Button size="sm" onClick={saveEditRows}>
-                  <Save className="w-4 h-4 mr-1.5" />
-                  保存
-                </Button>
-              </>
-            )}
           </div>
         </CardHeader>
         <CardContent>
@@ -629,9 +552,9 @@ export default function AdminDeductionRules() {
                   <TableHead className="w-24">计费项</TableHead>
                   <TableHead className="w-56">适用条件</TableHead>
                   <TableHead className="w-32">刊例价</TableHead>
-                  <TableHead className="w-32">默认抵扣系数</TableHead>
-                  <TableHead className="w-28">额外抵扣系数</TableHead>
-                  <TableHead className="w-32">最终抵扣系数</TableHead>
+                  <TableHead className="w-36">默认抵扣量</TableHead>
+                  <TableHead className="w-28">分组折扣系数</TableHead>
+                  <TableHead className="w-36">最终抵扣量</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -671,24 +594,13 @@ export default function AdminDeductionRules() {
                           {row.condition || "—"}
                         </TableCell>
                         <TableCell>{formatPrice(row.listPrice)}/{row.unit}</TableCell>
-                        <TableCell className="text-muted-foreground">{formatCoeff(row.defaultCoefficient)}</TableCell>
+                        <TableCell className="text-muted-foreground">{formatCredit(row.defaultDeduction)} Credit / {row.unit}</TableCell>
                         {idx === 0 && (
-                          <TableCell rowSpan={rows.length} className="align-middle">
-                            {isEditingRows && row.modelEnabled ? (
-                              <Input
-                                type="number"
-                                min={0}
-                                step={0.01}
-                                value={row.extraCoefficient}
-                                onChange={(e) => updateDraftExtra(row.modelId, parseFloat(e.target.value) || 0)}
-                                className="h-8 w-28 text-sm"
-                              />
-                            ) : (
-                              formatCoeff(row.extraCoefficient)
-                            )}
+                          <TableCell rowSpan={rows.length} className="align-middle text-muted-foreground">
+                            {formatCoeff(row.extraCoefficient)}
                           </TableCell>
                         )}
-                        <TableCell className="font-medium">{formatCoeff(row.finalCoefficient)}</TableCell>
+                        <TableCell className="font-medium">{formatCredit(row.finalDeduction)} Credit / {row.unit}</TableCell>
                       </TableRow>
                     ));
                   })
@@ -702,31 +614,12 @@ export default function AdminDeductionRules() {
 
       {/* Section 3: Non-token model deduction coefficient table */}
       <Card>
-        <CardHeader className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2">
+        <CardHeader>
           <div>
             <CardTitle className="text-base">非token类模型抵扣系数表</CardTitle>
             <CardDescription className="mt-1">
-              非token类模型按次/张/秒等计费，默认抵扣量由刊例价与 Credit 基准价值自动计算，最终抵扣量 = 默认抵扣量 × 额外抵扣系数；额外抵扣系数按模型统一配置。
+              非token类模型按次/张/秒等计费，默认抵扣量由刊例价与 Credit 基准价值自动计算，最终抵扣量 = 默认抵扣量 × 分组折扣系数；分组折扣系数由权益分组配置自动同步，本页只读展示。
             </CardDescription>
-          </div>
-          <div className="flex items-center gap-2">
-            {!isEditingRows ? (
-              <Button variant="outline" size="sm" onClick={startEditRows}>
-                <Pencil className="w-4 h-4 mr-1.5" />
-                编辑
-              </Button>
-            ) : (
-              <>
-                <Button variant="outline" size="sm" onClick={cancelEditRows}>
-                  <X className="w-4 h-4 mr-1.5" />
-                  取消
-                </Button>
-                <Button size="sm" onClick={saveEditRows}>
-                  <Save className="w-4 h-4 mr-1.5" />
-                  保存
-                </Button>
-              </>
-            )}
           </div>
         </CardHeader>
         <CardContent>
@@ -766,7 +659,7 @@ export default function AdminDeductionRules() {
                   <TableHead className="w-56">适用条件</TableHead>
                   <TableHead className="w-32">刊例价</TableHead>
                   <TableHead className="w-32">默认抵扣量</TableHead>
-                  <TableHead className="w-28">额外抵扣系数</TableHead>
+                  <TableHead className="w-28">分组折扣系数</TableHead>
                   <TableHead className="w-32">最终抵扣量</TableHead>
                 </TableRow>
               </TableHeader>
@@ -809,19 +702,8 @@ export default function AdminDeductionRules() {
                         <TableCell>{formatPrice(row.listPrice)}/{row.unit}</TableCell>
                         <TableCell className="text-muted-foreground">{formatCredit(row.defaultDeduction)} Credit / {row.unit}</TableCell>
                         {idx === 0 && (
-                          <TableCell rowSpan={rows.length} className="align-middle">
-                            {isEditingRows && row.modelEnabled ? (
-                              <Input
-                                type="number"
-                                min={0}
-                                step={0.01}
-                                value={row.extraCoefficient}
-                                onChange={(e) => updateDraftExtra(row.modelId, parseFloat(e.target.value) || 0)}
-                                className="h-8 w-28 text-sm"
-                              />
-                            ) : (
-                              formatCoeff(row.extraCoefficient)
-                            )}
+                          <TableCell rowSpan={rows.length} className="align-middle text-muted-foreground">
+                            {formatCoeff(row.extraCoefficient)}
                           </TableCell>
                         )}
                         <TableCell className="font-medium">{formatCredit(row.finalDeduction)} Credit / {row.unit}</TableCell>
@@ -840,9 +722,9 @@ export default function AdminDeductionRules() {
       <AlertDialog open={confirmOpen} onOpenChange={setConfirmOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>确认修改基准价格？</AlertDialogTitle>
+            <AlertDialogTitle>确认修改 Credit 定价？</AlertDialogTitle>
             <AlertDialogDescription>
-              修改基准价格或 Credit:token 换算将重新计算所有模型的默认抵扣系数/抵扣量，可能影响后续 Credit 消耗。已产生的历史调用记录不受影响，是否确认保存？
+              修改 Credit 定价将重新计算所有模型的默认抵扣量，可能影响后续 Credit 消耗。已产生的历史调用记录不受影响，是否确认保存？
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

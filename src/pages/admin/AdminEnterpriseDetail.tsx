@@ -5,7 +5,6 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, AlertDialogDescription, AlertDialogFooter, AlertDialogCancel, AlertDialogAction } from "@/components/ui/alert-dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -26,6 +25,9 @@ import {
   ChevronRight,
   ChevronDown,
   FolderTree,
+  X,
+  RotateCcw,
+  Check,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { getAdminSession } from "@/lib/adminAuth";
@@ -49,6 +51,8 @@ interface Cert {
 
 interface BalanceSummary {
   balance: number;
+  credit_balance: number;
+  credit_limit: number;
   total_consumed: number;
 }
 
@@ -94,6 +98,7 @@ const CERT_STATUS_CONFIG: Record<string, { label: string; variant: "default" | "
 
 const RECORD_TYPE_LABELS: Record<string, string> = {
   recharge: "充值",
+  credit_adjust: "授信调额",
   redeem_code: "兑换码",
   consume: "消耗",
   adjust: "调整",
@@ -143,7 +148,7 @@ export default function AdminEnterpriseDetail() {
   const [enterprise, setEnterprise] = useState<EnterpriseDetail | null>(null);
   const [ownerName, setOwnerName] = useState<string | null>(null);
   const [cert, setCert] = useState<Cert | null>(null);
-  const [balanceSummary, setBalanceSummary] = useState<BalanceSummary>({ balance: 0, total_consumed: 0 });
+  const [balanceSummary, setBalanceSummary] = useState<BalanceSummary>({ balance: 0, credit_balance: 0, credit_limit: 0, total_consumed: 0 });
   const [apiKeyCount, setApiKeyCount] = useState(0);
   const [memberCount, setMemberCount] = useState(0);
   const [balanceRecords, setBalanceRecords] = useState<BalanceRecord[]>([]);
@@ -155,9 +160,31 @@ export default function AdminEnterpriseDetail() {
 
   // Recharge dialog
   const [rechargeOpen, setRechargeOpen] = useState(false);
+  const [rechargeType, setRechargeType] = useState<"balance" | "credit">("balance");
   const [rechargeAmount, setRechargeAmount] = useState("");
   const [rechargeRemark, setRechargeRemark] = useState("");
   const [rechargeLoading, setRechargeLoading] = useState(false);
+  // Credit-specific states
+  const [editingLimit, setEditingLimit] = useState(false);
+  const [limitDraft, setLimitDraft] = useState("");
+  const [restoreClicked, setRestoreClicked] = useState(false);
+
+  const openRechargeDialog = (type: "balance" | "credit" = "balance") => {
+    setRechargeType(type);
+    setRechargeAmount("");
+    setRechargeRemark("");
+    if (type === "credit") {
+      const isFirstTime = (balanceSummary.credit_limit ?? 0) === 0;
+      setEditingLimit(isFirstTime);
+      setLimitDraft("");
+      setRestoreClicked(false);
+    } else {
+      setEditingLimit(false);
+      setLimitDraft("");
+      setRestoreClicked(false);
+    }
+    setRechargeOpen(true);
+  };
 
   // Certification review
   const [reviewLoading, setReviewLoading] = useState<string | null>(null);
@@ -201,7 +228,7 @@ export default function AdminEnterpriseDetail() {
     ] = await Promise.all([
       supabase.from("enterprises").select("*").eq("id", id).single(),
       supabase.from("enterprise_certifications").select("status,company_name,credit_code,legal_person,submitted_at,reviewed_at").eq("enterprise_id", id).maybeSingle(),
-      supabase.from("enterprise_balances").select("balance,total_consumed").eq("enterprise_id", id).maybeSingle(),
+      supabase.from("enterprise_balances").select("balance,credit_balance,credit_limit,total_consumed").eq("enterprise_id", id).maybeSingle(),
       supabase.from("api_keys").select("*", { count: "exact", head: true }).eq("enterprise_id", id),
       supabase.from("members").select("id,user_phone,role,status,daily_limit,organization_id").eq("enterprise_id", id),
       supabase.from("balance_records").select("id,amount,type,operator,remark,created_at").eq("enterprise_id", id).order("created_at", { ascending: false }),
@@ -210,7 +237,7 @@ export default function AdminEnterpriseDetail() {
 
     setEnterprise(ent || null);
     setCert(certData || null);
-    setBalanceSummary({ balance: bal?.balance ?? 0, total_consumed: bal?.total_consumed ?? 0 });
+    setBalanceSummary({ balance: bal?.balance ?? 0, credit_balance: bal?.credit_balance ?? 0, credit_limit: bal?.credit_limit ?? 0, total_consumed: bal?.total_consumed ?? 0 });
     setApiKeyCount(keyCount ?? 0);
     setBalanceRecords(records || []);
 
@@ -288,27 +315,110 @@ export default function AdminEnterpriseDetail() {
 
 
   const handleRecharge = async () => {
-    const amount = parseFloat(rechargeAmount);
-    if (isNaN(amount) || amount <= 0) {
-      toast({ title: "请输入有效金额", variant: "destructive" });
-      return;
-    }
+    const operator = session?.phone || "admin";
+    const extraRemark = "";
+    const currentLimit = balanceSummary.credit_limit ?? 0;
+
     setRechargeLoading(true);
-    const { error } = await supabase.rpc("admin_recharge_enterprise", {
-      p_enterprise_id: id!,
-      p_amount: amount,
-      p_operator: session?.phone || "admin",
-      p_remark: rechargeRemark || null,
-    });
-    setRechargeLoading(false);
-    if (error) {
-      toast({ title: "充值失败", description: error.message, variant: "destructive" });
-    } else {
-      toast({ title: `充值成功 ¥${amount.toFixed(2)}` });
+    try {
+      if (rechargeType === "balance") {
+        const inputVal = parseFloat(rechargeAmount);
+        if (isNaN(inputVal)) {
+          toast({ title: "请输入有效金额", variant: "destructive" });
+          setRechargeLoading(false);
+          return;
+        }
+        const delta = inputVal;
+        const { error } = await supabase.rpc("admin_recharge_enterprise", {
+          p_enterprise_id: id!,
+          p_amount: delta,
+          p_operator: operator,
+          p_type: "balance",
+          p_extra_remark: extraRemark || null,
+        });
+        if (error) throw error;
+        toast({ title: `已充值余额 ¥${delta.toFixed(2)}` });
+      } else {
+        // credit mode: three mutually exclusive scenarios
+        const isFirstTime = currentLimit === 0;
+        const newLimitVal = parseFloat(limitDraft);
+
+        if (isFirstTime) {
+          // A: 首次开授信
+          if (limitDraft === "" || isNaN(newLimitVal) || newLimitVal < 0) {
+            toast({ title: "请输入有效的初始授信额度", variant: "destructive" });
+            setRechargeLoading(false);
+            return;
+          }
+          // set limit and balance both to newLimitVal
+          const { error: err1 } = await supabase.rpc("admin_set_credit_limit", {
+            p_enterprise_id: id!,
+            p_new_limit: newLimitVal,
+            p_operator: operator,
+            p_extra_remark: null,
+          });
+          if (err1) throw err1;
+          const { error: err2 } = await supabase.rpc("admin_set_credit_balance", {
+            p_enterprise_id: id!,
+            p_new_balance: newLimitVal,
+            p_operator: operator,
+            p_extra_remark: extraRemark || null,
+          });
+          if (err2) throw err2;
+          toast({ title: `初始授信已设置至 ¥${newLimitVal.toFixed(2)}` });
+        } else if (!isNaN(newLimitVal) && Math.abs(newLimitVal - currentLimit) >= 0.01) {
+          // B: 修改初始额度
+          if (limitDraft === "" || isNaN(newLimitVal) || newLimitVal < 0) {
+            toast({ title: "请输入有效的初始授信额度", variant: "destructive" });
+            setRechargeLoading(false);
+            return;
+          }
+          if (Math.abs(newLimitVal - currentLimit) < 0.01) {
+            toast({ title: "初始额度未变化", variant: "destructive" });
+            setRechargeLoading(false);
+            return;
+          }
+          // 校验：新额度不能小于剩余授信额度
+          const currentCreditBalance = balanceSummary.credit_balance ?? 0;
+          if (newLimitVal < currentCreditBalance - 0.01) {
+            toast({ title: `初始授信额度不能小于剩余授信额度 ¥${currentCreditBalance.toFixed(2)}`, variant: "destructive" });
+            setRechargeLoading(false);
+            return;
+          }
+          const { error } = await supabase.rpc("admin_set_credit_limit", {
+            p_enterprise_id: id!,
+            p_new_limit: newLimitVal,
+            p_operator: operator,
+            p_extra_remark: extraRemark || null,
+          });
+          if (error) throw error;
+          toast({ title: `已调整初始授信至 ¥${newLimitVal.toFixed(2)}` });
+        } else if (restoreClicked) {
+          // C: 恢复至初始额度
+          const { error } = await supabase.rpc("admin_set_credit_balance", {
+            p_enterprise_id: id!,
+            p_new_balance: currentLimit,
+            p_operator: operator,
+            p_extra_remark: extraRemark || null,
+          });
+          if (error) throw error;
+          toast({ title: `剩余授信已恢复至 ¥${currentLimit.toFixed(2)}` });
+        } else {
+          setRechargeLoading(false);
+          return;
+        }
+      }
       setRechargeOpen(false);
       setRechargeAmount("");
       setRechargeRemark("");
+      setEditingLimit(false);
+      setLimitDraft("");
+      setRestoreClicked(false);
       fetchAll();
+    } catch (err: any) {
+      toast({ title: "操作失败", description: err.message || "未知错误", variant: "destructive" });
+    } finally {
+      setRechargeLoading(false);
     }
   };
 
@@ -593,9 +703,9 @@ export default function AdminEnterpriseDetail() {
             <div className="bg-card border rounded-xl overflow-hidden">
               <div className="flex items-center justify-between px-5 py-4 border-b">
                 <h3 className="text-sm font-semibold text-foreground">充值 / 消费记录</h3>
-                <Button size="sm" onClick={() => { setRechargeOpen(true); setRechargeAmount(""); setRechargeRemark(""); }}>
+                <Button size="sm" onClick={() => openRechargeDialog()}>
                   <Plus className="w-4 h-4 mr-1.5" />
-                  手动充值
+                  添加金额
                 </Button>
               </div>
 
@@ -850,38 +960,282 @@ export default function AdminEnterpriseDetail() {
 
       {/* Recharge Dialog */}
       <Dialog open={rechargeOpen} onOpenChange={setRechargeOpen}>
-        <DialogContent className="sm:max-w-sm">
+        <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>手动充值</DialogTitle>
+            <DialogTitle>添加金额</DialogTitle>
           </DialogHeader>
-          <div className="space-y-3">
-            <div className="space-y-1.5">
-              <Label>充值金额（元）</Label>
-              <Input
-                type="number"
-                min="0.01"
-                step="0.01"
-                placeholder="请输入金额"
-                value={rechargeAmount}
-                onChange={(e) => setRechargeAmount(e.target.value)}
-              />
-            </div>
-            <div className="space-y-1.5">
-              <Label>备注（可选）</Label>
-              <Textarea
-                placeholder="充值备注…"
-                rows={2}
-                value={rechargeRemark}
-                onChange={(e) => setRechargeRemark(e.target.value)}
-              />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setRechargeOpen(false)}>取消</Button>
-            <Button onClick={handleRecharge} disabled={rechargeLoading}>
-              {rechargeLoading ? "处理中…" : "确认充值"}
-            </Button>
-          </DialogFooter>
+          {(() => {
+            const currentBalance = rechargeType === "balance" ? balanceSummary.balance : balanceSummary.credit_balance;
+            const creditLimit = balanceSummary.credit_limit ?? 0;
+            const isFirstTime = rechargeType === "credit" && creditLimit === 0;
+            const amountNum = parseFloat(rechargeAmount);
+            // balance 模式：输入值为增量
+            const delta = isNaN(amountNum) ? 0 : amountNum;
+            const newBalance = currentBalance + delta;
+
+            // credit 模式下的派生值
+            const newLimitDraft = parseFloat(limitDraft);
+            const limitChanged = limitDraft !== "" && !isNaN(newLimitDraft) && Math.abs(newLimitDraft - creditLimit) >= 0.01;
+            const alreadyAtLimit = Math.abs(currentBalance - creditLimit) < 0.01;
+
+            // 提交按钮禁用条件
+            let submitDisabled = rechargeLoading;
+            let previewRemark: string | null = null;
+            if (rechargeType === "balance") {
+              submitDisabled = submitDisabled || rechargeAmount === "" || isNaN(amountNum) || amountNum === 0;
+              if (!submitDisabled) {
+                const actionLabel = delta >= 0 ? "充值" : "扣减";
+                previewRemark = `${actionLabel}余额 ¥${Math.abs(delta).toFixed(2)}，余额由 ¥${currentBalance.toFixed(2)} 调整至 ¥${newBalance.toFixed(2)}`;
+              }
+            } else {
+              if (isFirstTime) {
+                submitDisabled = submitDisabled || limitDraft === "" || isNaN(newLimitDraft) || newLimitDraft < 0;
+                if (!submitDisabled) {
+                  previewRemark = `初始授信设置至 ¥${newLimitDraft.toFixed(2)}`;
+                }
+              } else if (limitChanged) {
+                const currentCreditBalance = balanceSummary.credit_balance ?? 0;
+                submitDisabled = submitDisabled || newLimitDraft < currentCreditBalance - 0.01;
+                if (!submitDisabled) {
+                  previewRemark = `调整初始授信至 ¥${newLimitDraft.toFixed(2)}`;
+                }
+              } else if (restoreClicked) {
+                submitDisabled = submitDisabled || false;
+                previewRemark = `恢复授信至 ¥${creditLimit.toFixed(2)}`;
+              } else {
+                submitDisabled = true;
+              }
+            }
+            const finalRemark = previewRemark;
+
+            return (
+              <>
+                <div className="space-y-1.5 py-1 text-sm">
+                  <p className="text-muted-foreground">
+                    企业：<span className="text-foreground font-medium">{enterprise?.name}</span>
+                  </p>
+                  {rechargeType === "balance" ? (
+                    <p className="text-muted-foreground">
+                      当前余额：
+                      <span className="text-foreground font-medium tabular-nums">¥{currentBalance.toFixed(2)}</span>
+                    </p>
+                  ) : (
+                    <p className="text-muted-foreground">
+                      当前剩余授信：
+                      <span className="text-foreground font-medium tabular-nums">¥{currentBalance.toFixed(2)}</span>
+                    </p>
+                  )}
+                </div>
+                <div className="space-y-4">
+                  <div className="space-y-2">
+                    <Label>充值类型</Label>
+                    <div className="flex gap-3">
+                      <label className="flex items-center gap-2 cursor-pointer flex-1 p-3 border rounded-md hover:border-blue-300 hover:bg-blue-50/30 transition-colors has-[:checked]:border-blue-500 has-[:checked]:bg-blue-50">
+                        <input
+                          type="radio"
+                          name="detailRechargeType"
+                          value="balance"
+                          checked={rechargeType === "balance"}
+                          onChange={() => {
+                            setRechargeType("balance");
+                            setRechargeAmount("");
+                            setEditingLimit(false);
+                            setLimitDraft("");
+                            setRestoreClicked(false);
+                          }}
+                          className="w-4 h-4 text-blue-600"
+                        />
+                        <div>
+                          <p className="text-sm font-medium">充值余额</p>
+                          <p className="text-xs text-muted-foreground">普通现金余额，可直接消费</p>
+                        </div>
+                      </label>
+                      <label className="flex items-center gap-2 cursor-pointer flex-1 p-3 border rounded-md hover:border-blue-300 hover:bg-blue-50/30 transition-colors has-[:checked]:border-blue-500 has-[:checked]:bg-blue-50">
+                        <input
+                          type="radio"
+                          name="detailRechargeType"
+                          value="credit"
+                          checked={rechargeType === "credit"}
+                          onChange={() => {
+                            const firstTime = (balanceSummary.credit_limit ?? 0) === 0;
+                            setRechargeType("credit");
+                            setRechargeAmount("");
+                            setEditingLimit(firstTime);
+                            setLimitDraft("");
+                            setRestoreClicked(false);
+                          }}
+                          className="w-4 h-4 text-blue-600"
+                        />
+                        <div>
+                          <p className="text-sm font-medium">授信额度</p>
+                          <p className="text-xs text-muted-foreground">先用后付额度，账期后结算</p>
+                        </div>
+                      </label>
+                    </div>
+                  </div>
+                  {rechargeType === "balance" ? (
+                    <div className="space-y-1.5">
+                      <Label>充值金额 <span className="text-red-500">*</span></Label>
+                      <div className="relative">
+                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">¥</span>
+                        <Input
+                          type="number"
+                          step="0.01"
+                          placeholder="请输入充值金额（支持负数）"
+                          value={rechargeAmount}
+                          onChange={(e) => setRechargeAmount(e.target.value)}
+                          className="pl-7"
+                        />
+                      </div>
+                      <p className="text-sm text-muted-foreground tabular-nums">
+                        新余额：
+                        <span className="text-foreground">¥{currentBalance.toFixed(2)}</span>
+                        {delta !== 0 && (
+                          <>
+                            <span className="mx-1">{delta >= 0 ? "+" : "-"}</span>
+                            <span className="text-foreground">¥{Math.abs(delta).toFixed(2)}</span>
+                            <span className="mx-1">=</span>
+                            <span className={`font-semibold ${newBalance < 0 ? "text-red-600" : "text-foreground"}`}>¥{newBalance.toFixed(2)}</span>
+                          </>
+                        )}
+                        {delta === 0 && rechargeAmount !== "" && (
+                          <>
+                            <span className="mx-1">+</span>
+                            <span className="text-foreground">¥0.00</span>
+                            <span className="mx-1">=</span>
+                            <span className="text-foreground font-semibold">¥{newBalance.toFixed(2)}</span>
+                          </>
+                        )}
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      {/* 初始授信额度（就地编辑） */}
+                      <div className="space-y-1.5">
+                        <Label>初始授信额度 {isFirstTime && <span className="text-red-500">*</span>}</Label>
+                        {editingLimit ? (
+                          <div className="flex items-center gap-2">
+                            <div className="relative flex-1">
+                              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">¥</span>
+                              <Input
+                                type="number"
+                                step="1"
+                                min="0"
+                                placeholder={isFirstTime ? "请输入初始授信额度" : "请输入新的初始授信额度"}
+                                value={limitDraft}
+                                onChange={(e) => setLimitDraft(e.target.value)}
+                                className="pl-7"
+                                autoFocus
+                              />
+                            </div>
+                            <Button
+                              type="button"
+                              size="icon"
+                              variant="ghost"
+                              className="h-9 w-9 text-muted-foreground hover:text-green-600 hover:bg-green-50"
+                              onClick={() => setEditingLimit(false)}
+                              disabled={rechargeLoading || limitDraft === "" || isNaN(newLimitDraft) || newLimitDraft < 0 || (!isFirstTime && (!limitChanged || newLimitDraft < (balanceSummary.credit_balance ?? 0) - 0.01))}
+                              title="确认"
+                            >
+                              <Check className="w-4 h-4" />
+                            </Button>
+                            {!isFirstTime && (
+                              <Button
+                                type="button"
+                                size="icon"
+                                variant="ghost"
+                                className="h-9 w-9 text-muted-foreground hover:text-destructive hover:bg-red-50"
+                                onClick={() => {
+                                  setEditingLimit(false);
+                                  setLimitDraft("");
+                                }}
+                                disabled={rechargeLoading}
+                              >
+                                <X className="w-4 h-4" />
+                              </Button>
+                            )}
+                          </div>
+                        ) : (
+                          <div className="flex items-center gap-2">
+                            <span className="text-base font-medium tabular-nums">¥{(limitDraft !== "" && !isNaN(newLimitDraft) ? newLimitDraft : creditLimit).toFixed(2)}</span>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              className="h-7 w-7 p-0 text-muted-foreground hover:text-foreground"
+                              onClick={() => {
+                                setLimitDraft(String(limitDraft !== "" && !isNaN(newLimitDraft) ? newLimitDraft : creditLimit));
+                                setEditingLimit(true);
+                                setRestoreClicked(false);
+                              }}
+                              disabled={rechargeLoading}
+                              title="编辑初始授信额度"
+                            >
+                              <Pencil className="w-3.5 h-3.5" />
+                            </Button>
+                          </div>
+                        )}
+                        {editingLimit && !isFirstTime && (
+                          <div className="space-y-0.5">
+                            <p className="text-xs text-muted-foreground">修改初始额度不影响当前剩余额度</p>
+                            {(() => {
+                              const v = parseFloat(limitDraft);
+                              const cb = balanceSummary.credit_balance ?? 0;
+                              if (!isNaN(v) && v < cb - 0.01) {
+                                return <p className="text-xs text-red-500">新值不能小于剩余授信额度</p>;
+                              }
+                              return null;
+                            })()}
+                          </div>
+                        )}
+                      </div>
+
+                      {/* 剩余授信（只读展示 + 恢复按钮） */}
+                      {!isFirstTime && (
+                        <>
+                          <div className="rounded-md bg-muted/40 px-3 py-2.5 flex items-center justify-between">
+                            <div>
+                              <p className="text-xs text-muted-foreground">剩余授信额度</p>
+                              <p className="text-lg font-semibold tabular-nums text-foreground">¥{(restoreClicked ? creditLimit : currentBalance).toFixed(2)}</p>
+                            </div>
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="outline"
+                              className="gap-1.5"
+                              onClick={() => {
+                                if (restoreClicked) {
+                                  setRestoreClicked(false);
+                                } else {
+                                  setRestoreClicked(true);
+                                  setEditingLimit(false);
+                                  setLimitDraft("");
+                                }
+                              }}
+                              disabled={rechargeLoading || alreadyAtLimit}
+                            >
+                              <RotateCcw className="w-3.5 h-3.5" />
+                              {restoreClicked ? "取消恢复" : "恢复至初始额度"}
+                            </Button>
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  )}
+                  <div className="rounded-md bg-muted/50 border px-3 py-2 space-y-1">
+                    <p className="text-xs text-muted-foreground">备注预览</p>
+                    <p className="text-xs text-foreground break-words">{finalRemark}</p>
+                  </div>
+                </div>
+                <DialogFooter>
+                  <Button variant="outline" onClick={() => setRechargeOpen(false)} disabled={rechargeLoading}>取消</Button>
+                  <Button onClick={handleRecharge} disabled={submitDisabled}>
+                    {rechargeLoading ? "处理中…" : "确认保存"}
+                  </Button>
+                </DialogFooter>
+              </>
+            );
+          })()}
         </DialogContent>
       </Dialog>
 

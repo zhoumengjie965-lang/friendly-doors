@@ -710,31 +710,37 @@ export default function AdminUsers() {
 
   const handleRecharge = async () => {
     if (!rechargeTarget || rechargeAmount === "" || rechargeAmount === null) return;
-    const amount = parseFloat(rechargeAmount);
-    if (isNaN(amount)) {
+    const inputVal = parseFloat(rechargeAmount);
+    if (isNaN(inputVal)) {
       toast({ title: "请输入有效金额", variant: "destructive" });
       return;
     }
     setRechargeLoading(true);
     try {
+      const currentBalance = rechargeType === "balance" ? rechargeTarget.personal_balance : (rechargeTarget.personal_credit_balance || 0);
+      // 授信模式：输入值为目标剩余额度，delta = 目标 - 当前
+      const delta = rechargeType === "balance" ? inputVal : inputVal - currentBalance;
+      const newBalance = currentBalance + delta;
       await new Promise(resolve => setTimeout(resolve, 400));
       // 更新本地 mock 数据
       setUsers(prev => prev.map(u => {
         if (u.id !== rechargeTarget.id) return u;
         if (rechargeType === "balance") {
-          return { ...u, personal_balance: u.personal_balance + amount };
+          return { ...u, personal_balance: u.personal_balance + delta };
         } else {
-          return { ...u, personal_credit_balance: (u.personal_credit_balance || 0) + amount };
+          return { ...u, personal_credit_balance: newBalance };
         }
       }));
-      const typeLabel = rechargeType === "balance" ? "充值余额" : "授信额度";
       const userName = rechargeTarget.name || rechargeTarget.phone;
-      toast({ title: `已为「${userName}」${typeLabel} ¥${amount.toFixed(2)}` });
+      const toastText = rechargeType === "balance"
+        ? `已为「${userName}」充值余额 ¥${delta.toFixed(2)}`
+        : `已将「${userName}」授信额度调整为 ¥${newBalance.toFixed(2)}`;
+      toast({ title: toastText });
       setRechargeTarget(null);
       setRechargeAmount("");
       setRechargeRemark("");
     } catch (err: any) {
-      toast({ title: "充值失败", description: err.message || "未知错误", variant: "destructive" });
+      toast({ title: "操作失败", description: err.message || "未知错误", variant: "destructive" });
     } finally {
       setRechargeLoading(false);
     }
@@ -2132,7 +2138,8 @@ export default function AdminUsers() {
           {rechargeTarget && (() => {
             const currentBalance = rechargeType === "balance" ? rechargeTarget.personal_balance : (rechargeTarget.personal_credit_balance || 0);
             const amountNum = parseFloat(rechargeAmount);
-            const delta = isNaN(amountNum) ? 0 : amountNum;
+            // 授信模式：输入值为目标总额度，delta = 目标 - 当前
+            const delta = isNaN(amountNum) ? 0 : (rechargeType === "balance" ? amountNum : amountNum - currentBalance);
             const newBalance = currentBalance + delta;
             const userName = rechargeTarget.name || rechargeTarget.phone;
             return (
@@ -2181,53 +2188,101 @@ export default function AdminUsers() {
                       </label>
                     </div>
                   </div>
-                  <div className="space-y-1.5">
-                    <Label>充值金额 <span className="text-red-500">*</span></Label>
-                    <div className="relative">
-                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">¥</span>
-                      <Input
-                        type="number"
-                        step="0.01"
-                        placeholder="请输入充值金额（支持负数）"
-                        value={rechargeAmount}
-                        onChange={(e) => setRechargeAmount(e.target.value)}
-                        className="pl-7"
-                      />
+                  {rechargeType === "balance" ? (
+                    <div className="space-y-1.5">
+                      <Label>充值金额 <span className="text-red-500">*</span></Label>
+                      <div className="relative">
+                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">¥</span>
+                        <Input
+                          type="number"
+                          step="0.01"
+                          placeholder="请输入充值金额（支持负数）"
+                          value={rechargeAmount}
+                          onChange={(e) => setRechargeAmount(e.target.value)}
+                          className="pl-7"
+                        />
+                      </div>
+                      <p className="text-sm text-muted-foreground tabular-nums">
+                        新余额：
+                        <span className="text-foreground">¥{currentBalance.toFixed(2)}</span>
+                        {delta !== 0 ? (
+                          <>
+                            <span className="mx-1">{delta >= 0 ? "+" : "-"}</span>
+                            <span className="text-foreground">¥{Math.abs(delta).toFixed(2)}</span>
+                            <span className="mx-1">=</span>
+                            <span className={`font-semibold ${newBalance < 0 ? "text-red-600" : "text-foreground"}`}>¥{newBalance.toFixed(2)}</span>
+                          </>
+                        ) : (
+                          <>
+                            <span className="mx-1">+</span>
+                            <span className="text-foreground">¥0.00</span>
+                            <span className="mx-1">=</span>
+                            <span className="text-foreground font-semibold">¥{newBalance.toFixed(2)}</span>
+                          </>
+                        )}
+                      </p>
                     </div>
-                    <p className="text-sm text-muted-foreground tabular-nums">
-                      新{rechargeType === "balance" ? "余额" : "授信额度"}：
-                      <span className="text-foreground">¥{currentBalance.toFixed(2)}</span>
-                      {delta !== 0 ? (
-                        <>
-                          <span className="mx-1">{delta >= 0 ? "+" : "-"}</span>
-                          <span className="text-foreground">¥{Math.abs(delta).toFixed(2)}</span>
-                          <span className="mx-1">=</span>
-                          <span className={`font-semibold ${newBalance < 0 ? "text-red-600" : "text-foreground"}`}>¥{newBalance.toFixed(2)}</span>
-                        </>
-                      ) : (
-                        <>
-                          <span className="mx-1">+</span>
-                          <span className="text-foreground">¥0.00</span>
-                          <span className="mx-1">=</span>
-                          <span className="text-foreground font-semibold">¥{newBalance.toFixed(2)}</span>
-                        </>
-                      )}
-                    </p>
-                  </div>
+                  ) : (
+                    <div className="space-y-1.5">
+                      <Label>设置剩余授信额度 <span className="text-red-500">*</span></Label>
+                      <div className="relative">
+                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">¥</span>
+                        <Input
+                          type="number"
+                          step="1"
+                          min="0"
+                          placeholder="请输入目标剩余授信额度（整数）"
+                          value={rechargeAmount}
+                          onChange={(e) => setRechargeAmount(e.target.value)}
+                          className="pl-7"
+                        />
+                      </div>
+                      <p className="text-sm text-muted-foreground tabular-nums">
+                        当前剩余授信额度：
+                        <span className="text-foreground font-medium">¥{currentBalance.toFixed(2)}</span>
+                        {delta !== 0 && (
+                          <>
+                            <span className="mx-1">→</span>
+                            <span className={`font-semibold ${newBalance < 0 ? "text-red-600" : "text-foreground"}`}>¥{newBalance.toFixed(2)}</span>
+                            <span className="ml-1 text-xs">
+                              ({delta >= 0 ? "增加" : "扣减"} ¥{Math.abs(delta).toFixed(2)})
+                            </span>
+                          </>
+                        )}
+                      </p>
+                    </div>
+                  )}
                   <div className="space-y-1.5">
-                    <Label>备注（可选）</Label>
+                    <Label>附加备注（可选）</Label>
                     <Textarea
-                      placeholder="充值备注…"
+                      placeholder="可补充业务原因，例如：客户续费、测试账号充值…"
                       rows={2}
                       value={rechargeRemark}
                       onChange={(e) => setRechargeRemark(e.target.value)}
                     />
                   </div>
+                  {delta !== 0 && (() => {
+                    const actionLabel = rechargeType === "balance"
+                      ? (delta >= 0 ? "充值" : "扣减")
+                      : (delta >= 0 ? "调增授信" : "调减授信");
+                    const subject = rechargeType === "balance" ? "余额" : "授信额度";
+                    const systemRemark = rechargeType === "balance"
+                      ? `${actionLabel} ¥${Math.abs(delta).toFixed(2)}，${subject}由 ¥${currentBalance.toFixed(2)} 调整至 ¥${newBalance.toFixed(2)}`
+                      : `${actionLabel}至 ¥${newBalance.toFixed(2)}`;
+                    const extra = rechargeRemark.trim();
+                    const finalRemark = extra ? `${systemRemark} | ${extra}` : systemRemark;
+                    return (
+                      <div className="rounded-md bg-muted/50 border px-3 py-2 space-y-1">
+                        <p className="text-xs text-muted-foreground">客户端备注预览</p>
+                        <p className="text-xs text-foreground break-words">{finalRemark}</p>
+                      </div>
+                    );
+                  })()}
                 </div>
                 <DialogFooter>
                   <Button variant="outline" onClick={() => setRechargeTarget(null)}>取消</Button>
                   <Button onClick={handleRecharge} disabled={rechargeLoading || rechargeAmount === "" || isNaN(amountNum)}>
-                    {rechargeLoading ? "处理中…" : "确定"}
+                    {rechargeLoading ? "处理中…" : "确认保存"}
                   </Button>
                 </DialogFooter>
               </>

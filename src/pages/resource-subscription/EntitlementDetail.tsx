@@ -33,11 +33,12 @@ import {
   Copy,
   Power,
   RotateCcw,
+  Users,
 } from "lucide-react";
 import {
   formatCredit,
   formatDateTime,
-  resetCycleLabel,
+  MOCK_PLANS,
 } from "./shared";
 import {
   findEntitlementById,
@@ -47,6 +48,7 @@ import {
   type SubscriptionKey,
 } from "./entitlements-data";
 import { useToast } from "@/hooks/use-toast";
+import SeatAddonDialog from "./SeatAddonDialog";
 
 export default function EntitlementDetail() {
   const navigate = useNavigate();
@@ -67,6 +69,8 @@ export default function EntitlementDetail() {
   const [subscriptionKeys, setSubscriptionKeys] = useState<SubscriptionKey[]>(ent?.subscriptionKeys ?? []);
   const [resetKeyDialog, setResetKeyDialog] = useState<{ open: boolean; keyId: string | null }>({ open: false, keyId: null });
   const [disableKeyDialog, setDisableKeyDialog] = useState<{ open: boolean; keyId: string | null }>({ open: false, keyId: null });
+  // 加购席位弹窗
+  const [seatAddonOpen, setSeatAddonOpen] = useState(false);
 
   const goBack = () => navigate("/workspace/resource-packages");
 
@@ -192,6 +196,28 @@ export default function EntitlementDetail() {
     setPendingToggle(false);
   };
 
+  // 加购席位确认
+  const handleSeatAddonConfirm = (addonSeats: number, amount: number) => {
+    // 更新 mock 数据
+    const target = ALL_ENTITLEMENTS.find((e) => e.id === ent?.id);
+    if (target) {
+      const plan = MOCK_PLANS.find((p) => p.id === target.planId);
+      const quotaPerSeat = plan?.totalQuota ?? 264_000_000;
+      const keysPerSeat = plan?.baseKeyLimit ?? plan?.subscriptionKeyLimit ?? 3;
+
+      target.seats = (target.seats ?? 0) + addonSeats;
+      target.totalQuota = target.totalQuota + addonSeats * quotaPerSeat;
+      target.remainingQuota = target.remainingQuota + addonSeats * quotaPerSeat;
+      target.keyLimit = (target.keyLimit ?? 0) + addonSeats * keysPerSeat;
+    }
+    toast({
+      title: "加购成功",
+      description: `成功加购 ${addonSeats} 个席位，支付金额 ¥${amount.toFixed(2)}，权益已立即生效。`,
+    });
+    // 刷新页面数据
+    setTimeout(() => window.location.reload(), 500);
+  };
+
   if (!ent) {
     return (
       <div className="w-full space-y-6">
@@ -209,7 +235,6 @@ export default function EntitlementDetail() {
 
   const usedCredits = ent.totalQuota - ent.remainingQuota;
   const usedPercent = ent.totalQuota > 0 ? Math.round((usedCredits / ent.totalQuota) * 100) : 0;
-  const isPeriodic = ent.quotaRule === "periodic";
   const isSubscription = ent.productType === "subscription";
 
   // 计算资源包有效期时长
@@ -254,35 +279,42 @@ export default function EntitlementDetail() {
 
       {/* 用量概览 */}
       <section className="bg-card border border-border rounded-xl p-6 space-y-4">
-        <div className="flex items-center gap-2">
-          <BarChart3 className="w-4 h-4 text-blue-500" />
-          <h2 className="text-base font-semibold text-foreground">用量概览</h2>
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <BarChart3 className="w-4 h-4 text-blue-500" />
+            <h2 className="text-base font-semibold text-foreground">用量概览</h2>
+          </div>
+          {/* 订阅包：加购席位按钮 */}
+          {isSubscription && ent.status === "active" && ent.allowSeatAddon !== false && (
+            <Button
+              size="sm"
+              className="h-8 bg-purple-600 hover:bg-purple-700 text-white"
+              onClick={() => setSeatAddonOpen(true)}
+            >
+              <Users className="w-4 h-4 mr-1.5" />
+              加购席位
+            </Button>
+          )}
         </div>
         <div className="space-y-4">
           <div className="grid grid-cols-2 gap-x-8 gap-y-3 text-sm">
+            {isSubscription && ent.seats !== undefined && (
+              <DetailRow
+                label="当前席位"
+                value={<span className="text-purple-600 font-semibold">{ent.seats} 席</span>}
+              />
+            )}
+            {isSubscription && ent.keyLimit !== undefined && (
+              <DetailRow label="Key 上限" value={`${ent.keyLimit} 个`} />
+            )}
             <DetailRow label="总量" value={`${formatCredit(ent.totalQuota)} credit`} />
             <DetailRow
               label="余量"
               value={`${formatCredit(ent.remainingQuota)} credit`}
               highlight
             />
-            {isPeriodic ? (
-              <>
-                <DetailRow
-                  label="额度规则"
-                  value={resetCycleLabel(ent.resetCycle as any, ent.customSeconds ?? 0)}
-                />
-                <DetailRow
-                  label="下次重置时间"
-                  value={ent.nextResetAt ? formatDateTime(ent.nextResetAt) : "—"}
-                />
-              </>
-            ) : (
-              <>
-                <DetailRow label="额度规则" value="一次性额度" />
-                <DetailRow label="有效期" value={validityPeriod} />
-              </>
-            )}
+            <DetailRow label="额度规则" value="有效期内可用" />
+            <DetailRow label="有效期" value={validityPeriod} />
             <DetailRow label="生效时间" value={formatDateTime(ent.effectiveAt)} />
             <DetailRow
               label="失效时间"
@@ -518,6 +550,14 @@ export default function EntitlementDetail() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* 加购席位弹窗 */}
+      <SeatAddonDialog
+        open={seatAddonOpen}
+        onOpenChange={setSeatAddonOpen}
+        entitlement={ent}
+        onConfirm={handleSeatAddonConfirm}
+      />
     </div>
   );
 }

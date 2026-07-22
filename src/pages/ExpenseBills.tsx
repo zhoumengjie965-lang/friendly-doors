@@ -80,7 +80,7 @@ interface BillItem {
   refundAmount: number;
   rechargeAmount: number;
   endingBalance: number;
-  status: "pending" | "paid" | "partial";
+  status: "unbilled" | "billed";
 }
 
 // 明细数据
@@ -146,7 +146,7 @@ const mockBills: BillItem[] = [
     refundAmount: 0,
     rechargeAmount: 50000.00,
     endingBalance: 85600.50,
-    status: "paid",
+    status: "billed",
   },
   {
     id: "BILL-202503-001",
@@ -160,7 +160,7 @@ const mockBills: BillItem[] = [
     refundAmount: 2000.00,
     rechargeAmount: 0,
     endingBalance: 48800.50,
-    status: "paid",
+    status: "unbilled",
   },
   {
     id: "BILL-202502-001",
@@ -174,7 +174,7 @@ const mockBills: BillItem[] = [
     refundAmount: 0,
     rechargeAmount: 100000.00,
     endingBalance: 61300.50,
-    status: "paid",
+    status: "unbilled",
   },
   {
     id: "BILL-202501-001",
@@ -188,7 +188,7 @@ const mockBills: BillItem[] = [
     refundAmount: 1500.00,
     rechargeAmount: 0,
     endingBalance: 49500.50,
-    status: "paid",
+    status: "unbilled",
   },
 ];
 
@@ -985,6 +985,7 @@ export default function ExpenseBills({}: Props) {
                     </TableHead>
                     <TableHead className="text-xs font-medium text-right whitespace-nowrap">实际消耗金额</TableHead>
                     <TableHead className="text-xs font-medium whitespace-nowrap">结算单号</TableHead>
+                    <TableHead className="text-xs font-medium text-center whitespace-nowrap">账单状态</TableHead>
                     <TableHead className="text-xs font-medium text-center whitespace-nowrap">操作</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -1001,6 +1002,11 @@ export default function ExpenseBills({}: Props) {
                         <TableCell className="text-xs text-right whitespace-nowrap text-green-600">{formatAmount(bill.discountAmount)}</TableCell>
                         <TableCell className="text-xs text-right whitespace-nowrap">{formatAmount(bill.paidAmount)}</TableCell>
                         <TableCell className="text-xs font-mono whitespace-nowrap">{bill.id}</TableCell>
+                        <TableCell className="text-center whitespace-nowrap">
+                          <Badge variant="outline" className={`text-xs ${bill.status === "billed" ? "text-green-600 border-green-200 bg-green-50" : "text-gray-500 border-gray-200 bg-gray-50"}`}>
+                            {bill.status === "billed" ? "已出账" : "未出账"}
+                          </Badge>
+                        </TableCell>
                         <TableCell className="text-center whitespace-nowrap">
                           <Button
                             variant="ghost"

@@ -15,7 +15,6 @@ import {
   MOCK_ADMIN_ENTITLEMENTS,
   ACCOUNT_TYPE_LABEL,
   PRODUCT_TYPE_LABEL,
-  QUOTA_RULE_LABEL,
   STATUS_LABEL,
   STATUS_BADGE,
   type AdminEntitlement,
@@ -172,7 +171,6 @@ export default function AdminEntitlementManagement() {
                   <th className="px-3 py-2 text-left font-medium text-muted-foreground whitespace-nowrap">购买主体</th>
                   <th className="px-3 py-2 text-left font-medium text-muted-foreground whitespace-nowrap">账户类型</th>
                   <th className="px-3 py-2 text-left font-medium text-muted-foreground whitespace-nowrap">来源订单</th>
-                  <th className="px-3 py-2 text-left font-medium text-muted-foreground whitespace-nowrap">额度规则</th>
                   <th className="px-3 py-2 text-right font-medium text-muted-foreground whitespace-nowrap">总量</th>
                   <th className="px-3 py-2 text-right font-medium text-muted-foreground whitespace-nowrap">余量</th>
                   <th className="px-3 py-2 text-left font-medium text-muted-foreground whitespace-nowrap">生效时间</th>
@@ -184,7 +182,7 @@ export default function AdminEntitlementManagement() {
               <tbody className="divide-y">
                 {pageRows.length === 0 ? (
                   <tr>
-                    <td colSpan={13} className="px-3 py-8 text-center text-muted-foreground">
+                    <td colSpan={12} className="px-3 py-8 text-center text-muted-foreground">
                       暂无权益数据
                     </td>
                   </tr>
@@ -209,9 +207,6 @@ export default function AdminEntitlementManagement() {
                       </td>
                       <td className="px-3 py-2 whitespace-nowrap font-mono text-[11px] text-muted-foreground">
                         {e.orderId}
-                      </td>
-                      <td className="px-3 py-2 whitespace-nowrap text-muted-foreground">
-                        {QUOTA_RULE_LABEL[e.quotaRule]}
                       </td>
                       <td className="px-3 py-2 text-right font-mono whitespace-nowrap">
                         {formatCredit(e.totalQuota)} credit
@@ -245,7 +240,7 @@ export default function AdminEntitlementManagement() {
 
                 {filtered.length > 0 && (
                   <tr>
-                    <td colSpan={13} className="px-3 py-3">
+                    <td colSpan={12} className="px-3 py-3">
                       <div className="flex items-center justify-between">
                         <span className="text-xs text-muted-foreground">
                           共 {filtered.length} 条，第 {currentPage} / {totalPages} 页

@@ -966,7 +966,7 @@ interface UserBillRecord {
   totalAmount: number;
   currency: string;
   generatedAt: string;
-  status: "unbilled" | "unsettled" | "settled";  // 未出账 / 未结清 / 已结清
+  status: "pending" | "confirmed";  // 待确认 / 已确认
   settledAt?: string;  // 结清时间
   sentAt?: string;     // 返券发放时间
   rebateStatus: RebateStatus;
@@ -1012,11 +1012,15 @@ interface SubscriptionOrder {
   productName: string;       // 商品名称
   productType: "订阅包" | "资源包"; // 商品类型
   orderType: "新购" | "续费" | "升级"; // 订单类型
+  billingCycle: "按月" | "按年"; // 计费周期
+  unitPrice: number;         // 单价
+  quantity: number;          // 数量
   orderAmount: number;       // 订单金额
   paymentMethod: string;     // 支付方式
   createdAt: string;         // 创建时间
   paidAt: string;            // 支付时间
-  status: "已支付" | "待支付" | "已取消"; // 订单状态
+  effectiveStart: string;    // 生效开始时间
+  effectiveEnd: string;      // 生效结束时间
 }
 
 // Mock 数据 - 用户账单
@@ -1031,7 +1035,7 @@ const MOCK_USER_BILLS: UserBillRecord[] = [
     totalAmount: 158000.50,
     currency: "CNY",
     generatedAt: "2026-04-01 00:05:23",
-    status: "unsettled",
+    status: "pending",
     rebateStatus: "toSend",
     rebateAmount: 11492.55,
     voucherCode: "VCBILL-2029379",
@@ -1054,9 +1058,9 @@ const MOCK_USER_BILLS: UserBillRecord[] = [
       { modelName: "tts-1", billingType: "call", inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheCreateTokens: 0, inputPrice: 0, outputPrice: 0, cacheDiscount: 1, tierDiscount: 1, subtotal: 3600.00, callCount: 12000, callPrice: 0.3, voucherDeduction: 0, balanceDeduction: 3600.00 },
     ],
     subscriptionOrders: [
-      { orderNo: "ORD20260314001", productName: "Enterprise 标准版", productType: "订阅包", orderType: "新购", orderAmount: 2999.00, paymentMethod: "充值余额", createdAt: "2026-03-14 10:23:18", paidAt: "2026-03-14 10:23:25", status: "已支付" },
-      { orderNo: "ORD20260320002", productName: "Token 资源包 1000万", productType: "资源包", orderType: "新购", orderAmount: 999.00, paymentMethod: "充值余额", createdAt: "2026-03-20 09:15:02", paidAt: "2026-03-20 09:15:40", status: "已支付" },
-      { orderNo: "ORD20260325003", productName: "Enterprise 标准版", productType: "订阅包", orderType: "续费", orderAmount: 2999.00, paymentMethod: "充值余额", createdAt: "2026-03-25 14:05:00", paidAt: "2026-03-25 14:05:30", status: "已支付" },
+      { orderNo: "ORD20260314001", productName: "Enterprise 标准版", productType: "订阅包", orderType: "新购", billingCycle: "按月", unitPrice: 2999.00, quantity: 1, orderAmount: 2999.00, paymentMethod: "充值余额", createdAt: "2026-03-14 10:23:18", paidAt: "2026-03-14 10:23:25", effectiveStart: "2026-03-14 10:23:25", effectiveEnd: "2026-04-14 10:23:25" },
+      { orderNo: "ORD20260320002", productName: "Token 资源包 1000万", productType: "资源包", orderType: "新购", billingCycle: "按年", unitPrice: 999.00, quantity: 1, orderAmount: 999.00, paymentMethod: "充值余额", createdAt: "2026-03-20 09:15:02", paidAt: "2026-03-20 09:15:40", effectiveStart: "2026-03-20 09:15:40", effectiveEnd: "2027-03-20 09:15:40" },
+      { orderNo: "ORD20260325003", productName: "Enterprise 标准版", productType: "订阅包", orderType: "续费", billingCycle: "按月", unitPrice: 2999.00, quantity: 1, orderAmount: 2999.00, paymentMethod: "充值余额", createdAt: "2026-03-25 14:05:00", paidAt: "2026-03-25 14:05:30", effectiveStart: "2026-03-25 14:05:30", effectiveEnd: "2026-04-25 14:05:30" },
     ]
   },
   {
@@ -1069,7 +1073,7 @@ const MOCK_USER_BILLS: UserBillRecord[] = [
     totalAmount: 89500.00,
     currency: "CNY",
     generatedAt: "2026-04-01 00:05:45",
-    status: "settled",
+    status: "confirmed",
     settledAt: "2026-04-02 10:30:00",
     rebateStatus: "sent",
     rebateAmount: 5237.00,
@@ -1098,7 +1102,7 @@ const MOCK_USER_BILLS: UserBillRecord[] = [
     totalAmount: 256000.80,
     currency: "CNY",
     generatedAt: "2026-04-01 00:06:12",
-    status: "settled",
+    status: "confirmed",
     settledAt: "2026-04-03 14:20:00",
     rebateStatus: "pending",
     rebateAmount: 26048.06,
@@ -1118,7 +1122,7 @@ const MOCK_USER_BILLS: UserBillRecord[] = [
     totalAmount: 45600.25,
     currency: "CNY",
     generatedAt: "2026-04-01 00:06:38",
-    status: "unsettled",
+    status: "pending",
     rebateStatus: "toSend",
     rebateAmount: 4231.62,
     voucherCode: "VCBILL-2029381",
@@ -1145,7 +1149,7 @@ const MOCK_USER_BILLS: UserBillRecord[] = [
     totalAmount: 67800.60,
     currency: "CNY",
     generatedAt: "2026-04-01 00:07:05",
-    status: "unsettled",
+    status: "pending",
     rebateStatus: "none",
     details: [
       { modelName: "gpt-4o", billingType: "token", inputTokens: 60000000, outputTokens: 25000000, cacheReadTokens: 4000000, cacheCreateTokens: 1000000, inputPrice: 0.00015, outputPrice: 0.0006, cacheDiscount: 0.5, tierDiscount: 0.95, subtotal: 22800.60 },
@@ -1164,7 +1168,7 @@ const MOCK_USER_BILLS: UserBillRecord[] = [
     totalAmount: 32000.00,
     currency: "CNY",
     generatedAt: "2026-04-01 00:08:12",
-    status: "settled",
+    status: "confirmed",
     settledAt: "2026-04-05 09:15:00",
     rebateStatus: "sent",
     rebateAmount: 3000.00,
@@ -1187,7 +1191,7 @@ const MOCK_USER_BILLS: UserBillRecord[] = [
     totalAmount: 95000.00,
     currency: "CNY",
     generatedAt: "2026-03-01 00:03:45",
-    status: "settled",
+    status: "confirmed",
     settledAt: "2026-03-03 11:20:00",
     rebateStatus: "sent",
     rebateAmount: 8500.00,
@@ -1211,7 +1215,7 @@ const MOCK_USER_BILLS: UserBillRecord[] = [
     totalAmount: 68000.00,
     currency: "CNY",
     generatedAt: "2026-04-01 00:08:00",
-    status: "settled",
+    status: "confirmed",
     rebateStatus: "sent",
     rebateAmount: 5200.00,
     sentRebateAmount: 5200.00,
@@ -1235,7 +1239,7 @@ const MOCK_USER_BILLS: UserBillRecord[] = [
     totalAmount: 88000.00,
     currency: "CNY",
     generatedAt: "2026-04-01 00:08:30",
-    status: "settled",
+    status: "confirmed",
     rebateStatus: "sent",
     rebateAmount: 7500.00,
     sentRebateAmount: 5000.00,
@@ -1259,7 +1263,7 @@ const MOCK_USER_BILLS: UserBillRecord[] = [
     totalAmount: 55000.00,
     currency: "CNY",
     generatedAt: "2026-04-01 00:09:00",
-    status: "settled",
+    status: "confirmed",
     rebateStatus: "sent",
     rebateAmount: 3500.00,
     sentRebateAmount: 5000.00,
@@ -1283,7 +1287,7 @@ const MOCK_USER_BILLS: UserBillRecord[] = [
     totalAmount: 62000.00,
     currency: "CNY",
     generatedAt: "2026-04-01 00:09:30",
-    status: "settled",
+    status: "confirmed",
     rebateStatus: "sent",
     rebateAmount: 3000.00,
     sentRebateAmount: 5000.00,
@@ -1307,7 +1311,7 @@ const MOCK_USER_BILLS: UserBillRecord[] = [
     totalAmount: 48000.00,
     currency: "CNY",
     generatedAt: "2026-04-01 00:10:00",
-    status: "settled",
+    status: "confirmed",
     rebateStatus: "sent",
     rebateAmount: 2800.00,
     sentRebateAmount: 5000.00,
@@ -1385,14 +1389,17 @@ function UserBillManagement() {
     }
   };
 
-  // 标记已结清（运营确认收到款项）
+  // 确认账单（运营确认收到款项）
   const handleMarkSettled = (id: string) => {
-    setBills(bills.map((b) => b.id === id ? { ...b, status: "settled" as const, settledAt: format(new Date(), "yyyy-MM-dd HH:mm:ss") } : b));
+    const now = format(new Date(), "yyyy-MM-dd HH:mm:ss");
+    setBills(bills.map((b) => b.id === id ? { ...b, status: "confirmed" as const, settledAt: now } : b));
+    setPreviewBill((prev) => prev && prev.id === id ? { ...prev, status: "confirmed" as const, settledAt: now } : prev);
   };
 
-  // 撤销结清（款项未到账或误操作）
+  // 撤销确认（款项未到账或误操作）
   const handleUndoSettled = (id: string) => {
-    setBills(bills.map((b) => b.id === id ? { ...b, status: "unsettled" as const, settledAt: undefined } : b));
+    setBills(bills.map((b) => b.id === id ? { ...b, status: "pending" as const, settledAt: undefined } : b));
+    setPreviewBill((prev) => prev && prev.id === id ? { ...prev, status: "pending" as const, settledAt: undefined } : prev);
   };
 
   const handleBatchDownload = () => {
@@ -1495,15 +1502,13 @@ function UserBillManagement() {
 
   const getStatusBadge = (status: UserBillRecord["status"]) => {
     switch (status) {
-      case "unbilled":
-        return <Badge variant="outline" className="text-blue-600 border-blue-200 bg-blue-50 text-xs">未出账</Badge>;
-      case "unsettled":
+      case "pending":
         return <Badge variant="outline" className="text-orange-600 border-orange-200 bg-orange-50 text-xs">
-          <span className="w-1.5 h-1.5 rounded-full bg-orange-500 mr-1" />未结清
+          <span className="w-1.5 h-1.5 rounded-full bg-orange-500 mr-1" />待确认
         </Badge>;
-      case "settled":
+      case "confirmed":
         return <Badge variant="outline" className="text-green-600 border-green-200 bg-green-50 text-xs">
-          <span className="w-1.5 h-1.5 rounded-full bg-green-500 mr-1" />已结清
+          <span className="w-1.5 h-1.5 rounded-full bg-green-500 mr-1" />已确认
         </Badge>;
       default: return null;
     }
@@ -1585,9 +1590,8 @@ function UserBillManagement() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">全部状态</SelectItem>
-                  <SelectItem value="unbilled">未出账</SelectItem>
-                  <SelectItem value="unsettled">未结清</SelectItem>
-                  <SelectItem value="settled">已结清</SelectItem>
+                  <SelectItem value="pending">待确认</SelectItem>
+                  <SelectItem value="confirmed">已确认</SelectItem>
                 </SelectContent>
               </Select>
               <Select value={spaceTypeFilter} onValueChange={setSpaceTypeFilter}>
@@ -1771,8 +1775,6 @@ function UserBillManagement() {
                         <th colSpan={2} className="px-3 py-1.5 text-center font-medium text-muted-foreground border-b border-r bg-muted/30">按次计费</th>
                         <th rowSpan={2} className="px-3 py-2.5 text-center font-medium text-muted-foreground border-r">阶梯折扣</th>
                         <th rowSpan={2} className="px-3 py-2.5 text-right font-medium text-muted-foreground border-r">实际消费</th>
-                        <th rowSpan={2} className="px-3 py-2.5 text-right font-medium text-muted-foreground border-r">订阅包抵扣</th>
-                        <th rowSpan={2} className="px-3 py-2.5 text-right font-medium text-muted-foreground border-r">资源包抵扣</th>
                         <th rowSpan={2} className="px-3 py-2.5 text-right font-medium text-muted-foreground border-r">代金券抵扣</th>
                         <th rowSpan={2} className="px-3 py-2.5 text-right font-medium text-muted-foreground border-r">充值余额支付</th>
                         <th rowSpan={2} className="px-3 py-2.5 text-right font-medium text-muted-foreground">授信额度支付</th>
@@ -1826,8 +1828,6 @@ function UserBillManagement() {
                               <span className="text-green-600">{(detail.tierDiscount * 100).toFixed(0)}%</span>
                             </td>
                             <td className="px-3 py-2 text-right font-mono font-medium border-r">{formatCurrency(detail.subtotal)}</td>
-                            <td className="px-3 py-2 text-right font-mono font-medium border-r text-blue-600">{formatCurrency(detail.subscriptionDeduction ?? 0)}</td>
-                            <td className="px-3 py-2 text-right font-mono font-medium border-r text-purple-600">{formatCurrency(detail.resourcePackDeduction ?? 0)}</td>
                             <td className="px-3 py-2 text-right font-mono font-medium border-r text-amber-600">{formatCurrency(detail.voucherDeduction ?? 0)}</td>
                             <td className="px-3 py-2 text-right font-mono font-medium border-r">{formatCurrency(detail.balanceDeduction ?? detail.subtotal)}</td>
                             <td className="px-3 py-2 text-right font-mono font-medium text-red-600">{formatCurrency(detail.creditDeduction ?? 0)}</td>
@@ -1842,8 +1842,6 @@ function UserBillManagement() {
                         const totalCacheReadTokens = sortedDetails.reduce((sum, d) => sum + d.cacheReadTokens, 0);
                         const totalCacheCreateTokens = sortedDetails.reduce((sum, d) => sum + d.cacheCreateTokens, 0);
                         const totalCallCount = sortedDetails.reduce((sum, d) => sum + (d.callCount || 0), 0);
-                        const totalSubscriptionDeduction = sortedDetails.reduce((sum, d) => sum + (d.subscriptionDeduction ?? 0), 0);
-                        const totalResourcePackDeduction = sortedDetails.reduce((sum, d) => sum + (d.resourcePackDeduction ?? 0), 0);
                         const totalVoucherDeduction = sortedDetails.reduce((sum, d) => sum + (d.voucherDeduction ?? 0), 0);
                         const totalBalanceDeduction = sortedDetails.reduce((sum, d) => sum + (d.balanceDeduction ?? d.subtotal), 0);
                         const totalCreditDeduction = sortedDetails.reduce((sum, d) => sum + (d.creditDeduction ?? 0), 0);
@@ -1865,8 +1863,6 @@ function UserBillManagement() {
                             {/* 公共列 */}
                             <td className="px-3 py-3 text-center border-r">-</td>
                             <td className="px-3 py-3 text-right font-mono font-bold text-green-700 border-r">{formatCurrency(previewBill.totalAmount)}</td>
-                            <td className="px-3 py-3 text-right font-mono font-bold text-blue-600 border-r">{formatCurrency(totalSubscriptionDeduction)}</td>
-                            <td className="px-3 py-3 text-right font-mono font-bold text-purple-600 border-r">{formatCurrency(totalResourcePackDeduction)}</td>
                             <td className="px-3 py-3 text-right font-mono font-bold text-amber-600 border-r">{formatCurrency(totalVoucherDeduction)}</td>
                             <td className="px-3 py-3 text-right font-mono font-bold border-r">{formatCurrency(totalBalanceDeduction)}</td>
                             <td className="px-3 py-3 text-right font-mono font-bold text-red-600">{formatCurrency(totalCreditDeduction)}</td>
@@ -1875,9 +1871,6 @@ function UserBillManagement() {
                       })()}
                     </tbody>
                   </table>
-                  <div className="px-3 py-2 text-xs text-muted-foreground border-t bg-muted/20">
-                    说明：本期可开票金额为充值余额支付金额 + 订阅/资源包购买金额，代金券抵扣、授信额度支付金额不可开票。
-                  </div>
                 </div>
               </div>
 
@@ -1889,30 +1882,28 @@ function UserBillManagement() {
                     <thead className="bg-muted/50">
                       <tr className="border-b">
                         <th className="px-3 py-2.5 text-left font-medium text-muted-foreground">用户名称</th>
-                        <th className="px-3 py-2.5 text-left font-medium text-muted-foreground">订单号</th>
                         <th className="px-3 py-2.5 text-left font-medium text-muted-foreground">商品名称</th>
                         <th className="px-3 py-2.5 text-left font-medium text-muted-foreground">商品类型</th>
                         <th className="px-3 py-2.5 text-center font-medium text-muted-foreground">订单类型</th>
+                        <th className="px-3 py-2.5 text-right font-medium text-muted-foreground">单价</th>
+                        <th className="px-3 py-2.5 text-right font-medium text-muted-foreground">购买数量</th>
                         <th className="px-3 py-2.5 text-right font-medium text-muted-foreground">订单金额</th>
-                        <th className="px-3 py-2.5 text-left font-medium text-muted-foreground">支付方式</th>
-                        <th className="px-3 py-2.5 text-left font-medium text-muted-foreground">创建时间</th>
-                        <th className="px-3 py-2.5 text-left font-medium text-muted-foreground">支付时间</th>
-                        <th className="px-3 py-2.5 text-center font-medium text-muted-foreground">订单状态</th>
+                        <th className="px-3 py-2.5 text-left font-medium text-muted-foreground">订单号</th>
+                        <th className="px-3 py-2.5 text-left font-medium text-muted-foreground">生效时间</th>
                         <th className="px-3 py-2.5 text-right font-medium text-muted-foreground">充值余额支付</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y">
                       {(previewBill.subscriptionOrders || []).length === 0 ? (
                         <tr>
-                          <td colSpan={11} className="px-3 py-8 text-center text-muted-foreground">本期无权益购买记录</td>
+                          <td colSpan={10} className="px-3 py-8 text-center text-muted-foreground">本期无权益购买记录</td>
                         </tr>
                       ) : (
                         <>
                           {(previewBill.subscriptionOrders || []).map((order, idx) => (
                             <tr key={idx} className="hover:bg-muted/20">
                               <td className="px-3 py-2 font-medium">{previewBill.enterprise}</td>
-                              <td className="px-3 py-2 font-mono text-muted-foreground">{order.orderNo}</td>
-                              <td className="px-3 py-2 font-medium">{order.productName}</td>
+                              <td className="px-3 py-2 font-medium">{order.productName}（{order.billingCycle}）</td>
                               <td className="px-3 py-2 text-muted-foreground">{order.productType}</td>
                               <td className="px-3 py-2 text-center">
                                 <Badge
@@ -1928,34 +1919,21 @@ function UserBillManagement() {
                                   {order.orderType}
                                 </Badge>
                               </td>
+                              <td className="px-3 py-2 text-right font-mono">{formatCurrency(order.unitPrice)}</td>
+                              <td className="px-3 py-2 text-right font-mono">{order.quantity}</td>
                               <td className="px-3 py-2 text-right font-mono font-medium">{formatCurrency(order.orderAmount)}</td>
-                              <td className="px-3 py-2 text-muted-foreground">{order.paymentMethod}</td>
-                              <td className="px-3 py-2 text-muted-foreground">{order.createdAt}</td>
-                              <td className="px-3 py-2 text-muted-foreground">{order.paidAt}</td>
-                              <td className="px-3 py-2 text-center">
-                                <Badge
-                                  variant="outline"
-                                  className={`text-xs ${
-                                    order.status === "已支付"
-                                      ? "text-green-600 border-green-200 bg-green-50"
-                                      : order.status === "待支付"
-                                      ? "text-amber-600 border-amber-200 bg-amber-50"
-                                      : "text-gray-600 border-gray-200 bg-gray-50"
-                                  }`}
-                                >
-                                  {order.status}
-                                </Badge>
-                              </td>
+                              <td className="px-3 py-2 font-mono text-muted-foreground">{order.orderNo}</td>
+                              <td className="px-3 py-2 text-muted-foreground whitespace-nowrap">{order.effectiveStart} ~ {order.effectiveEnd}</td>
                               <td className="px-3 py-2 text-right font-mono font-medium">{formatCurrency(order.orderAmount)}</td>
                             </tr>
                           ))}
                           {/* 汇总行 */}
                           <tr className="bg-muted/50 border-t-2 border-muted font-medium">
-                            <td className="px-3 py-3 font-medium text-muted-foreground" colSpan={5}>权益购买汇总</td>
+                            <td className="px-3 py-3 font-medium text-muted-foreground" colSpan={6}>权益购买汇总</td>
                             <td className="px-3 py-3 text-right font-mono font-bold">
                               {formatCurrency((previewBill.subscriptionOrders || []).reduce((sum, o) => sum + o.orderAmount, 0))}
                             </td>
-                            <td className="px-3 py-3" colSpan={4}></td>
+                            <td className="px-3 py-3" colSpan={2}></td>
                             <td className="px-3 py-3 text-right font-mono font-bold">
                               {formatCurrency((previewBill.subscriptionOrders || []).reduce((sum, o) => sum + o.orderAmount, 0))}
                             </td>
@@ -1964,14 +1942,12 @@ function UserBillManagement() {
                       )}
                     </tbody>
                   </table>
-                  <div className="px-3 py-2 text-xs text-muted-foreground border-t bg-muted/20">
-                    说明：权益（订阅包/资源包）购买仅支持充值余额支付，全部金额可开票。
-                  </div>
                 </div>
               </div>
 
               {/* 金额汇总 - 弹窗最底部 */}
-              <div className="flex items-center justify-end gap-8 pt-3 pb-1 border-t text-base">
+              <div className="flex items-center gap-4 pt-3 pb-1 border-t text-base">
+                <span className="text-xs text-muted-foreground mr-auto">说明：本期可开票金额为充值余额支付金额 + 订阅/资源包购买金额，代金券抵扣、授信额度支付金额不可开票。</span>
                 <span className="font-medium">可开票金额：<span className="font-mono text-green-700 text-lg font-bold">
                   {formatCurrency(
                     previewBill.details.reduce((sum, d) => sum + (d.balanceDeduction ?? d.subtotal), 0) +
@@ -1989,35 +1965,30 @@ function UserBillManagement() {
                   <FileSpreadsheet className="w-3.5 h-3.5" />
                   导出Excel
                 </Button>
-                {previewBill.status === "unsettled" && (
+                {previewBill.status === "pending" && (
                   <Button
                     size="sm"
                     className="gap-1 bg-green-600 hover:bg-green-700"
                     onClick={() => {
                       handleMarkSettled(previewBill.id);
-                      setPreviewOpen(false);
                     }}
                   >
                     <CheckCircle2 className="w-3.5 h-3.5" />
-                    标记已结清
+                    确认账单
                   </Button>
                 )}
-                {previewBill.status === "settled" && (
+                {previewBill.status === "confirmed" && (
                   <Button
                     variant="outline"
                     size="sm"
                     className="gap-1 text-orange-600 hover:text-orange-700 hover:bg-orange-50 border-orange-200"
                     onClick={() => {
                       handleUndoSettled(previewBill.id);
-                      setPreviewOpen(false);
                     }}
                   >
                     <AlertCircle className="w-3.5 h-3.5" />
-                    撤销结清
+                    撤销确认
                   </Button>
-                )}
-                {previewBill.status === "unbilled" && (
-                  <span className="text-xs text-muted-foreground px-2">当月账单未出账，无法操作</span>
                 )}
               </div>
             </div>

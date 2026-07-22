@@ -3,7 +3,7 @@
 
 const MOCK_DATA_KEY = "ai_gateway_mock_data";
 const CURRENT_PHONE_KEY = "ai_gateway_phone";
-const MOCK_DATA_VERSION = "1.6"; // 数据版本，修改mock数据时更新此版本号
+const MOCK_DATA_VERSION = "1.8"; // 数据版本，修改mock数据时更新此版本号
 
 // ===== 数据类型定义 =====
 export interface MockUser {
@@ -1019,6 +1019,57 @@ const initialData: MockData = {
         unlimited: false,
         models: ["gpt-4o-mini"],
         ipWhitelist: "",
+      },
+      created_by: TEST_PHONE,
+      created_at: getNow(),
+      updated_at: getNow(),
+    },
+    {
+      id: "tpl_outsource",
+      enterprise_id: "ent_1",
+      name: "外包驻场模板",
+      description: "外包人员专用，限制 IP 段，仅低成本模型",
+      config: {
+        groups: ["生产通道（×0.95）"],
+        expires: "",
+        quota: "300",
+        unlimited: false,
+        models: ["gpt-4o-mini", "claude-3-haiku"],
+        ipWhitelist: "10.0.5.0/24",
+      },
+      created_by: TEST_PHONE,
+      created_at: getNow(),
+      updated_at: getNow(),
+    },
+    {
+      id: "tpl_temp_project",
+      enterprise_id: "ent_1",
+      name: "临时项目模板",
+      description: "短期项目专用，设置过期时间与额度上限",
+      config: {
+        groups: ["生产通道（×0.95）"],
+        expires: "2026-12-31",
+        quota: "1000",
+        unlimited: false,
+        models: ["gpt-4o", "gpt-4o-mini"],
+        ipWhitelist: "",
+      },
+      created_by: TEST_PHONE,
+      created_at: getNow(),
+      updated_at: getNow(),
+    },
+    {
+      id: "tpl_customer_service",
+      enterprise_id: "ent_1",
+      name: "客服部门模板",
+      description: "客服部门专用，仅开放对话模型，限额 200",
+      config: {
+        groups: ["生产通道（×0.95）"],
+        expires: "",
+        quota: "200",
+        unlimited: false,
+        models: ["gpt-4o-mini"],
+        ipWhitelist: "203.0.113.10",
       },
       created_by: TEST_PHONE,
       created_at: getNow(),

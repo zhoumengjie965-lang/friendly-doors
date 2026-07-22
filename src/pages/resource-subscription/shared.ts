@@ -3,7 +3,6 @@
 
 export type ProductType = "one-time" | "subscription" | "test";
 export type ValidityUnit = "month" | "day" | "year" | "hour" | "custom";
-export type ResetCycle = "none" | "daily" | "weekly" | "monthly" | "custom";
 export type ModelScope = "all" | "filter" | "specific";
 
 export interface ModelFilter {
@@ -53,8 +52,6 @@ export interface SubscriptionPlan {
   validityUnit: ValidityUnit;
   validityValue: number;
   validityCustomSeconds: number;
-  resetCycle: ResetCycle;
-  customSeconds: number;
   purchaseSubject: PurchaseSubject;
   purchaseLimit: number;
   purchaseMethods: PurchaseMethod[];
@@ -72,11 +69,9 @@ export interface SubscriptionPlan {
   isPopular?: boolean;
   // 一句话定位描述（卡片副标题下方的"企业轻量集成 / 内部工具"）
   positioning?: string;
-  // 周积分（用于"约 N 积分/周"展示）
-  weeklyQuota?: number;
   // 结构化权益列表
   features?: string[];
-  // 不同周期的折扣价与原价：包月/包季/包年
+  // 不同周期的折扣价与原价（每席位价格）：包月/包季/包年
   cyclePricing?: Partial<Record<Cycle, { originalPrice: number; price: number; discountLabel: string }>>;
   // ── 资源包专用字段 ────────────────────────────────
   // 资源包区域覆盖：domestic / overseas / global
@@ -90,6 +85,14 @@ export interface SubscriptionPlan {
   rpmLimit?: number;
   // 订阅套餐 TPM 速率上限（单位：千 Token/分钟）
   tpmLimit?: number;
+  // 每席位分配的订阅 Key 数（原 subscriptionKeyLimit 语义重定义为"每席位"）
+  baseKeyLimit?: number;
+  // 最低购买席位数（起购门槛）
+  minSeats?: number;
+  // 单订阅最大席位数（上限）
+  maxSeats?: number;
+  // 是否允许加购席位
+  allowSeatAddon?: boolean;
 }
 
 export interface AIModel {
@@ -156,23 +159,6 @@ export const validityLabel = (
     custom: "自定义",
   };
   return `${value}${unitText[unit]}`;
-};
-
-export const resetCycleLabel = (cycle: ResetCycle, customSeconds: number) => {
-  switch (cycle) {
-    case "none":
-      return "不重置";
-    case "daily":
-      return "每天重置";
-    case "weekly":
-      return "每周重置";
-    case "monthly":
-      return "每月重置";
-    case "custom":
-      return `自定义（${customSeconds}秒）重置`;
-    default:
-      return "不重置";
-  }
 };
 
 export const productTypeLabel = (type: ProductType) => {
@@ -290,8 +276,6 @@ export const MOCK_PLANS: SubscriptionPlan[] = [
     validityUnit: "month",
     validityValue: 6,
     validityCustomSeconds: 0,
-    resetCycle: "none",
-    customSeconds: 0,
     purchaseSubject: "all",
     purchaseLimit: 5,
     purchaseMethods: ["account-balance"],
@@ -327,8 +311,6 @@ export const MOCK_PLANS: SubscriptionPlan[] = [
     validityUnit: "month",
     validityValue: 6,
     validityCustomSeconds: 0,
-    resetCycle: "none",
-    customSeconds: 0,
     purchaseSubject: "all",
     purchaseLimit: 5,
     purchaseMethods: ["account-balance"],
@@ -362,8 +344,6 @@ export const MOCK_PLANS: SubscriptionPlan[] = [
     validityUnit: "month",
     validityValue: 6,
     validityCustomSeconds: 0,
-    resetCycle: "none",
-    customSeconds: 0,
     purchaseSubject: "all",
     purchaseLimit: 5,
     purchaseMethods: ["account-balance"],
@@ -378,6 +358,7 @@ export const MOCK_PLANS: SubscriptionPlan[] = [
   },
 
   // ── 订阅计划（3 档：轻量版 / 标准版 / 旗舰版） ──
+  // 价格、Credit、Key 数均为「每席位」维度
   // 档位 S：轻量版
   {
     id: "plan-sub-s",
@@ -390,8 +371,7 @@ export const MOCK_PLANS: SubscriptionPlan[] = [
     price: 899,
     originalPrice: 1_199,
     discountLabel: "约7.5折",
-    totalQuota: 264_000_000, // 每月 2.64 亿 Credit
-    weeklyQuota: 61_000_000, // 每自然周刷新约 0.61 亿 Credit
+    totalQuota: 264_000_000,
     rpmLimit: 100,
     tpmLimit: 50,
     baseUnitPrice: 4,
@@ -403,23 +383,26 @@ export const MOCK_PLANS: SubscriptionPlan[] = [
     validityUnit: "month",
     validityValue: 1,
     validityCustomSeconds: 0,
-    resetCycle: "monthly",
-    customSeconds: 0,
     purchaseSubject: "all",
     purchaseLimit: 1,
     purchaseMethods: ["account-balance"],
     subscriptionKeyLimit: 3,
     status: "active",
     sort: 100,
+    // 每席位价格
     cyclePricing: {
       month: { originalPrice: 1_199, price: 899, discountLabel: "约7.5折" },
       quarter: { originalPrice: 3_597, price: 2_499, discountLabel: "约6.9折" },
       year: { originalPrice: 14_388, price: 8_999, discountLabel: "约6.3折" },
     },
+    // 席位配置
+    baseKeyLimit: 3,
+    minSeats: 1,
+    maxSeats: 20,
+    allowSeatAddon: true,
     features: [
-      "每月 2.64 亿 Credit",
-      "每自然周刷新约 0.61 亿 Credit",
-      "提供 3 个订阅专用 API Key",
+      "每席位含 2.64 亿 Credit/月，有效期内可用",
+      "每席位提供 3 个订阅专用 API Key",
       "适用国产主流模型",
       "限速 100 RPM / 50K TPM",
     ],
@@ -434,11 +417,10 @@ export const MOCK_PLANS: SubscriptionPlan[] = [
     positioning: "适合日常生产、多业务并行和稳定调用",
     tierCode: "M",
     isPopular: true,
-    price: 2_999,
-    originalPrice: 3_999,
-    discountLabel: "约7.5折",
-    totalQuota: 937_000_000, // 每月 9.37 亿 Credit
-    weeklyQuota: 216_000_000, // 每自然周刷新约 2.16 亿 Credit
+    price: 600,
+    originalPrice: 800,
+    discountLabel: "7.5折",
+    totalQuota: 187_400_000,
     rpmLimit: 300,
     tpmLimit: 150,
     baseUnitPrice: 4,
@@ -450,23 +432,26 @@ export const MOCK_PLANS: SubscriptionPlan[] = [
     validityUnit: "month",
     validityValue: 1,
     validityCustomSeconds: 0,
-    resetCycle: "monthly",
-    customSeconds: 0,
     purchaseSubject: "all",
     purchaseLimit: 1,
     purchaseMethods: ["account-balance"],
-    subscriptionKeyLimit: 10,
+    subscriptionKeyLimit: 2,
     status: "active",
     sort: 101,
+    // 每席位价格
     cyclePricing: {
-      month: { originalPrice: 3_999, price: 2_999, discountLabel: "约7.5折" },
-      quarter: { originalPrice: 11_997, price: 8_499, discountLabel: "约7.1折" },
-      year: { originalPrice: 47_988, price: 29_999, discountLabel: "约6.3折" },
+      month: { originalPrice: 800, price: 600, discountLabel: "7.5折" },
+      quarter: { originalPrice: 2_400, price: 1_700, discountLabel: "约7.1折" },
+      year: { originalPrice: 9_600, price: 6_000, discountLabel: "约6.3折" },
     },
+    // 席位配置
+    baseKeyLimit: 2,
+    minSeats: 5,
+    maxSeats: 100,
+    allowSeatAddon: true,
     features: [
-      "每月 9.37 亿 Credit",
-      "每自然周刷新约 2.16 亿 Credit",
-      "提供 10 个订阅专用 API Key",
+      "每席位含 1.874 亿 Credit/月，有效期内可用",
+      "每席位提供 2 个订阅专用 API Key",
       "适用全部国产模型及部分海外模型",
       "限速 300 RPM / 150K TPM",
     ],
@@ -481,11 +466,10 @@ export const MOCK_PLANS: SubscriptionPlan[] = [
     positioning: "适合高频调用、多项目及核心生产业务",
     tierCode: "B",
     isPopular: false,
-    price: 6_999,
-    originalPrice: 9_999,
+    price: 700,
+    originalPrice: 1_000,
     discountLabel: "7折",
-    totalQuota: 2_330_000_000, // 每月 23.3 亿 Credit
-    weeklyQuota: 538_000_000, // 每自然周刷新约 5.38 亿 Credit
+    totalQuota: 233_000_000,
     rpmLimit: 1000,
     tpmLimit: 500,
     baseUnitPrice: 4,
@@ -497,23 +481,26 @@ export const MOCK_PLANS: SubscriptionPlan[] = [
     validityUnit: "month",
     validityValue: 1,
     validityCustomSeconds: 0,
-    resetCycle: "monthly",
-    customSeconds: 0,
     purchaseSubject: "all",
     purchaseLimit: 1,
     purchaseMethods: ["account-balance"],
-    subscriptionKeyLimit: 50,
+    subscriptionKeyLimit: 5,
     status: "active",
     sort: 102,
+    // 每席位价格
     cyclePricing: {
-      month: { originalPrice: 9_999, price: 6_999, discountLabel: "7折" },
-      quarter: { originalPrice: 29_997, price: 19_999, discountLabel: "约6.7折" },
-      year: { originalPrice: 119_988, price: 69_999, discountLabel: "约5.8折" },
+      month: { originalPrice: 1_000, price: 700, discountLabel: "7折" },
+      quarter: { originalPrice: 3_000, price: 2_000, discountLabel: "约6.7折" },
+      year: { originalPrice: 12_000, price: 7_000, discountLabel: "约5.8折" },
     },
+    // 席位配置
+    baseKeyLimit: 5,
+    minSeats: 10,
+    maxSeats: 500,
+    allowSeatAddon: true,
     features: [
-      "每月 23.3 亿 Credit",
-      "每自然周刷新约 5.38 亿 Credit",
-      "提供 50 个订阅专用 API Key",
+      "每席位含 2.33 亿 Credit/月，有效期内可用",
+      "每席位提供 5 个订阅专用 API Key",
       "适用全平台模型（含 GPT、Claude 等海外）",
       "限速 1000 RPM / 500K TPM",
     ],
@@ -544,22 +531,34 @@ export interface SubscriptionHolding {
   id: string;
   planId: string;
   planName: string;
+  // 席位信息
+  seats: number;
+  // 当前周期
   currentPeriod: {
     start: string;
     end: string;
-    totalQuota: number;
+    totalQuota: number; // = plan.totalQuota × seats
     remainingQuota: number;
-    nextResetAt: string;
   };
-  resetCycle: ResetCycle;
-  customSeconds: number;
   autoRenew: boolean;
   nextBillingAt: string | null;
-  keyCount: number;
+  keyLimit: number; // = plan.baseKeyLimit × seats
   status: "active" | "expired" | "cancelled";
   modelScope: ModelScope;
   modelFilter: ModelFilter;
   selectedModels: string[];
+}
+
+// 加购席位记录
+export interface SeatAddonRecord {
+  id: string;
+  subscriptionId: string;
+  addonSeats: number;
+  amount: number;
+  prorationRatio: number;
+  effectiveAt: string;
+  alignedExpiresAt: string;
+  orderId: string;
 }
 
 export interface OrderRecord {
@@ -669,23 +668,21 @@ export const MOCK_PACKAGES: ResourcePackage[] = [
 export const MOCK_SUBSCRIPTIONS: SubscriptionHolding[] = [
   {
     id: "sub-1",
-    planId: "plan-sub-2",
-    planName: "Lite 套餐",
+    planId: "plan-sub-m",
+    planName: "Enterprise 标准版",
+    seats: 8,
     currentPeriod: {
       start: "2026-07-01T00:00:00",
       end: "2026-08-01T00:00:00",
-      totalQuota: 250_000,
-      remainingQuota: 168_400,
-      nextResetAt: "2026-08-01T00:00:00",
+      totalQuota: 187_400_000 * 8, // 1,499,200,000
+      remainingQuota: 980_000_000,
     },
-    resetCycle: "monthly",
-    customSeconds: 0,
     autoRenew: true,
     nextBillingAt: "2026-08-01T00:00:00",
-    keyCount: 2,
+    keyLimit: 16, // 2 × 8
     status: "active",
-    modelScope: "all",
-    modelFilter: { region: [], source: [], type: [] },
+    modelScope: "filter",
+    modelFilter: { region: ["domestic", "overseas"], source: [], type: [] },
     selectedModels: [],
   },
 ];

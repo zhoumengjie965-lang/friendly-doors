@@ -29,7 +29,6 @@ import {
   ALL_ENTITLEMENTS,
   statusLabel,
   statusClass,
-  quotaRuleLabel,
   type Entitlement,
 } from "./entitlements-data";
 
@@ -123,7 +122,7 @@ export default function ResourcePackages({ mode: _mode, role: _role = "member" }
                 <TableHead className="text-muted-foreground whitespace-nowrap">权益ID</TableHead>
                 <TableHead className="text-muted-foreground">来源商品</TableHead>
                 <TableHead className="text-muted-foreground w-[90px]">状态</TableHead>
-                <TableHead className="text-muted-foreground w-[110px]">额度规则</TableHead>
+                <TableHead className="text-muted-foreground w-[80px]">席位</TableHead>
                 <TableHead className="text-muted-foreground w-[140px]">总量</TableHead>
                 <TableHead className="text-muted-foreground w-[140px]">余量</TableHead>
                 <TableHead className="text-muted-foreground w-[170px]">生效时间</TableHead>
@@ -157,8 +156,12 @@ export default function ResourcePackages({ mode: _mode, role: _role = "member" }
                           {statusLabel[e.status]}
                         </span>
                       </TableCell>
-                      <TableCell className="text-sm text-muted-foreground whitespace-nowrap">
-                        {quotaRuleLabel[e.quotaRule]}
+                      <TableCell className="text-sm whitespace-nowrap">
+                        {e.productType === "subscription" && e.seats ? (
+                          <span className="text-purple-600 font-medium">{e.seats} 席</span>
+                        ) : (
+                          <span className="text-muted-foreground">—</span>
+                        )}
                       </TableCell>
                       <TableCell className="text-sm whitespace-nowrap">
                         {formatCredit(e.totalQuota)} credit

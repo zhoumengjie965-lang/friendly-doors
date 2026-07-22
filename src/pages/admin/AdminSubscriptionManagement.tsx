@@ -2,6 +2,7 @@ import { useState, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
@@ -58,7 +59,6 @@ import { useToast } from "@/hooks/use-toast";
 
 type ProductType = "one-time" | "subscription";
 type ValidityUnit = "month" | "day" | "year" | "hour" | "custom";
-type ResetCycle = "none" | "daily" | "weekly" | "monthly" | "custom";
 type ModelScope = "all" | "filter" | "specific";
 
 interface ModelFilter {
@@ -92,18 +92,23 @@ interface SubscriptionPlan {
   validityUnit: ValidityUnit;
   validityValue: number;
   validityCustomSeconds: number;
-  resetCycle: ResetCycle;
-  customSeconds: number;
   purchaseSubject: PurchaseSubject;
   purchaseLimit: number;
   purchaseMethods: PurchaseMethod[];
   subscriptionKeyLimit: number;
   status: "active" | "inactive";
   sort: number;
+  benefitDescription: string;
+  // 订阅专用：席位配置
+  baseKeyLimit?: number;
+  minSeats?: number;
+  maxSeats?: number;
+  allowSeatAddon?: boolean;
 }
 
-// 全局基准价格（来自「设置抵扣规则」页统一维护，本表单只读取不编辑）
-const GLOBAL_BASE_PRICE = 4;
+// Credit 兑换比例（来自「设置抵扣规则」页统一维护，本表单只读取不编辑）
+// 1 元 = CREDITS_PER_YUAN Credit
+const CREDITS_PER_YUAN = 25;
 
 // MVP 已接入的支付渠道（其余渠道暂未接入在线支付，置灰不可选）
 const ENABLED_PURCHASE_METHODS: PurchaseMethod[] = ["account-balance", "admin-grant"];
@@ -130,34 +135,12 @@ const validityLabel = (
   return `${value}${unitText}`;
 };
 
-const resetCycleLabel = (cycle: ResetCycle, customSeconds: number) => {
-  switch (cycle) {
-    case "none":
-      return "不重置";
-    case "daily":
-      return "每天重置";
-    case "weekly":
-      return "每周重置";
-    case "monthly":
-      return "每月重置";
-    case "custom":
-      return `自定义（${customSeconds}秒）重置`;
-    default:
-      return "不重置";
-  }
-};
-
 const productTypeLabel = (type: ProductType) => {
   const map = {
     "one-time": "资源包",
     subscription: "订阅包",
   };
   return map[type];
-};
-
-const purchaseSubjectLabel = (subject: PurchaseSubject) => {
-  const map = { personal: "个人", enterprise: "企业", all: "全部" };
-  return map[subject];
 };
 
 const purchaseMethodLabel = (method: PurchaseMethod) => {
@@ -170,6 +153,20 @@ const purchaseMethodLabel = (method: PurchaseMethod) => {
     "admin-grant": "运营后台开通",
   };
   return map[method];
+};
+
+const purchaseSubjectLabel = (subject: PurchaseSubject) => {
+  const map = { personal: "个人", enterprise: "企业", all: "全部" };
+  return map[subject];
+};
+
+const purchaseSubjectBadgeClass = (subject: PurchaseSubject) => {
+  const map = {
+    personal: "border-amber-200 bg-amber-50 text-amber-600",
+    enterprise: "border-sky-200 bg-sky-50 text-sky-600",
+    all: "border-gray-200 bg-gray-50 text-gray-600",
+  };
+  return map[subject];
 };
 
 const PURCHASE_METHOD_OPTIONS: PurchaseMethod[] = [
@@ -342,8 +339,8 @@ const INITIAL_PLANS: SubscriptionPlan[] = [
   {
     id: "1",
     productType: "one-time",
-    name: "资源包",
-    subtitle: "",
+    name: "基础资源包",
+    subtitle: "适合轻度使用",
     price: 300,
     totalQuota: 100_000_000,
     baseUnitPrice: 4,
@@ -359,14 +356,101 @@ const INITIAL_PLANS: SubscriptionPlan[] = [
     validityUnit: "month",
     validityValue: 6,
     validityCustomSeconds: 0,
-    resetCycle: "none",
-    customSeconds: 0,
     purchaseSubject: "all",
     purchaseLimit: 5,
     purchaseMethods: ["account-balance"],
     subscriptionKeyLimit: 1,
     status: "active",
     sort: 0,
+    benefitDescription: "含 100,000,000 调用积分",
+  },
+  {
+    id: "2",
+    productType: "subscription",
+    name: "Pro 团队版",
+    subtitle: "适合中小团队协作",
+    price: 199,
+    totalQuota: 50_000_000,
+    baseUnitPrice: 4,
+    currency: "CNY",
+    modelScope: "all",
+    modelFilter: { region: [], source: [], type: [] },
+    selectedModels: [],
+    coefficientProfile: "global",
+    validityUnit: "month",
+    validityValue: 1,
+    validityCustomSeconds: 0,
+    purchaseSubject: "enterprise",
+    purchaseLimit: 1,
+    purchaseMethods: ["account-balance", "admin-grant"],
+    subscriptionKeyLimit: 1,
+    status: "active",
+    sort: 1,
+    benefitDescription: "每席位每月含 50,000,000 调用积分",
+    baseKeyLimit: 2,
+    minSeats: 3,
+    maxSeats: 100,
+    allowSeatAddon: true,
+  },
+  {
+    id: "3",
+    productType: "subscription",
+    name: "个人轻享版",
+    subtitle: "个人开发者专属",
+    price: 29,
+    totalQuota: 5_000_000,
+    baseUnitPrice: 4,
+    currency: "CNY",
+    modelScope: "filter",
+    modelFilter: {
+      region: ["domestic"],
+      source: ["official"],
+      type: [],
+    },
+    selectedModels: [],
+    coefficientProfile: "global",
+    validityUnit: "month",
+    validityValue: 1,
+    validityCustomSeconds: 0,
+    purchaseSubject: "personal",
+    purchaseLimit: 1,
+    purchaseMethods: ["account-balance"],
+    subscriptionKeyLimit: 1,
+    status: "active",
+    sort: 2,
+    benefitDescription: "每月含 5,000,000 调用积分",
+    baseKeyLimit: 1,
+    minSeats: 1,
+    maxSeats: 1,
+    allowSeatAddon: false,
+  },
+  {
+    id: "4",
+    productType: "subscription",
+    name: "旗舰企业版",
+    subtitle: "大规模团队使用",
+    price: 499,
+    totalQuota: 200_000_000,
+    baseUnitPrice: 4,
+    currency: "CNY",
+    modelScope: "all",
+    modelFilter: { region: [], source: [], type: [] },
+    selectedModels: [],
+    coefficientProfile: "global",
+    validityUnit: "year",
+    validityValue: 1,
+    validityCustomSeconds: 0,
+    purchaseSubject: "all",
+    purchaseLimit: 1,
+    purchaseMethods: ["account-balance", "admin-grant"],
+    subscriptionKeyLimit: 1,
+    status: "inactive",
+    sort: 3,
+    benefitDescription: "每席位每年含 200,000,000 调用积分",
+    baseKeyLimit: 5,
+    minSeats: 10,
+    maxSeats: 500,
+    allowSeatAddon: false,
   },
 ];
 
@@ -382,6 +466,7 @@ export default function AdminSubscriptionManagement() {
   const [scopeDialogPlan, setScopeDialogPlan] = useState<SubscriptionPlan | null>(null);
   const [modelSearch, setModelSearch] = useState("");
   const [confirmSubmitOpen, setConfirmSubmitOpen] = useState(false);
+  const [statusTogglePlan, setStatusTogglePlan] = useState<SubscriptionPlan | null>(null);
 
   const [form, setForm] = useState<SubscriptionPlan>({
     id: "",
@@ -390,7 +475,7 @@ export default function AdminSubscriptionManagement() {
     subtitle: "",
     price: 0,
     totalQuota: 0,
-    baseUnitPrice: GLOBAL_BASE_PRICE,
+    baseUnitPrice: CREDITS_PER_YUAN,
     currency: "CNY",
     modelScope: "filter",
     modelFilter: {
@@ -403,14 +488,17 @@ export default function AdminSubscriptionManagement() {
     validityUnit: "month",
     validityValue: 1,
     validityCustomSeconds: 0,
-    resetCycle: "none",
-    customSeconds: 0,
     purchaseSubject: "all",
     purchaseLimit: 0,
     purchaseMethods: ["account-balance"],
     subscriptionKeyLimit: 1,
-    status: "active",
+    status: "inactive",
     sort: 0,
+    benefitDescription: "",
+    baseKeyLimit: 1,
+    minSeats: 1,
+    maxSeats: 50,
+    allowSeatAddon: true,
   });
 
   const resetForm = () => {
@@ -421,7 +509,7 @@ export default function AdminSubscriptionManagement() {
       subtitle: "",
       price: 0,
       totalQuota: 0,
-      baseUnitPrice: GLOBAL_BASE_PRICE,
+      baseUnitPrice: CREDITS_PER_YUAN,
       currency: "CNY",
       modelScope: "filter",
       modelFilter: {
@@ -434,14 +522,17 @@ export default function AdminSubscriptionManagement() {
       validityUnit: "month",
       validityValue: 1,
       validityCustomSeconds: 0,
-      resetCycle: "none",
-      customSeconds: 0,
       purchaseSubject: "all",
       purchaseLimit: 0,
       purchaseMethods: ["account-balance"],
       subscriptionKeyLimit: 1,
-      status: "active",
+      status: "inactive",
       sort: 0,
+      benefitDescription: "",
+      baseKeyLimit: 1,
+      minSeats: 1,
+      maxSeats: 50,
+      allowSeatAddon: true,
     });
   };
 
@@ -497,6 +588,12 @@ export default function AdminSubscriptionManagement() {
   };
 
   const handleToggleStatus = (plan: SubscriptionPlan) => {
+    setStatusTogglePlan(plan);
+  };
+
+  const confirmToggleStatus = () => {
+    if (!statusTogglePlan) return;
+    const plan = statusTogglePlan;
     const newStatus = plan.status === "active" ? "inactive" : "active";
     setPlans((prev) =>
       prev.map((p) => (p.id === plan.id ? { ...p, status: newStatus } : p))
@@ -505,6 +602,7 @@ export default function AdminSubscriptionManagement() {
       title: newStatus === "active" ? "已上架" : "已下架",
       description: `商品「${plan.name}」已${newStatus === "active" ? "上架" : "下架"}`,
     });
+    setStatusTogglePlan(null);
   };
 
   const validateForm = (): boolean => {
@@ -542,8 +640,16 @@ export default function AdminSubscriptionManagement() {
       return false;
     }
     if (form.productType === "subscription") {
-      if (form.subscriptionKeyLimit < 1) {
-        toast({ title: "订阅 Key 数量上限至少为 1", variant: "destructive" });
+      if ((form.baseKeyLimit ?? 1) < 1) {
+        toast({ title: "每席位 Key 数至少为 1", variant: "destructive" });
+        return false;
+      }
+      if ((form.minSeats ?? 1) < 1) {
+        toast({ title: "最低席位数至少为 1", variant: "destructive" });
+        return false;
+      }
+      if ((form.maxSeats ?? 1) < (form.minSeats ?? 1)) {
+        toast({ title: "席位上限不能低于最低席位数", variant: "destructive" });
         return false;
       }
     }
@@ -558,7 +664,7 @@ export default function AdminSubscriptionManagement() {
   const confirmSubmit = () => {
     const payload = {
       ...form,
-      baseUnitPrice: GLOBAL_BASE_PRICE,
+      baseUnitPrice: CREDITS_PER_YUAN,
       // MVP 阶段只保留已接入的支付渠道，过滤掉历史残留的未接入渠道
       purchaseMethods: form.purchaseMethods.filter((m) =>
         ENABLED_PURCHASE_METHODS.includes(m)
@@ -585,12 +691,6 @@ export default function AdminSubscriptionManagement() {
     value: SubscriptionPlan[K]
   ) => {
     setForm((prev) => {
-      if (key === "productType" && value === "subscription" && prev.resetCycle === "none") {
-        return { ...prev, [key]: value, resetCycle: "monthly" };
-      }
-      if (key === "productType" && value === "one-time") {
-        return { ...prev, [key]: value, resetCycle: "none" };
-      }
       if (key === "modelScope") {
         const scope = value as ModelScope;
         setModelSearch("");
@@ -607,13 +707,24 @@ export default function AdminSubscriptionManagement() {
           };
         }
       }
+      // 个人主体订阅：席位固定为 1，不允许加购
+      if (key === "purchaseSubject" && value === "personal" && prev.productType === "subscription") {
+        return {
+          ...prev,
+          [key]: value,
+          minSeats: 1,
+          maxSeats: 1,
+          allowSeatAddon: false,
+        };
+      }
       return { ...prev, [key]: value };
     });
   };
 
+  // 商品 Credit 总量按兑换比例折算的预估人民币价值
   const estimatedValue = useMemo(() => {
-    if (form.totalQuota <= 0 || GLOBAL_BASE_PRICE <= 0) return 0;
-    return (form.totalQuota / 1_000_000) * GLOBAL_BASE_PRICE;
+    if (form.totalQuota <= 0 || CREDITS_PER_YUAN <= 0) return 0;
+    return form.totalQuota / CREDITS_PER_YUAN;
   }, [form.totalQuota]);
 
   const matchedModels = useMemo(() => {
@@ -672,16 +783,17 @@ export default function AdminSubscriptionManagement() {
   }, [form.modelScope, matchedModels, form.selectedModels]);
 
   const gridColumns =
-    "grid-cols-[56px_minmax(140px,1.4fr)_104px_minmax(90px,0.9fr)_minmax(108px,1fr)_minmax(110px,1.1fr)_minmax(100px,1fr)_minmax(96px,0.9fr)_minmax(116px,1.2fr)_84px_minmax(112px,1fr)]";
+    "grid-cols-[56px_minmax(140px,1.4fr)_90px_minmax(90px,0.9fr)_minmax(108px,1fr)_80px_80px_minmax(110px,1.1fr)_minmax(110px,1.1fr)_minmax(100px,1fr)_84px_minmax(112px,1fr)]";
   const visibleHeaders = [
     "ID",
     "商品名称",
     "类型",
     "售价",
     "Credit总量",
-    "适用范围",
-    "有效期/周期",
-    "重置周期",
+    "适用主体",
+    "购买上限",
+    "有效期",
+    "席位配置",
     "购买方式",
     "状态",
     "操作",
@@ -743,6 +855,11 @@ export default function AdminSubscriptionManagement() {
               <span className="text-muted-foreground font-mono text-xs">#{plan.id}</span>
               <span className="font-medium text-foreground truncate" title={plan.name}>
                 {plan.name}
+                {plan.subtitle && (
+                  <span className="block text-xs text-muted-foreground font-normal truncate">
+                    {plan.subtitle}
+                  </span>
+                )}
               </span>
               <span>
                 <Badge
@@ -758,28 +875,52 @@ export default function AdminSubscriptionManagement() {
               </span>
               <span className="text-green-600 font-medium tabular-nums">
                 {formatMoney(plan.price, plan.currency)}
+                {plan.productType === "subscription" && (
+                  <span className="block text-[10px] text-muted-foreground font-normal">/席位</span>
+                )}
               </span>
               <span className="text-muted-foreground tabular-nums text-xs">
                 {formatCredit(plan.totalQuota)}
+                {plan.productType === "subscription" && (
+                  <span className="block text-[10px] text-muted-foreground/80">/席位/周期</span>
+                )}
               </span>
               <span>
-                <button
-                  type="button"
-                  className="inline-flex items-center gap-1 text-muted-foreground hover:text-foreground transition-colors text-xs"
-                  onClick={() => setScopeDialogPlan(plan)}
-                  title="查看模型清单"
+                <Badge
+                  variant="outline"
+                  className={`text-xs ${purchaseSubjectBadgeClass(plan.purchaseSubject)}`}
                 >
-                  <Eye className="w-3.5 h-3.5" />
-                  <span className="tabular-nums">{scopeCount(plan)}个</span>
-                </button>
+                  {purchaseSubjectLabel(plan.purchaseSubject)}
+                </Badge>
+              </span>
+              <span className="text-muted-foreground text-xs tabular-nums">
+                {plan.productType === "subscription" ? (
+                  <span className="text-foreground/80">1</span>
+                ) : plan.purchaseLimit === 0 ? (
+                  <span className="text-foreground/80">不限</span>
+                ) : (
+                  plan.purchaseLimit
+                )}
               </span>
               <span className="text-muted-foreground text-xs">
                 {validityLabel(plan.validityUnit, plan.validityValue, plan.validityCustomSeconds)}
               </span>
               <span className="text-muted-foreground text-xs">
-                {plan.productType === "subscription"
-                  ? resetCycleLabel(plan.resetCycle, plan.customSeconds)
-                  : "—"}
+                {plan.productType === "subscription" ? (
+                  plan.purchaseSubject === "personal" ? (
+                    <span className="text-amber-600">固定 1 席位</span>
+                  ) : (
+                    <span>
+                      {plan.minSeats ?? 1}~{plan.maxSeats ?? 50}席
+                      <span className="block text-[10px] text-muted-foreground/80">
+                        {plan.baseKeyLimit ?? 1}Key/席
+                        {plan.allowSeatAddon === false ? " · 不可加购" : " · 可加购"}
+                      </span>
+                    </span>
+                  )
+                ) : (
+                  "—"
+                )}
               </span>
               <span className="text-muted-foreground text-xs">
                 {plan.purchaseMethods.length > 0 ? (
@@ -952,28 +1093,18 @@ export default function AdminSubscriptionManagement() {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-6">
-                  <div className="space-y-2">
-                    <div className="flex items-center justify-between">
-                      <Label className="text-sm">上架状态</Label>
-                      <Switch
-                        checked={form.status === "active"}
-                        onCheckedChange={(checked) =>
-                          updateForm("status", checked ? "active" : "inactive")
-                        }
-                      />
-                    </div>
-                  </div>
-                  <div className="space-y-2">
-                    <Label className="text-sm">展示排序</Label>
-                    <Input
-                      type="number"
-                      min={0}
-                      value={form.sort}
-                      onChange={(e) => updateForm("sort", parseInt(e.target.value) || 0)}
-                      className="h-10 bg-white"
-                    />
-                  </div>
+                <div className="space-y-2">
+                  <Label className="text-sm">商品权益描述</Label>
+                  <Textarea
+                    placeholder={`例如：含 ${form.totalQuota.toLocaleString()} 调用积分，支持全模型调用`}
+                    value={form.benefitDescription}
+                    onChange={(e) => updateForm("benefitDescription", e.target.value)}
+                    rows={2}
+                    className="bg-white resize-none text-sm"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    积分数量建议与「Credit 总量」保持一致
+                  </p>
                 </div>
               </div>
             </div>
@@ -986,12 +1117,12 @@ export default function AdminSubscriptionManagement() {
                 </div>
                 <div>
                   <p className="text-sm font-medium text-foreground">基础价格</p>
-                  <p className="text-xs text-muted-foreground">设置售价、Credit 及基准单价</p>
+                  <p className="text-xs text-muted-foreground">设置售价与 Credit 总量</p>
                 </div>
               </div>
 
-              <div className="border rounded-lg p-5 space-y-5 bg-gray-50/30">
-                <div className="grid grid-cols-2 gap-6">
+              <div className="border rounded-lg p-5 bg-gray-50/30">
+                <div className="grid grid-cols-3 gap-6">
                   <div className="space-y-2">
                     <Label className="text-sm">
                       商品售价 <span className="text-red-500">*</span>
@@ -1009,7 +1140,11 @@ export default function AdminSubscriptionManagement() {
                         {form.currency}
                       </span>
                     </div>
-                    <p className="text-xs text-muted-foreground">用户购买时实际扣除的金额</p>
+                    <p className="text-xs text-muted-foreground">
+                      {form.productType === "subscription"
+                        ? "每席位价格"
+                        : "用户购买时实际扣除的金额"}
+                    </p>
                   </div>
                   <div className="space-y-2">
                     <Label className="text-sm">
@@ -1030,26 +1165,10 @@ export default function AdminSubscriptionManagement() {
                         Credit
                       </span>
                     </div>
-                    <p className="text-xs text-muted-foreground">购买后获得的调用积分数量</p>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-6">
-                  <div className="space-y-2">
-                    <Label className="text-sm">基准单价</Label>
-                    <div className="relative">
-                      <Input
-                        type="number"
-                        value={GLOBAL_BASE_PRICE}
-                        readOnly
-                        className="h-10 bg-muted pr-24 cursor-not-allowed"
-                      />
-                      <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">
-                        元/M tokens
-                      </span>
-                    </div>
                     <p className="text-xs text-muted-foreground">
-                      由「设置抵扣规则」页统一维护
+                      {form.productType === "subscription"
+                        ? "每席位每周期获得的调用积分"
+                        : "购买后获得的调用积分数量"}
                     </p>
                   </div>
                   <div className="space-y-2">
@@ -1060,11 +1179,209 @@ export default function AdminSubscriptionManagement() {
                       </span>
                     </div>
                     <p className="text-xs text-muted-foreground">
-                      按全局基准价格自动计算
+                      按 Credit 兑换比例自动计算
                     </p>
                   </div>
                 </div>
+              </div>
+            </div>
 
+            {/* Section: 权益周期 */}
+            <div className="space-y-5">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full bg-green-50 flex items-center justify-center">
+                  <Calendar className="w-5 h-5 text-green-500" />
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-foreground">权益周期</p>
+                  <p className="text-xs text-muted-foreground">
+                    设置 Credit 有效期
+                  </p>
+                </div>
+              </div>
+
+              <div className="border rounded-lg p-5 space-y-5 bg-gray-50/30">
+                <div className="grid grid-cols-2 gap-6">
+                  <div className="space-y-2">
+                    <Label className="text-sm">
+                      有效期单位 <span className="text-red-500">*</span>
+                    </Label>
+                    <Select
+                      value={form.validityUnit}
+                      onValueChange={(v) => updateForm("validityUnit", v as ValidityUnit)}
+                    >
+                      <SelectTrigger className="h-10 bg-white">
+                        <SelectValue placeholder="选择单位" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="year">年</SelectItem>
+                        <SelectItem value="month">月</SelectItem>
+                        <SelectItem value="day">日</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-sm">
+                      有效期数值 <span className="text-red-500">*</span>
+                    </Label>
+                    <Input
+                      type="number"
+                      min={1}
+                      value={form.validityValue}
+                      onChange={(e) => updateForm("validityValue", parseInt(e.target.value) || 1)}
+                      className="h-10 bg-white"
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Section: 购买规则 */}
+            <div className="space-y-5">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full bg-orange-50 flex items-center justify-center">
+                  <Users className="w-5 h-5 text-orange-500" />
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-foreground">购买规则</p>
+                  <p className="text-xs text-muted-foreground">限制购买主体、次数及企业使用规则</p>
+                </div>
+              </div>
+
+              <div className="border rounded-lg p-5 space-y-5 bg-gray-50/30">
+                <div className="grid grid-cols-2 gap-6">
+                  <div className="space-y-2">
+                    <Label className="text-sm">支持主体</Label>
+                    <RadioGroup
+                      value={form.purchaseSubject}
+                      onValueChange={(v) => updateForm("purchaseSubject", v as PurchaseSubject)}
+                      className="flex items-center gap-6"
+                    >
+                      <div className="flex items-center gap-2">
+                        <RadioGroupItem value="personal" id="sub-personal" />
+                        <Label htmlFor="sub-personal" className="text-sm font-normal cursor-pointer">
+                          个人
+                        </Label>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <RadioGroupItem value="enterprise" id="sub-enterprise" />
+                        <Label
+                          htmlFor="sub-enterprise"
+                          className="text-sm font-normal cursor-pointer"
+                        >
+                          企业
+                        </Label>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <RadioGroupItem value="all" id="sub-all" />
+                        <Label htmlFor="sub-all" className="text-sm font-normal cursor-pointer">
+                          全部
+                        </Label>
+                      </div>
+                    </RadioGroup>
+                  </div>
+                  {form.productType === "one-time" && (
+                    <div className="space-y-2">
+                      <Label className="text-sm">购买上限</Label>
+                      <Input
+                        type="number"
+                        min={0}
+                        value={form.purchaseLimit}
+                        onChange={(e) =>
+                          updateForm("purchaseLimit", parseInt(e.target.value) || 0)
+                        }
+                        className="h-10 bg-white"
+                      />
+                      <p className="text-xs text-muted-foreground">限制单个账户可购买次数，0 表示不限</p>
+                    </div>
+                  )}
+                  {form.productType === "subscription" && (
+                    <div className="space-y-2">
+                      <Label className="text-sm">购买上限</Label>
+                      <Input
+                        type="number"
+                        value={1}
+                        disabled
+                        className="h-10 bg-white disabled:opacity-100 disabled:cursor-not-allowed"
+                      />
+                      <p className="text-xs text-muted-foreground">同档位订阅同一时间仅允许 1 个生效</p>
+                    </div>
+                  )}
+                </div>
+
+                {/* 订阅包：席位配置（仅企业/全部主体显示，个人主体默认 1 席位） */}
+                {form.productType === "subscription" && form.purchaseSubject !== "personal" && (
+                  <div className="space-y-4 pt-2 border-t">
+                    <p className="text-sm font-medium text-foreground">席位配置</p>
+                    <p className="text-xs text-muted-foreground -mt-3">
+                      价格、Credit、Key 数均按「每席位」维度配置，用户购买时选择席位数，总价 = 每席位价格 × 席位数
+                    </p>
+                    <div className="grid grid-cols-2 gap-6">
+                      <div className="space-y-2">
+                        <Label className="text-sm">每席位分配 Key 数</Label>
+                        <Input
+                          type="number"
+                          min={1}
+                          value={form.baseKeyLimit ?? 1}
+                          onChange={(e) =>
+                            updateForm("baseKeyLimit", parseInt(e.target.value) || 1)
+                          }
+                          className="h-10 bg-white"
+                        />
+                        <p className="text-xs text-muted-foreground">
+                          每席位可创建的订阅专用 API Key 数量
+                        </p>
+                      </div>
+                      <div className="space-y-2">
+                        <Label className="text-sm">最低购买席位数</Label>
+                        <Input
+                          type="number"
+                          min={1}
+                          value={form.minSeats ?? 1}
+                          onChange={(e) =>
+                            updateForm("minSeats", parseInt(e.target.value) || 1)
+                          }
+                          className="h-10 bg-white"
+                        />
+                        <p className="text-xs text-muted-foreground">起购门槛，用户至少需购买此数量席位</p>
+                      </div>
+                      <div className="space-y-2">
+                        <Label className="text-sm">席位上限</Label>
+                        <Input
+                          type="number"
+                          min={1}
+                          value={form.maxSeats ?? 50}
+                          onChange={(e) =>
+                            updateForm("maxSeats", parseInt(e.target.value) || 50)
+                          }
+                          className="h-10 bg-white"
+                        />
+                        <p className="text-xs text-muted-foreground">单订阅最大可购买/加购的席位数</p>
+                      </div>
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between">
+                          <Label className="text-sm">允许加购席位</Label>
+                          <Switch
+                            checked={form.allowSeatAddon ?? true}
+                            onCheckedChange={(checked) =>
+                              updateForm("allowSeatAddon", checked)
+                            }
+                          />
+                        </div>
+                        <p className="text-xs text-muted-foreground">
+                          关闭后用户订阅生效期间无法加购席位，席位固定为购买时数量
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+                {form.productType === "subscription" && form.purchaseSubject === "personal" && (
+                  <div className="space-y-2 pt-2 border-t">
+                    <p className="text-xs text-muted-foreground">
+                      个人订阅不支持席位概念，系统默认按 1 席位处理。
+                    </p>
+                  </div>
+                )}
               </div>
             </div>
 
@@ -1241,168 +1558,6 @@ export default function AdminSubscriptionManagement() {
               </div>
             </div>
 
-            {/* Section: 权益周期 */}
-            <div className="space-y-5">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-full bg-green-50 flex items-center justify-center">
-                  <Calendar className="w-5 h-5 text-green-500" />
-                </div>
-                <div>
-                  <p className="text-sm font-medium text-foreground">权益周期</p>
-                  <p className="text-xs text-muted-foreground">
-                    {form.productType === "subscription"
-                      ? "设置有效期与 Credit 重置周期"
-                      : "资源包仅在有效期内可用，不涉及 Credit 重置"}
-                  </p>
-                </div>
-              </div>
-
-              <div className="border rounded-lg p-5 space-y-5 bg-gray-50/30">
-                <div className="grid grid-cols-2 gap-6">
-                  <div className="space-y-2">
-                    <Label className="text-sm">
-                      有效期单位 <span className="text-red-500">*</span>
-                    </Label>
-                    <Select
-                      value={form.validityUnit}
-                      onValueChange={(v) => updateForm("validityUnit", v as ValidityUnit)}
-                    >
-                      <SelectTrigger className="h-10 bg-white">
-                        <SelectValue placeholder="选择单位" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="year">年</SelectItem>
-                        <SelectItem value="month">月</SelectItem>
-                        <SelectItem value="day">日</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-2">
-                    <Label className="text-sm">
-                      有效期数值 <span className="text-red-500">*</span>
-                    </Label>
-                    <Input
-                      type="number"
-                      min={1}
-                      value={form.validityValue}
-                      onChange={(e) => updateForm("validityValue", parseInt(e.target.value) || 1)}
-                      className="h-10 bg-white"
-                    />
-                  </div>
-                </div>
-
-                <div
-                  className={
-                    form.productType !== "subscription"
-                      ? "opacity-50 pointer-events-none"
-                      : ""
-                  }
-                >
-                  <div className="border-t mb-5" />
-                  <div className="grid grid-cols-2 gap-6">
-                    <div className="space-y-2">
-                      <Label className="text-sm">重置周期</Label>
-                      <Select
-                        value={form.resetCycle}
-                        onValueChange={(v) => updateForm("resetCycle", v as ResetCycle)}
-                        disabled={form.productType !== "subscription"}
-                      >
-                        <SelectTrigger className="h-10 bg-white">
-                          <SelectValue placeholder="选择重置周期" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="daily">日</SelectItem>
-                          <SelectItem value="weekly">周</SelectItem>
-                          <SelectItem value="monthly">月</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Section: 购买规则 */}
-            <div className="space-y-5">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-full bg-orange-50 flex items-center justify-center">
-                  <Users className="w-5 h-5 text-orange-500" />
-                </div>
-                <div>
-                  <p className="text-sm font-medium text-foreground">购买规则</p>
-                  <p className="text-xs text-muted-foreground">限制购买主体、次数及企业使用规则</p>
-                </div>
-              </div>
-
-              <div className="border rounded-lg p-5 space-y-5 bg-gray-50/30">
-                <div className="grid grid-cols-2 gap-6">
-                  <div className="space-y-2">
-                    <Label className="text-sm">支持主体</Label>
-                    <RadioGroup
-                      value={form.purchaseSubject}
-                      onValueChange={(v) => updateForm("purchaseSubject", v as PurchaseSubject)}
-                      className="flex items-center gap-6"
-                    >
-                      <div className="flex items-center gap-2">
-                        <RadioGroupItem value="personal" id="sub-personal" />
-                        <Label htmlFor="sub-personal" className="text-sm font-normal cursor-pointer">
-                          个人
-                        </Label>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <RadioGroupItem value="enterprise" id="sub-enterprise" />
-                        <Label
-                          htmlFor="sub-enterprise"
-                          className="text-sm font-normal cursor-pointer"
-                        >
-                          企业
-                        </Label>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <RadioGroupItem value="all" id="sub-all" />
-                        <Label htmlFor="sub-all" className="text-sm font-normal cursor-pointer">
-                          全部
-                        </Label>
-                      </div>
-                    </RadioGroup>
-                  </div>
-                  <div className="space-y-2">
-                    <Label className="text-sm">购买上限</Label>
-                    <Input
-                      type="number"
-                      min={0}
-                      value={form.purchaseLimit}
-                      onChange={(e) =>
-                        updateForm("purchaseLimit", parseInt(e.target.value) || 0)
-                      }
-                      className="h-10 bg-white"
-                    />
-                    <p className="text-xs text-muted-foreground">限制单个账户可购买次数，0 表示不限</p>
-                  </div>
-                </div>
-
-                {form.productType === "subscription" && (
-                  <div className="grid grid-cols-2 gap-6">
-                    <div className="space-y-2">
-                      <Label className="text-sm">订阅 Key 数量上限</Label>
-                      <Input
-                        type="number"
-                        min={1}
-                        value={form.subscriptionKeyLimit}
-                        onChange={(e) =>
-                          updateForm("subscriptionKeyLimit", parseInt(e.target.value) || 1)
-                        }
-                        className="h-10 bg-white"
-                      />
-                      <p className="text-xs text-muted-foreground">
-                        限制购买该套餐后可创建的订阅专用 API Key 数量
-                      </p>
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-
             {/* Section: 支付与续费 */}
             <div className="space-y-5">
               <div className="flex items-center gap-3">
@@ -1476,15 +1631,53 @@ export default function AdminSubscriptionManagement() {
             <AlertDialogDescription>
               {editingPlan
                 ? `将更新商品「${form.name}」的配置，修改将立即生效。是否确认保存？`
-                : `将创建新商品「${form.name}」${
-                    form.status === "active" ? "并立即上架" : "（默认下架状态）"
-                  }，是否确认提交？`}
+                : `将创建新商品「${form.name}」，创建后默认下架状态，可在列表中手动上架。是否确认提交？`}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>取消</AlertDialogCancel>
             <AlertDialogAction onClick={confirmSubmit}>
               {editingPlan ? "确认保存" : "确认创建"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Status Toggle Confirmation */}
+      <AlertDialog
+        open={statusTogglePlan !== null}
+        onOpenChange={(open) => !open && setStatusTogglePlan(null)}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {statusTogglePlan?.status === "active"
+                ? `确认下架商品「${statusTogglePlan?.name}」？`
+                : `确认上架商品「${statusTogglePlan?.name}」？`}
+            </AlertDialogTitle>
+            <AlertDialogDescription className="space-y-2">
+              {statusTogglePlan?.status === "active" ? (
+                <p className="text-amber-600">
+                  下架后客户端将无法购买该商品，已购买用户的权益不受影响。
+                </p>
+              ) : (
+                <p className="text-blue-600">
+                  上架后客户端将展示该商品，用户可正常下单购买。
+                </p>
+              )}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>取消</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={confirmToggleStatus}
+              className={
+                statusTogglePlan?.status === "active"
+                  ? "bg-red-600 hover:bg-red-700"
+                  : "bg-green-600 hover:bg-green-700"
+              }
+            >
+              {statusTogglePlan?.status === "active" ? "确认下架" : "确认上架"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

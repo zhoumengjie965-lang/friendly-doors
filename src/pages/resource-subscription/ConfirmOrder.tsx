@@ -23,6 +23,8 @@ import {
   Package,
   KeyRound,
   AlertCircle,
+  Minus,
+  Plus,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import {
@@ -86,10 +88,21 @@ export default function ConfirmOrder({ mode, balance = 5000 }: Props) {
   const planId = searchParams.get("planId") ?? "";
   const orderId = searchParams.get("orderId") ?? "";
   const cycle = (searchParams.get("cycle") as Cycle) ?? "month";
+  const isPersonal = mode === "personal";
+  // 企业版订阅套餐组合购买模式：三档可混合下单
+  const isCombo = searchParams.get("combo") === "1" && mode === "enterprise";
+  // 个人版固定 1 席，企业版可调整
+  const initialSeats = isPersonal ? 1 : (parseInt(searchParams.get("seats") ?? "1", 10) || 1);
+
+  // 席位数量（本地状态，企业版用户可在下单页调整，个人版固定 1）
+  const [seats, setSeats] = useState<number>(initialSeats);
+  // 用尽即停开关
+  const [stopOnExhaust, setStopOnExhaust] = useState<boolean>(searchParams.get("stopOnExhaust") !== "0");
 
   // 支持从「待支付订单」进入支付：传入 orderId 时构造伪 plan 对象复用现有支付流程
   const existingOrder = orderId ? findOrderById(orderId) : null;
   const plan = useMemo(() => {
+    if (isCombo) return null; // 组合购买模式不绑定单一套餐
     if (existingOrder) {
       return {
         id: existingOrder.id,
@@ -105,7 +118,47 @@ export default function ConfirmOrder({ mode, balance = 5000 }: Props) {
       } as any;
     }
     return MOCK_PLANS.find((p) => p.id === planId);
-  }, [planId, existingOrder]);
+  }, [planId, existingOrder, isCombo]);
+
+  // ── 组合购买：三档订阅套餐 ──
+  const comboPlans = useMemo(() => {
+    if (!isCombo) return [];
+    return MOCK_PLANS
+      .filter((p) => p.productType === "subscription" && p.status === "active" && p.purchaseSubject !== "personal")
+      .sort((a, b) => a.sort - b.sort);
+  }, [isCombo]);
+
+  // 各档席位数（本地状态，来源套餐默认选购 1 席）
+  const [comboSeats, setComboSeats] = useState<Record<string, number>>(() => {
+    if (isCombo && planId) return { [planId]: 1 };
+    return {};
+  });
+
+  // 各档明细行
+  const comboLines = useMemo(() => {
+    if (!isCombo) return [];
+    return comboPlans.map((p) => {
+      const s = comboSeats[p.id] ?? 0;
+      const unit = p.cyclePricing?.[cycle] ?? { originalPrice: p.originalPrice ?? p.price, price: p.price, discountLabel: p.discountLabel };
+      return {
+        plan: p,
+        seats: s,
+        unitPrice: unit.price,
+        originalUnitPrice: unit.originalPrice,
+        subtotal: unit.price * s,
+        originalSubtotal: unit.originalPrice * s,
+        credit: p.totalQuota * s,
+        keys: (p.baseKeyLimit ?? p.subscriptionKeyLimit ?? 0) * s,
+      };
+    });
+  }, [isCombo, comboPlans, comboSeats, cycle]);
+
+  const comboTotalSeats = comboLines.reduce((s, l) => s + l.seats, 0);
+  const comboTotalPrice = comboLines.reduce((s, l) => s + l.subtotal, 0);
+  const comboTotalOriginal = comboLines.reduce((s, l) => s + l.originalSubtotal, 0);
+  const comboTotalCredit = comboLines.reduce((s, l) => s + l.credit, 0);
+  const comboTotalKeys = comboLines.reduce((s, l) => s + l.keys, 0);
+  const comboActiveLines = comboLines.filter((l) => l.seats > 0);
 
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("balance");
   const [selectedBank, setSelectedBank] = useState<string>("boc"); // 默认选中中国银行
@@ -131,7 +184,7 @@ export default function ConfirmOrder({ mode, balance = 5000 }: Props) {
     return `${String(m).padStart(2, "0")}:${String(sec).padStart(2, "0")}`;
   };
 
-  if (!plan) {
+  if (!plan && !isCombo) {
     return (
       <div className="max-w-2xl mx-auto py-20 text-center space-y-4">
         <AlertCircle className="w-12 h-12 text-muted-foreground mx-auto opacity-50" />
@@ -143,20 +196,33 @@ export default function ConfirmOrder({ mode, balance = 5000 }: Props) {
     );
   }
 
-  const isSubscription = plan.productType === "subscription";
-  const isResource = plan.productType === "one-time";
+  const isSubscription = isCombo || plan?.productType === "subscription";
+  const isResource = !isCombo && plan?.productType === "one-time";
 
-  // 价格计算
-  const priceInfo = useMemo(() => {
-    if (isSubscription && plan.cyclePricing?.[cycle]) {
-      return plan.cyclePricing[cycle]!;
+  // 价格计算（每席位单价）
+  const unitPriceInfo = useMemo(() => {
+    if (isCombo) return { originalPrice: 0, price: 0, discountLabel: "" };
+    if (isSubscription && plan!.cyclePricing?.[cycle]) {
+      return plan!.cyclePricing[cycle]!;
     }
     return {
-      originalPrice: plan.originalPrice ?? plan.price,
-      price: plan.price,
-      discountLabel: plan.discountLabel,
+      originalPrice: plan!.originalPrice ?? plan!.price,
+      price: plan!.price,
+      discountLabel: plan!.discountLabel,
     };
-  }, [plan, cycle, isSubscription]);
+  }, [plan, cycle, isSubscription, isCombo]);
+
+  // 多席位总价（combo 模式下为三档汇总）
+  const priceInfo = useMemo(() => {
+    if (isCombo) {
+      return { originalPrice: comboTotalOriginal, price: comboTotalPrice, discountLabel: undefined };
+    }
+    return {
+      originalPrice: unitPriceInfo.originalPrice * seats,
+      price: unitPriceInfo.price * seats,
+      discountLabel: unitPriceInfo.discountLabel,
+    };
+  }, [unitPriceInfo, seats, isCombo, comboTotalOriginal, comboTotalPrice]);
 
   const discount = priceInfo.originalPrice - priceInfo.price;
   const balanceShort = priceInfo.price - balance;
@@ -177,6 +243,18 @@ export default function ConfirmOrder({ mode, balance = 5000 }: Props) {
   }, [existingOrder]);
   const periodLabel = cycle === "month" ? "月" : cycle === "quarter" ? "季" : "年";
 
+  // 组合购买：时长、到期日、席位上限
+  const durationLabel = cycle === "month" ? "1 个月" : cycle === "quarter" ? "3 个月" : "1 年";
+  const comboExpireDateStr = useMemo(() => {
+    const d = new Date();
+    if (cycle === "month") d.setMonth(d.getMonth() + 1);
+    else if (cycle === "quarter") d.setMonth(d.getMonth() + 3);
+    else d.setFullYear(d.getFullYear() + 1);
+    const pad = (n: number) => String(n).padStart(2, "0");
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+  }, [cycle]);
+  const comboMaxSeats = comboPlans.reduce((s, p) => s + (p.maxSeats ?? 0), 0);
+
   // 按钮文案
   const selectedBankName = BANK_OPTIONS.find((b) => b.code === selectedBank)?.name ?? "网银";
   const submitLabel = paymentMethod === "online"
@@ -185,7 +263,7 @@ export default function ConfirmOrder({ mode, balance = 5000 }: Props) {
       ? `确认订阅并支付 ¥${priceInfo.price.toLocaleString("zh-CN")}`
       : `确认购买并支付 ¥${priceInfo.price.toLocaleString("zh-CN")}`;
 
-  const canSubmit = agreed;
+  const canSubmit = agreed && (!isCombo || comboTotalSeats > 0);
 
   const handleSubmit = () => {
     if (!agreed) {
@@ -211,7 +289,7 @@ export default function ConfirmOrder({ mode, balance = 5000 }: Props) {
       toast({ title: existingOrder ? "正在跳转支付" : "订单已创建", description: `正在跳转至${selectedBankName}支付页面...` });
     } else {
       setPayResult("success");
-      toast({ title: "支付成功", description: existingOrder ? "订单支付完成" : `${plan.name} 已开通` });
+      toast({ title: "支付成功", description: existingOrder ? "订单支付完成" : isCombo ? `组合套餐已开通（${comboActiveLines.length} 个档位）` : `${plan!.name} 已开通` });
     }
   };
 
@@ -220,7 +298,7 @@ export default function ConfirmOrder({ mode, balance = 5000 }: Props) {
     await new Promise((r) => setTimeout(r, 800));
     setSubmitting(false);
     setPayResult("success");
-    toast({ title: "支付成功", description: existingOrder ? "订单支付完成" : `${plan.name} 已开通` });
+    toast({ title: "支付成功", description: existingOrder ? "订单支付完成" : isCombo ? `组合套餐已开通（${comboActiveLines.length} 个档位）` : `${plan!.name} 已开通` });
   };
 
   // ── 支付成功结果页 ──
@@ -280,7 +358,7 @@ export default function ConfirmOrder({ mode, balance = 5000 }: Props) {
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-x-12 gap-y-4 text-base">
                 <ResultRow label="购买账户" value={mode === "personal" ? "个人账户" : "某某科技有限公司"} />
-                <ResultRow label="商品名称" value={plan.name} />
+                <ResultRow label="商品名称" value={isCombo ? "Enterprise 组合套餐" : plan!.name} />
                 <ResultRow label="Credit 总量" value={`${formatCredit(plan.totalQuota)} Credit`} highlight />
                 <ResultRow label="有效期" value={`${plan.validityMonths ?? 6} 个月`} />
                 <ResultRow label="生效时间" value={effectiveTime} />
@@ -303,6 +381,54 @@ export default function ConfirmOrder({ mode, balance = 5000 }: Props) {
                     </Button>
                   </>
                 )}
+              </div>
+            </>
+          ) : isCombo ? (
+            <>
+              <div className="flex items-center justify-between pb-4 border-b border-border">
+                <h2 className="text-xl font-bold text-foreground">订阅详情</h2>
+                <div className="text-base">
+                  <span className="text-muted-foreground">订单号：</span>
+                  <span className="font-mono text-foreground">{orderNo}</span>
+                </div>
+              </div>
+              {/* 各档明细 */}
+              <div className="space-y-3">
+                {comboActiveLines.map((line) => (
+                  <div key={line.plan.id} className="rounded-lg border border-border p-4">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <h4 className="text-sm font-semibold text-foreground">{line.plan.name}</h4>
+                          {line.plan.isPopular && <span className="text-[10px] px-1.5 py-0.5 rounded bg-primary/10 text-primary">推荐</span>}
+                        </div>
+                        <p className="text-xs text-muted-foreground mt-1">{line.seats} 席 · {formatCredit(line.credit)} Credit · {line.keys} 个 API Key</p>
+                      </div>
+                      <span className="text-rose-500 font-semibold">¥{line.subtotal.toLocaleString("zh-CN", { minimumFractionDigits: 2 })}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <Separator className="mt-2" />
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-x-12 gap-y-4 text-base">
+                <ResultRow label="购买账户" value="某某科技有限公司" />
+                <ResultRow label="订阅周期" value={`包${periodLabel}`} />
+                <ResultRow label="购买席位" value={`${comboTotalSeats} 席（${comboActiveLines.length} 个档位）`} />
+                <ResultRow label="Credit 总量" value={`${formatCredit(comboTotalCredit)} Credit / ${periodLabel}`} highlight />
+                <ResultRow label="API Key" value={`支持创建 ${comboTotalKeys} 个`} />
+                <ResultRow label="生效时间" value={effectiveTime} />
+                <ResultRow label="到期时间" value={expireTime} />
+                <ResultRow label="自动续费" value={autoRenew && paymentMethod === "balance" ? "已开启" : "未开启"} />
+              </div>
+              <Separator className="mt-2" />
+              <div className="flex gap-3 pt-1">
+                <Button className="flex-1 h-12 text-base" onClick={() => navigate("/workspace/resource-packages")}>
+                  管理订阅
+                </Button>
+                <Button variant="outline" className="h-12 text-base px-8" onClick={() => navigate("/workspace/resource-packages")}>
+                  <KeyRound className="w-5 h-5 mr-2" />
+                  创建订阅 Key
+                </Button>
               </div>
             </>
           ) : (
@@ -375,7 +501,7 @@ export default function ConfirmOrder({ mode, balance = 5000 }: Props) {
           </div>
           <Separator />
           <div className="space-y-2.5 text-sm">
-            <ResultRow label="商品名称" value={plan.name} />
+            <ResultRow label="商品名称" value={isCombo ? "Enterprise 组合套餐" : plan!.name} />
             <ResultRow label="订单金额" value={`¥${priceInfo.price.toLocaleString("zh-CN")}`} highlight />
             <ResultRow label="支付方式" value={`${selectedBankName}网银支付`} />
           </div>
@@ -414,7 +540,7 @@ export default function ConfirmOrder({ mode, balance = 5000 }: Props) {
 
   // ── 确认订单主页面 ──
   return (
-    <div className="max-w-6xl space-y-5">
+    <div className="max-w-7xl space-y-6">
       {/* 支付超时提示条 */}
       <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 flex items-start gap-2.5 text-sm text-amber-900">
         <AlertCircle className="w-4 h-4 mt-0.5 shrink-0 text-amber-600" />
@@ -432,9 +558,97 @@ export default function ConfirmOrder({ mode, balance = 5000 }: Props) {
         <h1 className="text-xl font-bold text-foreground">确认订单</h1>
       </div>
 
-      <div className="grid lg:grid-cols-[1fr_400px] gap-6 items-start">
-        {/* ── 左栏：待支付金额（顶部最显眼）+ 支付明细（下方）── */}
-        <div className="space-y-5">
+      <div className="grid lg:grid-cols-[1fr_440px] gap-8 items-start">
+        {/* ── 左栏 ── */}
+        <div className="space-y-6">
+          {isCombo ? (
+            <>
+              {/* 三档套餐卡片 */}
+              <section className="space-y-4">
+                <div className="flex items-center gap-2">
+                  <div className="w-1 h-4 bg-primary rounded-full" />
+                  <span className="text-base font-semibold text-foreground">选择套餐与席位</span>
+                </div>
+                <div className="grid grid-cols-1 gap-4">
+                  {comboLines.map((line) => (
+                    <div
+                      key={line.plan.id}
+                      className={`rounded-2xl border p-5 transition-all ${
+                        line.seats > 0
+                          ? "border-primary/40 bg-primary/[0.03]"
+                          : "border-border hover:border-primary/40"
+                      }`}
+                    >
+                      <div className="flex items-start justify-between gap-4">
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-2">
+                            <h4 className="text-lg font-bold text-foreground">{line.plan.name}</h4>
+                            {line.plan.isPopular && (
+                              <span className="text-[10px] px-1.5 py-0.5 rounded bg-primary/10 text-primary">推荐</span>
+                            )}
+                          </div>
+                          {line.plan.positioning && (
+                            <p className="text-xs text-muted-foreground mt-1">{line.plan.positioning}</p>
+                          )}
+                        </div>
+                        <div className="text-right shrink-0">
+                          <div className="flex items-baseline gap-0.5 justify-end">
+                            <span className="text-xs text-rose-500/80">¥</span>
+                            <span className="text-xl font-bold text-rose-500">{line.unitPrice.toLocaleString("zh-CN", { minimumFractionDigits: 0 })}</span>
+                          </div>
+                          <div className="text-[10px] text-muted-foreground">/席/{periodLabel}</div>
+                        </div>
+                      </div>
+                      <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
+                        <span>{formatCredit(line.plan.totalQuota)} Credit/席</span>
+                        <span>{line.plan.baseKeyLimit ?? line.plan.subscriptionKeyLimit} Key/席</span>
+                        {line.plan.rpmLimit && <span>{line.plan.rpmLimit} RPM</span>}
+                      </div>
+                      <div className="mt-3 pt-3 border-t border-border/50 flex items-center justify-between">
+                        <span className="text-sm text-foreground">购买席位</span>
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={() => setComboSeats((prev) => ({ ...prev, [line.plan.id]: Math.max(0, (prev[line.plan.id] ?? 0) - 1) }))}
+                            disabled={(comboSeats[line.plan.id] ?? 0) <= 0}
+                            className="w-8 h-8 rounded-full border border-border flex items-center justify-center text-muted-foreground hover:border-primary hover:text-primary disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                          >
+                            <Minus className="w-3.5 h-3.5" />
+                          </button>
+                          <input
+                            type="number"
+                            value={comboSeats[line.plan.id] ?? 0}
+                            min={0}
+                            max={line.plan.maxSeats ?? 500}
+                            onChange={(e) => {
+                              const v = Math.max(0, parseInt(e.target.value) || 0);
+                              setComboSeats((prev) => ({ ...prev, [line.plan.id]: Math.min(line.plan.maxSeats ?? 500, v) }));
+                            }}
+                            className="w-12 h-8 text-center text-sm font-medium border-0 bg-transparent focus:outline-none focus:ring-0 text-foreground"
+                          />
+                          <button
+                            onClick={() => setComboSeats((prev) => ({ ...prev, [line.plan.id]: Math.min(line.plan.maxSeats ?? 500, (prev[line.plan.id] ?? 0) + 1) }))}
+                            disabled={(comboSeats[line.plan.id] ?? 0) >= (line.plan.maxSeats ?? 500)}
+                            className="w-8 h-8 rounded-full border border-border flex items-center justify-center text-muted-foreground hover:border-primary hover:text-primary disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                          >
+                            <Plus className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      </div>
+
+                    </div>
+                  ))}
+                </div>
+              </section>
+
+              {/* 购买说明 */}
+              <div className="space-y-1.5 text-xs text-muted-foreground/80 leading-relaxed px-1">
+                <p>计费说明：单次消耗的 Credits 由模型类型、Token 用量等动态决定，实际消耗以明细为准。</p>
+                <p>支付说明：不支持使用代金券下单购买。</p>
+                <p>退款政策：Token Plan 企业版不支持退款，订阅后不可退订。</p>
+              </div>
+            </>
+          ) : (
+            <>
           {/* 待支付金额（最显眼） */}
           <section className="bg-card border border-border rounded-xl p-6">
             <div className="flex items-center gap-2 mb-3">
@@ -467,7 +681,7 @@ export default function ConfirmOrder({ mode, balance = 5000 }: Props) {
 
             <div>
               <div className="flex items-center gap-2">
-                <h3 className="text-xl font-bold text-foreground">{plan.name}</h3>
+                <h3 className="text-xl font-bold text-foreground">{isCombo ? "Enterprise 组合套餐" : plan.name}</h3>
                 <span className="inline-flex items-center px-2 py-0.5 text-xs font-medium rounded-md bg-primary/10 text-primary">新购</span>
               </div>
               <p className="text-sm text-muted-foreground mt-1.5">订单号：{orderNo}</p>
@@ -485,20 +699,131 @@ export default function ConfirmOrder({ mode, balance = 5000 }: Props) {
                 <DetailRow label="生效时间" value="购买后立即生效" />
               </div>
             ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-3 text-sm">
-                <DetailRow label="购买账户" value={mode === "personal" ? "个人账户" : "某某科技有限公司"} />
-                <DetailRow label="套餐名称" value={plan.name} />
-                <DetailRow label="套餐周期" value={`包${periodLabel}`} />
-                <DetailRow label="Credit额度" value={`每${periodLabel}赠送 ${formatCredit(plan.totalQuota)} Credit`} highlight />
-                <DetailRow label="API Key" value={`支持创建 ${plan.subscriptionKeyLimit} 个`} />
-                <DetailRow label="生效时间" value="付款成功后立即生效" />
+              <div className="space-y-4">
+                {/* 席位数量选择（仅企业版显示） */}
+                {mode === "enterprise" && (
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-foreground">席位数量</span>
+                    <div className="flex items-center gap-3">
+                      <button
+                        onClick={() => setSeats((s) => Math.max(1, s - 1))}
+                        disabled={seats <= 1}
+                        className="w-9 h-9 rounded-full border border-border flex items-center justify-center text-muted-foreground hover:border-primary hover:text-primary disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                      >
+                        <Minus className="w-4 h-4" />
+                      </button>
+                      <input
+                        type="number"
+                        value={seats}
+                        min={1}
+                        max={plan.maxSeats ?? 100}
+                        onChange={(e) => {
+                          const v = parseInt(e.target.value) || 1;
+                          setSeats(Math.max(1, Math.min(plan.maxSeats ?? 100, v)));
+                        }}
+                        className="w-14 h-9 text-center text-base font-medium border-0 bg-transparent focus:outline-none focus:ring-0 text-foreground"
+                      />
+                      <button
+                        onClick={() => setSeats((s) => Math.min(plan.maxSeats ?? 100, s + 1))}
+                        disabled={seats >= (plan.maxSeats ?? 100)}
+                        className="w-9 h-9 rounded-full border border-border flex items-center justify-center text-muted-foreground hover:border-primary hover:text-primary disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                      >
+                        <Plus className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {/* 用尽即停开关 */}
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-foreground">用尽即停</span>
+                  <Switch
+                    checked={stopOnExhaust}
+                    onCheckedChange={setStopOnExhaust}
+                    aria-label="用尽即停"
+                  />
+                </div>
+
+                <Separator />
+
+                {/* 订单信息 */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-3 text-sm">
+                  <DetailRow label="购买账户" value={mode === "personal" ? "个人账户" : "某某科技有限公司"} />
+                  <DetailRow label="套餐名称" value={plan.name} />
+                  <DetailRow label="套餐周期" value={`包${periodLabel}`} />
+                  {mode === "enterprise" && <DetailRow label="购买席位" value={`${seats} 席`} />}
+                  <DetailRow
+                    label="Credit额度"
+                    value={
+                      mode === "personal"
+                        ? `${formatCredit(plan.totalQuota)} Credit / ${periodLabel}`
+                        : `${formatCredit(plan.totalQuota * seats)} Credit / ${periodLabel}（共${seats}席）`
+                    }
+                    highlight
+                  />
+                  <DetailRow label="用尽即停" value={stopOnExhaust ? "已开启" : "未开启"} />
+                  <DetailRow
+                    label="API Key"
+                    value={
+                      mode === "personal"
+                        ? `支持创建 ${plan.baseKeyLimit ?? plan.subscriptionKeyLimit ?? 1} 个`
+                        : `支持创建 ${(plan.baseKeyLimit ?? plan.subscriptionKeyLimit ?? 1) * seats} 个`
+                    }
+                  />
+                  <DetailRow label="生效时间" value="付款成功后立即生效" />
+                </div>
               </div>
             )}
           </section>
+            </>
+          )}
         </div>
 
-        {/* ── 右栏：支付方式 + 协议 + 立即支付 ── */}
+        {/* ── 右栏：订单概览 + 计费详情 + 支付方式 + 协议 + 立即支付 ── */}
         <div className="space-y-4 lg:sticky lg:top-4">
+          {/* 订单概览 + 计费详情（仅组合购买模式） */}
+          {isCombo && (
+            <>
+              <section className="bg-card border border-border rounded-xl p-5 space-y-3">
+                <h2 className="text-sm font-semibold text-foreground">Token Plan 企业版</h2>
+                <Separator />
+                <div className="space-y-2 text-sm">
+                  <div className="flex items-center justify-between">
+                    <span className="text-muted-foreground">合计席位</span>
+                    <span className="text-foreground font-medium">{comboTotalSeats} 席（上限 {comboMaxSeats.toLocaleString("zh-CN")} 席）</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-muted-foreground">时长</span>
+                    <span className="text-foreground font-medium">{durationLabel}（到期：{comboExpireDateStr}）</span>
+                  </div>
+                </div>
+              </section>
+
+              <section className="bg-card border border-border rounded-xl p-5 space-y-3">
+                <h2 className="text-sm font-semibold text-foreground">计费详情</h2>
+                <Separator />
+                <div className="space-y-2.5 text-sm">
+                  {comboActiveLines.map((line) => (
+                    <div key={line.plan.id} className="flex items-center justify-between">
+                      <span className="text-muted-foreground">{line.plan.name} × {line.seats} 席</span>
+                      <span className="text-foreground">¥ {line.subtotal.toLocaleString("zh-CN", { minimumFractionDigits: 2 })}</span>
+                    </div>
+                  ))}
+                  {discount > 0 && (
+                    <div className="flex items-center justify-between">
+                      <span className="text-muted-foreground">优惠</span>
+                      <span className="text-emerald-600">- ¥ {discount.toLocaleString("zh-CN", { minimumFractionDigits: 2 })}</span>
+                    </div>
+                  )}
+                  <Separator />
+                  <div className="flex items-center justify-between">
+                    <span className="text-foreground font-medium">应付</span>
+                    <span className="text-rose-500 font-bold text-lg">¥ {comboTotalPrice.toLocaleString("zh-CN", { minimumFractionDigits: 2 })}</span>
+                  </div>
+                </div>
+              </section>
+            </>
+          )}
           {/* 支付方式 */}
           <section className="bg-card border border-border rounded-xl p-5 space-y-3">
             <h2 className="text-sm font-semibold text-foreground">选择支付方式</h2>
@@ -691,7 +1016,7 @@ export default function ConfirmOrder({ mode, balance = 5000 }: Props) {
             <div className="bg-muted/40 rounded-lg p-3 space-y-2 text-sm">
               <div className="flex justify-between">
                 <span className="text-muted-foreground">商品</span>
-                <span className="text-foreground font-medium">{plan.name}</span>
+                <span className="text-foreground font-medium">{isCombo ? "Enterprise 组合套餐" : plan!.name}</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-muted-foreground">支付方式</span>

@@ -9,6 +9,7 @@ import {
   createKeyTemplate,
   updateKeyTemplate,
   deleteKeyTemplate,
+  copyKeyTemplate,
   getMemberKeyTemplate,
   getOrgKeyTemplate,
   getOrgsWithTemplate,
@@ -708,6 +709,9 @@ export default function ApiKeys({ enterprise, role }: Props) {
   const [tplFormUnlimited, setTplFormUnlimited] = useState(true);
   const [tplFormModels, setTplFormModels] = useState<string[]>([]);
   const [tplFormIpWhitelist, setTplFormIpWhitelist] = useState("");
+  const [tplCreating, setTplCreating] = useState(false);
+  const [tplEditing, setTplEditing] = useState(false);
+  const [tplSaveConfirmOpen, setTplSaveConfirmOpen] = useState(false);
 
   // 绑定部门对话框
   const [bindOpen, setBindOpen] = useState(false);
@@ -915,8 +919,8 @@ Key 配置信息
     } catch (e) {}
     setFormGroups(cfg.groups.length > 0 ? [...cfg.groups] : []);
     setFormExpires(cfg.expires);
-    setFormQuota(cfg.quota);
-    setFormUnlimited(cfg.unlimited);
+    setFormQuota("");
+    setFormUnlimited(true);
     setFormModels([...cfg.models]);
     setFormIpWhitelist(cfg.ipWhitelist);
     setSimpleDialogOpen(true);
@@ -938,8 +942,8 @@ Key 配置信息
     if (cfg) {
       setFormGroups(cfg.groups.length > 0 ? [...cfg.groups] : ["生产通道（×0.95）"]);
       setFormExpires(cfg.expires);
-      setFormQuota(cfg.quota);
-      setFormUnlimited(cfg.unlimited);
+      setFormQuota("");
+      setFormUnlimited(true);
       setFormModels([...cfg.models]);
       setFormIpWhitelist(cfg.ipWhitelist);
     } else {
@@ -1108,6 +1112,7 @@ Key 配置信息
   }, [enterprise.id, toast]);
 
   const selectTpl = (tpl: KeyTemplate | null) => {
+    setTplEditing(false);
     if (!tpl) {
       setTplSelectedId(null);
       setTplFormName("");
@@ -1136,19 +1141,23 @@ Key 配置信息
 
   const openTplManager = async () => {
     setTplOpen(true);
+    setTplEditing(false);
+    setTplCreating(false);
     const [tplList, orgs] = await Promise.all([
       fetchTemplates(),
       getOrgsWithTemplate(enterprise.id),
     ]);
     setOrgsWithTpl(orgs as any);
     if (tplList.length > 0) {
-      loadTplIntoForm(tplList[0], orgs as any);
+      // 仅选中第一个，不自动进入编辑态
+      setTplSelectedId(tplList[0].id);
     } else {
       selectTpl(null);
     }
   };
 
   const loadTplIntoForm = (tpl: KeyTemplate) => {
+    setTplCreating(false);
     setTplSelectedId(tpl.id);
     setTplFormName(tpl.name);
     setTplFormDesc(tpl.description || "");
@@ -1158,6 +1167,39 @@ Key 配置信息
     setTplFormUnlimited(tpl.config.unlimited);
     setTplFormModels([...tpl.config.models]);
     setTplFormIpWhitelist(tpl.config.ipWhitelist);
+  };
+
+  // 点击模板项：仅选中查看，不进入编辑态
+  const selectTplItem = (tpl: KeyTemplate) => {
+    setTplEditing(false);
+    setTplCreating(false);
+    setTplSelectedId(tpl.id);
+  };
+
+  // 点击编辑按钮：进入编辑态
+  const openTplEdit = (tpl: KeyTemplate) => {
+    loadTplIntoForm(tpl);
+    setTplEditing(true);
+  };
+
+  // 一键复制模板
+  const handleTplCopy = async (tpl: KeyTemplate) => {
+    try {
+      await copyKeyTemplate(tpl.id);
+      toast({ title: "已复制", description: `已复制模板「${tpl.name}」` });
+      const [list, orgs] = await Promise.all([
+        fetchTemplates(),
+        getOrgsWithTemplate(enterprise.id),
+      ]);
+      setOrgsWithTpl(orgs as any);
+      // 选中刚复制的副本（列表最后一条）
+      if (list.length > 0) {
+        const copied = list[list.length - 1];
+        setTplSelectedId(copied.id);
+      }
+    } catch (e: any) {
+      toast({ title: "复制失败", description: e.message, variant: "destructive" });
+    }
   };
 
   // 打开绑定部门对话框
@@ -1200,14 +1242,16 @@ Key 配置信息
 
   const handleTplNew = () => {
     selectTpl(null);
+    setTplCreating(true);
+    setTplEditing(false);
   };
 
   const handleTplDelete = async (tpl: KeyTemplate) => {
     if (tpl.bound_orgs > 0) {
-      if (!confirm(`该模板已被 ${tpl.bound_orgs} 个部门绑定，删除后这些部门将不再受模板限制（恢复为无限制），确定删除？`)) return;
-    } else {
-      if (!confirm(`确定删除模板「${tpl.name}」？`)) return;
+      toast({ title: "无法删除", description: `该模板已被 ${tpl.bound_orgs} 个部门绑定，请先在「应用到部门」中解绑后再删除。`, variant: "destructive" });
+      return;
     }
+    if (!confirm(`确定删除模板「${tpl.name}」？`)) return;
     try {
       await deleteKeyTemplate(tpl.id);
       toast({ title: "已删除" });
@@ -1217,7 +1261,7 @@ Key 配置信息
       ]);
       setOrgsWithTpl(orgs as any);
       if (list.length > 0) {
-        loadTplIntoForm(list[0], orgs as any);
+        setTplSelectedId(list[0].id);
       } else {
         selectTpl(null);
       }
@@ -1226,7 +1270,7 @@ Key 配置信息
     }
   };
 
-  const handleTplSave = async () => {
+  const doTplSave = async () => {
     if (!tplFormName.trim()) {
       toast({ title: "请填写模板名称", variant: "destructive" });
       return;
@@ -1235,8 +1279,8 @@ Key 配置信息
     const config = {
       groups: tplFormGroups,
       expires: tplFormExpires,
-      quota: tplFormQuota,
-      unlimited: tplFormUnlimited,
+      quota: "",
+      unlimited: true,
       models: tplFormModels,
       ipWhitelist: tplFormIpWhitelist,
     };
@@ -1271,11 +1315,32 @@ Key 配置信息
       ]);
       setOrgsWithTpl(orgs as any);
       const saved = list.find(t => t.id === savedId);
-      if (saved) loadTplIntoForm(saved);
+      if (saved) {
+        setTplSelectedId(saved.id);
+      }
+      // 保存后退出编辑/新建态，回到选中查看
+      setTplEditing(false);
+      setTplCreating(false);
     } catch (e: any) {
       toast({ title: tplSelectedId ? "保存失败" : "创建失败", description: e.message, variant: "destructive" });
     }
     setTplSaving(false);
+  };
+
+  const handleTplSave = () => {
+    if (!tplFormName.trim()) {
+      toast({ title: "请填写模板名称", variant: "destructive" });
+      return;
+    }
+    // 更新已有模板且有绑定部门时，弹确认提示影响范围
+    if (tplSelectedId) {
+      const tpl = templates.find(t => t.id === tplSelectedId);
+      if (tpl && tpl.bound_orgs > 0) {
+        setTplSaveConfirmOpen(true);
+        return;
+      }
+    }
+    doTplSave();
   };
 
   const saveAdvancedPerms = () => {
@@ -1698,19 +1763,9 @@ Key 配置信息
       {/* 行3：创建按钮 + 搜索栏+刷新（右） */}
       <div className="flex items-center justify-between mb-5">
         <div className="flex items-center gap-3">
-          {/* org_admin 在部门 API Key Tab 下 或 admin 在部门 API Key Tab 下：显示配置按钮、创建按钮、批量创建 */}
+          {/* org_admin 在部门 API Key Tab 下 或 admin 在部门 API Key Tab 下：显示创建按钮、批量创建 */}
           {((previewRole === "org_admin" && activeTab === "prod") || (previewRole === "admin" && activeTab === "dept")) ? (
               <>
-              {/* 配置模板按钮：仅 admin 可管理模板；org_admin 不显示 */}
-              {previewRole === "admin" && (
-                <Button
-                  variant="outline"
-                  className="gap-2 h-9"
-                  onClick={openTplManager}
-                >
-                  <Settings className="w-4 h-4" />配置 API Key 模板
-                </Button>
-              )}
               <Button
                 onClick={openCreateProd}
                 className="gap-2 h-9 bg-primary text-primary-foreground hover:bg-primary/90"
@@ -1751,7 +1806,15 @@ Key 配置信息
                 />
               </div>
             </>
-          ) : previewRole === "admin" && activeTab === "org" ? null : (
+          ) : previewRole === "admin" && activeTab === "org" ? (
+            <Button
+              variant="outline"
+              className="gap-2 h-9"
+              onClick={openTplManager}
+            >
+              <Settings className="w-4 h-4" />配置 API Key 模板
+            </Button>
+          ) : (
             <>
               <Button onClick={openCreate} className="gap-2 h-9">
                 <Plus className="w-4 h-4" />创建 API Key
@@ -2143,19 +2206,42 @@ Key 配置信息
       <Dialog open={simpleDialogOpen} onOpenChange={open => { setSimpleDialogOpen(open); if (!open) setFormName(""); }}>
         <DialogContent className="max-w-sm">
           <DialogHeader>
-            <DialogTitle>{editingKey ? "编辑 API Key 名称" : "新增 API Key"}</DialogTitle>
+            <DialogTitle>{editingKey ? "编辑 API Key" : "新增 API Key"}</DialogTitle>
           </DialogHeader>
-          <div className="py-2">
-            <Label className="text-sm text-muted-foreground mb-1.5 block">
-              <span className="text-destructive mr-0.5">*</span>名称
-            </Label>
-            <Input
-              placeholder="请输入名称"
-              value={formName}
-              onChange={e => setFormName(e.target.value)}
-              onKeyDown={e => { if (e.key === "Enter" && formName.trim()) handleSave(); }}
-              autoFocus
-            />
+          <div className="py-2 space-y-4">
+            <div>
+              <Label className="text-sm text-muted-foreground mb-1.5 block">
+                <span className="text-destructive mr-0.5">*</span>名称
+              </Label>
+              <Input
+                placeholder="请输入名称"
+                value={formName}
+                onChange={e => setFormName(e.target.value)}
+                onKeyDown={e => { if (e.key === "Enter" && formName.trim()) handleSave(); }}
+                autoFocus
+              />
+            </div>
+            {/* 额度设置 */}
+            <div>
+              <Label className="text-sm text-muted-foreground mb-1.5 block">额度上限</Label>
+              <div className="flex items-center gap-2">
+                <span className="text-muted-foreground text-sm font-medium shrink-0">¥</span>
+                <Input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  placeholder="0.00"
+                  value={formQuota}
+                  onChange={e => setFormQuota(e.target.value)}
+                  disabled={formUnlimited}
+                  className="flex-1"
+                />
+                <div className="flex items-center gap-1.5 shrink-0">
+                  <Switch checked={formUnlimited} onCheckedChange={setFormUnlimited} />
+                  <span className="text-xs text-muted-foreground">无限</span>
+                </div>
+              </div>
+            </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => { setSimpleDialogOpen(false); setFormName(""); }} disabled={saving}>
@@ -2179,7 +2265,10 @@ Key 配置信息
             {/* 提示语 */}
             <div className="flex items-start gap-2 rounded-lg bg-primary/5 border border-primary/20 px-4 py-3">
               <ShieldCheck className="w-4 h-4 text-primary shrink-0 mt-0.5" />
-              <p className="text-sm text-primary/80">创建多个模板并绑定到不同部门，成员/部门管理员新建 Key 时将自动套用所属部门的模板配置，仅需输入名称即可创建。未绑定模板的部门不受限制。</p>
+              <p className="text-sm text-primary/80">
+                创建模板并绑定到部门后，该部门内所有成员创建的 Key 权限将自动套用模板配置，立即生效。
+                <span className="text-red-600 font-medium">未绑定模板的部门不进行任何限制（全分组、全模型、不限 IP、永不过期）。</span>
+              </p>
             </div>
 
             {/* 模板列表 */}
@@ -2197,12 +2286,11 @@ Key 配置信息
                 )}
                 {templates.map(t => {
                   const selected = t.id === tplSelectedId;
-                  const modelSummary = t.config.models.length > 0 ? t.config.models.slice(0, 2).join("/") + (t.config.models.length > 2 ? ` +${t.config.models.length - 2}` : "") : "全模型";
-                  const quotaSummary = t.config.unlimited ? "无限额度" : `¥${t.config.quota || "0"}`;
+                  const boundOrgNames = orgsWithTpl.filter(o => o.key_template_id === t.id).map(o => o.name);
                   return (
                     <div
                       key={t.id}
-                      onClick={() => loadTplIntoForm(t)}
+                      onClick={() => selectTplItem(t)}
                       className={cn(
                         "flex items-center justify-between px-3 py-2 rounded-md border cursor-pointer transition-colors",
                         selected ? "border-primary bg-primary/5" : "border-border hover:border-primary/50 hover:bg-muted/40"
@@ -2215,14 +2303,25 @@ Key 配置信息
                             <Badge variant="secondary" className="text-[10px] px-1.5 py-0 h-4">{t.bound_orgs} 个部门</Badge>
                           )}
                         </div>
-                        <p className="text-xs text-muted-foreground mt-0.5">{modelSummary} · {quotaSummary}</p>
+                        {boundOrgNames.length > 0 && (
+                          <p className="text-[11px] text-muted-foreground/80 mt-0.5 truncate">
+                            <span className="text-muted-foreground/60">已绑定：</span>{boundOrgNames.join("、")}
+                          </p>
+                        )}
                       </div>
-                      <div className="flex items-center gap-2 shrink-0">
+                      <div className="flex items-center gap-1.5 shrink-0">
                         <button
                           onClick={(e) => { e.stopPropagation(); openBindDialog(t); }}
                           className="px-2 py-1 text-xs rounded hover:bg-muted text-muted-foreground hover:text-foreground"
                         >
                           应用到部门
+                        </button>
+                        <button
+                          onClick={(e) => { e.stopPropagation(); handleTplCopy(t); }}
+                          className="p-1 rounded hover:bg-primary/10 text-muted-foreground hover:text-primary transition-colors"
+                          title="复制"
+                        >
+                          <Copy className="w-3.5 h-3.5" />
                         </button>
                         <button
                           onClick={(e) => { e.stopPropagation(); handleTplDelete(t); }}
@@ -2239,8 +2338,11 @@ Key 配置信息
             </div>
 
             {/* 编辑表单 */}
-            {(tplSelectedId || tplFormName || templates.length === 0) && (
-              <div className="border-t border-border pt-5 space-y-5">
+            {(tplEditing || tplCreating) ? (
+              <div className="rounded-lg border border-border bg-muted/30 p-5 space-y-5">
+                <div className="flex items-center gap-2">
+                  <h3 className="text-sm font-semibold text-foreground">{tplCreating ? "新建模板" : "编辑模板"}</h3>
+                </div>
                 {/* 模板名称 + 描述 */}
                 <div className="grid grid-cols-[100px_1fr] items-start gap-3">
                   <Label className="text-right text-muted-foreground text-sm pt-2.5"><span className="text-destructive mr-0.5">*</span>模板名称</Label>
@@ -2289,30 +2391,6 @@ Key 配置信息
                   </div>
                 </div>
 
-                {/* 额度设置 */}
-                <div>
-                  <h3 className="text-sm font-semibold text-foreground mb-4 pb-2 border-b border-border">额度设置</h3>
-                  <div className="space-y-3">
-                    <div className="grid grid-cols-[100px_1fr] items-center gap-3">
-                      <Label className="text-right text-muted-foreground text-sm">额度上限</Label>
-                      <div className="flex items-center gap-2">
-                        <span className="text-muted-foreground text-sm font-medium shrink-0">¥</span>
-                        <Input
-                          type="number" min="0" step="0.01" placeholder="0.00"
-                          value={tplFormQuota}
-                          onChange={e => setTplFormQuota(e.target.value)}
-                          disabled={tplFormUnlimited}
-                          className="flex-1"
-                        />
-                      </div>
-                    </div>
-                    <div className="grid grid-cols-[100px_1fr] items-center gap-3">
-                      <Label className="text-right text-muted-foreground text-sm">无限额度</Label>
-                      <Switch checked={tplFormUnlimited} onCheckedChange={setTplFormUnlimited} />
-                    </div>
-                  </div>
-                </div>
-
                 {/* 访问限制 */}
                 <div>
                   <h3 className="text-sm font-semibold text-foreground mb-4 pb-2 border-b border-border">访问限制</h3>
@@ -2340,17 +2418,76 @@ Key 配置信息
                   </div>
                 </div>
               </div>
-            )}
+            ) : tplSelectedId ? (() => {
+              const tpl = templates.find(t => t.id === tplSelectedId);
+              if (!tpl) return null;
+              return (
+                <div className="rounded-lg border border-border bg-muted/30 p-5 space-y-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <h3 className="text-sm font-semibold text-foreground">{tpl.name}</h3>
+                      {tpl.description && <p className="text-xs text-muted-foreground mt-0.5">{tpl.description}</p>}
+                    </div>
+                    <Button size="sm" variant="outline" className="h-7 text-xs gap-1 shrink-0" onClick={() => openTplEdit(tpl)}>
+                      <Pencil className="w-3.5 h-3.5" />编辑
+                    </Button>
+                  </div>
+                  <div className="grid grid-cols-2 gap-x-6 gap-y-3">
+                    <div>
+                      <span className="text-xs text-muted-foreground">分组</span>
+                      <p className="text-sm text-foreground mt-0.5">{tpl.config.groups.length > 0 ? tpl.config.groups.join("、") : "默认分组"}</p>
+                    </div>
+                    <div>
+                      <span className="text-xs text-muted-foreground">过期时间</span>
+                      <p className="text-sm text-foreground mt-0.5">{tpl.config.expires ? tpl.config.expires.replace("T", " ") : "永不过期"}</p>
+                    </div>
+                  </div>
+                  <div>
+                    <span className="text-xs text-muted-foreground">模型限制</span>
+                    <p className="text-sm text-foreground mt-0.5">{tpl.config.models.length > 0 ? tpl.config.models.join("、") : "所有模型"}</p>
+                  </div>
+                  <div>
+                    <span className="text-xs text-muted-foreground">IP 白名单</span>
+                    <p className="text-sm text-foreground mt-0.5 whitespace-pre-wrap">{tpl.config.ipWhitelist ? tpl.config.ipWhitelist : "不限制"}</p>
+                  </div>
+                </div>
+              );
+            })() : null}
           </div>
 
           <div className="shrink-0 px-6 py-4 border-t border-border flex justify-end gap-3 bg-background">
-            <Button variant="outline" className="w-24" onClick={() => setTplOpen(false)} disabled={tplSaving}>取消</Button>
-            <Button className="w-24" onClick={handleTplSave} disabled={tplSaving || !tplFormName.trim()}>
-              {tplSaving ? "保存中..." : "保存"}
-            </Button>
+            {(tplEditing || tplCreating) ? (
+              <>
+                <Button variant="outline" className="w-24" onClick={() => { setTplEditing(false); setTplCreating(false); }} disabled={tplSaving}>取消</Button>
+                <Button className="w-24" onClick={handleTplSave} disabled={tplSaving || !tplFormName.trim()}>
+                  {tplSaving ? "保存中..." : "保存"}
+                </Button>
+              </>
+            ) : (
+              <Button variant="outline" className="w-24" onClick={() => setTplOpen(false)}>关闭</Button>
+            )}
           </div>
         </SheetContent>
       </Sheet>
+
+      {/* 模板保存确认（显示影响范围） */}
+      <AlertDialog open={tplSaveConfirmOpen} onOpenChange={setTplSaveConfirmOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>确认保存模板配置？</AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-1.5">
+                <p>此模板已绑定 <span className="font-medium text-foreground">{templates.find(t => t.id === tplSelectedId)?.bound_orgs ?? 0} 个部门</span>，保存后配置将立即同步生效到这些部门下的所有令牌。</p>
+                <p className="text-muted-foreground">影响范围：分组、过期时间、模型限制、IP 白名单等全部配置项。</p>
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>取消</AlertDialogCancel>
+            <AlertDialogAction onClick={() => { setTplSaveConfirmOpen(false); doTplSave(); }}>确认保存</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* Bind Template to Orgs Dialog */}
       <Dialog open={bindOpen} onOpenChange={setBindOpen}>

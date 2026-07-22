@@ -1,6 +1,6 @@
 import { useState, useMemo } from "react";
+import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
 import {
   Accordion,
   AccordionContent,
@@ -8,88 +8,61 @@ import {
   AccordionTrigger,
 } from "@/components/ui/accordion";
 import {
-  CheckCircle2,
   HelpCircle,
   Sparkles,
-  Info,
   Check,
+  ArrowRight,
+  Zap,
 } from "lucide-react";
-import { useToast } from "@/hooks/use-toast";
-import { useNavigate } from "react-router-dom";
 import {
   SubscriptionPlan,
   Cycle,
-  CYCLE_OPTIONS,
   MOCK_PLANS,
-  formatCredit,
-  scopeModels,
 } from "./shared";
+import { cn } from "@/lib/utils";
 
 interface Props {
   mode: "enterprise" | "personal";
-  role?: string; // 企业模式：admin / org_admin / member
+  role?: string;
 }
 
 const FAQ_LIST = [
   { q: "模型积分是如何结算的？", a: "模型调用按后台统一基准价（¥0.01/积分）与各模型抵扣系数折算为积分后，从套餐额度中扣减。" },
-  { q: "我可以同时购买多个订阅吗？", a: "同一企业/个人同时只能持有 1 个生效中的周期订阅。资源包可与订阅同时持有，按「先用资源包后用订阅」的顺序抵扣。" },
+  { q: "我可以同时购买多个订阅吗？", a: "同一企业/个人同时只能持有 1 个生效中的周期订阅。如需更多席位，可在订阅详情页加购席位。" },
   { q: "订阅内的模型是否会随时变动？", a: "适用模型清单以购买时的商品配置为准。后台新增可用模型时，自动加入「全部模型」类套餐；指定模型套餐不会自动变化。" },
-  { q: "如果团队额度用完了怎么办？", a: "额度用完后将自动按量计费，从充值余额扣款。可在「充值余额」页设置余额预警。" },
-  { q: "API 访问权限如何保障安全？", a: "通过订阅 Key 调用，每个 Key 独立鉴权且可单独停用。请在「订阅管理」→「管理订阅 Key」中维护。" },
+  { q: "如果团队额度用完了怎么办？", a: "可在下单时开启「用尽即停」避免超量扣费；未开启时额度用完将自动按量计费，从充值余额扣款。" },
+  { q: "席位如何分配与管理？", a: "购买后管理员可在「订阅管理」中为团队成员分配席位，每席位独立享有 Credit 额度与 API Key 配额。" },
 ];
 
+// 每个套餐的主题色（用于装饰条/光晕/选中态）
+const PLAN_THEMES: Record<string, { from: string; to: string; accent: string; glow: string }> = {
+  lite:    { from: "from-sky-50",    to: "to-white",    accent: "bg-sky-500",    glow: "shadow-sky-200/60" },
+  standard:{ from: "from-violet-50", to: "to-white",    accent: "bg-violet-600", glow: "shadow-violet-300/60" },
+  premium: { from: "from-amber-50",  to: "to-white",    accent: "bg-amber-500",  glow: "shadow-amber-200/60" },
+};
+
+function getTheme(planId: string) {
+  return PLAN_THEMES[planId] ?? PLAN_THEMES.standard;
+}
+
 export default function TokenPlan({ mode, role = "member" }: Props) {
-  const { toast } = useToast();
   const navigate = useNavigate();
   const [cycle, setCycle] = useState<Cycle>("month");
-  // 卡片选中态：默认选中 isPopular 那一档订阅，其余资源包默认未选中
-  const [selectedPlanId, setSelectedPlanId] = useState<string | null>(null);
-  const [selectedPackageId, setSelectedPackageId] = useState<string | null>(null);
-  // 卡片内勾选协议
-  const [cardAgreed, setCardAgreed] = useState<Record<string, boolean>>({});
 
   const canPurchase = mode === "personal" || role === "admin";
 
-  // 按 mode 过滤可见商品
-  const visiblePlans = useMemo(() => {
-    return MOCK_PLANS.filter((p) => {
-      if (p.status !== "active") return false;
-      if (mode === "personal" && p.purchaseSubject === "enterprise") return false;
-      if (mode === "enterprise" && p.purchaseSubject === "personal") return false;
-      return true;
-    });
+  const subscriptionPlans = useMemo(() => {
+    return MOCK_PLANS
+      .filter((p) => {
+        if (p.status !== "active") return false;
+        if (p.productType !== "subscription") return false;
+        if (mode === "personal" && p.purchaseSubject === "enterprise") return false;
+        if (mode === "enterprise" && p.purchaseSubject === "personal") return false;
+        return true;
+      })
+      .sort((a, b) => a.sort - b.sort);
   }, [mode]);
 
-  const subscriptionPlans = useMemo(
-    () => visiblePlans.filter((p) => p.productType === "subscription").sort((a, b) => a.sort - b.sort),
-    [visiblePlans]
-  );
-
-  const oneTimePlans = useMemo(
-    () => visiblePlans.filter((p) => p.productType === "one-time").sort((a, b) => a.sort - b.sort),
-    [visiblePlans]
-  );
-
-  // 选中态懒初始化
-  useMemo(() => {
-    if (selectedPlanId === null && subscriptionPlans.length > 0) {
-      const popular = subscriptionPlans.find((p) => p.isPopular) ?? subscriptionPlans[0];
-      setSelectedPlanId(popular.id);
-    }
-  }, [selectedPlanId, subscriptionPlans]);
-
-  // 点击购买 → 跳转确认订单页（协议和余额校验由确认页接管）
-  const handleCardPurchase = (plan: SubscriptionPlan) => {
-    if (!canPurchase) {
-      toast({ title: "权限不足", description: "仅企业管理员可购买，请联系管理员开通。", variant: "destructive" });
-      return;
-    }
-    const params = new URLSearchParams({ planId: plan.id });
-    if (plan.productType === "subscription") params.set("cycle", cycle);
-    navigate(`/workspace/confirm-order?${params.toString()}`);
-  };
-
-  // 当前周期对应价格
   const priceFor = (plan: SubscriptionPlan) => {
     if (plan.productType === "subscription" && plan.cyclePricing && plan.cyclePricing[cycle]) {
       return plan.cyclePricing[cycle]!;
@@ -97,414 +70,229 @@ export default function TokenPlan({ mode, role = "member" }: Props) {
     return { originalPrice: plan.originalPrice ?? plan.price, price: plan.price, discountLabel: plan.discountLabel };
   };
 
-  const pageTitle = mode === "enterprise" ? "企业 AI 订阅计划" : "个人 AI 订阅计划";
+  const periodLabel = cycle === "month" ? "月" : cycle === "quarter" ? "季" : "年";
+
+  const handlePurchase = (plan: SubscriptionPlan) => {
+    if (!canPurchase) return;
+    // 企业版订阅套餐：组合购买模式，三档可混合下单，记录来源套餐（默认选购 1 席）
+    if (mode === "enterprise" && plan.productType === "subscription") {
+      navigate(`/workspace/confirm-order?planId=${plan.id}&cycle=${cycle}&combo=1`);
+      return;
+    }
+    // 个人版 / 资源包：单档购买
+    navigate(`/workspace/confirm-order?planId=${plan.id}&cycle=${cycle}`);
+  };
+
+  const pageTitle = mode === "enterprise" ? "Token Plan 团队版" : "Token Plan 个人版";
   const pageDesc = mode === "enterprise"
-    ? "面向企业与团队场景，灵活接入国产与全球顶级大模型，按积分灵活消耗，支持轻量到高频多种业务规模"
-    : "面向个人开发者与独立创作者，按需选购模型调用额度，灵活轻量，性价比优先";
+    ? "灵活的团队定价方案，满足不同使用强度和角色的需求"
+    : "灵活的个人定价方案，满足不同使用强度的需求";
+
+  const cycleTabs: { value: Cycle; label: string }[] = [
+    { value: "month", label: "按月购买" },
+    { value: "year",  label: "按年购买" },
+  ];
 
   return (
-    <div className="space-y-12">
-      {/* ── 头部 Hero ─────────────────────────── */}
-      <header className="text-center pt-2">
-        <h1 className="text-3xl md:text-4xl font-bold text-foreground tracking-tight">
+    <div className="relative space-y-14">
+      {/* 背景装饰光晕 */}
+      <div className="pointer-events-none absolute inset-x-0 -top-20 h-[480px] overflow-hidden">
+        <div className="absolute left-1/2 top-0 -translate-x-1/2 h-[420px] w-[820px] rounded-full bg-gradient-to-br from-primary/20 via-violet-400/10 to-sky-400/10 blur-3xl" />
+        <div className="absolute left-[15%] top-10 h-40 w-40 rounded-full bg-rose-300/20 blur-3xl" />
+        <div className="absolute right-[15%] top-20 h-48 w-48 rounded-full bg-sky-300/20 blur-3xl" />
+      </div>
+
+      {/* 头部 Hero */}
+      <header className="relative text-center pt-6">
+        <h1 className="text-4xl md:text-5xl font-bold tracking-tight bg-gradient-to-br from-foreground via-foreground to-foreground/70 bg-clip-text text-transparent">
           {pageTitle}
         </h1>
-        <p className="mt-3 text-sm text-muted-foreground max-w-2xl mx-auto leading-relaxed">
+        <p className="mt-4 text-sm md:text-base text-muted-foreground max-w-xl mx-auto leading-relaxed">
           {pageDesc}
         </p>
       </header>
 
-      {/* ── 区域一：企业订阅计划 ─────────────────────────── */}
-      <section className="space-y-6">
-        <div className="flex flex-col items-center gap-4">
-          {/* 周期切换 */}
-          <div className="inline-flex items-center gap-1 p-1.5 rounded-full bg-card border border-border shadow-sm">
-            {CYCLE_OPTIONS.map((o) => (
-              <button
-                key={o.value}
-                onClick={() => setCycle(o.value)}
-                className={`relative px-5 py-2 rounded-full text-sm font-medium transition-all ${
-                  cycle === o.value
-                    ? "bg-primary text-primary-foreground shadow-sm"
-                    : "text-muted-foreground hover:text-foreground"
-                }`}
-              >
-                <span>{o.label}</span>
-              </button>
-            ))}
+      {/* 周期切换 + 套餐卡片 */}
+      <section className="relative space-y-8">
+        {/* 分段控件 */}
+        <div className="flex justify-center">
+          <div className="inline-flex items-center p-1.5 rounded-2xl bg-card/80 border border-border shadow-lg shadow-black/5 backdrop-blur-sm">
+            {cycleTabs.map((o) => {
+              const active = cycle === o.value;
+              return (
+                <button
+                  key={o.value}
+                  onClick={() => setCycle(o.value)}
+                  className={`relative px-7 py-2.5 rounded-xl text-sm font-medium transition-all ${
+                    active
+                      ? "bg-gradient-to-br from-primary to-primary/90 text-primary-foreground shadow-md"
+                      : "text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  {o.label}
+                </button>
+              );
+            })}
           </div>
         </div>
 
         {subscriptionPlans.length === 0 ? (
           <EmptyState text="暂无可购买的订阅计划" />
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-5 items-stretch">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 items-stretch">
             {subscriptionPlans.map((plan) => (
               <SubscriptionPlanCard
                 key={plan.id}
                 plan={plan}
-                cycle={cycle}
+                periodLabel={periodLabel}
                 priceInfo={priceFor(plan)}
                 canPurchase={canPurchase}
-                selected={selectedPlanId === plan.id}
-                onSelect={() => setSelectedPlanId(plan.id)}
-                agreed={!!cardAgreed[plan.id]}
-                onAgreedChange={(v: boolean) => setCardAgreed((s) => ({ ...s, [plan.id]: v }))}
-                submitting={false}
-                onPurchase={() => handleCardPurchase(plan)}
-              />
-            ))}
-          </div>
-        )}
-
-        {/* 订阅计划页面级统一说明（与三档套餐配套） */}
-        <div className="max-w-3xl mx-auto space-y-2 text-xs text-muted-foreground leading-relaxed">
-          <p>
-            所有订阅计划均兼容平台现有 API 调用方式。订阅适用模型范围以套餐详情为准，平台新增模型是否纳入订阅范围由平台统一维护。
-          </p>
-        </div>
-      </section>
-
-      {/* ── 区域二：资源包 ─────────────────────────── */}
-      <section className="space-y-6">
-        <header className="text-center space-y-2">
-          <h2 className="text-3xl md:text-4xl font-bold text-foreground tracking-tight">资源包</h2>
-          <p className="text-sm text-muted-foreground">
-            一次性购买固定 Credit，有效期内按调用抵扣，适用于不同模型覆盖范围。
-          </p>
-        </header>
-
-        {oneTimePlans.length === 0 ? (
-          <EmptyState text="暂无可购买的资源包" />
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-5 items-stretch">
-            {oneTimePlans.map((plan) => (
-              <OneTimePackageCard
-                key={plan.id}
-                plan={plan}
-                canPurchase={canPurchase}
-                selected={selectedPackageId === plan.id}
-                onSelect={() => setSelectedPackageId(plan.id)}
-                agreed={!!cardAgreed[plan.id]}
-                onAgreedChange={(v: boolean) => setCardAgreed((s) => ({ ...s, [plan.id]: v }))}
-                submitting={false}
-                onPurchase={() => handleCardPurchase(plan)}
+                isPersonal={mode === "personal"}
+                onPurchase={() => handlePurchase(plan)}
               />
             ))}
           </div>
         )}
       </section>
 
-      {/* ── 区域三：常见问题 ─────────────────────────── */}
-      <section className="bg-card border border-border rounded-2xl p-6 md:p-8">
+      {/* 常见问题 */}
+      <section className="relative bg-card/60 backdrop-blur-sm border border-border rounded-2xl p-6 md:p-8 shadow-sm">
         <div className="flex items-center gap-2 mb-5">
-          <HelpCircle className="w-4 h-4 text-primary" />
+          <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center">
+            <HelpCircle className="w-4 h-4 text-primary" />
+          </div>
           <h2 className="text-lg font-semibold text-foreground">常见问题</h2>
         </div>
         <Accordion type="single" collapsible className="w-full">
           {FAQ_LIST.map((item, idx) => (
             <AccordionItem key={idx} value={`item-${idx}`}>
-              <AccordionTrigger className="text-sm text-left">
+              <AccordionTrigger className="text-sm text-left hover:no-underline">
                 {item.q}
               </AccordionTrigger>
-              <AccordionContent className="text-sm text-muted-foreground">
+              <AccordionContent className="text-sm text-muted-foreground leading-relaxed">
                 {item.a}
               </AccordionContent>
             </AccordionItem>
           ))}
         </Accordion>
       </section>
-
-      {/* 下单确认弹窗已移除：购买逻辑下沉到卡片内部直接提交 */}
     </div>
   );
 }
 
-// ─── 订阅计划卡片（参考售卖页风格 + 选中态） ────────────────────────────
-
+// 订阅计划卡片
 function SubscriptionPlanCard({
   plan,
-  cycle,
+  periodLabel,
   priceInfo,
   canPurchase,
-  selected,
-  onSelect,
-  agreed,
-  onAgreedChange,
-  submitting,
+  isPersonal,
   onPurchase,
 }: {
   plan: SubscriptionPlan;
-  cycle: Cycle;
+  periodLabel: string;
   priceInfo: { originalPrice: number; price: number; discountLabel?: string };
   canPurchase: boolean;
-  selected: boolean;
-  onSelect: () => void;
-  agreed: boolean;
-  onAgreedChange: (v: boolean) => void;
-  submitting: boolean;
+  isPersonal: boolean;
   onPurchase: () => void;
 }) {
-  const periodLabel = cycle === "month" ? "月" : cycle === "quarter" ? "季" : "年";
-  const features = plan.features ?? [];
-  const popular = !!plan.isPopular;
+  const theme = getTheme(plan.id);
 
-  // 主推卡片（标准版）：始终高亮+主色实心按钮；其他卡片：浅色/描边按钮
-  const highlighted = popular || selected;
+  // 个人版：去掉 "Enterprise" 前缀，价格单位为 /月，features 文案去掉"每席位"
+  const displayName = isPersonal
+    ? plan.name.replace(/^Enterprise\s*/i, "").trim()
+    : plan.name;
+  const priceUnit = isPersonal ? `/${periodLabel}` : `/席/${periodLabel}`;
+  const features = (plan.features ?? []).map((f) =>
+    isPersonal ? f.replace(/每席位(含|提供)/g, (_, t) => (t === "含" ? "每月含" : "提供")) : f
+  );
 
   return (
     <div
-      onClick={onSelect}
-      className={`relative bg-card rounded-2xl p-6 flex flex-col cursor-pointer transition-all h-full ${
-        popular
-          ? "border-2 border-primary shadow-lg shadow-primary/10 ring-1 ring-primary/20 bg-primary/5"
-          : selected
-            ? "border-2 border-primary shadow-md bg-primary/5"
-            : "border border-border hover:border-primary/50 hover:shadow-md"
-      }`}
+      className={`group relative bg-gradient-to-b ${theme.from} rounded-2xl p-6 flex flex-col transition-all duration-300 h-full overflow-hidden border border-border/70 hover:border-primary/40 hover:shadow-xl hover:-translate-y-1 hover:shadow-black/5`}
     >
-      {/* 推荐标签（主推卡片右上角胶囊） */}
-      {popular && (
-        <span className="absolute -top-3 right-4 inline-flex items-center px-2.5 py-1 text-[11px] font-semibold rounded-full bg-primary text-primary-foreground shadow-sm">
-          推荐
-        </span>
-      )}
+      {/* 顶部装饰条 */}
+      <div className={`absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-transparent via-primary/40 to-transparent opacity-0 group-hover:opacity-100 transition-opacity`} />
 
-      {/* 选中标识（非主推卡片被选中时显示） */}
-      {!popular && selected && (
-        <div className="absolute top-3 right-3 w-5 h-5 rounded-full bg-primary flex items-center justify-center shadow-sm">
-          <Check className="w-3 h-3 text-white" strokeWidth={3} />
+      {/* 背景装饰光斑 */}
+      <div className={`pointer-events-none absolute -right-10 -top-10 w-40 h-40 rounded-full ${theme.accent} opacity-[0.06] blur-2xl group-hover:opacity-[0.12] transition-opacity`} />
+
+      {/* 名称 + 定位 */}
+      <div className="relative">
+        <div className="flex items-center gap-2">
+          <div className={`w-9 h-9 rounded-xl ${theme.accent} flex items-center justify-center shadow-sm`}>
+            <Zap className="w-4.5 h-4.5 text-white" fill="currentColor" />
+          </div>
+          <h3 className="text-xl font-bold text-foreground tracking-tight">{displayName}</h3>
         </div>
-      )}
-
-      {/* 名称 */}
-      <h3 className="text-lg font-semibold text-foreground">{plan.name}</h3>
-      {plan.positioning && (
-        <p className="text-xs text-muted-foreground mt-1.5">{plan.positioning}</p>
-      )}
+        {plan.positioning && (
+          <p className="text-sm text-muted-foreground mt-3 leading-relaxed">
+            {plan.positioning}
+          </p>
+        )}
+      </div>
 
       {/* 价格块 */}
-      <div className="mt-5">
+      <div className="relative mt-6 rounded-xl bg-white/70 backdrop-blur-sm border border-border/50 p-4 shadow-sm">
         {priceInfo.originalPrice > priceInfo.price && (
-          <div className="text-xs text-muted-foreground line-through">
-            原价 ¥{priceInfo.originalPrice.toLocaleString("zh-CN")}
+          <div className="text-xs text-muted-foreground line-through mb-0.5">
+            原价 ¥{priceInfo.originalPrice.toLocaleString("zh-CN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
           </div>
         )}
-        <div className="flex items-baseline gap-1.5 mt-1">
-          <span className="text-3xl font-bold text-rose-500">
-            ¥{priceInfo.price.toLocaleString("zh-CN")}
+        <div className="flex items-baseline gap-1.5">
+          <span className="text-[13px] font-medium text-rose-500/90 -mb-1">¥</span>
+          <span className="text-[40px] font-bold leading-none text-rose-500 tracking-tight">
+            {priceInfo.price.toLocaleString("zh-CN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
           </span>
-          <span className="text-sm text-muted-foreground">/ {periodLabel}</span>
-          {priceInfo.discountLabel && (
-            <span className="ml-1 inline-flex items-center px-1.5 py-0.5 text-[10px] font-semibold rounded-md bg-rose-50 text-rose-500 border border-rose-200">
-              {priceInfo.discountLabel}
+          <span className="text-xs text-muted-foreground ml-1">{priceUnit}</span>
+        </div>
+      </div>
+
+      {/* 分隔 */}
+      <div className="my-5 h-px bg-gradient-to-r from-transparent via-border to-transparent" />
+
+      {/* 商品特性 */}
+      {features.length > 0 && (
+        <ul className="space-y-2.5 flex-1">
+          {features.map((f, i) => (
+            <li key={i} className="flex items-start gap-2.5 text-sm text-muted-foreground leading-relaxed">
+              <span className="mt-0.5 w-4 h-4 rounded-full bg-emerald-500/10 flex items-center justify-center shrink-0">
+                <Check className="w-2.5 h-2.5 text-emerald-600" strokeWidth={3} />
+              </span>
+              <span>{f}</span>
+            </li>
+          ))}
+        </ul>
+      )}
+
+      {/* 购买按钮 */}
+      <div className="mt-6">
+        <Button
+          onClick={(e) => {
+            e.stopPropagation();
+            onPurchase();
+          }}
+          disabled={!canPurchase}
+          className={cn(
+            "w-full h-11 text-sm font-semibold group/btn border-0",
+            canPurchase
+              ? "bg-gradient-to-br from-blue-500 to-blue-600 text-white shadow-md shadow-blue-500/20 transition-all duration-300 group-hover:from-blue-600 group-hover:to-blue-700 group-hover:shadow-lg group-hover:shadow-blue-600/30"
+              : "bg-muted text-muted-foreground"
+          )}
+        >
+          {!canPurchase ? "仅企业管理员可购买" : (
+            <span className="inline-flex items-center gap-1.5">
+              立即购买
+              <ArrowRight className="w-3.5 h-3.5 transition-transform group-hover/btn:translate-x-0.5" />
             </span>
           )}
-        </div>
-        {/* 自动续费说明（统一文案，放在价格下方） */}
-        <div className="mt-1.5 flex items-center gap-1 text-[11px] text-muted-foreground">
-          <Info className="w-3 h-3" />
-          <span>到期自动续费，可随时取消；取消后当前周期权益仍可使用至到期。</span>
-        </div>
-      </div>
-
-      {/* 立即订阅按钮：主推卡片主色实心；其他卡片浅色/描边 */}
-      <Button
-        onClick={(e) => { e.stopPropagation(); onPurchase(); }}
-        disabled={!canPurchase || submitting}
-        variant={highlighted ? "default" : "outline"}
-        className={`mt-4 w-full ${
-          popular
-            ? "text-white shadow-sm"
-            : highlighted
-              ? "text-white shadow-sm"
-              : "bg-muted/50 text-foreground hover:bg-muted border-border"
-        }`}
-        style={
-          highlighted && canPurchase
-            ? { background: "linear-gradient(135deg, hsl(224,76%,48%), hsl(262,60%,58%))" }
-            : undefined
-        }
-      >
-        {!canPurchase
-          ? "仅企业管理员可订阅"
-          : submitting
-            ? "提交中..."
-            : "立即订阅"}
-      </Button>
-
-      {/* 协议勾选 */}
-      <label
-        onClick={(e) => e.stopPropagation()}
-        className="mt-3 flex items-start gap-2 cursor-pointer select-none"
-      >
-        <Checkbox
-          checked={agreed}
-          onCheckedChange={(c) => onAgreedChange(c === true)}
-          className="mt-0.5"
-        />
-        <span className="text-[11px] text-muted-foreground leading-relaxed">
-          我已阅读并同意
-          <a href="#" className="text-primary mx-0.5 hover:underline">《订阅使用协议》</a>
-          与
-          <a href="#" className="text-primary mx-0.5 hover:underline">《自动续费协议》</a>
-        </span>
-      </label>
-
-      {/* 权益清单（统一 4 项核心权益） */}
-      <ul className="mt-4 space-y-2.5 flex-1">
-        {features.map((f, i) => (
-          <li key={i} className="flex items-start gap-2 text-sm text-foreground/90 leading-relaxed">
-            <CheckCircle2 className={`w-4 h-4 mt-0.5 shrink-0 ${popular ? "text-primary" : "text-emerald-500"}`} />
-            <span>{f}</span>
-          </li>
-        ))}
-      </ul>
-    </div>
-  );
-}
-
-// ─── 一次性资源包卡片（参考方案页风格 + 选中态） ────────────────────────
-
-function OneTimePackageCard({
-  plan,
-  canPurchase,
-  selected,
-  onSelect,
-  agreed,
-  onAgreedChange,
-  submitting,
-  onPurchase,
-}: {
-  plan: SubscriptionPlan;
-  canPurchase: boolean;
-  selected: boolean;
-  onSelect: () => void;
-  agreed: boolean;
-  onAgreedChange: (v: boolean) => void;
-  submitting: boolean;
-  onPurchase: () => void;
-}) {
-  const popular = !!plan.isPopular;
-  const modelCount = scopeModels(plan).length;
-  const scopeText = plan.scope === "global"
-    ? `全部模型 ${modelCount}个`
-    : plan.scope === "domestic"
-      ? `国内模型 ${modelCount}个`
-      : plan.scope === "overseas"
-        ? `海外模型 ${modelCount}个`
-        : `适用模型 ${modelCount}个`;
-  const features = plan.features ?? [
-    `有效期 ${plan.validityMonths ?? 6} 个月`,
-    scopeText,
-    "用完后自动转按量计费",
-  ];
-
-  // 推荐卡：主色边框 + 浅色背景；普通卡：浅色边框
-  const baseCls = popular
-    ? "border-2 border-primary bg-primary/5 shadow-lg shadow-primary/10"
-    : "border border-border bg-card";
-
-  // 顶部右上角"推荐"标签（仅推荐卡）
-  const tagCls = "bg-primary text-primary-foreground";
-
-  return (
-    <div
-      onClick={onSelect}
-      className={`relative rounded-2xl p-6 flex flex-col cursor-pointer transition-all h-full ${baseCls} ${
-        selected ? "ring-1 ring-primary/30" : "hover:shadow-md"
-      }`}
-    >
-      {/* 顶部：商品名称 + 推荐标签（仅推荐卡展示） */}
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <h3 className="text-lg font-semibold text-foreground">{plan.name}</h3>
-          {plan.positioning && (
-            <p className="text-xs text-muted-foreground mt-1.5 leading-relaxed min-h-[2.5rem]">
-              {plan.positioning}
-            </p>
-          )}
-        </div>
-        {popular && plan.scopeLabel && (
-          <span className={`shrink-0 inline-flex items-center px-2.5 py-1 text-[11px] font-medium rounded-full ${tagCls}`}>
-            {plan.scopeLabel}
-          </span>
+        </Button>
+        {!canPurchase && !isPersonal && (
+          <p className="mt-2 text-[11px] text-muted-foreground text-center">
+            请联系企业管理员开通订阅
+          </p>
         )}
       </div>
-
-      {/* 价格块：原价（划线）+ 售价（红色大号）+ 折扣徽章 + Credit 总量 */}
-      <div className="mt-5">
-        {plan.originalPrice && plan.originalPrice > plan.price && (
-          <div className="text-xs text-muted-foreground line-through">
-            原价 ¥{plan.originalPrice.toLocaleString("zh-CN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-          </div>
-        )}
-        <div className="flex items-baseline gap-2 mt-1">
-          <span className="text-3xl font-bold text-rose-500">
-            <span className="text-base font-normal align-top">¥</span>
-            {plan.price.toLocaleString("zh-CN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-          </span>
-          {plan.discountLabel && (
-            <span className="inline-flex items-center px-1.5 py-0.5 text-[10px] font-semibold rounded-md bg-rose-50 text-rose-500 border border-rose-200">
-              {plan.discountLabel}
-            </span>
-          )}
-        </div>
-        <div className="mt-1.5 text-sm font-medium text-foreground">
-          共 {formatCredit(plan.totalQuota)} Credit
-        </div>
-      </div>
-
-      {/* 权益清单（统一 3 条核心权益） */}
-      <ul className="mt-5 space-y-2.5 flex-1">
-        {features.map((f, i) => (
-          <li key={i} className="flex items-start gap-2 text-sm text-foreground/90 leading-relaxed">
-            <CheckCircle2 className={`w-4 h-4 mt-0.5 shrink-0 ${popular ? "text-primary" : "text-emerald-500"}`} />
-            <span>{f}</span>
-          </li>
-        ))}
-      </ul>
-
-      {/* 协议勾选 */}
-      <label
-        onClick={(e) => e.stopPropagation()}
-        className="mt-5 flex items-start gap-2 cursor-pointer select-none"
-      >
-        <Checkbox
-          checked={agreed}
-          onCheckedChange={(c) => onAgreedChange(c === true)}
-          className="mt-0.5"
-        />
-        <span className="text-[11px] text-muted-foreground leading-relaxed">
-          我已阅读并同意
-          <a href="#" className="text-primary mx-0.5 hover:underline">《资源包服务协议》</a>
-        </span>
-      </label>
-
-      {/* 购买按钮：占满卡片宽度 */}
-      <Button
-        onClick={(e) => { e.stopPropagation(); onPurchase(); }}
-        disabled={!canPurchase || submitting}
-        className={`mt-4 w-full ${
-          popular
-            ? "text-white shadow-sm"
-            : selected
-              ? "text-white shadow-sm"
-              : "bg-muted/50 text-foreground hover:bg-muted border border-border"
-        }`}
-        style={
-          (popular || selected) && canPurchase
-            ? { background: "linear-gradient(135deg, hsl(224,76%,48%), hsl(262,60%,58%))" }
-            : undefined
-        }
-        variant={(popular || selected) ? "default" : "outline"}
-      >
-        {!canPurchase
-          ? "仅管理员可购买"
-          : submitting
-            ? "提交中..."
-            : "立即购买"}
-      </Button>
     </div>
   );
 }

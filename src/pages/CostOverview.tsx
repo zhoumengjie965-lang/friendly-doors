@@ -27,13 +27,13 @@ interface Props {
 // 已支付 = voucherDeduction + 充值余额支付
 // 授信额度支付（待支付）= creditPayment
 // total = 已支付 + 授信额度支付
-// 账单状态：未出账 / 已结清（出账且无欠费） / 未结清（出账但有欠费）
+// 账单状态：未出账 / 已出账
 const mockTrendData = [
-  { period: "2025-09", status: "已结清", balancePayment: 80.00, voucherDeduction: 28.00, creditPayment: 0.00, entitlementPurchase: 0.00, total: 108.00 },
-  { period: "2025-10", status: "未结清", balancePayment: 200.00, voucherDeduction: 90.00, creditPayment: 150.00, entitlementPurchase: 999.00, total: 1439.00 },
-  { period: "2025-11", status: "已结清", balancePayment: 180.00, voucherDeduction: 75.00, creditPayment: 0.00, entitlementPurchase: 0.00, total: 255.00 },
-  { period: "2026-04", status: "未结清", balancePayment: 45.00, voucherDeduction: 12.00, creditPayment: 80.00, entitlementPurchase: 0.00, total: 137.00 },
-  { period: "2026-05", status: "未出账", balancePayment: 0.00, voucherDeduction: 0.00, creditPayment: 0.00, entitlementPurchase: 0.00, total: 0.00 },
+  { period: "2025-09", status: "未出账", balancePayment: 80.00, voucherDeduction: 28.00, creditPayment: 0.00, entitlementPurchase: 0.00, total: 108.00 },
+  { period: "2025-10", status: "未出账", balancePayment: 200.00, voucherDeduction: 90.00, creditPayment: 150.00, entitlementPurchase: 999.00, total: 1439.00 },
+  { period: "2025-11", status: "未出账", balancePayment: 180.00, voucherDeduction: 75.00, creditPayment: 0.00, entitlementPurchase: 0.00, total: 255.00 },
+  { period: "2026-04", status: "未出账", balancePayment: 45.00, voucherDeduction: 12.00, creditPayment: 80.00, entitlementPurchase: 0.00, total: 137.00 },
+  { period: "2026-05", status: "已出账", balancePayment: 0.00, voucherDeduction: 0.00, creditPayment: 0.00, entitlementPurchase: 0.00, total: 0.00 },
 ];
 
 const calcBalancePayment = (d: { balancePayment: number; entitlementPurchase: number }) =>
@@ -116,18 +116,14 @@ export default function CostOverview({ enterprise, role }: Props) {
                 {selectedPeriod}
                 {currentPeriodData && (
                   <span className={`inline-flex items-center gap-1 text-xs font-medium ${
-                    currentPeriodData.status === "未出账"
-                      ? "text-blue-600"
-                      : currentPeriodData.status === "未结清"
-                        ? "text-orange-600"
-                        : "text-green-600"
+                    currentPeriodData.status === "已出账"
+                      ? "text-green-600"
+                      : "text-gray-500"
                   }`}>
                     <span className={`w-1.5 h-1.5 rounded-full ${
-                      currentPeriodData.status === "未出账"
-                        ? "bg-blue-500"
-                        : currentPeriodData.status === "未结清"
-                          ? "bg-orange-500"
-                          : "bg-green-500"
+                      currentPeriodData.status === "已出账"
+                        ? "bg-green-500"
+                        : "bg-gray-400"
                     }`} />
                     {currentPeriodData.status}
                   </span>
@@ -283,18 +279,14 @@ export default function CostOverview({ enterprise, role }: Props) {
                     <TableCell className={`text-sm text-right ${rowCredit > 0 ? "text-orange-600" : "text-muted-foreground"}`}>¥{rowCredit.toFixed(2)}</TableCell>
                     <TableCell className="text-sm">
                       <span className={`inline-flex items-center gap-1 text-xs font-medium ${
-                        row.status === "未出账"
-                          ? "text-blue-600"
-                          : row.status === "未结清"
-                            ? "text-orange-600"
-                            : "text-green-600"
+                        row.status === "已出账"
+                          ? "text-green-600"
+                          : "text-gray-500"
                       }`}>
                         <span className={`w-1.5 h-1.5 rounded-full ${
-                          row.status === "未出账"
-                            ? "bg-blue-500"
-                            : row.status === "未结清"
-                              ? "bg-orange-500"
-                              : "bg-green-500"
+                          row.status === "已出账"
+                            ? "bg-green-500"
+                            : "bg-gray-400"
                         }`} />
                         {row.status}
                       </span>

@@ -31,12 +31,8 @@ export interface AdminEntitlement {
   // 来源订单
   orderId: string;
   // 额度
-  quotaRule: "periodic" | "one-time"; // 每月重置 / 一次性
   totalQuota: number;
   remainingQuota: number;
-  periodTotalQuota?: number;
-  periodRemainingQuota?: number;
-  nextResetAt?: string;
   // 生命周期
   createdAt: string; // 创建时间（即购买/发放时间）
   effectiveAt: string;
@@ -69,11 +65,6 @@ export const STATUS_BADGE: Record<AdminEntitlementStatus, string> = {
   frozen: "bg-orange-50 text-orange-600 border-orange-200",
   exhausted: "bg-gray-50 text-gray-500 border-gray-200",
   expired: "bg-gray-50 text-gray-500 border-gray-200",
-};
-
-export const QUOTA_RULE_LABEL: Record<"periodic" | "one-time", string> = {
-  periodic: "每月重置",
-  "one-time": "一次性额度",
 };
 
 // 复用用户侧 mock 数据的抵扣明细（后台扩展 breakdown）
@@ -259,17 +250,13 @@ export const MOCK_ADMIN_ENTITLEMENTS: AdminEntitlement[] = [
     ownerName: "星辰科技有限公司",
     accountType: "enterprise",
     orderId: "ORD20260714001",
-    quotaRule: "periodic",
     totalQuota: 937_000_000,
     remainingQuota: 623_450_000,
-    periodTotalQuota: 937_000_000,
-    periodRemainingQuota: 623_450_000,
-    nextResetAt: "2026-08-01T00:00:00",
     createdAt: "2026-07-01T00:00:00",
     effectiveAt: "2026-07-01T00:00:00",
     expiresAt: "2026-08-01T00:00:00",
     status: "active",
-    remark: "每月重置",
+    remark: "有效期内可用",
     usageLogs: LOGS_ENT001,
   },
   {
@@ -281,17 +268,13 @@ export const MOCK_ADMIN_ENTITLEMENTS: AdminEntitlement[] = [
     ownerName: "李四",
     accountType: "personal",
     orderId: "ORD20260714002",
-    quotaRule: "periodic",
     totalQuota: 264_000_000,
     remainingQuota: 198_320_000,
-    periodTotalQuota: 264_000_000,
-    periodRemainingQuota: 198_320_000,
-    nextResetAt: "2026-08-14T09:15:40",
     createdAt: "2026-07-14T09:15:40",
     effectiveAt: "2026-07-14T09:15:40",
     expiresAt: "2026-08-14T09:15:40",
     status: "active",
-    remark: "每月重置",
+    remark: "有效期内可用",
     usageLogs: LOGS_ENT002,
   },
   {
@@ -303,7 +286,6 @@ export const MOCK_ADMIN_ENTITLEMENTS: AdminEntitlement[] = [
     ownerName: "智云数据科技",
     accountType: "enterprise",
     orderId: "ORD20260714003",
-    quotaRule: "one-time",
     totalQuota: 5_000_000,
     remainingQuota: 3_250_000,
     createdAt: "2026-07-13T16:42:58",
@@ -322,7 +304,6 @@ export const MOCK_ADMIN_ENTITLEMENTS: AdminEntitlement[] = [
     ownerName: "王五",
     accountType: "personal",
     orderId: "ORD20260714004",
-    quotaRule: "one-time",
     totalQuota: 3_000_000,
     remainingQuota: 3_000_000,
     createdAt: "2026-07-14T14:00:00",
@@ -341,7 +322,6 @@ export const MOCK_ADMIN_ENTITLEMENTS: AdminEntitlement[] = [
     ownerName: "启明智能科技",
     accountType: "enterprise",
     orderId: "ORD20260710001",
-    quotaRule: "one-time",
     totalQuota: 1_000_000,
     remainingQuota: 0,
     createdAt: "2026-07-10T11:08:30",
@@ -360,17 +340,13 @@ export const MOCK_ADMIN_ENTITLEMENTS: AdminEntitlement[] = [
     ownerName: "赵六",
     accountType: "personal",
     orderId: "ORD20260705002",
-    quotaRule: "periodic",
     totalQuota: 264_000_000,
     remainingQuota: 0,
-    periodTotalQuota: 264_000_000,
-    periodRemainingQuota: 42_180_000,
-    nextResetAt: "2026-07-05T15:30:00",
     createdAt: "2026-06-05T15:30:00",
     effectiveAt: "2026-06-05T15:30:00",
     expiresAt: "2026-07-05T15:30:00",
     status: "expired",
-    remark: "每月重置",
+    remark: "已过期",
     usageLogs: LOGS_ENT006,
   },
   {
@@ -382,12 +358,8 @@ export const MOCK_ADMIN_ENTITLEMENTS: AdminEntitlement[] = [
     ownerName: "蓝海信息技术",
     accountType: "enterprise",
     orderId: "ORD20260708007",
-    quotaRule: "periodic",
     totalQuota: 937_000_000,
     remainingQuota: 412_000_000,
-    periodTotalQuota: 937_000_000,
-    periodRemainingQuota: 412_000_000,
-    nextResetAt: "2026-08-08T00:00:00",
     createdAt: "2026-07-08T10:22:10",
     effectiveAt: "2026-07-08T00:00:00",
     expiresAt: "2026-08-08T00:00:00",
