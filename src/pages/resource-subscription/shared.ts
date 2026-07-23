@@ -543,7 +543,7 @@ export interface SubscriptionHolding {
   autoRenew: boolean;
   nextBillingAt: string | null;
   keyLimit: number; // = plan.baseKeyLimit × seats
-  status: "active" | "expired" | "cancelled";
+  status: "active" | "expired";
   modelScope: ModelScope;
   modelFilter: ModelFilter;
   selectedModels: string[];
@@ -615,13 +615,11 @@ export const packageStatusClass: Record<ResourcePackage["status"], string> = {
 export const subscriptionStatusLabel: Record<SubscriptionHolding["status"], string> = {
   active: "生效中",
   expired: "已到期",
-  cancelled: "已取消",
 };
 
 export const subscriptionStatusClass: Record<SubscriptionHolding["status"], string> = {
   active: "bg-green-50 text-green-600 border-green-200",
   expired: "bg-gray-50 text-gray-500 border-gray-200",
-  cancelled: "bg-gray-50 text-gray-500 border-gray-200",
 };
 
 export const MOCK_PACKAGES: ResourcePackage[] = [

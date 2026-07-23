@@ -1021,6 +1021,11 @@ interface SubscriptionOrder {
   paidAt: string;            // 支付时间
   effectiveStart: string;    // 生效开始时间
   effectiveEnd: string;      // 生效结束时间
+  config: string;            // 配置
+  billingMethod: string;     // 计费方式
+  duration: string;          // 生效时长
+  discountAmount: number;    // 价格优惠
+  paidAmount: number;        // 实付金额
 }
 
 // Mock 数据 - 用户账单
@@ -1058,9 +1063,9 @@ const MOCK_USER_BILLS: UserBillRecord[] = [
       { modelName: "tts-1", billingType: "call", inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheCreateTokens: 0, inputPrice: 0, outputPrice: 0, cacheDiscount: 1, tierDiscount: 1, subtotal: 3600.00, callCount: 12000, callPrice: 0.3, voucherDeduction: 0, balanceDeduction: 3600.00 },
     ],
     subscriptionOrders: [
-      { orderNo: "ORD20260314001", productName: "Enterprise 标准版", productType: "订阅包", orderType: "新购", billingCycle: "按月", unitPrice: 2999.00, quantity: 1, orderAmount: 2999.00, paymentMethod: "充值余额", createdAt: "2026-03-14 10:23:18", paidAt: "2026-03-14 10:23:25", effectiveStart: "2026-03-14 10:23:25", effectiveEnd: "2026-04-14 10:23:25" },
-      { orderNo: "ORD20260320002", productName: "Token 资源包 1000万", productType: "资源包", orderType: "新购", billingCycle: "按年", unitPrice: 999.00, quantity: 1, orderAmount: 999.00, paymentMethod: "充值余额", createdAt: "2026-03-20 09:15:02", paidAt: "2026-03-20 09:15:40", effectiveStart: "2026-03-20 09:15:40", effectiveEnd: "2027-03-20 09:15:40" },
-      { orderNo: "ORD20260325003", productName: "Enterprise 标准版", productType: "订阅包", orderType: "续费", billingCycle: "按月", unitPrice: 2999.00, quantity: 1, orderAmount: 2999.00, paymentMethod: "充值余额", createdAt: "2026-03-25 14:05:00", paidAt: "2026-03-25 14:05:30", effectiveStart: "2026-03-25 14:05:30", effectiveEnd: "2026-04-25 14:05:30" },
+      { orderNo: "ORD20260314001", productName: "Enterprise 标准版", productType: "订阅包", orderType: "新购", billingCycle: "按月", unitPrice: 2999.00, quantity: 1, orderAmount: 2999.00, paymentMethod: "充值余额", createdAt: "2026-03-14 10:23:18", paidAt: "2026-03-14 10:23:25", effectiveStart: "2026-03-14 10:23:25", effectiveEnd: "2026-04-14 10:23:25", config: "Enterprise 标准版 × 5席", billingMethod: "包年包月", duration: "1 个月", discountAmount: 300.00, paidAmount: 2699.00 },
+      { orderNo: "ORD20260320002", productName: "Token 资源包 1000万", productType: "资源包", orderType: "新购", billingCycle: "按年", unitPrice: 999.00, quantity: 1, orderAmount: 999.00, paymentMethod: "充值余额", createdAt: "2026-03-20 09:15:02", paidAt: "2026-03-20 09:15:40", effectiveStart: "2026-03-20 09:15:40", effectiveEnd: "2027-03-20 09:15:40", config: "", billingMethod: "一次性", duration: "12 个月", discountAmount: 100.00, paidAmount: 899.00 },
+      { orderNo: "ORD20260325003", productName: "Enterprise 标准版", productType: "订阅包", orderType: "续费", billingCycle: "按月", unitPrice: 2999.00, quantity: 1, orderAmount: 2999.00, paymentMethod: "充值余额", createdAt: "2026-03-25 14:05:00", paidAt: "2026-03-25 14:05:30", effectiveStart: "2026-03-25 14:05:30", effectiveEnd: "2026-04-25 14:05:30", config: "Enterprise 标准版 × 5席", billingMethod: "包年包月", duration: "1 个月", discountAmount: 0, paidAmount: 2999.00 },
     ]
   },
   {
@@ -1883,28 +1888,32 @@ function UserBillManagement() {
                       <tr className="border-b">
                         <th className="px-3 py-2.5 text-left font-medium text-muted-foreground">用户名称</th>
                         <th className="px-3 py-2.5 text-left font-medium text-muted-foreground">商品名称</th>
-                        <th className="px-3 py-2.5 text-left font-medium text-muted-foreground">商品类型</th>
+                        <th className="px-3 py-2.5 text-left font-medium text-muted-foreground">配置</th>
+                        <th className="px-3 py-2.5 text-left font-medium text-muted-foreground">计费方式</th>
                         <th className="px-3 py-2.5 text-center font-medium text-muted-foreground">订单类型</th>
-                        <th className="px-3 py-2.5 text-right font-medium text-muted-foreground">单价</th>
-                        <th className="px-3 py-2.5 text-right font-medium text-muted-foreground">购买数量</th>
-                        <th className="px-3 py-2.5 text-right font-medium text-muted-foreground">订单金额</th>
                         <th className="px-3 py-2.5 text-left font-medium text-muted-foreground">订单号</th>
+                        <th className="px-3 py-2.5 text-right font-medium text-muted-foreground">数量</th>
+                        <th className="px-3 py-2.5 text-left font-medium text-muted-foreground">生效时长</th>
                         <th className="px-3 py-2.5 text-left font-medium text-muted-foreground">生效时间</th>
+                        <th className="px-3 py-2.5 text-right font-medium text-muted-foreground">单价</th>
+                        <th className="px-3 py-2.5 text-right font-medium text-muted-foreground">价格优惠</th>
+                        <th className="px-3 py-2.5 text-right font-medium text-muted-foreground">实付金额</th>
                         <th className="px-3 py-2.5 text-right font-medium text-muted-foreground">充值余额支付</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y">
                       {(previewBill.subscriptionOrders || []).length === 0 ? (
                         <tr>
-                          <td colSpan={10} className="px-3 py-8 text-center text-muted-foreground">本期无权益购买记录</td>
+                          <td colSpan={13} className="px-3 py-8 text-center text-muted-foreground">本期无权益购买记录</td>
                         </tr>
                       ) : (
                         <>
                           {(previewBill.subscriptionOrders || []).map((order, idx) => (
                             <tr key={idx} className="hover:bg-muted/20">
                               <td className="px-3 py-2 font-medium">{previewBill.enterprise}</td>
-                              <td className="px-3 py-2 font-medium">{order.productName}（{order.billingCycle}）</td>
-                              <td className="px-3 py-2 text-muted-foreground">{order.productType}</td>
+                              <td className="px-3 py-2 font-medium">{order.productName}</td>
+                              <td className="px-3 py-2 text-muted-foreground whitespace-pre-line">{order.config || "-"}</td>
+                              <td className="px-3 py-2 text-muted-foreground">{order.billingMethod}</td>
                               <td className="px-3 py-2 text-center">
                                 <Badge
                                   variant="outline"
@@ -1919,21 +1928,25 @@ function UserBillManagement() {
                                   {order.orderType}
                                 </Badge>
                               </td>
-                              <td className="px-3 py-2 text-right font-mono">{formatCurrency(order.unitPrice)}</td>
-                              <td className="px-3 py-2 text-right font-mono">{order.quantity}</td>
-                              <td className="px-3 py-2 text-right font-mono font-medium">{formatCurrency(order.orderAmount)}</td>
                               <td className="px-3 py-2 font-mono text-muted-foreground">{order.orderNo}</td>
+                              <td className="px-3 py-2 text-right font-mono">{order.quantity}</td>
+                              <td className="px-3 py-2 text-muted-foreground">{order.duration}</td>
                               <td className="px-3 py-2 text-muted-foreground whitespace-nowrap">{order.effectiveStart} ~ {order.effectiveEnd}</td>
+                              <td className="px-3 py-2 text-right font-mono">{formatCurrency(order.unitPrice)}</td>
+                              <td className="px-3 py-2 text-right font-mono text-emerald-600">{order.discountAmount > 0 ? `-${formatCurrency(order.discountAmount)}` : "-"}</td>
+                              <td className="px-3 py-2 text-right font-mono font-medium">{formatCurrency(order.paidAmount)}</td>
                               <td className="px-3 py-2 text-right font-mono font-medium">{formatCurrency(order.orderAmount)}</td>
                             </tr>
                           ))}
                           {/* 汇总行 */}
                           <tr className="bg-muted/50 border-t-2 border-muted font-medium">
-                            <td className="px-3 py-3 font-medium text-muted-foreground" colSpan={6}>权益购买汇总</td>
-                            <td className="px-3 py-3 text-right font-mono font-bold">
-                              {formatCurrency((previewBill.subscriptionOrders || []).reduce((sum, o) => sum + o.orderAmount, 0))}
+                            <td className="px-3 py-3 font-medium text-muted-foreground" colSpan={10}>权益购买汇总</td>
+                            <td className="px-3 py-3 text-right font-mono font-bold text-emerald-600">
+                              {formatCurrency((previewBill.subscriptionOrders || []).reduce((sum, o) => sum + o.discountAmount, 0))}
                             </td>
-                            <td className="px-3 py-3" colSpan={2}></td>
+                            <td className="px-3 py-3 text-right font-mono font-bold">
+                              {formatCurrency((previewBill.subscriptionOrders || []).reduce((sum, o) => sum + o.paidAmount, 0))}
+                            </td>
                             <td className="px-3 py-3 text-right font-mono font-bold">
                               {formatCurrency((previewBill.subscriptionOrders || []).reduce((sum, o) => sum + o.orderAmount, 0))}
                             </td>
@@ -1954,7 +1967,7 @@ function UserBillManagement() {
                     (previewBill.subscriptionOrders || []).reduce((sum, o) => sum + o.orderAmount, 0)
                   )}
                 </span></span>
-                <span className="font-medium">待支付金额：<span className="font-mono text-red-600 text-lg font-bold">
+                <span className="font-medium">待实际应付：<span className="font-mono text-red-600 text-lg font-bold">
                   {formatCurrency(previewBill.details.reduce((sum, d) => sum + (d.creditDeduction ?? 0), 0))}
                 </span></span>
               </div>

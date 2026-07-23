@@ -21,9 +21,14 @@ import ResourcePackages from "@/pages/resource-subscription/ResourcePackages";
 import EntitlementDetail from "@/pages/resource-subscription/EntitlementDetail";
 import MySubscriptions from "@/pages/resource-subscription/MySubscriptions";
 import SubscriptionDetail from "@/pages/resource-subscription/SubscriptionDetail";
+import TeamSubscription from "@/pages/resource-subscription/TeamSubscription";
+import MySubscription from "@/pages/resource-subscription/MySubscription";
 import ResourceOrders from "@/pages/resource-subscription/ResourceOrders";
 import OrderDetail from "@/pages/resource-subscription/OrderDetail";
 import ConfirmOrder from "@/pages/resource-subscription/ConfirmOrder";
+import UpgradeOrder from "@/pages/resource-subscription/UpgradeOrder";
+import AddonOrder from "@/pages/resource-subscription/AddonOrder";
+import RenewOrder from "@/pages/resource-subscription/RenewOrder";
 import {
   Building2, LogOut, ChevronDown,
   ChevronRight, Check, Plus, UserCircle, Key
@@ -472,12 +477,18 @@ export default function Workspace() {
                 <MySubscriptions mode="personal" />
               ) : location.pathname.startsWith("/workspace/my-subscriptions/") ? (
                 <SubscriptionDetail />
+              ) : location.pathname === "/workspace/my-subscription" ? (
+                <MySubscription mode="personal" />
               ) : location.pathname === "/workspace/resource-orders" ? (
                 <ResourceOrders mode="personal" />
               ) : location.pathname.startsWith("/workspace/resource-orders/") ? (
                 <OrderDetail mode="personal" />
               ) : location.pathname === "/workspace/confirm-order" ? (
                 <ConfirmOrder mode="personal" />
+              ) : location.pathname === "/workspace/upgrade-order" ? (
+                <UpgradeOrder mode="personal" />
+              ) : location.pathname === "/workspace/renew-order" ? (
+                <RenewOrder mode="personal" />
               ) : location.pathname === "/workspace/profile" ? (
                 <Profile />
               ) : (
@@ -599,12 +610,22 @@ export default function Workspace() {
               <MySubscriptions mode="enterprise" role={role} />
             ) : location.pathname.startsWith("/workspace/my-subscriptions/") ? (
               <SubscriptionDetail />
+            ) : location.pathname === "/workspace/team-subscription" ? (
+              <TeamSubscription role={role} />
+            ) : location.pathname === "/workspace/my-subscription" ? (
+              <MySubscription />
             ) : location.pathname === "/workspace/resource-orders" ? (
               <ResourceOrders mode="enterprise" role={role} />
             ) : location.pathname.startsWith("/workspace/resource-orders/") ? (
               <OrderDetail mode="enterprise" />
             ) : location.pathname === "/workspace/confirm-order" ? (
               <ConfirmOrder mode="enterprise" role={role} />
+            ) : location.pathname === "/workspace/upgrade-order" ? (
+              <UpgradeOrder />
+            ) : location.pathname === "/workspace/addon-order" ? (
+              <AddonOrder />
+            ) : location.pathname === "/workspace/renew-order" ? (
+              <RenewOrder />
             ) : location.pathname === "/workspace/profile" ? (
               <Profile />
             ) : (

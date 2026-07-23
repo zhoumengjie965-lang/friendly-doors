@@ -24,6 +24,9 @@ import {
   findOrderById,
   orderStatusExtLabel,
   orderStatusExtClass,
+  orderTypeExtLabel,
+  purchaseMethodExtLabel,
+  billingMethodLabel,
 } from "./orders-data";
 
 interface Props {
@@ -69,7 +72,7 @@ export default function OrderDetail({ mode }: Props) {
 
   const isPaid = order.status === "paid";
   const isPending = order.status === "pending";
-  const accountType = mode === "enterprise" ? "企业账户" : "个人账户";
+  const isCancelled = order.status === "cancelled";
   const purchaserName = mode === "enterprise" ? "北京科技创新有限公司" : "周梦洁";
 
   const original = order.originalAmount ?? order.amount;
@@ -83,7 +86,7 @@ export default function OrderDetail({ mode }: Props) {
   }, [order, isPending]);
 
   return (
-    <div className="w-full max-w-5xl space-y-6">
+    <div className="w-full max-w-7xl space-y-6">
       <button
         onClick={goBack}
         className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground transition-colors"
@@ -110,72 +113,102 @@ export default function OrderDetail({ mode }: Props) {
         </div>
       )}
 
-      <div className="bg-card border border-border rounded-xl p-8">
-        {isPaid ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 divide-y md:divide-y-0 md:divide-x divide-border">
-            <div className="pb-6 md:pb-0 md:pr-8">
+      <div className="border border-border rounded-lg overflow-hidden">
+        <div className="px-6 py-3 bg-muted/40 border-b border-border">
+          <h3 className="text-sm font-semibold text-foreground">支付信息</h3>
+        </div>
+        <div className="bg-card p-8">
+          {isCancelled ? (
+            <div className="text-sm text-muted-foreground">-</div>
+          ) : (
+            <div>
               <div className="flex items-center gap-2 mb-4">
                 <span className="w-6 h-6 rounded-full bg-blue-500 text-white flex items-center justify-center text-xs font-bold">¥</span>
-                <span className="text-sm text-muted-foreground">应付金额</span>
+                <span className="text-sm text-muted-foreground">{isPending ? "待实际应付" : "实际应付"}</span>
               </div>
               <div className="text-[40px] font-bold text-foreground leading-none tracking-tight mb-5">
                 {formatMoney(order.amount)}
               </div>
               <div className="text-sm text-muted-foreground flex items-center gap-2 flex-wrap">
-                <span>原价金额：{formatMoney(original)}</span>
+                <span className="text-muted-foreground/60">=</span>
+                <span>原价金额 {formatMoney(original)}</span>
                 {discount > 0 && (
                   <>
-                    <span>-</span>
-                    <span>优惠金额：{formatMoney(discount)}</span>
+                    <span className="text-muted-foreground/60">-</span>
+                    <span>优惠金额 {formatMoney(discount)}</span>
                   </>
                 )}
               </div>
             </div>
-            <div className="pt-6 md:pt-0 md:pl-8">
-              <div className="flex items-center gap-2 mb-4">
-                <span className="w-6 h-6 rounded-full bg-emerald-500 text-white flex items-center justify-center text-xs font-bold">¥</span>
-                <span className="text-sm text-muted-foreground">实付金额</span>
-              </div>
-              <div className="text-[40px] font-bold text-foreground leading-none tracking-tight">
-                {formatMoney(order.amount)}
-              </div>
-            </div>
-          </div>
-        ) : (
-          <div>
-            <div className="flex items-center gap-2 mb-4">
-              <span className="w-6 h-6 rounded-full bg-blue-500 text-white flex items-center justify-center text-xs font-bold">¥</span>
-              <span className="text-sm text-muted-foreground">应付金额</span>
-            </div>
-            <div className="text-[40px] font-bold text-foreground leading-none tracking-tight mb-5">
-              {formatMoney(order.amount)}
-            </div>
-            <div className="text-sm text-muted-foreground flex items-center gap-2 flex-wrap">
-              <span>原价金额：{formatMoney(original)}</span>
-              {discount > 0 && (
-                <>
-                  <span>-</span>
-                  <span>优惠金额：{formatMoney(discount)}</span>
-                </>
-              )}
-            </div>
-          </div>
-        )}
+          )}
+        </div>
       </div>
 
+      {/* 订单信息 */}
       <div className="border border-border rounded-lg overflow-hidden">
         <div className="px-6 py-3 bg-muted/40 border-b border-border">
           <h3 className="text-sm font-semibold text-foreground">订单信息</h3>
         </div>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 p-6">
-          <InfoItem label="购买主体" value={purchaserName} />
-          <InfoItem label="账户类型" value={accountType} />
-          <InfoItem label="商品名称" value={order.productName} />
-          <InfoItem label="商品类型" value={order.productType} />
-          <InfoItem label="订单类型" value={order.orderType} />
-          <InfoItem label="支付方式" value={order.purchaseMethod ?? "-"} />
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-x-8 gap-y-1 p-6">
+          <InfoItem label="订单号" value={order.orderNo} />
+          <InfoItem label="订单类型" value={orderTypeExtLabel(order.orderType)} />
+          <InfoItem label="创建人" value={purchaserName} />
           <InfoItem label="创建时间" value={formatDateTime(order.createdAt)} />
-          <InfoItem label="支付时间" value={order.paidAt ? formatDateTime(order.paidAt) : "-"} />
+          <InfoItem label="付款时间" value={order.paidAt ? formatDateTime(order.paidAt) : "-"} />
+          <InfoItem label="支付方式" value={order.purchaseMethod ? purchaseMethodExtLabel(order.purchaseMethod) : "-"} />
+        </div>
+      </div>
+
+      {/* 配置信息 */}
+      <div className="border border-border rounded-lg overflow-hidden">
+        <div className="px-6 py-3 bg-muted/40 border-b border-border">
+          <h3 className="text-sm font-semibold text-foreground">配置信息</h3>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead className="bg-muted/30 border-b border-border">
+              <tr>
+                <th className="px-4 py-2.5 text-left font-medium text-muted-foreground whitespace-nowrap">商品名称</th>
+                <th className="px-4 py-2.5 text-left font-medium text-muted-foreground whitespace-nowrap">配置</th>
+                <th className="px-4 py-2.5 text-left font-medium text-muted-foreground whitespace-nowrap">计费方式</th>
+                <th className="px-4 py-2.5 text-right font-medium text-muted-foreground whitespace-nowrap">数量</th>
+                <th className="px-4 py-2.5 text-left font-medium text-muted-foreground whitespace-nowrap">生效时长</th>
+                <th className="px-4 py-2.5 text-right font-medium text-muted-foreground whitespace-nowrap">单价</th>
+                <th className="px-4 py-2.5 text-right font-medium text-muted-foreground whitespace-nowrap">价格优惠</th>
+                <th className="px-4 py-2.5 text-right font-medium text-muted-foreground whitespace-nowrap">实付金额</th>
+              </tr>
+            </thead>
+            <tbody>
+              {(() => {
+                const isSub = order.productType === "subscription";
+                const configText = isSub
+                  ? order.items.map(i => `${i.productName} × ${i.seats ?? 1}席`).join("\n")
+                  : "-";
+                const quantity = isSub
+                  ? "1"
+                  : `${order.items.reduce((s, i) => s + (i.quantity ?? 1), 0)}`;
+                const firstItem = order.items[0];
+                const durationText = firstItem?.duration ?? "-";
+                const unitTotal = order.originalAmount ?? order.amount;
+                return (
+                  <tr className="border-b border-border/60 last:border-b-0">
+                    <td className="px-4 py-3 text-foreground whitespace-nowrap">{order.productName}</td>
+                    <td className="px-4 py-3 text-muted-foreground whitespace-pre-line">{configText}</td>
+                    <td className="px-4 py-3 text-muted-foreground whitespace-nowrap">{billingMethodLabel(order.productType)}</td>
+                    <td className="px-4 py-3 text-right text-muted-foreground whitespace-nowrap">{quantity}</td>
+                    <td className="px-4 py-3 text-muted-foreground whitespace-nowrap">{durationText || "-"}</td>
+                    <td className="px-4 py-3 text-right text-muted-foreground whitespace-nowrap">{formatMoney(unitTotal)}</td>
+                    <td className="px-4 py-3 text-right text-emerald-600 whitespace-nowrap">
+                      {order.discountAmount ? `-${formatMoney(order.discountAmount)}` : "-"}
+                    </td>
+                    <td className="px-4 py-3 text-right font-medium text-foreground whitespace-nowrap">
+                      {formatMoney(order.amount)}
+                    </td>
+                  </tr>
+                );
+              })()}
+            </tbody>
+          </table>
         </div>
       </div>
     </div>
@@ -475,7 +508,7 @@ function AddSeatsOrderPage({
               />
               <span className="text-xs text-muted-foreground leading-relaxed">
                 我已阅读并同意
-                <a href="#" className="text-primary mx-0.5 hover:underline">《百度智能云线上订购协议》</a>
+                <a href="#" className="text-primary mx-0.5 hover:underline">《订阅服务协议》</a>
               </span>
             </label>
           </div>
@@ -487,9 +520,9 @@ function AddSeatsOrderPage({
 
 function InfoItem({ label, value }: { label: string; value: React.ReactNode }) {
   return (
-    <div className="flex items-start justify-between gap-4 py-2.5 border-b border-border/60 last:border-b-0 md:[&:nth-last-child(-n+2)]:border-b-0">
-      <span className="text-sm text-muted-foreground shrink-0">{label}</span>
-      <span className="text-sm text-foreground text-right break-all">{value}</span>
+    <div className="py-2">
+      <dt className="text-xs text-muted-foreground mb-1">{label}</dt>
+      <dd className="text-sm text-foreground break-all">{value}</dd>
     </div>
   );
 }

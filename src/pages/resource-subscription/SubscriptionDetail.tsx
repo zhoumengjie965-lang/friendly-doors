@@ -36,6 +36,7 @@ import {
   subStatusClass,
   formatCredit,
   formatDateTime,
+  calcRemainingDays,
 } from "./subscriptions-data";
 import { useToast } from "@/hooks/use-toast";
 
@@ -76,7 +77,7 @@ export default function SubscriptionDetail() {
       setAutoRenew(true);
       const target = MOCK_SEAT_SUBSCRIPTIONS.find((s) => s.id === sub.id);
       if (target) target.autoRenew = true;
-      toast({ title: "已开启自动续费", description: "到期时将自动从充值余额扣款续费。" });
+      toast({ title: "已开启自动续费", description: "到期前 7 天将自动扣款续费。" });
     } else {
       setShowCancelAutoRenew(true);
     }
@@ -87,7 +88,7 @@ export default function SubscriptionDetail() {
     const target = MOCK_SEAT_SUBSCRIPTIONS.find((s) => s.id === sub.id);
     if (target) target.autoRenew = false;
     setShowCancelAutoRenew(false);
-    toast({ title: "已关闭自动续费", description: "当前套餐将在到期后失效。" });
+    toast({ title: "已关闭自动续费", description: "到期前将通过短信提醒您手动续费，到期未续费订阅将失效。" });
   };
 
   // 计算额度
@@ -144,7 +145,7 @@ export default function SubscriptionDetail() {
           <Progress value={totalUsedPercent} className="h-2" />
         </div>
         {/* 自动续费 */}
-        {(sub.status === "active" || sub.status === "pending") && (
+        {sub.status === "active" && (
           <div className="flex items-center justify-between pt-3 border-t border-border">
             <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
               <Wallet className="w-3.5 h-3.5" />
@@ -236,7 +237,7 @@ export default function SubscriptionDetail() {
           <AlertDialogHeader>
             <AlertDialogTitle>关闭自动续费</AlertDialogTitle>
             <AlertDialogDescription className="text-sm text-muted-foreground">
-              关闭后，当前套餐将在到期后失效。
+              关闭后，到期前将通过短信提醒您手动续费，到期未续费订阅将失效。
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

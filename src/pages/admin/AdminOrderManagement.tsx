@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -27,6 +28,7 @@ import {
 const PAGE_SIZE = 10;
 
 export default function AdminOrderManagement() {
+  const navigate = useNavigate();
   const [orders] = useState(MOCK_ADMIN_ORDERS);
 
   // 筛选
@@ -119,6 +121,8 @@ export default function AdminOrderManagement() {
                   <SelectItem value="all">全部订单类型</SelectItem>
                   <SelectItem value="new">新购</SelectItem>
                   <SelectItem value="renewal">续费</SelectItem>
+                  <SelectItem value="upgrade">升级</SelectItem>
+                  <SelectItem value="addon">加购</SelectItem>
                 </SelectContent>
               </Select>
 
@@ -165,18 +169,19 @@ export default function AdminOrderManagement() {
                   <th className="px-3 py-2 text-left font-medium text-muted-foreground whitespace-nowrap">商品类型</th>
                   <th className="px-3 py-2 text-center font-medium text-muted-foreground whitespace-nowrap">订单类型</th>
                   <th className="px-3 py-2 text-left font-medium text-muted-foreground whitespace-nowrap">关联订阅号</th>
-                  <th className="px-3 py-2 text-right font-medium text-muted-foreground whitespace-nowrap">支付金额</th>
+                  <th className="px-3 py-2 text-right font-medium text-muted-foreground whitespace-nowrap">原价金额</th>
+                  <th className="px-3 py-2 text-right font-medium text-muted-foreground whitespace-nowrap">实际应付</th>
                   <th className="px-3 py-2 text-left font-medium text-muted-foreground whitespace-nowrap">支付方式</th>
                   <th className="px-3 py-2 text-left font-medium text-muted-foreground whitespace-nowrap">交易流水号</th>
-                  <th className="px-3 py-2 text-left font-medium text-muted-foreground whitespace-nowrap">创建时间</th>
-                  <th className="px-3 py-2 text-left font-medium text-muted-foreground whitespace-nowrap">支付时间</th>
                   <th className="px-3 py-2 text-center font-medium text-muted-foreground whitespace-nowrap">订单状态</th>
+                  <th className="px-3 py-2 text-left font-medium text-muted-foreground whitespace-nowrap">创建时间</th>
+                  <th className="px-3 py-2 text-center font-medium text-muted-foreground whitespace-nowrap">操作</th>
                 </tr>
               </thead>
               <tbody className="divide-y">
                 {pageRows.length === 0 ? (
                   <tr>
-                    <td colSpan={13} className="px-3 py-8 text-center text-muted-foreground">
+                    <td colSpan={14} className="px-3 py-8 text-center text-muted-foreground">
                       暂无订单数据
                     </td>
                   </tr>
@@ -186,7 +191,9 @@ export default function AdminOrderManagement() {
                       <td className="px-3 py-2 font-mono whitespace-nowrap text-foreground">{o.orderNo}</td>
                       <td className="px-3 py-2 whitespace-nowrap">{o.buyerName}</td>
                       <td className="px-3 py-2 whitespace-nowrap text-muted-foreground">{ACCOUNT_TYPE_LABEL[o.accountType]}</td>
-                      <td className="px-3 py-2 whitespace-nowrap min-w-[160px]">{o.productName}</td>
+                      <td className="px-3 py-2 whitespace-nowrap min-w-[160px]">
+                        {o.productName}
+                      </td>
                       <td className="px-3 py-2 whitespace-nowrap text-muted-foreground">{PRODUCT_TYPE_LABEL[o.productType]}</td>
                       <td className="px-3 py-2 text-center whitespace-nowrap">
                         <Badge variant="outline" className={`${ORDER_TYPE_BADGE[o.orderType]} text-xs`}>
@@ -196,6 +203,7 @@ export default function AdminOrderManagement() {
                       <td className="px-3 py-2 whitespace-nowrap text-muted-foreground font-mono text-[11px]">
                         {o.subscriptionNo ?? "-"}
                       </td>
+                      <td className="px-3 py-2 text-right font-mono whitespace-nowrap text-muted-foreground">{formatMoney(o.originalAmount ?? o.amount)}</td>
                       <td className="px-3 py-2 text-right font-mono whitespace-nowrap">{formatMoney(o.amount)}</td>
                       <td className="px-3 py-2 whitespace-nowrap text-muted-foreground">
                         {o.purchaseMethod ? PURCHASE_METHOD_LABEL[o.purchaseMethod] : "-"}
@@ -203,8 +211,6 @@ export default function AdminOrderManagement() {
                       <td className="px-3 py-2 whitespace-nowrap text-muted-foreground font-mono text-[11px]">
                         {o.transactionId ?? "-"}
                       </td>
-                      <td className="px-3 py-2 whitespace-nowrap text-muted-foreground">{formatDateTime(o.createdAt)}</td>
-                      <td className="px-3 py-2 whitespace-nowrap text-muted-foreground">{formatDateTime(o.paidAt)}</td>
                       <td className="px-3 py-2 text-center whitespace-nowrap">
                         <Badge
                           variant={o.status === "paid" ? "default" : "outline"}
@@ -213,13 +219,19 @@ export default function AdminOrderManagement() {
                           {ORDER_STATUS_LABEL[o.status]}
                         </Badge>
                       </td>
+                      <td className="px-3 py-2 whitespace-nowrap text-muted-foreground">{formatDateTime(o.createdAt)}</td>
+                      <td className="px-3 py-2 text-center whitespace-nowrap">
+                        <Button variant="link" size="sm" className="h-auto p-0 text-xs text-blue-600 hover:text-blue-700" onClick={() => navigate(`/admin/console/order-management/${o.id}`)}>
+                          查看详情
+                        </Button>
+                      </td>
                     </tr>
                   ))
                 )}
 
                 {filtered.length > 0 && (
                   <tr>
-                    <td colSpan={13} className="px-3 py-3">
+                    <td colSpan={14} className="px-3 py-3">
                       <div className="flex items-center justify-between">
                         <span className="text-xs text-muted-foreground">
                           共 {filtered.length} 条，第 {currentPage} / {totalPages} 页

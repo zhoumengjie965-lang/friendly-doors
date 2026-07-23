@@ -9,7 +9,7 @@ import { Collapsible, CollapsibleTrigger, CollapsibleContent } from "@/component
 import {
   LayoutGrid, Key, BarChart3, FileText, Building2, Users,
   ChevronDown, ChevronRight, Wallet, Network, Settings, UserCog, UserCircle,
-  Receipt, UserPlus, PieChart, Sparkles, CreditCard, Package, ClipboardList,
+  Receipt, UserPlus, PieChart, Sparkles, CreditCard, ClipboardList,
   Crown
 } from "lucide-react";
 
@@ -34,8 +34,8 @@ const enterpriseNavItems: NavItem[] = [
     title: "资源与订阅", icon: Sparkles, children: [
       { title: "token plan", url: "/workspace/token-plan", icon: CreditCard, isNew: true },
       { title: "订单管理", url: "/workspace/resource-orders", icon: ClipboardList },
-      { title: "我的权益包", url: "/workspace/resource-packages", icon: Package },
-      { title: "我的订阅包", url: "/workspace/my-subscriptions", icon: Crown },
+      { title: "企业订阅", url: "/workspace/team-subscription", icon: Crown },
+      { title: "我的订阅", url: "/workspace/my-subscription", icon: UserCircle },
     ],
   },
   { title: "部门管理", url: "/workspace/dept", icon: Users },
@@ -54,8 +54,7 @@ const personalNavItems: NavItem[] = [
     title: "资源与订阅", icon: Sparkles, children: [
       { title: "token plan", url: "/workspace/token-plan", icon: CreditCard, isNew: true },
       { title: "订单管理", url: "/workspace/resource-orders", icon: ClipboardList },
-      { title: "我的权益包", url: "/workspace/resource-packages", icon: Package },
-      { title: "我的订阅包", url: "/workspace/my-subscriptions", icon: Crown },
+      { title: "我的订阅", url: "/workspace/my-subscription", icon: UserCircle },
     ],
   },
   { title: "个人中心", url: "/workspace/profile", icon: UserCircle },

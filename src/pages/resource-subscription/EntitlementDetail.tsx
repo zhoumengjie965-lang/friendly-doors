@@ -48,7 +48,7 @@ import {
   type SubscriptionKey,
 } from "./entitlements-data";
 import { useToast } from "@/hooks/use-toast";
-import SeatAddonDialog from "./SeatAddonDialog";
+import SeatAddonDialog, { type SeatAddonItem } from "./SeatAddonDialog";
 
 export default function EntitlementDetail() {
   const navigate = useNavigate();
@@ -197,7 +197,7 @@ export default function EntitlementDetail() {
   };
 
   // 加购席位确认
-  const handleSeatAddonConfirm = (addonSeats: number, amount: number) => {
+  const handleSeatAddonConfirm = (items: SeatAddonItem[], amount: number) => {
     // 更新 mock 数据
     const target = ALL_ENTITLEMENTS.find((e) => e.id === ent?.id);
     if (target) {
@@ -205,14 +205,16 @@ export default function EntitlementDetail() {
       const quotaPerSeat = plan?.totalQuota ?? 264_000_000;
       const keysPerSeat = plan?.baseKeyLimit ?? plan?.subscriptionKeyLimit ?? 3;
 
-      target.seats = (target.seats ?? 0) + addonSeats;
-      target.totalQuota = target.totalQuota + addonSeats * quotaPerSeat;
-      target.remainingQuota = target.remainingQuota + addonSeats * quotaPerSeat;
-      target.keyLimit = (target.keyLimit ?? 0) + addonSeats * keysPerSeat;
+      const totalAddonSeats = items.reduce((sum, item) => sum + item.count, 0);
+      target.seats = (target.seats ?? 0) + totalAddonSeats;
+      target.totalQuota = target.totalQuota + totalAddonSeats * quotaPerSeat;
+      target.remainingQuota = target.remainingQuota + totalAddonSeats * quotaPerSeat;
+      target.keyLimit = (target.keyLimit ?? 0) + totalAddonSeats * keysPerSeat;
     }
+    const seatSummary = items.map((item) => `${item.count}个${item.tier}`).join("、");
     toast({
       title: "加购成功",
-      description: `成功加购 ${addonSeats} 个席位，支付金额 ¥${amount.toFixed(2)}，权益已立即生效。`,
+      description: `成功加购 ${seatSummary} 席位，实际应付 ¥${amount.toFixed(2)}，权益已立即生效。`,
     });
     // 刷新页面数据
     setTimeout(() => window.location.reload(), 500);

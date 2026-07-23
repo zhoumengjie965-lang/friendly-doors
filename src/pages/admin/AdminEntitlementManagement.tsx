@@ -51,7 +51,6 @@ export default function AdminEntitlementManagement() {
         const k = keyword.trim().toLowerCase();
         const hit =
           e.productName.toLowerCase().includes(k) ||
-          e.orderId.toLowerCase().includes(k) ||
           e.ownerName.toLowerCase().includes(k);
         if (!hit) return false;
       }
@@ -145,7 +144,7 @@ export default function AdminEntitlementManagement() {
               <div className="relative">
                 <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
                 <Input
-                  placeholder="搜索商品名称 / 订单号 / 购买主体"
+                  placeholder="搜索商品名称 / 购买主体"
                   value={keyword}
                   onChange={(e) => {
                     setKeyword(e.target.value);
@@ -170,19 +169,17 @@ export default function AdminEntitlementManagement() {
                   <th className="px-3 py-2 text-left font-medium text-muted-foreground whitespace-nowrap">商品类型</th>
                   <th className="px-3 py-2 text-left font-medium text-muted-foreground whitespace-nowrap">购买主体</th>
                   <th className="px-3 py-2 text-left font-medium text-muted-foreground whitespace-nowrap">账户类型</th>
-                  <th className="px-3 py-2 text-left font-medium text-muted-foreground whitespace-nowrap">来源订单</th>
-                  <th className="px-3 py-2 text-right font-medium text-muted-foreground whitespace-nowrap">总量</th>
+                  <th className="px-3 py-2 text-right font-medium text-muted-foreground whitespace-nowrap">总量/席位</th>
                   <th className="px-3 py-2 text-right font-medium text-muted-foreground whitespace-nowrap">余量</th>
                   <th className="px-3 py-2 text-left font-medium text-muted-foreground whitespace-nowrap">生效时间</th>
                   <th className="px-3 py-2 text-left font-medium text-muted-foreground whitespace-nowrap">失效时间</th>
-                  <th className="px-3 py-2 text-left font-medium text-muted-foreground whitespace-nowrap">备注</th>
                   <th className="px-3 py-2 text-center font-medium text-muted-foreground whitespace-nowrap">操作</th>
                 </tr>
               </thead>
               <tbody className="divide-y">
                 {pageRows.length === 0 ? (
                   <tr>
-                    <td colSpan={12} className="px-3 py-8 text-center text-muted-foreground">
+                    <td colSpan={11} className="px-3 py-8 text-center text-muted-foreground">
                       暂无权益数据
                     </td>
                   </tr>
@@ -205,11 +202,10 @@ export default function AdminEntitlementManagement() {
                       <td className="px-3 py-2 whitespace-nowrap text-muted-foreground">
                         {ACCOUNT_TYPE_LABEL[e.accountType]}
                       </td>
-                      <td className="px-3 py-2 whitespace-nowrap font-mono text-[11px] text-muted-foreground">
-                        {e.orderId}
-                      </td>
                       <td className="px-3 py-2 text-right font-mono whitespace-nowrap">
-                        {formatCredit(e.totalQuota)} credit
+                        {e.seatCount
+                          ? `${e.seatCount}席(${e.usedSeats ?? 0}已用)`
+                          : `${formatCredit(e.totalQuota)} credit`}
                       </td>
                       <td className="px-3 py-2 text-right font-mono whitespace-nowrap text-primary font-medium">
                         {formatCredit(e.remainingQuota)} credit
@@ -220,7 +216,6 @@ export default function AdminEntitlementManagement() {
                       <td className="px-3 py-2 whitespace-nowrap text-muted-foreground">
                         {e.expiresAt ? formatDateTime(e.expiresAt) : "永久"}
                       </td>
-                      <td className="px-3 py-2 whitespace-nowrap text-muted-foreground">{e.remark}</td>
                       <td className="px-3 py-2 whitespace-nowrap">
                         <div className="flex items-center justify-center gap-1">
                           <Button
@@ -240,7 +235,7 @@ export default function AdminEntitlementManagement() {
 
                 {filtered.length > 0 && (
                   <tr>
-                    <td colSpan={12} className="px-3 py-3">
+                    <td colSpan={11} className="px-3 py-3">
                       <div className="flex items-center justify-between">
                         <span className="text-xs text-muted-foreground">
                           共 {filtered.length} 条，第 {currentPage} / {totalPages} 页

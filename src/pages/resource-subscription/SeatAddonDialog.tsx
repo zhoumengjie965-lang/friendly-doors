@@ -12,25 +12,47 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { Minus, Plus, AlertCircle } from "lucide-react";
 import { formatCredit, formatMoney, formatDate } from "./shared";
-import type { Entitlement } from "./entitlements-data";
 import { MOCK_PLANS } from "./shared";
+import { seatTierLabel, type SeatTier } from "./subscriptions-data";
+
+// 加购席位目标的最小契约：Entitlement 与 SeatSubscription 均可适配
+export interface SeatAddonTarget {
+  name: string;
+  planId?: string;
+  seats?: number;
+  effectiveAt: string;
+  expiresAt: string | null;
+}
+
+export interface SeatAddonItem {
+  tier: SeatTier;
+  count: number;
+  unitPrice: number; // 折算后单价
+  amount: number; // 该档位小计
+}
 
 interface Props {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  entitlement: Entitlement | null;
-  onConfirm?: (addonSeats: number, amount: number) => void;
+  entitlement: SeatAddonTarget | null;
+  onConfirm?: (items: SeatAddonItem[], totalAmount: number) => void;
 }
 
-// 周期月数映射
-const CYCLE_MONTHS: Record<string, number> = {
-  month: 1,
-  quarter: 3,
-  year: 12,
+// 三档位定价（月价 + 每席位额度）
+const TIER_PRICING: Record<SeatTier, { monthlyPrice: number; quota: number }> = {
+  lite: { monthlyPrice: 199, quota: 31_000_000 },
+  standard: { monthlyPrice: 599, quota: 93_700_000 },
+  premium: { monthlyPrice: 1299, quota: 233_000_000 },
 };
 
+const TIER_ORDER: SeatTier[] = ["lite", "standard", "premium"];
+
 export default function SeatAddonDialog({ open, onOpenChange, entitlement, onConfirm }: Props) {
-  const [targetSeats, setTargetSeats] = useState(0);
+  const [counts, setCounts] = useState<Record<SeatTier, number>>({
+    lite: 0,
+    standard: 0,
+    premium: 0,
+  });
   const [agreed, setAgreed] = useState(false);
 
   // 查找关联的套餐配置
@@ -38,10 +60,6 @@ export default function SeatAddonDialog({ open, onOpenChange, entitlement, onCon
     if (!entitlement?.planId) return null;
     return MOCK_PLANS.find((p) => p.id === entitlement.planId) ?? null;
   }, [entitlement]);
-
-  const currentSeats = entitlement?.seats ?? 0;
-  const maxSeats = plan?.maxSeats ?? 100;
-  const minSeats = plan?.minSeats ?? 1;
 
   // 计算剩余天数和折算系数
   const { remainingDays, totalDays, prorationRatio, cycleLabel } = useMemo(() => {
@@ -55,7 +73,6 @@ export default function SeatAddonDialog({ open, onOpenChange, entitlement, onCon
     const remaining = Math.max(0, Math.round((end.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)));
     const ratio = total > 0 ? remaining / total : 0;
 
-    // 判断周期
     let label = "月";
     if (total >= 350) label = "年";
     else if (total >= 80) label = "季";
@@ -63,44 +80,55 @@ export default function SeatAddonDialog({ open, onOpenChange, entitlement, onCon
     return { remainingDays: remaining, totalDays: total, prorationRatio: ratio, cycleLabel: label };
   }, [entitlement]);
 
-  // 每席位价格（默认取包月价）
-  const seatPricePerCycle = useMemo(() => {
-    if (!plan?.cyclePricing) return plan?.price ?? 0;
-    // 根据周期长度选择价格
-    if (cycleLabel === "年") return plan.cyclePricing.year?.price ?? plan.price;
-    if (cycleLabel === "季") return plan.cyclePricing.quarter?.price ?? plan.price;
-    return plan.cyclePricing.month?.price ?? plan.price;
-  }, [plan, cycleLabel]);
+  // 每档位折算后单价（按剩余天数/30天近似）
+  const proratedPrices = useMemo(() => {
+    const result: Record<SeatTier, number> = {} as Record<SeatTier, number>;
+    TIER_ORDER.forEach((tier) => {
+      result[tier] = Math.round(TIER_PRICING[tier].monthlyPrice * (remainingDays / 30) * 100) / 100;
+    });
+    return result;
+  }, [remainingDays]);
 
-  // 计算折算后单价（按剩余天数/30天近似）
-  const proratedPricePerSeat = useMemo(() => {
-    return Math.round(seatPricePerCycle * (remainingDays / 30) * 100) / 100;
-  }, [seatPricePerCycle, remainingDays]);
+  // 计算各档位小计和总额
+  const addonItems = useMemo<SeatAddonItem[]>(() => {
+    return TIER_ORDER.filter((tier) => counts[tier] > 0).map((tier) => {
+      const count = counts[tier];
+      const unitPrice = proratedPrices[tier];
+      return {
+        tier,
+        count,
+        unitPrice,
+        amount: Math.round(unitPrice * count * 100) / 100,
+      };
+    });
+  }, [counts, proratedPrices]);
 
-  const addonSeats = Math.max(0, targetSeats - currentSeats);
-  const totalAmount = Math.round(proratedPricePerSeat * addonSeats * 100) / 100;
-  const addedQuota = addonSeats * (plan?.totalQuota ?? 0);
-  const addedKeys = addonSeats * (plan?.baseKeyLimit ?? plan?.subscriptionKeyLimit ?? 1);
+  const totalAddonSeats = addonItems.reduce((sum, item) => sum + item.count, 0);
+  const totalAmount = Math.round(addonItems.reduce((sum, item) => sum + item.amount, 0) * 100) / 100;
+  const totalAddedQuota = TIER_ORDER.reduce((sum, tier) => sum + counts[tier] * TIER_PRICING[tier].quota, 0);
+
+  const handleCountChange = (tier: SeatTier, value: number) => {
+    setCounts((prev) => ({ ...prev, [tier]: Math.max(0, value) }));
+  };
 
   const handleOpenChange = (open: boolean) => {
     if (!open) {
-      setTargetSeats(currentSeats);
+      setCounts({ lite: 0, standard: 0, premium: 0 });
       setAgreed(false);
     }
     onOpenChange(open);
   };
 
-  // 初始化目标席位
   useEffect(() => {
-    if (open && entitlement) {
-      setTargetSeats(currentSeats);
+    if (open) {
+      setCounts({ lite: 0, standard: 0, premium: 0 });
       setAgreed(false);
     }
-  }, [open, entitlement, currentSeats]);
+  }, [open]);
 
   const handleConfirm = () => {
-    if (addonSeats <= 0) return;
-    onConfirm?.(addonSeats, totalAmount);
+    if (addonItems.length === 0) return;
+    onConfirm?.(addonItems, totalAmount);
     handleOpenChange(false);
   };
 
@@ -108,7 +136,7 @@ export default function SeatAddonDialog({ open, onOpenChange, entitlement, onCon
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent className="sm:max-w-3xl max-h-[90vh] overflow-y-auto p-0">
+      <DialogContent className="sm:max-w-4xl max-h-[90vh] overflow-y-auto p-0">
         <DialogHeader className="px-6 pt-6 pb-4 border-b">
           <DialogTitle className="text-base font-semibold">
             加购席位 - {entitlement.name}
@@ -116,8 +144,8 @@ export default function SeatAddonDialog({ open, onOpenChange, entitlement, onCon
         </DialogHeader>
 
         <div className="px-6 py-5 space-y-5">
-          {/* 顶部说明 */}
-          <div className="bg-blue-50 border border-blue-100 rounded-lg p-4 space-y-1.5 text-sm">
+          {/* 计费 & 用量说明 */}
+          <div className="bg-blue-50 border border-blue-100 rounded-lg p-4 space-y-2 text-sm">
             <div className="flex items-start gap-2">
               <AlertCircle className="w-4 h-4 text-blue-500 mt-0.5 shrink-0" />
               <div>
@@ -127,116 +155,95 @@ export default function SeatAddonDialog({ open, onOpenChange, entitlement, onCon
                 </p>
               </div>
             </div>
-            <div className="flex items-start gap-2 pl-6">
-              <div className="text-blue-600 text-xs">
-                <span className="font-medium">用量说明：</span>
-                新席位按主账户当前周期剩余天数计价，自动续费规则跟随主账户。
-              </div>
-            </div>
-            <div className="flex items-start gap-2 pl-6">
-              <div className="text-blue-600 text-xs">
-                <span className="font-medium">限流说明：</span>
-                套餐内限流为固定值，加购席位不改变 RPM/TPM 上限。
+            <div className="flex items-start gap-2">
+              <AlertCircle className="w-4 h-4 text-blue-500 mt-0.5 shrink-0" />
+              <div>
+                <p className="text-blue-700 font-medium">用量说明</p>
+                <p className="text-blue-600 text-xs">
+                  新席位按主账户当前周期剩余天数计价，自动续费规则跟随主账户。
+                </p>
               </div>
             </div>
           </div>
 
           <div className="grid grid-cols-5 gap-6">
-            {/* 左侧：席位选择 */}
-            <div className="col-span-3 space-y-5">
-              <div className="border rounded-lg p-5 space-y-5 bg-gray-50/30">
-                <h3 className="text-sm font-medium text-foreground">选择席位</h3>
+            {/* 左侧：三档位选择 */}
+            <div className="col-span-3 space-y-4">
+              <div className="flex items-center justify-between">
+                <h3 className="text-sm font-medium text-foreground">选择席位档位</h3>
+                <span className="text-xs text-muted-foreground">
+                  剩余周期 {remainingDays} 天（{formatDate(entitlement.expiresAt!)} 到期）
+                </span>
+              </div>
 
-                <div className="flex items-center justify-between">
-                  <div className="space-y-1">
-                    <div className="text-sm text-muted-foreground">当前席位</div>
-                    <div className="text-2xl font-semibold text-foreground">{currentSeats} 席</div>
-                  </div>
-                  <div className="text-2xl text-muted-foreground">→</div>
-                  <div className="space-y-1">
-                    <div className="text-sm text-muted-foreground">加购后席位</div>
-                    <div className="flex items-center gap-3">
-                      <Button
-                        variant="outline"
-                        size="icon"
-                        className="h-9 w-9"
-                        onClick={() => setTargetSeats((s) => Math.max(currentSeats + 1, s - 1))}
-                        disabled={targetSeats <= currentSeats + 1}
-                      >
-                        <Minus className="w-4 h-4" />
-                      </Button>
-                      <Input
-                        type="number"
-                        min={currentSeats + 1}
-                        max={maxSeats}
-                        value={targetSeats}
-                        onChange={(e) => {
-                          const v = parseInt(e.target.value) || currentSeats;
-                          setTargetSeats(Math.min(maxSeats, Math.max(currentSeats, v)));
-                        }}
-                        className="h-9 w-20 text-center text-lg font-semibold"
-                      />
-                      <Button
-                        variant="outline"
-                        size="icon"
-                        className="h-9 w-9"
-                        onClick={() => setTargetSeats((s) => Math.min(maxSeats, s + 1))}
-                        disabled={targetSeats >= maxSeats}
-                      >
-                        <Plus className="w-4 h-4" />
-                      </Button>
-                      <span className="text-lg font-semibold text-foreground">席</span>
+              {TIER_ORDER.map((tier) => {
+                const pricing = TIER_PRICING[tier];
+                const prorated = proratedPrices[tier];
+                const count = counts[tier];
+                const subtotal = Math.round(prorated * count * 100) / 100;
+                return (
+                  <div
+                    key={tier}
+                    className={`border rounded-lg p-4 space-y-3 transition-colors ${
+                      count > 0 ? "border-primary/40 bg-primary/5" : "bg-gray-50/30"
+                    }`}
+                  >
+                    <div className="flex items-start justify-between">
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm font-medium text-foreground">{seatTierLabel[tier]}</span>
+                          <span className="text-xs text-muted-foreground">每席 {formatCredit(pricing.quota)} credit</span>
+                        </div>
+                        <div className="flex items-baseline gap-2">
+                          <span className="text-xs text-muted-foreground line-through">
+                            原价 {formatMoney(pricing.monthlyPrice)}/{cycleLabel}
+                          </span>
+                          <span className="text-sm font-semibold text-primary">
+                            折算 {formatMoney(prorated)}
+                          </span>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Button
+                          variant="outline"
+                          size="icon"
+                          className="h-8 w-8"
+                          onClick={() => handleCountChange(tier, count - 1)}
+                          disabled={count <= 0}
+                        >
+                          <Minus className="w-3.5 h-3.5" />
+                        </Button>
+                        <Input
+                          type="number"
+                          min={0}
+                          value={count}
+                          onChange={(e) => {
+                            const v = parseInt(e.target.value) || 0;
+                            handleCountChange(tier, v);
+                          }}
+                          className="h-8 w-16 text-center text-sm font-medium"
+                        />
+                        <Button
+                          variant="outline"
+                          size="icon"
+                          className="h-8 w-8"
+                          onClick={() => handleCountChange(tier, count + 1)}
+                        >
+                          <Plus className="w-3.5 h-3.5" />
+                        </Button>
+                      </div>
                     </div>
+                    {count > 0 && (
+                      <div className="flex items-center justify-between text-xs pt-2 border-t">
+                        <span className="text-muted-foreground">
+                          {count} 席 × {formatMoney(prorated)}
+                        </span>
+                        <span className="font-medium text-foreground">{formatMoney(subtotal)}</span>
+                      </div>
+                    )}
                   </div>
-                </div>
-
-                <div className="pt-3 border-t space-y-3">
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="text-muted-foreground">本次加购</span>
-                    <span className="font-medium text-foreground">{addonSeats} 席</span>
-                  </div>
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="text-muted-foreground">原单价（每席位/{cycleLabel}）</span>
-                    <span className="text-muted-foreground line-through">
-                      {formatMoney(seatPricePerCycle)}
-                    </span>
-                  </div>
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="text-muted-foreground">剩余周期</span>
-                    <span className="text-foreground">
-                      {remainingDays} 天（{formatDate(entitlement.expiresAt!)} 到期）
-                    </span>
-                  </div>
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="text-muted-foreground">折算后单价（每席位）</span>
-                    <span className="font-semibold text-primary">
-                      {formatMoney(proratedPricePerSeat)}
-                    </span>
-                  </div>
-                </div>
-              </div>
-
-              <div className="border rounded-lg p-5 space-y-3 bg-gray-50/30">
-                <h3 className="text-sm font-medium text-foreground">加购后权益变化</h3>
-                <div className="space-y-2 text-sm">
-                  <div className="flex items-center justify-between">
-                    <span className="text-muted-foreground">增加 Credit</span>
-                    <span className="font-medium text-green-600">+{formatCredit(addedQuota)}</span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-muted-foreground">增加订阅 Key</span>
-                    <span className="font-medium text-purple-600">+{addedKeys} 个</span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-muted-foreground">到期时间</span>
-                    <span className="text-foreground">与主订阅一致：{formatDate(entitlement.expiresAt!)}</span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-muted-foreground">下次续费</span>
-                    <span className="text-foreground">按 {targetSeats} 席全额续费</span>
-                  </div>
-                </div>
-              </div>
+                );
+              })}
             </div>
 
             {/* 右侧：订单明细 */}
@@ -245,28 +252,39 @@ export default function SeatAddonDialog({ open, onOpenChange, entitlement, onCon
                 <h3 className="text-sm font-medium text-foreground">订单明细</h3>
 
                 <div className="space-y-3 text-sm">
-                  <div className="flex items-start justify-between gap-2">
-                    <div>
-                      <div className="font-medium text-foreground">{plan.name}</div>
-                      <div className="text-xs text-muted-foreground">加购 {addonSeats} 席位</div>
-                    </div>
-                    <div className="text-right font-medium">{formatMoney(totalAmount)}</div>
-                  </div>
-                  <div className="text-xs text-muted-foreground">
-                    到期日：{formatDate(entitlement.expiresAt!)}
-                  </div>
+                  {addonItems.length === 0 ? (
+                    <p className="text-xs text-muted-foreground py-4 text-center">请选择需要加购的席位档位</p>
+                  ) : (
+                    addonItems.map((item) => (
+                      <div key={item.tier} className="flex items-start justify-between gap-2">
+                        <div>
+                          <div className="font-medium text-foreground">{seatTierLabel[item.tier]}</div>
+                          <div className="text-xs text-muted-foreground">
+                            {item.count} 席 × {formatMoney(item.unitPrice)}
+                          </div>
+                        </div>
+                        <div className="text-right font-medium">{formatMoney(item.amount)}</div>
+                      </div>
+                    ))
+                  )}
                 </div>
 
-                <div className="pt-3 border-t space-y-2">
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="text-muted-foreground">加购席位</span>
-                    <span>{addonSeats} 席</span>
+                {totalAddonSeats > 0 && (
+                  <div className="pt-3 border-t space-y-2">
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="text-muted-foreground">加购席位合计</span>
+                      <span>{totalAddonSeats} 席</span>
+                    </div>
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="text-muted-foreground">增加 Credit</span>
+                      <span className="font-medium text-green-600">+{formatCredit(totalAddedQuota)}</span>
+                    </div>
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="text-muted-foreground">到期时间</span>
+                      <span className="text-foreground text-xs">{formatDate(entitlement.expiresAt!)}</span>
+                    </div>
                   </div>
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="text-muted-foreground">折算单价</span>
-                    <span>{formatMoney(proratedPricePerSeat)}/席</span>
-                  </div>
-                </div>
+                )}
 
                 <div className="pt-3 border-t">
                   <div className="flex items-center justify-between">
@@ -288,7 +306,7 @@ export default function SeatAddonDialog({ open, onOpenChange, entitlement, onCon
 
                 <Button
                   className="w-full h-10 bg-blue-600 hover:bg-blue-700 text-white"
-                  disabled={addonSeats <= 0 || !agreed}
+                  disabled={totalAddonSeats <= 0 || !agreed}
                   onClick={handleConfirm}
                 >
                   确认支付 {formatMoney(totalAmount)}

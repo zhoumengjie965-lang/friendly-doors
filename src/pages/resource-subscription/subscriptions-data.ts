@@ -1,8 +1,27 @@
 // 席位制订阅包数据类型与 Mock 数据
-// 用于客户端"我的订阅包"模块
+// 用于客户端"企业订阅"与"我的订阅"模块
 
-export type SeatSubscriptionStatus = "active" | "pending" | "cancelled" | "expired";
+export type SeatSubscriptionStatus = "active" | "expired";
 export type SeatStatus = "assigned" | "idle";
+export type SeatTier = "lite" | "standard" | "premium";
+export type SubscriptionKeyStatus = "active" | "disabled";
+
+export const seatTierLabel: Record<SeatTier, string> = {
+  lite: "轻享版",
+  standard: "标准版",
+  premium: "尊享版",
+};
+
+// 订阅专用 Key
+export interface SubscriptionKey {
+  id: string;             // Key ID
+  name: string;           // Key 名称
+  keyPreview: string;     // Key 脱敏预览，如 sk-sub-***abc1
+  keyFull: string;        // 完整 Key（仅创建时返回一次，这里模拟存储）
+  status: SubscriptionKeyStatus;
+  createdAt: string;
+  lastUsedAt: string | null;
+}
 
 // 席位
 export interface Seat {
@@ -11,8 +30,12 @@ export interface Seat {
   memberName: string | null;
   memberAccount: string | null; // 成员账号（username/手机号/邮箱）
   status: SeatStatus;
+  tier: SeatTier;        // 席位档位
   periodQuota: number;   // 本周期额度（credit）
   usedQuota: number;     // 已使用额度
+  seatKey?: string | null;        // 席位专属 API Key 完整值，null 表示尚未生成
+  seatKeyPreview?: string | null; // Key 脱敏预览，如 sk-tp-***a1b2c3
+  seatKeyCreatedAt?: string | null;
 }
 
 // 抵扣明细记录
@@ -35,6 +58,7 @@ export interface DeductionRecord {
 export interface SeatSubscription {
   id: string;                     // 订阅ID，如 SUB20260701001
   planName: string;               // 订阅套餐名称
+  planId?: string;                // 关联的售卖套餐ID（用于加购席位）
   status: SeatSubscriptionStatus;
   seatCount: number;              // 席位总数
   usedSeats: number;              // 已使用席位数
@@ -53,21 +77,20 @@ export interface SeatSubscription {
   seats: Seat[];
   deductionRecords?: DeductionRecord[]; // 抵扣明细
   orderId?: string;
+  subscriptionKeys?: SubscriptionKey[]; // 订阅专用 Key
+  keyLimit?: number;              // Key 上限（= 每席位Key数 × 席位数）
+  allowSeatAddon?: boolean;       // 是否允许加购席位
 }
 
 // ─── 枚举标签 ──────────────────────────────────────────────────────
 
 export const subStatusLabel: Record<SeatSubscriptionStatus, string> = {
   active: "生效中",
-  pending: "待生效",
-  cancelled: "已取消",
   expired: "已过期",
 };
 
 export const subStatusClass: Record<SeatSubscriptionStatus, string> = {
   active: "bg-green-50 text-green-600 border-green-200",
-  pending: "bg-blue-50 text-blue-600 border-blue-200",
-  cancelled: "bg-gray-50 text-gray-500 border-gray-200",
   expired: "bg-gray-50 text-gray-500 border-gray-200",
 };
 
@@ -87,12 +110,34 @@ import { formatCredit, formatDateTime } from "./shared";
 
 export { formatCredit, formatDateTime };
 
+// 订阅 API 调用基础地址
+export const SUBSCRIPTION_BASE_URL = "https://api.ai-gateway.com/v1";
+
+// 订阅支持的模型列表
+export const SUBSCRIPTION_SUPPORTED_MODELS: string[] = [
+  "Doubao-Seed-2.1-pro",
+  "Doubao-Seed-2.0-lite",
+  "Doubao-Seedance-2.0",
+  "DeepSeek-V4-pro",
+  "GPT-4o",
+  "Claude-3.5-Sonnet",
+  "GLM-5.2",
+];
+
+// 计算剩余天数（基于到期时间 ISO 字符串）
+export const calcRemainingDays = (endIso: string): number => {
+  const end = new Date(endIso).getTime();
+  const now = Date.now();
+  return Math.max(0, Math.ceil((end - now) / (1000 * 60 * 60 * 24)));
+};
+
 // ─── Mock 数据 ──────────────────────────────────────────────────────
 
 export const MOCK_SEAT_SUBSCRIPTIONS: SeatSubscription[] = [
   {
     id: "SUB20260701001",
     planName: "Enterprise 标准版（席位）",
+    planId: "plan-sub-m",
     status: "active",
     seatCount: 10,
     usedSeats: 7,
@@ -101,6 +146,8 @@ export const MOCK_SEAT_SUBSCRIPTIONS: SeatSubscription[] = [
     currentPeriodEnd: "2026-08-01T00:00:00",
     nextBillingAt: "2026-08-01T00:00:00",
     orderId: "ORD20260701010",
+    keyLimit: 20,
+    allowSeatAddon: true,
     planDetail: {
       totalQuota: 93_700_000,
       price: 2999,
@@ -114,16 +161,16 @@ export const MOCK_SEAT_SUBSCRIPTIONS: SeatSubscription[] = [
       ],
     },
     seats: [
-      { id: "SEAT-001", memberId: "1", memberName: "张三", memberAccount: "zhangsan001", status: "assigned", periodQuota: 93_700_000, usedQuota: 42_350_000 },
-      { id: "SEAT-002", memberId: "2", memberName: "李四", memberAccount: "lisi002", status: "assigned", periodQuota: 93_700_000, usedQuota: 28_100_000 },
-      { id: "SEAT-003", memberId: "6", memberName: "周八", memberAccount: "zhoub@company.com", status: "assigned", periodQuota: 93_700_000, usedQuota: 65_200_000 },
-      { id: "SEAT-004", memberId: "7", memberName: "孙七", memberAccount: "sunqi007", status: "assigned", periodQuota: 93_700_000, usedQuota: 15_800_000 },
-      { id: "SEAT-005", memberId: "9", memberName: "吴九", memberAccount: "wujiu009", status: "assigned", periodQuota: 93_700_000, usedQuota: 8_900_000 },
-      { id: "SEAT-006", memberId: "4", memberName: "赵六", memberAccount: "zhaoliu004", status: "assigned", periodQuota: 93_700_000, usedQuota: 52_400_000 },
-      { id: "SEAT-007", memberId: "5", memberName: "钱十", memberAccount: "qianshi010", status: "assigned", periodQuota: 93_700_000, usedQuota: 37_600_000 },
-      { id: "SEAT-008", memberId: null, memberName: null, memberAccount: null, status: "idle", periodQuota: 93_700_000, usedQuota: 0 },
-      { id: "SEAT-009", memberId: null, memberName: null, memberAccount: null, status: "idle", periodQuota: 93_700_000, usedQuota: 0 },
-      { id: "SEAT-010", memberId: null, memberName: null, memberAccount: null, status: "idle", periodQuota: 93_700_000, usedQuota: 0 },
+      { id: "SEAT-001", memberId: "1", memberName: "张三", memberAccount: "zhangsan001", status: "assigned", tier: "standard", periodQuota: 93_700_000, usedQuota: 42_350_000, seatKey: "sk-tp-9f8e7d6c5b4a3210a1b2c3d4e5f67890", seatKeyPreview: "sk-tp-***a1b2c3", seatKeyCreatedAt: "2026-07-01T00:10:00" },
+      { id: "SEAT-002", memberId: "2", memberName: "李四", memberAccount: "lisi002", status: "assigned", tier: "standard", periodQuota: 93_700_000, usedQuota: 28_100_000 },
+      { id: "SEAT-003", memberId: "6", memberName: "周八", memberAccount: "zhoub@company.com", status: "assigned", tier: "standard", periodQuota: 93_700_000, usedQuota: 65_200_000 },
+      { id: "SEAT-004", memberId: "7", memberName: "孙七", memberAccount: "sunqi007", status: "assigned", tier: "premium", periodQuota: 93_700_000, usedQuota: 15_800_000 },
+      { id: "SEAT-005", memberId: "9", memberName: "吴九", memberAccount: "wujiu009", status: "assigned", tier: "lite", periodQuota: 93_700_000, usedQuota: 8_900_000 },
+      { id: "SEAT-006", memberId: "4", memberName: "赵六", memberAccount: "zhaoliu004", status: "assigned", tier: "lite", periodQuota: 93_700_000, usedQuota: 52_400_000 },
+      { id: "SEAT-007", memberId: "5", memberName: "钱十", memberAccount: "qianshi010", status: "assigned", tier: "premium", periodQuota: 93_700_000, usedQuota: 37_600_000 },
+      { id: "SEAT-008", memberId: null, memberName: null, memberAccount: null, status: "idle", tier: "lite", periodQuota: 93_700_000, usedQuota: 0 },
+      { id: "SEAT-009", memberId: null, memberName: null, memberAccount: null, status: "idle", tier: "standard", periodQuota: 93_700_000, usedQuota: 0 },
+      { id: "SEAT-010", memberId: null, memberName: null, memberAccount: null, status: "idle", tier: "premium", periodQuota: 93_700_000, usedQuota: 0 },
     ],
     deductionRecords: [
       { id: "DED-001", time: "2026-07-15T14:32:18", seatId: "SEAT-001", seatMemberName: "张三", apiKey: "ak_prod_***001", modelId: "doubao-seed-2.1-pro", modelName: "Doubao-Seed-2.1-pro", billingItem: "输入Token", usage: 12500, coefficient: 1.0, deductedCredits: 12500, remainingCredits: 51337500 },
@@ -136,6 +183,11 @@ export const MOCK_SEAT_SUBSCRIPTIONS: SeatSubscription[] = [
       { id: "DED-008", time: "2026-07-14T18:30:55", seatId: "SEAT-007", seatMemberName: "钱十", apiKey: "ak_prod_***007", modelId: "glm-5.2", modelName: "GLM-5.2", billingItem: "输出Token", usage: 12000, coefficient: 1.8, deductedCredits: 21600, remainingCredits: 56062400 },
       { id: "DED-009", time: "2026-07-14T16:22:08", seatId: "SEAT-001", seatMemberName: "张三", apiKey: "ak_prod_***001", modelId: "doubao-seed-2.1-pro", modelName: "Doubao-Seed-2.1-pro", billingItem: "输入Token", usage: 20000, coefficient: 1.0, deductedCredits: 20000, remainingCredits: 51362300 },
       { id: "DED-010", time: "2026-07-14T14:10:30", seatId: "SEAT-005", seatMemberName: "吴九", apiKey: "ak_prod_***005", modelId: "doubao-seedance-2.0", modelName: "Doubao-Seedance-2.0", billingItem: "图片生成", usage: 50, coefficient: 500, deductedCredits: 25000, remainingCredits: 84775000 },
+    ],
+    subscriptionKeys: [
+      { id: "SK-SUB-001", name: "生产环境-主Key", keyPreview: "sk-sub-***a1b2c3", keyFull: "sk-sub-9f8e7d6c5b4a3210a1b2c3d4e5f67890", status: "active", createdAt: "2026-07-01T00:05:12", lastUsedAt: "2026-07-15T14:32:18" },
+      { id: "SK-SUB-002", name: "测试环境-Key", keyPreview: "sk-sub-***d4e5f6", keyFull: "sk-sub-1234567890abcdef1234567890abcdef", status: "active", createdAt: "2026-07-01T00:06:35", lastUsedAt: "2026-07-13T10:05:22" },
+      { id: "SK-SUB-003", name: "备用Key", keyPreview: "sk-sub-***g7h8i9", keyFull: "sk-sub-abcdef0123456789abcdef0123456789", status: "disabled", createdAt: "2026-07-01T00:07:48", lastUsedAt: "2026-07-08T09:15:30" },
     ],
   },
   {
@@ -161,11 +213,11 @@ export const MOCK_SEAT_SUBSCRIPTIONS: SeatSubscription[] = [
       ],
     },
     seats: [
-      { id: "SEAT-Q1-001", memberId: "1", memberName: "张三", memberAccount: "zhangsan001", status: "assigned", periodQuota: 26_400_000, usedQuota: 18_200_000 },
-      { id: "SEAT-Q1-002", memberId: "3", memberName: "王五", memberAccount: "wangwu003", status: "assigned", periodQuota: 26_400_000, usedQuota: 9_500_000 },
-      { id: "SEAT-Q1-003", memberId: "8", memberName: "郑十一", memberAccount: "zheng11", status: "assigned", periodQuota: 26_400_000, usedQuota: 22_100_000 },
-      { id: "SEAT-Q1-004", memberId: null, memberName: null, memberAccount: null, status: "idle", periodQuota: 26_400_000, usedQuota: 0 },
-      { id: "SEAT-Q1-005", memberId: null, memberName: null, memberAccount: null, status: "idle", periodQuota: 26_400_000, usedQuota: 0 },
+      { id: "SEAT-Q1-001", memberId: "1", memberName: "张三", memberAccount: "zhangsan001", status: "assigned", tier: "standard", periodQuota: 26_400_000, usedQuota: 18_200_000 },
+      { id: "SEAT-Q1-002", memberId: "3", memberName: "王五", memberAccount: "wangwu003", status: "assigned", tier: "lite", periodQuota: 26_400_000, usedQuota: 9_500_000 },
+      { id: "SEAT-Q1-003", memberId: "8", memberName: "郑十一", memberAccount: "zheng11", status: "assigned", tier: "premium", periodQuota: 26_400_000, usedQuota: 22_100_000 },
+      { id: "SEAT-Q1-004", memberId: null, memberName: null, memberAccount: null, status: "idle", tier: "lite", periodQuota: 26_400_000, usedQuota: 0 },
+      { id: "SEAT-Q1-005", memberId: null, memberName: null, memberAccount: null, status: "idle", tier: "standard", periodQuota: 26_400_000, usedQuota: 0 },
     ],
   },
   {
@@ -196,9 +248,51 @@ export const MOCK_SEAT_SUBSCRIPTIONS: SeatSubscription[] = [
       memberName: null,
       memberAccount: null,
       status: "idle" as SeatStatus,
+      tier: (i % 3 === 0 ? "lite" : i % 3 === 1 ? "standard" : "premium") as SeatTier,
       periodQuota: 233_000_000,
       usedQuota: Math.floor(Math.random() * 200_000_000),
     })),
+  },
+  {
+    id: "SUB20260716011",
+    planName: "Enterprise 标准版（席位）",
+    planId: "plan-sub-m",
+    status: "active",
+    seatCount: 8,
+    usedSeats: 5,
+    autoRenew: true,
+    currentPeriodStart: "2026-07-01T00:00:00",
+    currentPeriodEnd: "2026-08-01T00:00:00",
+    nextBillingAt: "2026-08-01T00:00:00",
+    orderId: "ORD20260701011",
+    keyLimit: 16,
+    allowSeatAddon: true,
+    planDetail: {
+      totalQuota: 93_700_000,
+      price: 2999,
+      currency: "CNY",
+      modelScope: "国内+海外模型",
+      features: [
+        "每席位每月 9,370 万 Credit",
+        "适用国内+海外模型",
+        "限速 300 RPM / 150K TPM",
+        "席位成员独立额度，互不影响",
+      ],
+    },
+    seats: [
+      { id: "SEAT-PD-001", memberId: "1", memberName: "张三", memberAccount: "zhangsan001", status: "assigned", tier: "standard", periodQuota: 93_700_000, usedQuota: 42_350_000 },
+      { id: "SEAT-PD-002", memberId: "2", memberName: "李四", memberAccount: "lisi002", status: "assigned", tier: "standard", periodQuota: 93_700_000, usedQuota: 28_100_000 },
+      { id: "SEAT-PD-003", memberId: "3", memberName: "王五", memberAccount: "wangwu003", status: "assigned", tier: "premium", periodQuota: 93_700_000, usedQuota: 15_800_000 },
+      { id: "SEAT-PD-004", memberId: "4", memberName: "赵六", memberAccount: "zhaoliu004", status: "assigned", tier: "lite", periodQuota: 93_700_000, usedQuota: 52_400_000 },
+      { id: "SEAT-PD-005", memberId: "5", memberName: "钱十", memberAccount: "qianshi010", status: "assigned", tier: "premium", periodQuota: 93_700_000, usedQuota: 37_600_000 },
+      { id: "SEAT-PD-006", memberId: null, memberName: null, memberAccount: null, status: "idle", tier: "lite", periodQuota: 93_700_000, usedQuota: 0 },
+      { id: "SEAT-PD-007", memberId: null, memberName: null, memberAccount: null, status: "idle", tier: "standard", periodQuota: 93_700_000, usedQuota: 0 },
+      { id: "SEAT-PD-008", memberId: null, memberName: null, memberAccount: null, status: "idle", tier: "premium", periodQuota: 93_700_000, usedQuota: 0 },
+    ],
+    deductionRecords: [
+      { id: "DED-PD-001", time: "2026-07-15T14:32:18", seatId: "SEAT-PD-001", seatMemberName: "张三", apiKey: "ak_prod_***001", modelId: "doubao-seed-2.1-pro", modelName: "Doubao-Seed-2.1-pro", billingItem: "输入Token", usage: 12500, coefficient: 1.0, deductedCredits: 12500, remainingCredits: 51337500 },
+      { id: "DED-PD-002", time: "2026-07-14T16:22:08", seatId: "SEAT-PD-001", seatMemberName: "张三", apiKey: "ak_prod_***001", modelId: "deepseek-v4-pro", modelName: "DeepSeek-V4-pro", billingItem: "输入Token", usage: 20000, coefficient: 1.2, deductedCredits: 24000, remainingCredits: 51362300 },
+    ],
   },
 ];
 

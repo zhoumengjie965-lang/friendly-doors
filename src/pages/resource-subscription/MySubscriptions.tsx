@@ -195,8 +195,6 @@ export default function MySubscriptions({ mode: _mode, role: _role = "member" }:
             <SelectContent>
               <SelectItem value="all">全部状态</SelectItem>
               <SelectItem value="active">生效中</SelectItem>
-              <SelectItem value="pending">待生效</SelectItem>
-              <SelectItem value="cancelled">已取消</SelectItem>
               <SelectItem value="expired">已过期</SelectItem>
             </SelectContent>
           </Select>
@@ -252,7 +250,7 @@ export default function MySubscriptions({ mode: _mode, role: _role = "member" }:
                       <span className="text-muted-foreground"> / {s.seatCount}</span>
                     </TableCell>
                     <TableCell>
-                      {s.status === "active" || s.status === "pending" ? (
+                      {s.status === "active" ? (
                         <span className={`inline-flex items-center text-xs font-medium ${s.autoRenew ? "text-green-600" : "text-gray-400"}`}>
                           {s.autoRenew ? "已开启" : "已关闭"}
                         </span>

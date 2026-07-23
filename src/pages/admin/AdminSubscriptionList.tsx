@@ -23,6 +23,8 @@ import {
   ACCOUNT_TYPE_LABEL,
   formatMoney,
   formatDateTime,
+  formatDate,
+  formatPeriodLength,
 } from "./admin-subscriptions-data";
 
 const PAGE_SIZE = 10;
@@ -89,8 +91,6 @@ export default function AdminSubscriptionList() {
                 <SelectContent>
                   <SelectItem value="all">全部状态</SelectItem>
                   <SelectItem value="active">生效中</SelectItem>
-                  <SelectItem value="pending">待生效</SelectItem>
-                  <SelectItem value="cancelled">已取消</SelectItem>
                   <SelectItem value="expired">已过期</SelectItem>
                 </SelectContent>
               </Select>
@@ -129,33 +129,30 @@ export default function AdminSubscriptionList() {
                   <th className="px-3 py-2 text-left font-medium text-muted-foreground whitespace-nowrap">
                     订阅商品
                   </th>
-                  <th className="px-3 py-2 text-right font-medium text-muted-foreground whitespace-nowrap">
-                    续费金额
+                  <th className="px-3 py-2 text-left font-medium text-muted-foreground whitespace-nowrap">
+                    关联权益
+                  </th>
+                  <th className="px-3 py-2 text-center font-medium text-muted-foreground whitespace-nowrap">
+                    订阅状态
+                  </th>
+                  <th className="px-3 py-2 text-left font-medium text-muted-foreground whitespace-nowrap">
+                    生效周期
                   </th>
                   <th className="px-3 py-2 text-center font-medium text-muted-foreground whitespace-nowrap">
                     自动续费
                   </th>
-                  <th className="px-3 py-2 text-left font-medium text-muted-foreground whitespace-nowrap">
-                    当前周期
-                  </th>
-                  <th className="px-3 py-2 text-left font-medium text-muted-foreground whitespace-nowrap">
-                    最近扣款时间
+                  <th className="px-3 py-2 text-right font-medium text-muted-foreground whitespace-nowrap">
+                    续费金额
                   </th>
                   <th className="px-3 py-2 text-left font-medium text-muted-foreground whitespace-nowrap">
                     下次续费时间
-                  </th>
-                  <th className="px-3 py-2 text-center font-medium text-muted-foreground whitespace-nowrap">
-                    累计续费
-                  </th>
-                  <th className="px-3 py-2 text-center font-medium text-muted-foreground whitespace-nowrap">
-                    订阅状态
                   </th>
                 </tr>
               </thead>
               <tbody className="divide-y">
                 {pageRows.length === 0 ? (
                   <tr>
-                    <td colSpan={11} className="px-3 py-8 text-center text-muted-foreground">
+                    <td colSpan={10} className="px-3 py-8 text-center text-muted-foreground">
                       暂无订阅数据
                     </td>
                   </tr>
@@ -170,8 +167,22 @@ export default function AdminSubscriptionList() {
                         {ACCOUNT_TYPE_LABEL[s.accountType]}
                       </td>
                       <td className="px-3 py-2 whitespace-nowrap">{s.planName}</td>
-                      <td className="px-3 py-2 text-right font-mono whitespace-nowrap">
-                        {formatMoney(s.price, s.currency)}
+                      <td className="px-3 py-2 whitespace-nowrap font-mono text-[11px] text-muted-foreground">
+                        {s.entitlementId}
+                      </td>
+                      <td className="px-3 py-2 text-center whitespace-nowrap">
+                        <Badge
+                          variant={s.status === "active" ? "default" : "outline"}
+                          className={`${SUBSCRIPTION_STATUS_BADGE[s.status]} text-[11px]`}
+                        >
+                          {SUBSCRIPTION_STATUS_LABEL[s.status]}
+                        </Badge>
+                      </td>
+                      <td className="px-3 py-2 whitespace-nowrap text-muted-foreground">
+                        <div className="flex flex-col text-[11px]">
+                          <span className="text-foreground font-medium">{formatPeriodLength(s.currentPeriodStart, s.currentPeriodEnd)}</span>
+                          <span>（{formatDateTime(s.currentPeriodStart)} ~ {formatDateTime(s.currentPeriodEnd)}）</span>
+                        </div>
                       </td>
                       <td className="px-3 py-2 text-center whitespace-nowrap">
                         {s.autoRenew ? (
@@ -190,30 +201,13 @@ export default function AdminSubscriptionList() {
                           </Badge>
                         )}
                       </td>
-                      <td className="px-3 py-2 whitespace-nowrap text-muted-foreground">
-                        <div className="flex flex-col text-[11px]">
-                          <span>起：{formatDateTime(s.currentPeriodStart)}</span>
-                          <span>止：{formatDateTime(s.currentPeriodEnd)}</span>
-                        </div>
+                      <td className="px-3 py-2 text-right font-mono whitespace-nowrap">
+                        {formatMoney(s.price, s.currency)}
                       </td>
                       <td className="px-3 py-2 whitespace-nowrap text-muted-foreground text-[11px]">
-                        {formatDateTime(s.lastChargedAt)}
-                      </td>
-                      <td className="px-3 py-2 whitespace-nowrap text-muted-foreground text-[11px]">
-                        {s.status === "active" || s.status === "pending"
+                        {s.status === "active"
                           ? formatDateTime(s.currentPeriodEnd)
                           : "-"}
-                      </td>
-                      <td className="px-3 py-2 text-center whitespace-nowrap text-muted-foreground tabular-nums">
-                        {s.renewalCount} 次
-                      </td>
-                      <td className="px-3 py-2 text-center whitespace-nowrap">
-                        <Badge
-                          variant={s.status === "active" ? "default" : "outline"}
-                          className={`${SUBSCRIPTION_STATUS_BADGE[s.status]} text-[11px]`}
-                        >
-                          {SUBSCRIPTION_STATUS_LABEL[s.status]}
-                        </Badge>
                       </td>
                     </tr>
                   ))
@@ -221,7 +215,7 @@ export default function AdminSubscriptionList() {
 
                 {filtered.length > 0 && (
                   <tr>
-                    <td colSpan={11} className="px-3 py-3">
+                    <td colSpan={10} className="px-3 py-3">
                       <div className="flex items-center justify-between">
                         <span className="text-xs text-muted-foreground">
                           共 {filtered.length} 条，第 {currentPage} / {totalPages} 页

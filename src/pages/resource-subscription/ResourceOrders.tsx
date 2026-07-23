@@ -32,7 +32,7 @@ import {
   MOCK_ORDER_ROWS,
   productTypeExtLabel,
   orderTypeExtLabel,
-  purchaseMethodExtLabel,
+  orderTypeExtClass,
   orderStatusExtLabel,
   orderStatusExtClass,
   formatMoney,
@@ -134,6 +134,8 @@ export default function ResourceOrders({ mode }: Props) {
               <SelectItem value="all">全部订单类型</SelectItem>
               <SelectItem value="new">新购</SelectItem>
               <SelectItem value="renewal">续费</SelectItem>
+              <SelectItem value="upgrade">升级</SelectItem>
+              <SelectItem value="addon">加购</SelectItem>
             </SelectContent>
           </Select>
           <div className="flex items-center gap-2">
@@ -169,18 +171,17 @@ export default function ResourceOrders({ mode }: Props) {
                 <TableHead className="text-muted-foreground min-w-[200px]">商品名称</TableHead>
                 <TableHead className="text-muted-foreground w-[120px]">商品类型</TableHead>
                 <TableHead className="text-muted-foreground w-[90px]">订单类型</TableHead>
-                <TableHead className="text-muted-foreground w-[110px]">订单金额</TableHead>
-                <TableHead className="text-muted-foreground w-[110px]">支付方式</TableHead>
-                <TableHead className="text-muted-foreground w-[160px]">创建时间</TableHead>
-                <TableHead className="text-muted-foreground w-[160px]">支付时间</TableHead>
+                <TableHead className="text-muted-foreground w-[110px]">原价金额</TableHead>
+                <TableHead className="text-muted-foreground w-[110px]">实际应付</TableHead>
                 <TableHead className="text-muted-foreground w-[100px]">订单状态</TableHead>
+                <TableHead className="text-muted-foreground w-[160px]">创建时间</TableHead>
                 <TableHead className="text-muted-foreground text-right w-[180px]">操作</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {filtered.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={10}>
+                  <TableCell colSpan={9}>
                     <div className="flex flex-col items-center justify-center py-12 text-muted-foreground gap-3">
                       <Inbox className="w-10 h-10 opacity-30" />
                       <p className="text-sm">暂无订单记录</p>
@@ -191,37 +192,28 @@ export default function ResourceOrders({ mode }: Props) {
                 filtered.map((o) => (
                   <TableRow key={o.id} className="hover:bg-muted/30">
                     <TableCell className="text-sm font-mono text-muted-foreground whitespace-nowrap">{o.orderNo}</TableCell>
-                    <TableCell className="text-sm font-medium whitespace-nowrap">{o.productName}</TableCell>
+                    <TableCell className="text-sm font-medium whitespace-nowrap">
+                      {o.productName}
+                    </TableCell>
                     <TableCell className="text-sm text-muted-foreground whitespace-nowrap">
                       {productTypeExtLabel(o.productType)}
                     </TableCell>
                     <TableCell className="text-sm">
-                      <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium whitespace-nowrap ${
-                        o.orderType === "new"
-                          ? "bg-blue-50 text-blue-600 border border-blue-200"
-                          : "bg-purple-50 text-purple-600 border border-purple-200"
-                      }`}>
+                      <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium whitespace-nowrap ${orderTypeExtClass[o.orderType]}`}>
                         {orderTypeExtLabel(o.orderType)}
                       </span>
+                    </TableCell>
+                    <TableCell className="text-sm text-muted-foreground whitespace-nowrap">
+                      {formatMoney(o.originalAmount ?? o.amount)}
                     </TableCell>
                     <TableCell className="text-sm text-foreground whitespace-nowrap">
                       {formatMoney(o.amount)}
                     </TableCell>
-                    <TableCell className="text-sm text-muted-foreground whitespace-nowrap">
-                      {o.status === "paid"
-                        ? purchaseMethodExtLabel(o.purchaseMethod)
-                        : o.purchaseMethod
-                          ? purchaseMethodExtLabel(o.purchaseMethod)
-                          : "-"}
+                    <TableCell>
+                      <StatusBadge status={o.status} />
                     </TableCell>
                     <TableCell className="text-sm text-muted-foreground whitespace-nowrap">
                       {formatDateTime(o.createdAt)}
-                    </TableCell>
-                    <TableCell className="text-sm text-muted-foreground whitespace-nowrap">
-                      {o.paidAt ? formatDateTime(o.paidAt) : "-"}
-                    </TableCell>
-                    <TableCell>
-                      <StatusBadge status={o.status} />
                     </TableCell>
                     <TableCell className="text-right">
                       <RowActions order={o} onDetail={goDetail} onPay={goPay} onCancel={cancelOrder} />
@@ -265,7 +257,7 @@ export default function ResourceOrders({ mode }: Props) {
                   <span className="text-right">金额</span>
                 </div>
                 <div className="grid grid-cols-2 px-5 py-4 text-sm text-foreground">
-                  <span>{cancelTarget?.productName} x {cancelTarget?.quantity ?? 1}</span>
+                  <span>{cancelTarget?.productName} × {cancelTarget ? (cancelTarget.items.reduce((s, i) => s + (i.seats ?? i.quantity ?? 0), 0) || 1) : 1}</span>
                   <span className="text-right">{cancelTarget ? formatMoney(cancelTarget.amount) : ""}</span>
                 </div>
               </div>

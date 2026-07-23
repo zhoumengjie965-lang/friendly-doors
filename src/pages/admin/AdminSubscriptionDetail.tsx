@@ -12,12 +12,14 @@ import {
   User,
   Package,
   FileText,
+  Key,
 } from "lucide-react";
 import {
   findAdminSubscriptionById,
   SUBSCRIPTION_STATUS_LABEL,
   SUBSCRIPTION_STATUS_BADGE,
   ACCOUNT_TYPE_LABEL,
+  RENEWAL_FAILURE_REASON_LABEL,
   formatMoney,
   formatDateTime,
   formatDate,
@@ -81,7 +83,7 @@ export default function AdminSubscriptionDetail() {
               取消自动续费
             </Button>
           )}
-          {(subscription.status === "cancelled" || subscription.status === "expired") && (
+          {subscription.status === "expired" && (
             <Button
               size="sm"
               className="h-8 bg-green-600 hover:bg-green-700 text-white"
@@ -138,6 +140,14 @@ export default function AdminSubscriptionDetail() {
                   </p>
                 </div>
               </div>
+
+              <div className="flex items-start gap-3">
+                <Key className="w-4 h-4 text-muted-foreground mt-0.5 shrink-0" />
+                <div>
+                  <p className="text-xs text-muted-foreground mb-1">关联权益</p>
+                  <p className="text-sm font-mono">{subscription.entitlementId}</p>
+                </div>
+              </div>
             </div>
 
             <div className="space-y-4">
@@ -154,7 +164,7 @@ export default function AdminSubscriptionDetail() {
                     {formatDate(subscription.currentPeriodStart)} ~{" "}
                     {formatDate(subscription.currentPeriodEnd)}
                   </p>
-                  {(subscription.status === "active" || subscription.status === "pending") && (
+                  {subscription.status === "active" && (
                     <p className="text-sm">
                       <span className="text-muted-foreground">下次续费：</span>
                       {formatDate(subscription.currentPeriodEnd)}
@@ -198,7 +208,34 @@ export default function AdminSubscriptionDetail() {
               </tr>
             </thead>
             <tbody className="divide-y">
-              {subscription.latestOrderNo && (
+              {subscription.renewalHistory && subscription.renewalHistory.length > 0 ? (
+                subscription.renewalHistory.map((r) => (
+                  <tr key={r.orderNo} className="hover:bg-muted/20">
+                    <td className="px-4 py-2.5 font-mono">{r.orderNo}</td>
+                    <td className="px-4 py-2.5 text-muted-foreground">
+                      {formatDate(r.periodStart)} ~ {formatDate(r.periodEnd)}
+                    </td>
+                    <td className="px-4 py-2.5 text-right font-mono">
+                      {formatMoney(r.amount, r.currency)}
+                    </td>
+                    <td className="px-4 py-2.5 text-muted-foreground">
+                      {formatDateTime(r.chargedAt)}
+                    </td>
+                    <td className="px-4 py-2.5 text-center">
+                      {r.result === "success" ? (
+                        <Badge className="bg-green-500 text-white text-[11px]">成功</Badge>
+                      ) : (
+                        <Badge
+                          variant="outline"
+                          className="text-red-600 border-red-200 bg-red-50 text-[11px]"
+                        >
+                          失败{r.failureReason ? ` · ${RENEWAL_FAILURE_REASON_LABEL[r.failureReason]}` : ""}
+                        </Badge>
+                      )}
+                    </td>
+                  </tr>
+                ))
+              ) : subscription.latestOrderNo ? (
                 <tr className="hover:bg-muted/20">
                   <td className="px-4 py-2.5 font-mono">{subscription.latestOrderNo}</td>
                   <td className="px-4 py-2.5 text-muted-foreground">
@@ -209,20 +246,13 @@ export default function AdminSubscriptionDetail() {
                     {formatMoney(subscription.price, subscription.currency)}
                   </td>
                   <td className="px-4 py-2.5 text-muted-foreground">
-                    {subscription.status === "active" || subscription.status === "pending"
+                    {subscription.status === "active"
                       ? formatDateTime(subscription.currentPeriodStart)
                       : "-"}
                   </td>
                   <td className="px-4 py-2.5 text-center">
                     {subscription.status === "active" ? (
                       <Badge className="bg-green-500 text-white text-[11px]">成功</Badge>
-                    ) : subscription.status === "pending" ? (
-                      <Badge
-                        variant="outline"
-                        className="text-blue-600 border-blue-300 bg-blue-50 text-[11px]"
-                      >
-                        待生效
-                      </Badge>
                     ) : (
                       <Badge
                         variant="outline"
@@ -233,8 +263,7 @@ export default function AdminSubscriptionDetail() {
                     )}
                   </td>
                 </tr>
-              )}
-              {subscription.renewalCount === 0 && !subscription.latestOrderNo && (
+              ) : (
                 <tr>
                   <td colSpan={5} className="px-4 py-6 text-center text-muted-foreground">
                     暂无续费记录

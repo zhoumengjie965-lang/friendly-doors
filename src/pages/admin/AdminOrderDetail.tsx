@@ -1,9 +1,6 @@
-import { useState, type ReactNode } from "react";
+import { useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { Alert, AlertDescription } from "@/components/ui/alert";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -14,18 +11,15 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { ArrowLeft, AlertCircle, Wallet } from "lucide-react";
+import { ArrowLeft, AlertCircle, Clock } from "lucide-react";
 import {
   findAdminOrderById,
   ORDER_STATUS_LABEL,
   ORDER_STATUS_BADGE,
-  PRODUCT_TYPE_LABEL,
   ORDER_TYPE_LABEL,
-  ACCOUNT_TYPE_LABEL,
   PURCHASE_METHOD_LABEL,
   formatMoney,
   formatDateTime,
-  type AdminOrderRow,
 } from "./admin-orders-data";
 
 export default function AdminOrderDetail() {
@@ -39,12 +33,15 @@ export default function AdminOrderDetail() {
 
   if (!order) {
     return (
-      <div className="p-6 space-y-6 overflow-y-auto">
-        <Button variant="ghost" size="sm" onClick={() => navigate("/admin/console/order-management")}>
-          <ArrowLeft className="w-4 h-4 mr-1" />
-          返回
-        </Button>
-        <div className="text-center text-muted-foreground py-16">订单不存在或已被删除</div>
+      <div className="w-full space-y-6">
+        <h1 className="text-2xl font-bold text-foreground">订单详情</h1>
+        <div className="border border-border rounded-lg p-12 text-center text-muted-foreground">
+          <AlertCircle className="w-10 h-10 mx-auto mb-3 opacity-40" />
+          <p className="text-sm">订单不存在或已被删除</p>
+          <Button variant="outline" size="sm" className="mt-4" onClick={() => navigate("/admin/console/order-management")}>
+            返回订单列表
+          </Button>
+        </div>
       </div>
     );
   }
@@ -52,148 +49,149 @@ export default function AdminOrderDetail() {
   const isPending = order.status === "pending";
   const isCancelled = order.status === "cancelled";
 
-  // 金额行
-  const amountRows: { label: string; value: number; cls?: string }[] = [];
-  if (order.originalAmount !== undefined) amountRows.push({ label: "商品原价", value: order.originalAmount });
-  if (order.discountAmount) amountRows.push({ label: "优惠金额", value: -order.discountAmount, cls: "text-green-600" });
-  if (order.voucherDeduction) amountRows.push({ label: "代金券抵扣", value: -order.voucherDeduction, cls: "text-green-600" });
-  if (order.balanceDeduction) amountRows.push({ label: "余额支付", value: order.balanceDeduction });
+  const original = order.originalAmount ?? order.amount;
+  const discount = order.discountAmount ?? 0;
 
-  const finalLabel = isPending ? "待支付金额" : isCancelled ? "订单金额" : "实付金额";
+  const expireAt = (() => {
+    if (!isPending) return "";
+    const d = new Date(new Date(order.createdAt).getTime() + 30 * 60 * 1000);
+    const pad = (n: number) => String(n).padStart(2, "0");
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+  })();
 
-  // 订单信息字段
-  const infoFields: { label: string; value: ReactNode }[] = [
-    { label: "购买主体", value: order.buyerName },
-    { label: "账户类型", value: ACCOUNT_TYPE_LABEL[order.accountType] },
-    { label: "商品名称", value: order.productName },
-    { label: "商品类型", value: PRODUCT_TYPE_LABEL[order.productType] },
-    { label: "订单类型", value: ORDER_TYPE_LABEL[order.orderType] },
-    { label: "购买数量", value: order.quantity ?? 1 },
-    {
-      label: "支付方式",
-      value: order.purchaseMethod ? PURCHASE_METHOD_LABEL[order.purchaseMethod] : "-",
-    },
-    {
-      label: "支付账户",
-      value: order.paymentAccount ?? "-",
-    },
-    { label: "创建时间", value: formatDateTime(order.createdAt) },
-    { label: "支付时间", value: formatDateTime(order.paidAt) },
-    {
-      label: "交易流水号",
-      value: order.transactionId ? (
-        <span className="font-mono">{order.transactionId}</span>
-      ) : (
-        "-"
-      ),
-    },
-  ];
+  // 配置信息表格逻辑（与客户端一致）
+  const isSub = order.productType === "subscription";
+  const configText = isSub
+    ? order.items.map((i) => `${i.productName} × ${i.seats ?? 1}席`).join("\n")
+    : "-";
+  const quantity = isSub
+    ? "1"
+    : `${order.items.reduce((s, i) => s + (i.quantity ?? 1), 0)}`;
+  const firstItem = order.items[0];
+  const durationText = firstItem?.duration ?? "-";
+  const unitTotal = order.originalAmount ?? order.amount;
+  const billingMethod = firstItem?.billingMethod ?? (isSub ? "包年包月" : "一次性");
 
   return (
-    <div className="p-6 space-y-6 overflow-y-auto">
+    <div className="w-full max-w-7xl space-y-6">
       {/* 返回 */}
-      <Button variant="ghost" size="sm" onClick={() => navigate("/admin/console/order-management")}>
-        <ArrowLeft className="w-4 h-4 mr-1" />
-        返回订单列表
-      </Button>
+      <button
+        onClick={() => navigate("/admin/console/order-management")}
+        className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground transition-colors"
+      >
+        <ArrowLeft className="w-4 h-4" />
+        返回
+      </button>
 
-      {/* 顶部概览 */}
-      <div className="space-y-2">
-        <h1 className="text-xl font-semibold text-foreground">订单详情</h1>
-        <div className="flex items-center gap-3 text-sm">
-          <span className="text-muted-foreground">订单号：</span>
-          <span className="font-mono text-foreground">{order.orderNo}</span>
-          <Badge
-            variant={order.status === "paid" ? "default" : "outline"}
-            className={`${ORDER_STATUS_BADGE[order.status]} text-xs`}
-          >
-            {ORDER_STATUS_LABEL[order.status]}
-          </Badge>
-        </div>
+      {/* 标题 */}
+      <div className="flex items-center gap-3 flex-wrap">
+        <h1 className="text-2xl font-bold text-foreground">
+          订单详情 <span className="text-muted-foreground font-mono text-xl">({order.orderNo})</span>
+        </h1>
+        <span className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-medium ${ORDER_STATUS_BADGE[order.status]}`}>
+          {ORDER_STATUS_LABEL[order.status]}
+        </span>
       </div>
 
       {/* 待支付提示 */}
       {isPending && (
-        <Alert className="border-orange-200 bg-orange-50 text-orange-700 py-3">
-          <AlertCircle className="w-4 h-4 !text-orange-600" />
-          <AlertDescription className="text-orange-700 text-sm flex items-center justify-between w-full">
-            <span>请完成支付，逾期订单将自动取消。</span>
-            <Button size="sm" variant="destructive" className="h-8 text-xs" onClick={() => setCancelOpen(true)}>
+        <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 flex items-start gap-2.5 text-sm text-amber-900">
+          <Clock className="w-4 h-4 mt-0.5 shrink-0 text-amber-600" />
+          <p className="flex items-center justify-between w-full">
+            <span>请于 <span className="font-semibold">{expireAt}</span> 前完成支付，逾期订单将自动取消。</span>
+            <Button size="sm" variant="destructive" className="h-8 text-xs ml-4 shrink-0" onClick={() => setCancelOpen(true)}>
               取消订单
             </Button>
-          </AlertDescription>
-        </Alert>
+          </p>
+        </div>
       )}
 
-      {/* 金额信息 */}
-      <Card className="border shadow-sm">
-        <CardHeader className="py-3 px-4 border-b">
-          <CardTitle className="text-sm font-medium">金额信息</CardTitle>
-        </CardHeader>
-        <CardContent className="p-6">
-          <div className="flex items-start gap-4">
-            <div className="w-10 h-10 rounded-full bg-blue-50 flex items-center justify-center shrink-0">
-              <Wallet className="w-5 h-5 text-blue-600" />
-            </div>
-            <div className="flex-1 min-w-0">
-              <div className="flex items-baseline gap-3 flex-wrap">
-                <span className="text-sm text-muted-foreground">{finalLabel}</span>
-                <span className={`text-[32px] font-bold leading-none tracking-tight ${isCancelled ? "text-foreground" : "text-rose-500"}`}>
-                  {formatMoney(order.amount)}
-                </span>
+      {/* 支付信息 */}
+      <div className="border border-border rounded-lg overflow-hidden">
+        <div className="px-6 py-3 bg-muted/40 border-b border-border">
+          <h3 className="text-sm font-semibold text-foreground">支付信息</h3>
+        </div>
+        <div className="bg-card p-8">
+          {isCancelled ? (
+            <div className="text-sm text-muted-foreground">-</div>
+          ) : (
+            <div>
+              <div className="flex items-center gap-2 mb-4">
+                <span className="w-6 h-6 rounded-full bg-blue-500 text-white flex items-center justify-center text-xs font-bold">¥</span>
+                <span className="text-sm text-muted-foreground">{isPending ? "待实际应付" : "实际应付"}</span>
               </div>
-              {amountRows.length > 0 && (
-                <div className="mt-3 flex items-center gap-2 flex-wrap text-xs text-muted-foreground">
-                  {amountRows.map((r, i) => (
-                    <span key={r.label} className="flex items-center gap-2">
-                      {i > 0 && <span className="text-muted-foreground/40">|</span>}
-                      <span>{r.label}：</span>
-                      <span className={r.cls ?? ""}>{formatMoney(r.value)}</span>
-                    </span>
-                  ))}
-                </div>
-              )}
+              <div className="text-[40px] font-bold text-foreground leading-none tracking-tight mb-5">
+                {formatMoney(order.amount)}
+              </div>
+              <div className="text-sm text-muted-foreground flex items-center gap-2 flex-wrap">
+                <span className="text-muted-foreground/60">=</span>
+                <span>原价金额 {formatMoney(original)}</span>
+                {discount > 0 && (
+                  <>
+                    <span className="text-muted-foreground/60">-</span>
+                    <span>优惠金额 {formatMoney(discount)}</span>
+                  </>
+                )}
+              </div>
             </div>
-          </div>
-        </CardContent>
-      </Card>
+          )}
+        </div>
+      </div>
 
       {/* 订单信息 */}
-      <Card className="border shadow-sm">
-        <CardHeader className="py-3 px-4 border-b">
-          <CardTitle className="text-sm font-medium">订单信息</CardTitle>
-        </CardHeader>
-        <CardContent className="p-0">
-          <div className="overflow-x-auto">
-            <table className="w-full text-xs">
-              <tbody>
-                {infoFields.map((row, idx) => {
-                  // 双列布局：偶数行开新 tr，包含两个字段
-                  if (idx % 2 !== 0) return null;
-                  const next = infoFields[idx + 1];
-                  return (
-                    <tr key={row.label} className="border-b last:border-b-0">
-                      <td className="px-4 py-3 bg-muted/30 text-muted-foreground w-32 whitespace-nowrap">{row.label}</td>
-                      <td className="px-4 py-3 text-foreground">{row.value}</td>
-                      {next ? (
-                        <>
-                          <td className="px-4 py-3 bg-muted/30 text-muted-foreground w-32 whitespace-nowrap border-l">{next.label}</td>
-                          <td className="px-4 py-3 text-foreground">{next.value}</td>
-                        </>
-                      ) : (
-                        <>
-                          <td className="px-4 py-3 bg-muted/30 text-muted-foreground w-32 border-l" />
-                          <td className="px-4 py-3" />
-                        </>
-                      )}
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        </CardContent>
-      </Card>
+      <div className="border border-border rounded-lg overflow-hidden">
+        <div className="px-6 py-3 bg-muted/40 border-b border-border">
+          <h3 className="text-sm font-semibold text-foreground">订单信息</h3>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-x-8 gap-y-1 p-6">
+          <InfoItem label="订单号" value={order.orderNo} />
+          <InfoItem label="订单类型" value={ORDER_TYPE_LABEL[order.orderType]} />
+          <InfoItem label="关联订阅" value={order.subscriptionNo ?? "-"} />
+          <InfoItem label="购买主体" value={order.buyerName} />
+          <InfoItem label="创建时间" value={formatDateTime(order.createdAt)} />
+          <InfoItem label="付款时间" value={order.paidAt ? formatDateTime(order.paidAt) : "-"} />
+          <InfoItem label="支付方式" value={order.purchaseMethod ? PURCHASE_METHOD_LABEL[order.purchaseMethod] : "-"} />
+        </div>
+      </div>
+
+      {/* 配置信息 */}
+      <div className="border border-border rounded-lg overflow-hidden">
+        <div className="px-6 py-3 bg-muted/40 border-b border-border">
+          <h3 className="text-sm font-semibold text-foreground">配置信息</h3>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead className="bg-muted/30 border-b border-border">
+              <tr>
+                <th className="px-4 py-2.5 text-left font-medium text-muted-foreground whitespace-nowrap">商品名称</th>
+                <th className="px-4 py-2.5 text-left font-medium text-muted-foreground whitespace-nowrap">配置</th>
+                <th className="px-4 py-2.5 text-left font-medium text-muted-foreground whitespace-nowrap">计费方式</th>
+                <th className="px-4 py-2.5 text-right font-medium text-muted-foreground whitespace-nowrap">数量</th>
+                <th className="px-4 py-2.5 text-left font-medium text-muted-foreground whitespace-nowrap">生效时长</th>
+                <th className="px-4 py-2.5 text-right font-medium text-muted-foreground whitespace-nowrap">单价</th>
+                <th className="px-4 py-2.5 text-right font-medium text-muted-foreground whitespace-nowrap">价格优惠</th>
+                <th className="px-4 py-2.5 text-right font-medium text-muted-foreground whitespace-nowrap">实付金额</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr className="border-b border-border/60 last:border-b-0">
+                <td className="px-4 py-3 text-foreground whitespace-nowrap">{order.productName}</td>
+                <td className="px-4 py-3 text-muted-foreground whitespace-pre-line">{configText}</td>
+                <td className="px-4 py-3 text-muted-foreground whitespace-nowrap">{billingMethod}</td>
+                <td className="px-4 py-3 text-right text-muted-foreground whitespace-nowrap">{quantity}</td>
+                <td className="px-4 py-3 text-muted-foreground whitespace-nowrap">{durationText || "-"}</td>
+                <td className="px-4 py-3 text-right text-muted-foreground whitespace-nowrap">{formatMoney(unitTotal)}</td>
+                <td className="px-4 py-3 text-right text-emerald-600 whitespace-nowrap">
+                  {order.discountAmount ? `-${formatMoney(order.discountAmount)}` : "-"}
+                </td>
+                <td className="px-4 py-3 text-right font-medium text-foreground whitespace-nowrap">
+                  {formatMoney(order.amount)}
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
 
       {/* 取消订单确认 */}
       <AlertDialog open={cancelOpen} onOpenChange={setCancelOpen}>
@@ -209,7 +207,6 @@ export default function AdminOrderDetail() {
             <AlertDialogAction
               className="bg-destructive hover:bg-destructive/90"
               onClick={() => {
-                // 一期仅前端状态切换，实际应调用接口
                 setCancelOpen(false);
                 navigate("/admin/console/order-management", { replace: true });
               }}
@@ -219,6 +216,15 @@ export default function AdminOrderDetail() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+    </div>
+  );
+}
+
+function InfoItem({ label, value }: { label: string; value: React.ReactNode }) {
+  return (
+    <div className="py-2">
+      <dt className="text-xs text-muted-foreground mb-1">{label}</dt>
+      <dd className="text-sm text-foreground break-all">{value}</dd>
     </div>
   );
 }
