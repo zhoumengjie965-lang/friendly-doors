@@ -1959,16 +1959,12 @@ function UserBillManagement() {
               </div>
 
               {/* 金额汇总 - 弹窗最底部 */}
-              <div className="flex items-center gap-4 pt-3 pb-1 border-t text-base">
-                <span className="text-xs text-muted-foreground mr-auto">说明：本期可开票金额为充值余额支付金额 + 订阅/资源包购买金额，代金券抵扣、授信额度支付金额不可开票。</span>
-                <span className="font-medium">可开票金额：<span className="font-mono text-green-700 text-lg font-bold">
+              <div className="flex items-center justify-end gap-4 pt-3 pb-1 border-t text-base">
+                <span className="font-medium">本期消费金额：<span className="font-mono text-green-700 text-lg font-bold">
                   {formatCurrency(
                     previewBill.details.reduce((sum, d) => sum + (d.balanceDeduction ?? d.subtotal), 0) +
                     (previewBill.subscriptionOrders || []).reduce((sum, o) => sum + o.orderAmount, 0)
                   )}
-                </span></span>
-                <span className="font-medium">待实际应付：<span className="font-mono text-red-600 text-lg font-bold">
-                  {formatCurrency(previewBill.details.reduce((sum, d) => sum + (d.creditDeduction ?? 0), 0))}
                 </span></span>
               </div>
 

@@ -63,9 +63,11 @@ export interface SeatSubscription {
   seatCount: number;              // 席位总数
   usedSeats: number;              // 已使用席位数
   autoRenew: boolean;             // 自动续费状态
-  currentPeriodStart: string;     // 当前周期开始
-  currentPeriodEnd: string;       // 当前周期结束
+  currentPeriodStart: string;     // 订阅周期开始（整个订阅）
+  currentPeriodEnd: string;       // 订阅周期结束（整个订阅到期）
   nextBillingAt: string | null;   // 下次续费时间
+  totalPeriods?: number;          // 总期数（年付=12，季付=3，月付自动续费不填）
+  currentPeriodIndex?: number;    // 当前是第几期（从1开始）
   // 套餐详情
   planDetail: {
     totalQuota: number;           // 每席位周期额度
@@ -142,9 +144,11 @@ export const MOCK_SEAT_SUBSCRIPTIONS: SeatSubscription[] = [
     seatCount: 10,
     usedSeats: 7,
     autoRenew: true,
-    currentPeriodStart: "2026-07-01T00:00:00",
-    currentPeriodEnd: "2026-08-01T00:00:00",
+    currentPeriodStart: "2026-05-01T00:00:00",
+    currentPeriodEnd: "2027-05-01T00:00:00",
     nextBillingAt: "2026-08-01T00:00:00",
+    totalPeriods: 12,
+    currentPeriodIndex: 3,
     orderId: "ORD20260701010",
     keyLimit: 20,
     allowSeatAddon: true,
@@ -200,6 +204,8 @@ export const MOCK_SEAT_SUBSCRIPTIONS: SeatSubscription[] = [
     currentPeriodStart: "2026-06-15T00:00:00",
     currentPeriodEnd: "2026-09-15T00:00:00",
     nextBillingAt: null,
+    totalPeriods: 3,
+    currentPeriodIndex: 2,
     orderId: "ORD20260615005",
     planDetail: {
       totalQuota: 26_400_000,
@@ -230,6 +236,8 @@ export const MOCK_SEAT_SUBSCRIPTIONS: SeatSubscription[] = [
     currentPeriodStart: "2025-05-01T00:00:00",
     currentPeriodEnd: "2026-05-01T00:00:00",
     nextBillingAt: null,
+    totalPeriods: 12,
+    currentPeriodIndex: 12,
     orderId: "ORD20250501001",
     planDetail: {
       totalQuota: 233_000_000,

@@ -44,7 +44,7 @@ export default function MySubscription({ currentMemberId = "1", mode = "enterpri
   const isPersonal = mode === "personal";
   const seatLabel = isPersonal ? "" : "席位";
   const currentLabel = isPersonal ? "当前订阅" : "当前席位";
-  const remainLabel = isPersonal ? "余量" : "席位余量";
+  const remainLabel = isPersonal ? "余量" : "本期席位余量";
   const [copiedKey, setCopiedKey] = useState(false);
   const [copiedUrl, setCopiedUrl] = useState(false);
   const [resetDialogOpen, setResetDialogOpen] = useState(false);
@@ -281,7 +281,14 @@ export default function MySubscription({ currentMemberId = "1", mode = "enterpri
             {/* 右列 */}
             <div className="space-y-3 pl-6 border-l border-border">
               <div>
-                <p className="text-xs text-muted-foreground">{remainLabel}</p>
+                <div className="flex items-center gap-1.5">
+                  <p className="text-xs text-muted-foreground">{remainLabel}</p>
+                  {sub.totalPeriods && sub.totalPeriods > 1 && (
+                    <span className="text-xs text-muted-foreground">
+                      （本期周期：第 {sub.currentPeriodIndex} 期 / 共 {sub.totalPeriods} 期）
+                    </span>
+                  )}
+                </div>
                 <p className="text-sm font-semibold text-primary mt-0.5">{remainingPercent}%</p>
               </div>
               <Progress value={usedPercent} className="h-2" />

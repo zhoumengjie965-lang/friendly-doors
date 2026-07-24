@@ -73,7 +73,10 @@ export default function OrderDetail({ mode }: Props) {
   const isPaid = order.status === "paid";
   const isPending = order.status === "pending";
   const isCancelled = order.status === "cancelled";
-  const purchaserName = mode === "enterprise" ? "北京科技创新有限公司" : "周梦洁";
+  const purchaserName = "周梦洁";
+  const purchaserUsername = "zhou_mengjie";
+  const entityName = mode === "enterprise" ? "北京科技创新有限公司" : null;
+  const entityId = mode === "enterprise" ? "ENT-20260318" : null;
 
   const original = order.originalAmount ?? order.amount;
   const discount = order.discountAmount ?? 0;
@@ -152,7 +155,14 @@ export default function OrderDetail({ mode }: Props) {
         <div className="grid grid-cols-1 md:grid-cols-3 gap-x-8 gap-y-1 p-6">
           <InfoItem label="订单号" value={order.orderNo} />
           <InfoItem label="订单类型" value={orderTypeExtLabel(order.orderType)} />
-          <InfoItem label="创建人" value={purchaserName} />
+          <div />
+          <InfoItem label="创建人" value={`${purchaserName}（${purchaserUsername}）`} />
+          {entityName && entityId ? (
+            <InfoItem label="购买主体" value={`${entityName}（${entityId}）`} />
+          ) : (
+            <div />
+          )}
+          <div />
           <InfoItem label="创建时间" value={formatDateTime(order.createdAt)} />
           <InfoItem label="付款时间" value={order.paidAt ? formatDateTime(order.paidAt) : "-"} />
           <InfoItem label="支付方式" value={order.purchaseMethod ? purchaseMethodExtLabel(order.purchaseMethod) : "-"} />

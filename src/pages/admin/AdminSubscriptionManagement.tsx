@@ -5,7 +5,6 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { Switch } from "@/components/ui/switch";
 import { Checkbox } from "@/components/ui/checkbox";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import {
@@ -1318,21 +1317,6 @@ export default function AdminSubscriptionManagement() {
                     </p>
                     <div className="grid grid-cols-2 gap-6">
                       <div className="space-y-2">
-                        <Label className="text-sm">每席位分配 Key 数</Label>
-                        <Input
-                          type="number"
-                          min={1}
-                          value={form.baseKeyLimit ?? 1}
-                          onChange={(e) =>
-                            updateForm("baseKeyLimit", parseInt(e.target.value) || 1)
-                          }
-                          className="h-10 bg-white"
-                        />
-                        <p className="text-xs text-muted-foreground">
-                          每席位可创建的订阅专用 API Key 数量
-                        </p>
-                      </div>
-                      <div className="space-y-2">
                         <Label className="text-sm">最低购买席位数</Label>
                         <Input
                           type="number"
@@ -1357,20 +1341,6 @@ export default function AdminSubscriptionManagement() {
                           className="h-10 bg-white"
                         />
                         <p className="text-xs text-muted-foreground">单订阅最大可购买/加购的席位数</p>
-                      </div>
-                      <div className="space-y-2">
-                        <div className="flex items-center justify-between">
-                          <Label className="text-sm">允许加购席位</Label>
-                          <Switch
-                            checked={form.allowSeatAddon ?? true}
-                            onCheckedChange={(checked) =>
-                              updateForm("allowSeatAddon", checked)
-                            }
-                          />
-                        </div>
-                        <p className="text-xs text-muted-foreground">
-                          关闭后用户订阅生效期间无法加购席位，席位固定为购买时数量
-                        </p>
                       </div>
                     </div>
                   </div>
