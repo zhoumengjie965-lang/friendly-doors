@@ -10,7 +10,7 @@ export interface ModelFilter {
   source: string[];
   type: string[];
 }
-export type PurchaseSubject = "personal" | "enterprise" | "all";
+export type PurchaseSubject = "personal" | "enterprise" | "all" | "custom";
 
 export type PurchaseMethod =
   | "account-balance"
@@ -53,6 +53,8 @@ export interface SubscriptionPlan {
   validityValue: number;
   validityCustomSeconds: number;
   purchaseSubject: PurchaseSubject;
+  // 定向可见的企业客户 ID 列表（仅 purchaseSubject === "custom" 时生效）
+  allowedEnterpriseIds?: string[];
   purchaseLimit: number;
   purchaseMethods: PurchaseMethod[];
   subscriptionKeyLimit: number;
@@ -188,6 +190,7 @@ export const purchaseSubjectLabel = (subject: PurchaseSubject) => {
     personal: "个人",
     enterprise: "企业",
     all: "全部",
+    custom: "定向",
   };
   return map[subject];
 };

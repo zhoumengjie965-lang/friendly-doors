@@ -24,6 +24,7 @@ import { cn } from "@/lib/utils";
 interface Props {
   mode: "enterprise" | "personal";
   role?: string;
+  enterpriseId?: string;
 }
 
 const FAQ_LIST = [
@@ -45,7 +46,7 @@ function getTheme(planId: string) {
   return PLAN_THEMES[planId] ?? PLAN_THEMES.standard;
 }
 
-export default function TokenPlan({ mode, role = "member" }: Props) {
+export default function TokenPlan({ mode, role = "member", enterpriseId }: Props) {
   const navigate = useNavigate();
   const [cycle, setCycle] = useState<Cycle>("month");
 
@@ -56,12 +57,16 @@ export default function TokenPlan({ mode, role = "member" }: Props) {
       .filter((p) => {
         if (p.status !== "active") return false;
         if (p.productType !== "subscription") return false;
-        if (mode === "personal" && p.purchaseSubject === "enterprise") return false;
+        if (mode === "personal" && (p.purchaseSubject === "enterprise" || p.purchaseSubject === "custom")) return false;
         if (mode === "enterprise" && p.purchaseSubject === "personal") return false;
+        // 定向包：仅允许名单内企业可见
+        if (mode === "enterprise" && p.purchaseSubject === "custom") {
+          if (!enterpriseId || !p.allowedEnterpriseIds?.includes(enterpriseId)) return false;
+        }
         return true;
       })
       .sort((a, b) => a.sort - b.sort);
-  }, [mode]);
+  }, [mode, enterpriseId]);
 
   const priceFor = (plan: SubscriptionPlan) => {
     if (plan.productType === "subscription" && plan.cyclePricing && plan.cyclePricing[cycle]) {

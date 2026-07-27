@@ -51,6 +51,7 @@ import {
   Search,
   Calculator,
   Eye,
+  X,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
@@ -65,7 +66,7 @@ interface ModelFilter {
   source: string[];
   type: string[];
 }
-type PurchaseSubject = "personal" | "enterprise" | "all";
+type PurchaseSubject = "personal" | "enterprise" | "all" | "custom";
 
 type PurchaseMethod =
   | "account-balance"
@@ -155,7 +156,7 @@ const purchaseMethodLabel = (method: PurchaseMethod) => {
 };
 
 const purchaseSubjectLabel = (subject: PurchaseSubject) => {
-  const map = { personal: "个人", enterprise: "企业", all: "全部" };
+  const map = { personal: "个人", enterprise: "企业", all: "全部", custom: "定向" };
   return map[subject];
 };
 
@@ -164,9 +165,74 @@ const purchaseSubjectBadgeClass = (subject: PurchaseSubject) => {
     personal: "border-amber-200 bg-amber-50 text-amber-600",
     enterprise: "border-sky-200 bg-sky-50 text-sky-600",
     all: "border-gray-200 bg-gray-50 text-gray-600",
+    custom: "border-violet-200 bg-violet-50 text-violet-600",
   };
   return map[subject];
 };
+
+// 定向可见的企业客户候选列表（Mock 演示数据，模拟数百家企业）
+const ENTERPRISE_OPTIONS = [
+  { id: "ent-001", name: "星辰科技" },
+  { id: "ent-002", name: "云海数据" },
+  { id: "ent-003", name: "智链人工智能" },
+  { id: "ent-004", name: "光年智能" },
+  { id: "ent-005", name: "深擎科技" },
+  { id: "ent-006", name: "浪潮信息" },
+  { id: "ent-007", name: "蚂蚁金服" },
+  { id: "ent-008", name: "微众银行" },
+  { id: "ent-009", name: "平安科技" },
+  { id: "ent-010", name: "招商证券" },
+  { id: "ent-011", name: "中金公司" },
+  { id: "ent-012", name: "华泰保险" },
+  { id: "ent-013", name: "比亚迪研究院" },
+  { id: "ent-014", name: "宁德时代" },
+  { id: "ent-015", name: "三一重工" },
+  { id: "ent-016", name: "海尔智家" },
+  { id: "ent-017", name: "美的集团" },
+  { id: "ent-018", name: "格力电器" },
+  { id: "ent-019", name: "学而思教育" },
+  { id: "ent-020", name: "新东方在线" },
+  { id: "ent-021", name: "猿辅导" },
+  { id: "ent-022", name: "作业帮" },
+  { id: "ent-023", name: "好未来" },
+  { id: "ent-024", name: "迈瑞医疗" },
+  { id: "ent-025", name: "联影医疗" },
+  { id: "ent-026", name: "恒瑞医药" },
+  { id: "ent-027", name: "药明康德" },
+  { id: "ent-028", name: "爱尔眼科" },
+  { id: "ent-029", name: "字节跳动" },
+  { id: "ent-030", name: "快手科技" },
+  { id: "ent-031", name: "哔哩哔哩" },
+  { id: "ent-032", name: "小红书" },
+  { id: "ent-033", name: "知乎" },
+  { id: "ent-034", name: "京东集团" },
+  { id: "ent-035", name: "拼多多" },
+  { id: "ent-036", name: "唯品会" },
+  { id: "ent-037", name: "顺丰科技" },
+  { id: "ent-038", name: "菜鸟网络" },
+  { id: "ent-039", name: "中通快递" },
+  { id: "ent-040", name: "满帮集团" },
+  { id: "ent-041", name: "蔚来汽车" },
+  { id: "ent-042", name: "小鹏汽车" },
+  { id: "ent-043", name: "理想汽车" },
+  { id: "ent-044", name: "小米科技" },
+  { id: "ent-045", name: "OPPO" },
+  { id: "ent-046", name: "vivo" },
+  { id: "ent-047", name: "联想集团" },
+  { id: "ent-048", name: "中兴通讯" },
+  { id: "ent-049", name: "大唐电信" },
+  { id: "ent-050", name: "紫光集团" },
+  { id: "ent-051", name: "中芯国际" },
+  { id: "ent-052", name: "韦尔股份" },
+  { id: "ent-053", name: "北方华创" },
+  { id: "ent-054", name: "中微公司" },
+  { id: "ent-055", name: "沪硅产业" },
+  { id: "ent-056", name: "华润微电子" },
+  { id: "ent-057", name: "商汤科技" },
+  { id: "ent-058", name: "旷视科技" },
+  { id: "ent-059", name: "依图科技" },
+  { id: "ent-060", name: "云从科技" },
+];
 
 const PURCHASE_METHOD_OPTIONS: PurchaseMethod[] = [
   "account-balance",
@@ -464,6 +530,7 @@ export default function AdminSubscriptionManagement() {
   const [editingPlan, setEditingPlan] = useState<SubscriptionPlan | null>(null);
   const [scopeDialogPlan, setScopeDialogPlan] = useState<SubscriptionPlan | null>(null);
   const [modelSearch, setModelSearch] = useState("");
+  const [enterpriseSearch, setEnterpriseSearch] = useState("");
   const [confirmSubmitOpen, setConfirmSubmitOpen] = useState(false);
   const [statusTogglePlan, setStatusTogglePlan] = useState<SubscriptionPlan | null>(null);
 
@@ -488,6 +555,7 @@ export default function AdminSubscriptionManagement() {
     validityValue: 1,
     validityCustomSeconds: 0,
     purchaseSubject: "all",
+    allowedEnterpriseIds: [],
     purchaseLimit: 0,
     purchaseMethods: ["account-balance"],
     subscriptionKeyLimit: 1,
@@ -1277,8 +1345,118 @@ export default function AdminSubscriptionManagement() {
                           全部
                         </Label>
                       </div>
+                      <div className="flex items-center gap-2">
+                        <RadioGroupItem value="custom" id="sub-custom" />
+                        <Label htmlFor="sub-custom" className="text-sm font-normal cursor-pointer">
+                          自定义
+                        </Label>
+                      </div>
                     </RadioGroup>
                   </div>
+                  {form.purchaseSubject === "custom" && (
+                    <div className="space-y-2 pt-1">
+                      <Label className="text-sm">定向可见企业</Label>
+                      <p className="text-xs text-muted-foreground -mt-1">
+                        仅被选中的企业客户可在购买页看到本商品，其他客户不可见；购买流程不变
+                      </p>
+                      {/* 搜索框 + 下拉候选 */}
+                      <div className="relative">
+                        <div className="relative">
+                          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                          <Input
+                            value={enterpriseSearch}
+                            onChange={(e) => setEnterpriseSearch(e.target.value)}
+                            placeholder="搜索企业名称…"
+                            className="pl-8 h-9 bg-white"
+                          />
+                        </div>
+                        {enterpriseSearch.trim() && (
+                          <div className="absolute z-50 left-0 right-0 mt-1 border rounded-md bg-white shadow-lg max-h-56 overflow-y-auto">
+                            {ENTERPRISE_OPTIONS
+                              .filter((e) => !form.allowedEnterpriseIds?.includes(e.id))
+                              .filter((e) =>
+                                e.name.toLowerCase().includes(enterpriseSearch.trim().toLowerCase())
+                              )
+                              .slice(0, 20)
+                              .map((ent) => (
+                                <button
+                                  key={ent.id}
+                                  type="button"
+                                  onClick={() => {
+                                    updateForm("allowedEnterpriseIds", [
+                                      ...(form.allowedEnterpriseIds ?? []),
+                                      ent.id,
+                                    ]);
+                                    setEnterpriseSearch("");
+                                  }}
+                                  className="flex items-center justify-between w-full px-3 py-2 text-sm hover:bg-gray-50 text-left"
+                                >
+                                  <span className="text-foreground">{ent.name}</span>
+                                  <Plus className="w-3.5 h-3.5 text-muted-foreground" />
+                                </button>
+                              ))}
+                            {ENTERPRISE_OPTIONS
+                              .filter((e) => !form.allowedEnterpriseIds?.includes(e.id))
+                              .filter((e) =>
+                                e.name.toLowerCase().includes(enterpriseSearch.trim().toLowerCase())
+                              )
+                              .length === 0 && (
+                              <p className="px-3 py-2 text-xs text-muted-foreground">未找到匹配的企业</p>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                      {/* 已选企业区域 */}
+                      <div className="space-y-1.5">
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs font-medium text-foreground">
+                            已选企业{form.allowedEnterpriseIds?.length ? `（${form.allowedEnterpriseIds.length}）` : ""}
+                          </span>
+                          {(form.allowedEnterpriseIds?.length ?? 0) > 0 && (
+                            <button
+                              type="button"
+                              onClick={() => updateForm("allowedEnterpriseIds", [])}
+                              className="text-xs text-muted-foreground hover:text-foreground"
+                            >
+                              清空
+                            </button>
+                          )}
+                        </div>
+                        <div className="flex flex-wrap gap-1.5 min-h-[40px] p-2.5 border rounded-md bg-gray-50/50">
+                          {(form.allowedEnterpriseIds ?? []).length === 0 ? (
+                            <span className="text-xs text-muted-foreground self-center">尚未选择企业</span>
+                          ) : (
+                            (form.allowedEnterpriseIds ?? []).map((id) => {
+                              const ent = ENTERPRISE_OPTIONS.find((e) => e.id === id);
+                              return (
+                                <span
+                                  key={id}
+                                  className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-violet-50 border border-violet-200 text-xs text-violet-700"
+                                >
+                                  {ent?.name ?? id}
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      updateForm(
+                                        "allowedEnterpriseIds",
+                                        (form.allowedEnterpriseIds ?? []).filter((x) => x !== id)
+                                      )
+                                    }
+                                    className="hover:bg-violet-200 rounded-full p-0.5"
+                                  >
+                                    <X className="w-3 h-3" />
+                                  </button>
+                                </span>
+                              );
+                            })
+                          )}
+                        </div>
+                      </div>
+                      {(form.allowedEnterpriseIds?.length ?? 0) === 0 && (
+                        <p className="text-xs text-amber-600">至少选择 1 个企业客户，否则该商品无人可见</p>
+                      )}
+                    </div>
+                  )}
                   {form.productType === "one-time" && (
                     <div className="space-y-2">
                       <Label className="text-sm">购买上限</Label>

@@ -601,7 +601,7 @@ export default function Workspace() {
                   .map(e => e.org!)}
               />
             ) : location.pathname === "/workspace/token-plan" ? (
-              <TokenPlan mode="enterprise" role={role} />
+              <TokenPlan mode="enterprise" role={role} enterpriseId={enterprise.id} />
             ) : location.pathname === "/workspace/resource-packages" ? (
               <ResourcePackages mode="enterprise" role={role} />
             ) : location.pathname.startsWith("/workspace/resource-packages/") ? (

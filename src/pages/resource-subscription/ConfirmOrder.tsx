@@ -114,7 +114,7 @@ export default function ConfirmOrder({ mode, balance = 5000 }: Props) {
   const comboPlans = useMemo(() => {
     if (!isCombo) return [];
     return MOCK_PLANS
-      .filter((p) => p.productType === "subscription" && p.status === "active" && p.purchaseSubject !== "personal")
+      .filter((p) => p.productType === "subscription" && p.status === "active" && (p.purchaseSubject === "enterprise" || p.purchaseSubject === "all"))
       .sort((a, b) => a.sort - b.sort);
   }, [isCombo]);
 
