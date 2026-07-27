@@ -95,6 +95,13 @@ export interface SubscriptionPlan {
   maxSeats?: number;
   // 是否允许加购席位
   allowSeatAddon?: boolean;
+  // ── 商品组 ─────────────────────────────────────────
+  // 商品组 ID，同组商品共享此 ID（如 "grp-token-enterprise"）
+  groupId?: string;
+  // 商品组名称（如 "Token Plan 企业版"、"资源包"）
+  groupName?: string;
+  // 组内排序（1, 2, 3…），决定同组内档位的展示顺序
+  groupSort?: number;
 }
 
 export interface AIModel {
@@ -285,6 +292,9 @@ export const MOCK_PLANS: SubscriptionPlan[] = [
     subscriptionKeyLimit: 1,
     status: "active",
     sort: 0,
+    groupId: "grp-resource-pack",
+    groupName: "资源包",
+    groupSort: 1,
     features: [
       "有效期 6 个月",
       "适用国内模型（豆包、GLM、DeepSeek、Kimi 等）",
@@ -320,6 +330,9 @@ export const MOCK_PLANS: SubscriptionPlan[] = [
     subscriptionKeyLimit: 1,
     status: "active",
     sort: 1,
+    groupId: "grp-resource-pack",
+    groupName: "资源包",
+    groupSort: 2,
     features: [
       "有效期 6 个月",
       "覆盖国内与海外模型，推荐多模型、多业务场景",
@@ -353,6 +366,9 @@ export const MOCK_PLANS: SubscriptionPlan[] = [
     subscriptionKeyLimit: 1,
     status: "active",
     sort: 2,
+    groupId: "grp-resource-pack",
+    groupName: "资源包",
+    groupSort: 3,
     features: [
       "有效期 6 个月",
       "适用海外模型（GPT、Claude、Gemini 等）",
@@ -392,6 +408,9 @@ export const MOCK_PLANS: SubscriptionPlan[] = [
     subscriptionKeyLimit: 3,
     status: "active",
     sort: 100,
+    groupId: "grp-token-enterprise",
+    groupName: "Token Plan 企业版",
+    groupSort: 1,
     // 每席位价格
     cyclePricing: {
       month: { originalPrice: 1_199, price: 899, discountLabel: "约7.5折" },
@@ -441,6 +460,9 @@ export const MOCK_PLANS: SubscriptionPlan[] = [
     subscriptionKeyLimit: 2,
     status: "active",
     sort: 101,
+    groupId: "grp-token-enterprise",
+    groupName: "Token Plan 企业版",
+    groupSort: 2,
     // 每席位价格
     cyclePricing: {
       month: { originalPrice: 800, price: 600, discountLabel: "7.5折" },
@@ -490,6 +512,9 @@ export const MOCK_PLANS: SubscriptionPlan[] = [
     subscriptionKeyLimit: 5,
     status: "active",
     sort: 102,
+    groupId: "grp-token-enterprise",
+    groupName: "Token Plan 企业版",
+    groupSort: 3,
     // 每席位价格
     cyclePricing: {
       month: { originalPrice: 1_000, price: 700, discountLabel: "7折" },

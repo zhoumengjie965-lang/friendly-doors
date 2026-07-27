@@ -26,6 +26,7 @@ import { format } from "date-fns";
 import {
   Tooltip, TooltipContent, TooltipProvider, TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { GROUP_MODEL_MAP, ALL_MODELS, getGroupModelCount, getModelsForGroups, isModelInGroups, getGhostModels } from "@/lib/groupModels";
 
 // API Key 数据类型
 interface ApiKeyItem {
@@ -98,11 +99,7 @@ const MOCK_API_KEYS: ApiKeyItem[] = [
   },
 ];
 
-const AVAILABLE_MODELS = [
-  "gpt-4o", "gpt-4o-mini", "gpt-4-turbo", "gpt-3.5-turbo",
-  "claude-3-5-sonnet", "claude-3-haiku", "gemini-1.5-pro", "gemini-1.5-flash",
-  "suno", "dall-e-3"
-];
+const AVAILABLE_MODELS = ALL_MODELS;
 
 // 分组多选组件（支持搜索、多选、拖拽排序）
 interface GroupMultiSelectProps {
@@ -297,7 +294,9 @@ function GroupMultiSelect({ groups, selected, onChange, placeholder = "选择分
             {filteredGroups.length === 0 ? (
               <div className="py-4 text-center text-sm text-muted-foreground">未找到分组</div>
             ) : (
-              filteredGroups.map(group => (
+              filteredGroups.map(group => {
+                const modelCount = getGroupModelCount(group.value);
+                return (
                 <label
                   key={group.value}
                   className="flex items-center gap-2 px-2 py-1.5 text-sm hover:bg-muted cursor-pointer rounded"
@@ -309,9 +308,25 @@ function GroupMultiSelect({ groups, selected, onChange, placeholder = "选择分
                     className="rounded border-gray-300"
                   />
                   <span className="flex-1">{group.label}</span>
+                  <TooltipProvider delayDuration={200}>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <span className="text-xs text-blue-500 cursor-help">{modelCount}个模型</span>
+                      </TooltipTrigger>
+                      <TooltipContent side="right" className="max-w-xs z-[100]">
+                        <p className="text-xs font-medium mb-1">该分组支持的模型：</p>
+                        <div className="flex flex-wrap gap-1 max-w-[200px]">
+                          {(GROUP_MODEL_MAP[group.value] || []).map(m => (
+                            <span key={m} className="text-[10px] bg-muted px-1 py-0.5 rounded">{m}</span>
+                          ))}
+                        </div>
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
                   <span className="text-xs text-muted-foreground">{group.multiplier}</span>
                 </label>
-              ))
+                );
+              })
             )}
           </div>
 
@@ -385,11 +400,14 @@ export default function PersonalApiKeys() {
     status: "active",
     total_quota: null,
     groups: GROUP_OPTIONS.map(g => g.value), // 默认全选所有分组
-    allowed_models: ["无限制"],
+    allowed_models: [],
     expires_at: null,
   });
   const [unlimitedQuota, setUnlimitedQuota] = useState(true);
   const [neverExpire, setNeverExpire] = useState(true);
+  // 模型选择：true=跟随分组范围（支持分组内全部模型），false=手动勾选
+  const [followGroupRange, setFollowGroupRange] = useState(true);
+  const [modelSearch, setModelSearch] = useState("");
 
   // 过滤数据
   const filteredKeys = useMemo(() => {
@@ -447,11 +465,13 @@ export default function PersonalApiKeys() {
       status: "active",
       total_quota: null,
       groups: GROUP_OPTIONS.map(g => g.value), // 默认全选所有分组
-      allowed_models: ["无限制"],
+      allowed_models: [],
       expires_at: null,
     });
     setUnlimitedQuota(true);
     setNeverExpire(true);
+    setFollowGroupRange(true);
+    setModelSearch("");
     setIsCreateOpen(true);
   };
 
@@ -464,6 +484,8 @@ export default function PersonalApiKeys() {
     });
     setUnlimitedQuota(key.total_quota === null);
     setNeverExpire(key.expires_at === null);
+    setFollowGroupRange(!key.allowed_models || key.allowed_models.length === 0 || key.allowed_models.includes("无限制"));
+    setModelSearch("");
     setIsEditOpen(true);
   };
 
@@ -494,7 +516,7 @@ export default function PersonalApiKeys() {
       used_quota: 0,
       group_name: groups[0] || "default",
       groups: groups,
-      allowed_models: formData.allowed_models || ["无限制"],
+      allowed_models: followGroupRange ? [] : (formData.allowed_models || []),
       expires_at: neverExpire ? null : (formData.expires_at || null),
       created_at: new Date().toISOString(),
     };
@@ -522,7 +544,7 @@ export default function PersonalApiKeys() {
               total_quota: unlimitedQuota ? null : (formData.total_quota || 0),
               group_name: groups[0] || "default",
               groups: groups,
-              allowed_models: formData.allowed_models || ["无限制"],
+              allowed_models: followGroupRange ? [] : (formData.allowed_models || []),
               expires_at: neverExpire ? null : (formData.expires_at || null),
             }
           : k
@@ -727,8 +749,8 @@ export default function PersonalApiKeys() {
                     </div>
                   </TableCell>
                   <TableCell>
-                    {key.allowed_models.includes("无限制") ? (
-                      <span className="text-xs text-muted-foreground">无限制</span>
+                    {key.allowed_models.includes("无限制") || !key.allowed_models || key.allowed_models.length === 0 ? (
+                      <span className="text-xs text-muted-foreground">跟随分组范围</span>
                     ) : (
                       <div className="flex flex-wrap gap-1">
                         {key.allowed_models.slice(0, 2).map((m) => (
@@ -889,43 +911,90 @@ export default function PersonalApiKeys() {
             </div>
             <div className="space-y-2">
               <Label>可用模型</Label>
-              <div className="flex flex-wrap gap-2">
-                <label className="flex items-center gap-2">
+              <div className="flex items-center gap-3">
+                <label className="flex items-center gap-2 shrink-0">
                   <input
                     type="checkbox"
-                    checked={formData.allowed_models?.includes("无限制")}
-                    onChange={(e) => {
-                      if (e.target.checked) {
-                        setFormData({ ...formData, allowed_models: ["无限制"] });
-                      } else {
-                        setFormData({ ...formData, allowed_models: [] });
-                      }
-                    }}
+                    checked={followGroupRange}
+                    onChange={(e) => setFollowGroupRange(e.target.checked)}
                   />
-                  <span className="text-sm">无限制</span>
+                  <span className="text-sm">跟随分组范围</span>
+                  {followGroupRange && (() => {
+                    const cnt = getModelsForGroups(formData.groups || []).length;
+                    return <span className="text-xs text-muted-foreground">（共 {cnt} 个）</span>;
+                  })()}
                 </label>
-              </div>
-              {!formData.allowed_models?.includes("无限制") && (
-                <div className="flex flex-wrap gap-2 mt-2">
-                  {AVAILABLE_MODELS.map((model) => (
-                    <label key={model} className="flex items-center gap-1 text-xs">
-                      <input
-                        type="checkbox"
-                        checked={formData.allowed_models?.includes(model)}
-                        onChange={(e) => {
-                          const current = formData.allowed_models || [];
-                          if (e.target.checked) {
-                            setFormData({ ...formData, allowed_models: [...current, model] });
-                          } else {
-                            setFormData({ ...formData, allowed_models: current.filter((m) => m !== model) });
-                          }
-                        }}
-                      />
-                      {model}
-                    </label>
-                  ))}
+                <div className="relative w-40">
+                  <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                  <input
+                    type="text"
+                    placeholder="搜索模型..."
+                    value={modelSearch}
+                    onChange={(e) => setModelSearch(e.target.value)}
+                    className="w-full h-8 pl-8 pr-2 text-sm rounded-md border border-input bg-background focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                  />
                 </div>
-              )}
+              </div>
+              {(() => {
+                const selectedGroups = formData.groups || [];
+                const selectedModels = formData.allowed_models || [];
+                const filteredModels = AVAILABLE_MODELS.filter(m =>
+                  m.toLowerCase().includes(modelSearch.toLowerCase())
+                );
+                return (
+                  <>
+                    {/* 幽灵模型提示 */}
+                    {(() => {
+                      const ghosts = getGhostModels(selectedGroups, selectedModels);
+                      if (ghosts.length === 0) return null;
+                      return (
+                        <div className="flex items-center gap-2 p-2 rounded-md bg-muted text-xs text-muted-foreground">
+                          <span>{ghosts.length} 个已选模型不在当前分组范围内，已自动置灰：</span>
+                          <span className="font-medium">{ghosts.join(", ")}</span>
+                          <button
+                            onClick={() => {
+                              setFormData({ ...formData, allowed_models: selectedModels.filter(m => !ghosts.includes(m)) });
+                            }}
+                            className="ml-auto px-2 py-0.5 rounded bg-destructive text-destructive-foreground hover:bg-destructive/90 shrink-0"
+                          >
+                            移除
+                          </button>
+                        </div>
+                      );
+                    })()}
+                    {/* 模型网格 */}
+                    <div className="grid grid-cols-3 gap-1.5 max-h-48 overflow-auto p-2 rounded-md border border-input bg-background">
+                      {filteredModels.length === 0 ? (
+                        <div className="col-span-3 py-4 text-center text-xs text-muted-foreground">未找到模型</div>
+                      ) : filteredModels.map((model) => {
+                        const inGroup = isModelInGroups(model, selectedGroups);
+                        const checked = followGroupRange ? inGroup : selectedModels.includes(model);
+                        return (
+                          <label
+                            key={model}
+                            className={`flex items-center gap-1 text-xs px-2 py-1 rounded border ${inGroup ? "border-input bg-background" : "border-muted bg-muted/30 text-muted-foreground/50 cursor-not-allowed"}`}
+                          >
+                            <input
+                              type="checkbox"
+                              checked={checked}
+                              disabled={!inGroup || followGroupRange}
+                              onChange={(e) => {
+                                if (e.target.checked) {
+                                  setFormData({ ...formData, allowed_models: [...selectedModels, model] });
+                                } else {
+                                  setFormData({ ...formData, allowed_models: selectedModels.filter((m) => m !== model) });
+                                }
+                              }}
+                            />
+                            <span className="truncate">{model}</span>
+                          </label>
+                        );
+                      })}
+                    </div>
+                    <p className="text-xs text-muted-foreground">留空则支持所有模型（仍受分组范围限制）</p>
+                  </>
+                );
+              })()}
             </div>
             <div className="space-y-2">
               <Label>状态</Label>
@@ -1019,43 +1088,90 @@ export default function PersonalApiKeys() {
             </div>
             <div className="space-y-2">
               <Label>可用模型</Label>
-              <div className="flex flex-wrap gap-2">
-                <label className="flex items-center gap-2">
+              <div className="flex items-center gap-3">
+                <label className="flex items-center gap-2 shrink-0">
                   <input
                     type="checkbox"
-                    checked={formData.allowed_models?.includes("无限制")}
-                    onChange={(e) => {
-                      if (e.target.checked) {
-                        setFormData({ ...formData, allowed_models: ["无限制"] });
-                      } else {
-                        setFormData({ ...formData, allowed_models: [] });
-                      }
-                    }}
+                    checked={followGroupRange}
+                    onChange={(e) => setFollowGroupRange(e.target.checked)}
                   />
-                  <span className="text-sm">无限制</span>
+                  <span className="text-sm">跟随分组范围</span>
+                  {followGroupRange && (() => {
+                    const cnt = getModelsForGroups(formData.groups || []).length;
+                    return <span className="text-xs text-muted-foreground">（共 {cnt} 个）</span>;
+                  })()}
                 </label>
-              </div>
-              {!formData.allowed_models?.includes("无限制") && (
-                <div className="flex flex-wrap gap-2 mt-2">
-                  {AVAILABLE_MODELS.map((model) => (
-                    <label key={model} className="flex items-center gap-1 text-xs">
-                      <input
-                        type="checkbox"
-                        checked={formData.allowed_models?.includes(model)}
-                        onChange={(e) => {
-                          const current = formData.allowed_models || [];
-                          if (e.target.checked) {
-                            setFormData({ ...formData, allowed_models: [...current, model] });
-                          } else {
-                            setFormData({ ...formData, allowed_models: current.filter((m) => m !== model) });
-                          }
-                        }}
-                      />
-                      {model}
-                    </label>
-                  ))}
+                <div className="relative w-40">
+                  <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                  <input
+                    type="text"
+                    placeholder="搜索模型..."
+                    value={modelSearch}
+                    onChange={(e) => setModelSearch(e.target.value)}
+                    className="w-full h-8 pl-8 pr-2 text-sm rounded-md border border-input bg-background focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                  />
                 </div>
-              )}
+              </div>
+              {(() => {
+                const selectedGroups = formData.groups || [];
+                const selectedModels = formData.allowed_models || [];
+                const filteredModels = AVAILABLE_MODELS.filter(m =>
+                  m.toLowerCase().includes(modelSearch.toLowerCase())
+                );
+                return (
+                  <>
+                    {/* 幽灵模型提示 */}
+                    {(() => {
+                      const ghosts = getGhostModels(selectedGroups, selectedModels);
+                      if (ghosts.length === 0) return null;
+                      return (
+                        <div className="flex items-center gap-2 p-2 rounded-md bg-muted text-xs text-muted-foreground">
+                          <span>{ghosts.length} 个已选模型不在当前分组范围内，已自动置灰：</span>
+                          <span className="font-medium">{ghosts.join(", ")}</span>
+                          <button
+                            onClick={() => {
+                              setFormData({ ...formData, allowed_models: selectedModels.filter(m => !ghosts.includes(m)) });
+                            }}
+                            className="ml-auto px-2 py-0.5 rounded bg-destructive text-destructive-foreground hover:bg-destructive/90 shrink-0"
+                          >
+                            移除
+                          </button>
+                        </div>
+                      );
+                    })()}
+                    {/* 模型网格 */}
+                    <div className="grid grid-cols-3 gap-1.5 max-h-48 overflow-auto p-2 rounded-md border border-input bg-background">
+                      {filteredModels.length === 0 ? (
+                        <div className="col-span-3 py-4 text-center text-xs text-muted-foreground">未找到模型</div>
+                      ) : filteredModels.map((model) => {
+                        const inGroup = isModelInGroups(model, selectedGroups);
+                        const checked = followGroupRange ? inGroup : selectedModels.includes(model);
+                        return (
+                          <label
+                            key={model}
+                            className={`flex items-center gap-1 text-xs px-2 py-1 rounded border ${inGroup ? "border-input bg-background" : "border-muted bg-muted/30 text-muted-foreground/50 cursor-not-allowed"}`}
+                          >
+                            <input
+                              type="checkbox"
+                              checked={checked}
+                              disabled={!inGroup || followGroupRange}
+                              onChange={(e) => {
+                                if (e.target.checked) {
+                                  setFormData({ ...formData, allowed_models: [...selectedModels, model] });
+                                } else {
+                                  setFormData({ ...formData, allowed_models: selectedModels.filter((m) => m !== model) });
+                                }
+                              }}
+                            />
+                            <span className="truncate">{model}</span>
+                          </label>
+                        );
+                      })}
+                    </div>
+                    <p className="text-xs text-muted-foreground">留空则支持所有模型（仍受分组范围限制）</p>
+                  </>
+                );
+              })()}
             </div>
             <div className="space-y-2">
               <Label>状态</Label>

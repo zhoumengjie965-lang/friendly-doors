@@ -104,6 +104,13 @@ interface SubscriptionPlan {
   minSeats?: number;
   maxSeats?: number;
   allowSeatAddon?: boolean;
+  // ── 商品组 ─────────────────────────────────────────
+  // 商品组 ID，同组商品共享此 ID
+  groupId?: string;
+  // 商品组名称（如 "Token Plan 企业版"）
+  groupName?: string;
+  // 组内排序（1, 2, 3…），决定同组内档位的展示顺序
+  groupSort?: number;
 }
 
 // Credit 兑换比例（来自「设置抵扣规则」页统一维护，本表单只读取不编辑）
@@ -428,6 +435,9 @@ const INITIAL_PLANS: SubscriptionPlan[] = [
     status: "active",
     sort: 0,
     benefitDescription: "含 100,000,000 调用积分",
+    groupId: "grp-resource-pack",
+    groupName: "资源包",
+    groupSort: 1,
   },
   {
     id: "2",
@@ -456,6 +466,9 @@ const INITIAL_PLANS: SubscriptionPlan[] = [
     minSeats: 3,
     maxSeats: 100,
     allowSeatAddon: true,
+    groupId: "grp-token-enterprise",
+    groupName: "Token Plan 企业版",
+    groupSort: 1,
   },
   {
     id: "3",
@@ -516,6 +529,9 @@ const INITIAL_PLANS: SubscriptionPlan[] = [
     minSeats: 10,
     maxSeats: 500,
     allowSeatAddon: false,
+    groupId: "grp-token-enterprise",
+    groupName: "Token Plan 企业版",
+    groupSort: 2,
   },
 ];
 
@@ -533,6 +549,17 @@ export default function AdminSubscriptionManagement() {
   const [enterpriseSearch, setEnterpriseSearch] = useState("");
   const [confirmSubmitOpen, setConfirmSubmitOpen] = useState(false);
   const [statusTogglePlan, setStatusTogglePlan] = useState<SubscriptionPlan | null>(null);
+
+  // 从现有 plans 中去重提取已有商品组（用于复用同名组的 groupId）
+  const existingGroups = useMemo(() => {
+    const map = new Map<string, string>();
+    plans.forEach((p) => {
+      if (p.groupId && p.groupName && !map.has(p.groupId)) {
+        map.set(p.groupId, p.groupName);
+      }
+    });
+    return Array.from(map, ([id, name]) => ({ id, name }));
+  }, [plans]);
 
   const [form, setForm] = useState<SubscriptionPlan>({
     id: "",
@@ -566,6 +593,9 @@ export default function AdminSubscriptionManagement() {
     minSeats: 1,
     maxSeats: 50,
     allowSeatAddon: true,
+    groupId: "",
+    groupName: "",
+    groupSort: 0,
   });
 
   const resetForm = () => {
@@ -600,6 +630,9 @@ export default function AdminSubscriptionManagement() {
       minSeats: 1,
       maxSeats: 50,
       allowSeatAddon: true,
+      groupId: "",
+      groupName: "",
+      groupSort: 0,
     });
   };
 
@@ -720,6 +753,19 @@ export default function AdminSubscriptionManagement() {
         return false;
       }
     }
+    // 商品组校验（必填）
+    if (!form.groupName.trim()) {
+      toast({ title: "请输入商品组名称", variant: "destructive" });
+      return false;
+    }
+    if (form.groupName.trim().length > 32) {
+      toast({ title: "商品组名称不能超过 32 个字符", variant: "destructive" });
+      return false;
+    }
+    if (!form.groupSort || form.groupSort < 1) {
+      toast({ title: "组内排序需为正整数", variant: "destructive" });
+      return false;
+    }
     return true;
   };
 
@@ -729,8 +775,24 @@ export default function AdminSubscriptionManagement() {
   };
 
   const confirmSubmit = () => {
+    // 商品组处理：填写了组名则归组，复用同名组 groupId 或生成新 groupId
+    const trimmedGroupName = form.groupName.trim();
+    let resolvedGroupId = "";
+    let resolvedGroupName = "";
+    if (trimmedGroupName) {
+      resolvedGroupName = trimmedGroupName;
+      // 复用已有同名组的 groupId，避免重复生成
+      const existing = existingGroups.find((g) => g.name === trimmedGroupName);
+      resolvedGroupId = existing ? existing.id : `grp-${Date.now()}`;
+    }
+    const resolvedGroupSort =
+      form.groupSort && form.groupSort > 0 ? form.groupSort : undefined;
+
     const payload = {
       ...form,
+      groupId: resolvedGroupId || undefined,
+      groupName: resolvedGroupName || undefined,
+      groupSort: resolvedGroupSort,
       baseUnitPrice: CREDITS_PER_YUAN,
       // MVP 阶段只保留已接入的支付渠道，过滤掉历史残留的未接入渠道
       purchaseMethods: form.purchaseMethods.filter((m) =>
@@ -850,7 +912,7 @@ export default function AdminSubscriptionManagement() {
   }, [form.modelScope, matchedModels, form.selectedModels]);
 
   const gridColumns =
-    "grid-cols-[56px_minmax(140px,1.4fr)_90px_minmax(90px,0.9fr)_minmax(108px,1fr)_80px_80px_minmax(110px,1.1fr)_minmax(110px,1.1fr)_minmax(100px,1fr)_84px_minmax(112px,1fr)]";
+    "grid-cols-[56px_minmax(140px,1.4fr)_90px_minmax(90px,0.9fr)_minmax(108px,1fr)_80px_80px_minmax(110px,1.1fr)_minmax(110px,1.1fr)_minmax(100px,1fr)_minmax(110px,1fr)_84px_minmax(112px,1fr)]";
   const visibleHeaders = [
     "ID",
     "商品名称",
@@ -862,6 +924,7 @@ export default function AdminSubscriptionManagement() {
     "有效期",
     "席位配置",
     "购买方式",
+    "商品组",
     "状态",
     "操作",
   ];
@@ -1017,6 +1080,22 @@ export default function AdminSubscriptionManagement() {
                   "—"
                 )}
               </span>
+              <span className="text-muted-foreground text-xs">
+                {plan.groupName ? (
+                  <span className="flex flex-col">
+                    <span className="text-foreground/80 truncate" title={plan.groupName}>
+                      {plan.groupName}
+                    </span>
+                    {plan.groupSort ? (
+                      <span className="text-[10px] text-muted-foreground/80">
+                        组内排序 {plan.groupSort}
+                      </span>
+                    ) : null}
+                  </span>
+                ) : (
+                  "—"
+                )}
+              </span>
               <span>
                 {plan.status === "active" ? (
                   <Badge
@@ -1135,6 +1214,40 @@ export default function AdminSubscriptionManagement() {
                       </Label>
                     </div>
                   </RadioGroup>
+                </div>
+
+                <div className="grid grid-cols-2 gap-6">
+                  <div className="space-y-2">
+                    <Label className="text-sm">
+                      商品组 <span className="text-red-500">*</span>
+                    </Label>
+                    <Input
+                      placeholder="如 Token Plan 企业版"
+                      value={form.groupName ?? ""}
+                      onChange={(e) => updateForm("groupName", e.target.value)}
+                      className="h-10 bg-white"
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      同名归为同系列，可留空
+                    </p>
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-sm">
+                      组内排序 <span className="text-red-500">*</span>
+                    </Label>
+                    <Input
+                      type="number"
+                      min={0}
+                      value={form.groupSort ?? 0}
+                      onChange={(e) =>
+                        updateForm("groupSort", parseInt(e.target.value) || 0)
+                      }
+                      className="h-10 bg-white"
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      同组内档位顺序，0 不指定
+                    </p>
+                  </div>
                 </div>
 
                 <div className="grid grid-cols-2 gap-6">
