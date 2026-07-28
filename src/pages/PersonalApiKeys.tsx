@@ -948,17 +948,8 @@ export default function PersonalApiKeys() {
                       const ghosts = getGhostModels(selectedGroups, selectedModels);
                       if (ghosts.length === 0) return null;
                       return (
-                        <div className="flex items-center gap-2 p-2 rounded-md bg-muted text-xs text-muted-foreground">
-                          <span>{ghosts.length} 个已选模型不在当前分组范围内，已自动置灰：</span>
-                          <span className="font-medium">{ghosts.join(", ")}</span>
-                          <button
-                            onClick={() => {
-                              setFormData({ ...formData, allowed_models: selectedModels.filter(m => !ghosts.includes(m)) });
-                            }}
-                            className="ml-auto px-2 py-0.5 rounded bg-destructive text-destructive-foreground hover:bg-destructive/90 shrink-0"
-                          >
-                            移除
-                          </button>
+                        <div className="p-2 rounded-md bg-muted text-xs text-muted-foreground">
+                          不在当前分组范围内的已选模型已自动置灰：{ghosts.join(", ")}
                         </div>
                       );
                     })()}
@@ -991,7 +982,7 @@ export default function PersonalApiKeys() {
                         );
                       })}
                     </div>
-                    <p className="text-xs text-muted-foreground">留空则支持所有模型（仍受分组范围限制）</p>
+
                   </>
                 );
               })()}
@@ -1125,17 +1116,8 @@ export default function PersonalApiKeys() {
                       const ghosts = getGhostModels(selectedGroups, selectedModels);
                       if (ghosts.length === 0) return null;
                       return (
-                        <div className="flex items-center gap-2 p-2 rounded-md bg-muted text-xs text-muted-foreground">
-                          <span>{ghosts.length} 个已选模型不在当前分组范围内，已自动置灰：</span>
-                          <span className="font-medium">{ghosts.join(", ")}</span>
-                          <button
-                            onClick={() => {
-                              setFormData({ ...formData, allowed_models: selectedModels.filter(m => !ghosts.includes(m)) });
-                            }}
-                            className="ml-auto px-2 py-0.5 rounded bg-destructive text-destructive-foreground hover:bg-destructive/90 shrink-0"
-                          >
-                            移除
-                          </button>
+                        <div className="p-2 rounded-md bg-muted text-xs text-muted-foreground">
+                          不在当前分组范围内的已选模型已自动置灰：{ghosts.join(", ")}
                         </div>
                       );
                     })()}
@@ -1168,7 +1150,7 @@ export default function PersonalApiKeys() {
                         );
                       })}
                     </div>
-                    <p className="text-xs text-muted-foreground">留空则支持所有模型（仍受分组范围限制）</p>
+
                   </>
                 );
               })()}
