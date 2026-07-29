@@ -13,7 +13,9 @@ import {
   getMemberKeyTemplate,
   getOrgKeyTemplate,
   getOrgsWithTemplate,
+  getAllowedModelsForUser,
 } from "@/lib/mockData";
+import DeptModelPolicyDialog from "@/components/DeptModelPolicyDialog";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -43,7 +45,7 @@ import {
   Plus, RefreshCw, Eye, EyeOff, Copy, Check, Pencil, Trash2,
   ToggleLeft, ToggleRight, ChevronDown, Search, X, Building2, Settings, ShieldCheck,
   Users, FileText, Send, Loader2, ArrowRight, ArrowLeft, CheckCircle, Mail,
-  GripVertical,
+  GripVertical, AlertTriangle, Lock,
 } from "lucide-react";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
@@ -118,6 +120,20 @@ function maskPhone(phone: string): string {
 }
 
 const MODELS = ALL_MODELS;
+
+// 计算部门策略允许的模型列表（null = 全部允许）
+function useDeptAllowedModels(enterpriseId: string): string[] | null {
+  const [allowed, setAllowed] = useState<string[] | null>(null);
+  const phone = getCurrentPhone();
+
+  useEffect(() => {
+    if (!phone || !enterpriseId) return;
+    const result = getAllowedModelsForUser(phone, enterpriseId);
+    setAllowed(result);
+  }, [phone, enterpriseId]);
+
+  return allowed;
+}
 
 // 通用多选组件（支持搜索、多选）
 interface MultiSelectProps {
@@ -657,6 +673,9 @@ export default function ApiKeys({ enterprise, role }: Props) {
   const { toast } = useToast();
   const phone = getCurrentPhone();
 
+  // 部门模型访问策略允许的模型列表（null = 全部允许）
+  const deptAllowedModels = useDeptAllowedModels(enterprise.id);
+
   // Preview role — defaults to actual role; drives all UI logic
   const [previewRole, setPreviewRole] = useState(role);
   const canSeeOrgTab = previewRole === "admin" || previewRole === "org_admin";
@@ -676,6 +695,9 @@ export default function ApiKeys({ enterprise, role }: Props) {
   const [orgMembers, setOrgMembers] = useState<{ phone: string; name: string | null }[]>(MOCK_MEMBERS);
   const [memberFilter, setMemberFilter] = useState<string>("all");
   const [orgNameFilter, setOrgNameFilter] = useState<string>("all");
+
+  // 部门模型访问策略弹窗
+  const [modelPolicyOpen, setModelPolicyOpen] = useState(false);
 
   // Search state
   const [nameSearch, setNameSearch] = useState("");
@@ -708,10 +730,13 @@ export default function ApiKeys({ enterprise, role }: Props) {
   const [formUnlimited, setFormUnlimited] = useState(true);
   const [formModels, setFormModels] = useState<string[]>([]);
   const [formIpWhitelist, setFormIpWhitelist] = useState("");
+  const [formIpEnabled, setFormIpEnabled] = useState(false);
+  const [formNeverExpires, setFormNeverExpires] = useState(true);
   const [saving, setSaving] = useState(false);
   // 模型选择：true=跟随分组范围，false=手动勾选
   const [followGroupRange, setFollowGroupRange] = useState(true);
   const [modelSearch, setModelSearch] = useState("");
+  const [onlyAvailable, setOnlyAvailable] = useState(true);
 
   // Key template management (admin creates templates, binds to orgs)
   const [tplOpen, setTplOpen] = useState(false);
@@ -727,7 +752,12 @@ export default function ApiKeys({ enterprise, role }: Props) {
   const [tplFormQuota, setTplFormQuota] = useState("");
   const [tplFormUnlimited, setTplFormUnlimited] = useState(true);
   const [tplFormModels, setTplFormModels] = useState<string[]>([]);
+  const [tplFollowGroupRange, setTplFollowGroupRange] = useState(true);
+  const [tplModelSearch, setTplModelSearch] = useState("");
+  const [tplOnlyAvailable, setTplOnlyAvailable] = useState(true);
   const [tplFormIpWhitelist, setTplFormIpWhitelist] = useState("");
+  const [tplFormIpEnabled, setTplFormIpEnabled] = useState(false);
+  const [tplFormNeverExpires, setTplFormNeverExpires] = useState(true);
   const [tplCreating, setTplCreating] = useState(false);
   const [tplEditing, setTplEditing] = useState(false);
   const [tplSaveConfirmOpen, setTplSaveConfirmOpen] = useState(false);
@@ -930,7 +960,7 @@ Key 配置信息
   const openCreate = async () => {
     setEditingKey(null);
     setFormName("");
-    // 企业模式下所有角色建个人Key都只填名称，自动套用所属部门模板
+    // 新建个人 Key 使用完整配置表单，默认带入所属部门模板
     let cfg: KeyTemplateConfig = DEFAULT_TEMPLATE_CONFIG;
     try {
       const data = await getMemberKeyTemplate(phone, enterprise.id);
@@ -938,13 +968,16 @@ Key 配置信息
     } catch (e) {}
     setFormGroups(cfg.groups.length > 0 ? [...cfg.groups] : []);
     setFormExpires(cfg.expires);
+    setFormNeverExpires(!cfg.expires);
     setFormQuota("");
     setFormUnlimited(true);
     setFormModels([...cfg.models]);
     setFormIpWhitelist(cfg.ipWhitelist);
+    setFormIpEnabled(!!cfg.ipWhitelist.trim());
     setFollowGroupRange(cfg.models.length === 0);
     setModelSearch("");
-    setSimpleDialogOpen(true);
+    setOnlyAvailable(true);
+    setSheetOpen(true);
   };
 
   const openCreateProd = async () => {
@@ -963,21 +996,27 @@ Key 配置信息
     if (cfg) {
       setFormGroups(cfg.groups.length > 0 ? [...cfg.groups] : ["生产通道（×0.95）"]);
       setFormExpires(cfg.expires);
+      setFormNeverExpires(!cfg.expires);
       setFormQuota("");
       setFormUnlimited(true);
       setFormModels([...cfg.models]);
       setFormIpWhitelist(cfg.ipWhitelist);
+      setFormIpEnabled(!!cfg.ipWhitelist.trim());
       setFollowGroupRange(cfg.models.length === 0);
       setModelSearch("");
+      setOnlyAvailable(true);
     } else {
       setFormGroups(["生产通道（×0.95）"]);
       setFormExpires("");
+      setFormNeverExpires(true);
       setFormQuota("");
       setFormUnlimited(true);
       setFormModels([]);
       setFormIpWhitelist("");
+      setFormIpEnabled(false);
       setFollowGroupRange(true);
       setModelSearch("");
+      setOnlyAvailable(true);
     }
     setSheetOpen(true);
   };
@@ -987,12 +1026,15 @@ Key 配置信息
     setFormName(k.name);
     setFormGroups(k.groups && k.groups.length > 0 ? k.groups : k.group_name ? [k.group_name] : []);
     setFormExpires(k.expires_at ? format(new Date(k.expires_at), "yyyy-MM-dd'T'HH:mm") : "");
+    setFormNeverExpires(!k.expires_at);
     setFormUnlimited(k.total_quota === null);
     setFormQuota(k.total_quota !== null ? String(k.total_quota) : "");
     setFormModels(k.allowed_models || []);
     setFormIpWhitelist((k.ip_whitelist || []).join("\n"));
+    setFormIpEnabled(!!(k.ip_whitelist && k.ip_whitelist.length > 0));
     setFollowGroupRange(!k.allowed_models || k.allowed_models.length === 0);
     setModelSearch("");
+    setOnlyAvailable(true);
     // 企业模式下所有角色编辑个人Key都只改名称
     if (activeTab === "my") {
       setSimpleDialogOpen(true);
@@ -1009,10 +1051,10 @@ Key 配置信息
       p_phone: phone,
       p_name: formName.trim(),
       p_group_name: formGroups.length > 0 ? formGroups[0] : null,
-      p_expires_at: formExpires ? new Date(formExpires).toISOString() : null,
+      p_expires_at: formNeverExpires ? null : (formExpires ? new Date(formExpires).toISOString() : null),
       p_total_quota: formUnlimited ? null : (parseFloat(formQuota) || 0),
       p_allowed_models: followGroupRange ? null : (formModels.length > 0 ? formModels : null),
-      p_ip_whitelist: formIpWhitelist.trim()
+      p_ip_whitelist: formIpEnabled && formIpWhitelist.trim()
         ? formIpWhitelist.split("\n").map(s => s.trim()).filter(Boolean)
         : null,
     };
@@ -1146,10 +1188,15 @@ Key 配置信息
       setTplFormDesc("");
       setTplFormGroups([]);
       setTplFormExpires("");
+      setTplFormNeverExpires(true);
       setTplFormQuota("");
       setTplFormUnlimited(true);
       setTplFormModels([]);
+      setTplFollowGroupRange(true);
+      setTplModelSearch("");
+      setTplOnlyAvailable(true);
       setTplFormIpWhitelist("");
+      setTplFormIpEnabled(false);
       return;
     }
     setTplSelectedId(tpl.id);
@@ -1157,10 +1204,15 @@ Key 配置信息
     setTplFormDesc(tpl.description || "");
     setTplFormGroups([...tpl.config.groups]);
     setTplFormExpires(tpl.config.expires);
+    setTplFormNeverExpires(!tpl.config.expires);
     setTplFormQuota(tpl.config.quota);
     setTplFormUnlimited(tpl.config.unlimited);
     setTplFormModels([...tpl.config.models]);
+    setTplFollowGroupRange(tpl.config.models.length === 0);
+    setTplModelSearch("");
+    setTplOnlyAvailable(true);
     setTplFormIpWhitelist(tpl.config.ipWhitelist);
+    setTplFormIpEnabled(!!tpl.config.ipWhitelist.trim());
   };
 
   // 打开模板管理：加载模板列表 + 带 key_template_id 的部门列表
@@ -1190,10 +1242,15 @@ Key 配置信息
     setTplFormDesc(tpl.description || "");
     setTplFormGroups([...tpl.config.groups]);
     setTplFormExpires(tpl.config.expires);
+    setTplFormNeverExpires(!tpl.config.expires);
     setTplFormQuota(tpl.config.quota);
     setTplFormUnlimited(tpl.config.unlimited);
     setTplFormModels([...tpl.config.models]);
+    setTplFollowGroupRange(tpl.config.models.length === 0);
+    setTplModelSearch("");
+    setTplOnlyAvailable(true);
     setTplFormIpWhitelist(tpl.config.ipWhitelist);
+    setTplFormIpEnabled(!!tpl.config.ipWhitelist.trim());
   };
 
   // 点击模板项：仅选中查看，不进入编辑态
@@ -1305,11 +1362,11 @@ Key 配置信息
     setTplSaving(true);
     const config = {
       groups: tplFormGroups,
-      expires: tplFormExpires,
+      expires: tplFormNeverExpires ? "" : tplFormExpires,
       quota: "",
       unlimited: true,
-      models: tplFormModels,
-      ipWhitelist: tplFormIpWhitelist,
+      models: tplFollowGroupRange ? [] : tplFormModels,
+      ipWhitelist: tplFormIpEnabled ? tplFormIpWhitelist : "",
     };
     try {
       let savedId = tplSelectedId;
@@ -1623,8 +1680,61 @@ Key 配置信息
                     </TableCell>
                     <TableCell>
                       {!k.allowed_models || k.allowed_models.length === 0
-                        ? <Badge variant="secondary" className="text-xs">跟随分组范围</Badge>
-                        : <div className="flex flex-wrap gap-1">{k.allowed_models.map(m => <Badge key={m} variant="outline" className="text-xs">{m}</Badge>)}</div>
+                        ? <Badge variant="outline" className="text-xs font-normal">不限制</Badge>
+                        : (() => {
+                            const restrictedModels = deptAllowedModels === null
+                              ? []
+                              : (k.allowed_models ?? []).filter((model) => !deptAllowedModels.includes(model));
+                            return (
+                              <TooltipProvider>
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <button type="button" className="inline-flex items-center gap-1">
+                                      <Badge
+                                        variant="outline"
+                                        className={cn(
+                                          "cursor-help text-xs font-normal",
+                                          restrictedModels.length > 0
+                                            ? "border-amber-300 bg-amber-50 text-amber-700"
+                                            : "border-blue-300 bg-blue-50 text-blue-600",
+                                        )}
+                                      >
+                                        {k.allowed_models.length} 个模型
+                                      </Badge>
+                                      {restrictedModels.length > 0 && (
+                                        <AlertTriangle className="h-3.5 w-3.5 text-amber-500" />
+                                      )}
+                                    </button>
+                                  </TooltipTrigger>
+                                  <TooltipContent side="top" align="start" className="max-w-sm p-2">
+                                    <div className="min-w-48 space-y-1">
+                                      {restrictedModels.length > 0 && (
+                                        <p className="mb-1.5 flex items-center gap-1 border-b border-border pb-1.5 text-xs font-medium text-amber-600">
+                                          <AlertTriangle className="h-3.5 w-3.5" />
+                                          部分模型受部门权限限制
+                                        </p>
+                                      )}
+                                      {k.allowed_models.map((model) => {
+                                        const allowed = deptAllowedModels === null || deptAllowedModels.includes(model);
+                                        return (
+                                          <div
+                                            key={model}
+                                            className={cn(
+                                              "flex items-center gap-1.5 text-xs",
+                                              allowed ? "text-foreground" : "text-muted-foreground",
+                                            )}
+                                          >
+                                            <span>{model}</span>
+                                            {!allowed && <Lock className="ml-auto h-3 w-3 shrink-0 text-muted-foreground" />}
+                                          </div>
+                                        );
+                                      })}
+                                    </div>
+                                  </TooltipContent>
+                                </Tooltip>
+                              </TooltipProvider>
+                            );
+                          })()
                       }
                     </TableCell>
                     <TableCell>
@@ -1818,6 +1928,15 @@ Key 配置信息
               >
                 <Users className="w-4 h-4" />批量创建
               </Button>
+              {previewRole === "admin" && activeTab === "dept" && (
+                <Button
+                  variant="outline"
+                  className="gap-2 h-9"
+                  onClick={openTplManager}
+                >
+                  <Settings className="w-4 h-4" />配置 API Key 模板
+                </Button>
+              )}
               {/* 归属部门选择 - 放在批量创建按钮右侧 */}
               <div className="flex items-center gap-2 ml-2">
                 <span className="text-sm text-muted-foreground">归属部门：</span>
@@ -1834,13 +1953,15 @@ Key 配置信息
               </div>
             </>
           ) : previewRole === "admin" && activeTab === "org" ? (
-            <Button
-              variant="outline"
-              className="gap-2 h-9"
-              onClick={openTplManager}
-            >
-              <Settings className="w-4 h-4" />配置 API Key 模板
-            </Button>
+            <>
+              <Button
+                variant="outline"
+                className="gap-2 h-9 border-blue-200 text-blue-600 hover:bg-blue-50"
+                onClick={() => setModelPolicyOpen(true)}
+              >
+                <ShieldCheck className="w-4 h-4" />模型权限配置
+              </Button>
+            </>
           ) : (
             <>
               <Button onClick={openCreate} className="gap-2 h-9">
@@ -2037,7 +2158,7 @@ Key 配置信息
       <Sheet open={sheetOpen} onOpenChange={(open) => { setSheetOpen(open); if (!open) setCreatingProd(false); }}>
         <SheetContent className="!w-[520px] !max-w-[520px] flex flex-col p-0 overflow-hidden">
           <SheetHeader className="px-6 pt-6 pb-4 border-b border-border shrink-0">
-            <SheetTitle>{editingKey ? "编辑 API Key" : "新增 API Keys"}</SheetTitle>
+            <SheetTitle>{editingKey ? "编辑 API Key" : "创建 API Key"}</SheetTitle>
           </SheetHeader>
 
           <div className="flex-1 overflow-y-auto px-6 py-5 space-y-6">
@@ -2066,33 +2187,7 @@ Key 配置信息
                     />
                   </div>
                 )}
-                {/* 过期时间 */}
-                {!(previewRole === "member" && editingKey) && (
-                  <div className="grid grid-cols-[100px_1fr] items-start gap-3">
-                    <Label className="text-right text-muted-foreground text-sm pt-2.5">
-                      <span className="text-destructive mr-0.5">*</span>过期时间
-                    </Label>
-                    <div>
-                      <Input type="datetime-local" value={formExpires} onChange={e => setFormExpires(e.target.value)} />
-                      <div className="flex gap-2 mt-2 flex-wrap">
-                        {[
-                          { label: "永不过期", offset: null },
-                          { label: "一个月", offset: 30 * 24 * 60 * 60 * 1000 },
-                          { label: "一天", offset: 24 * 60 * 60 * 1000 },
-                          { label: "一小时", offset: 60 * 60 * 1000 },
-                        ].map(({ label, offset }) => (
-                          <button
-                            key={label}
-                            onClick={() => setQuickExpiry(offset)}
-                            className="px-3 py-1 text-xs rounded-full border border-border hover:border-primary hover:text-primary hover:bg-primary/5 transition-colors"
-                          >
-                            {label}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-                )}
+
               </div>
             </div>
 
@@ -2167,38 +2262,39 @@ Key 配置信息
               <h3 className="text-sm font-semibold text-foreground mb-4 pb-2 border-b border-border">访问限制</h3>
               <div className="space-y-3">
                 {/* 模型限制 */}
-                <div className="grid grid-cols-[100px_1fr] items-start gap-3">
-                  <Label className="text-right text-muted-foreground text-sm pt-2.5">模型限制列表</Label>
-                  <div className="space-y-2">
-                    {/* 跟随分组范围开关 + 搜索框（同一行） */}
-                    <div className="flex items-center gap-3">
-                      <label className="flex items-center gap-2 shrink-0">
+                <div className="space-y-2">
+                  {/* 部门模型访问策略提示 */}
+                  {deptAllowedModels !== null && (
+                    <div className="p-2 rounded-md bg-amber-50 border border-amber-200 text-xs text-amber-700">
+                      <ShieldCheck className="inline h-3.5 w-3.5 mr-1 -mt-0.5" />
+                      当前部门模型访问策略已限制可用模型范围：仅可在已开放模型中选择。未开放模型已置灰。
+                    </div>
+                  )}
+                  <div className="flex items-center gap-4">
+                    <Label className="text-muted-foreground text-sm shrink-0">模型限制列表</Label>
+                    <label className="flex items-center gap-2 shrink-0">
+                      <input
+                        type="checkbox"
+                        checked={followGroupRange}
+                        onChange={(e) => setFollowGroupRange(e.target.checked)}
+                        className="rounded border-gray-300"
+                      />
+                      <span className="text-sm">跟随分组范围</span>
+                    </label>
+                      <label className="flex items-center gap-2 shrink-0 ml-auto">
                         <input
                           type="checkbox"
-                          checked={followGroupRange}
-                          onChange={(e) => setFollowGroupRange(e.target.checked)}
+                          checked={onlyAvailable}
+                          onChange={(e) => setOnlyAvailable(e.target.checked)}
                           className="rounded border-gray-300"
                         />
-                        <span className="text-sm">跟随分组范围</span>
-                        {followGroupRange && (() => {
-                          const cnt = getModelsForGroups(formGroups).length;
-                          return <span className="text-xs text-muted-foreground">（共 {cnt} 个）</span>;
-                        })()}
+                        <span className="text-sm text-muted-foreground">仅看可用</span>
                       </label>
-                      <div className="relative w-40">
-                        <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                        <input
-                          type="text"
-                          placeholder="搜索模型..."
-                          value={modelSearch}
-                          onChange={(e) => setModelSearch(e.target.value)}
-                          className="w-full h-8 pl-8 pr-2 text-sm rounded-md border border-input bg-background focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-                        />
-                      </div>
                     </div>
                     {(() => {
                       const filteredModels = MODELS.filter(m =>
-                        m.toLowerCase().includes(modelSearch.toLowerCase())
+                        m.toLowerCase().includes(modelSearch.toLowerCase()) &&
+                        (!onlyAvailable || isModelInGroups(m, formGroups))
                       );
                       return (
                         <>
@@ -2214,52 +2310,129 @@ Key 配置信息
                           })()}
                           {/* 模型网格 */}
                           <div className="rounded-md border border-input p-3 space-y-2">
+                            <div className="relative pb-2 border-b border-border/50">
+                              <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                              <input
+                                type="text"
+                                placeholder="搜索模型..."
+                                value={modelSearch}
+                                onChange={(e) => setModelSearch(e.target.value)}
+                                className="w-full h-8 pl-8 pr-2 text-sm rounded-md border border-input bg-background focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                              />
+                            </div>
                             <div className="grid grid-cols-3 gap-1.5 max-h-48 overflow-auto">
                               {filteredModels.length === 0 ? (
                                 <div className="col-span-3 py-4 text-center text-xs text-muted-foreground">未找到模型</div>
                               ) : filteredModels.map((model) => {
                                 const inGroup = isModelInGroups(model, formGroups);
-                                const checked = followGroupRange ? inGroup : formModels.includes(model);
+                                const allowedByDept = deptAllowedModels === null || deptAllowedModels.includes(model);
+                                const checked = followGroupRange ? (inGroup && allowedByDept) : formModels.includes(model);
+                                const disabled = !inGroup || followGroupRange || !allowedByDept;
                                 return (
-                                  <label
-                                    key={model}
-                                    className={`flex items-center gap-1 text-xs px-2 py-1 rounded border ${inGroup ? "border-input bg-background" : "border-muted bg-muted/30 text-muted-foreground/50 cursor-not-allowed"}`}
-                                  >
-                                    <input
-                                      type="checkbox"
-                                      checked={checked}
-                                      disabled={!inGroup || followGroupRange}
-                                      onChange={(e) => {
-                                        if (e.target.checked) {
-                                          setFormModels([...formModels, model]);
-                                        } else {
-                                          setFormModels(formModels.filter(m => m !== model));
-                                        }
-                                      }}
-                                      className="rounded border-gray-300"
-                                    />
-                                    <span className="truncate">{model}</span>
-                                  </label>
+                                  <TooltipProvider key={model}>
+                                    <Tooltip>
+                                      <TooltipTrigger asChild>
+                                        <label
+                                          className={`flex items-center gap-1 text-xs px-2 py-1 rounded border ${
+                                            !allowedByDept
+                                              ? "border-red-200 bg-red-50 text-red-400 cursor-not-allowed"
+                                              : inGroup
+                                                ? "border-input bg-background"
+                                                : "border-muted bg-muted/30 text-muted-foreground/50 cursor-not-allowed"
+                                          }`}
+                                        >
+                                          <input
+                                            type="checkbox"
+                                            checked={checked}
+                                            disabled={disabled}
+                                            onChange={(e) => {
+                                              if (e.target.checked) {
+                                                setFormModels([...formModels, model]);
+                                              } else {
+                                                setFormModels(formModels.filter(m => m !== model));
+                                              }
+                                            }}
+                                            className="rounded border-gray-300"
+                                          />
+                                          <span className="truncate">{model}</span>
+                                        </label>
+                                      </TooltipTrigger>
+                                      {!allowedByDept && (
+                                        <TooltipContent side="top">
+                                          <p className="text-xs text-red-500">当前模型不可用，原因：所属部门未开放该模型访问权限。</p>
+                                        </TooltipContent>
+                                      )}
+                                    </Tooltip>
+                                  </TooltipProvider>
                                 );
                               })}
                             </div>
-
+                            <p className="text-xs text-muted-foreground pt-1.5 border-t border-border/50">使用该 API Key 发起调用时，仅支持访问已勾选的模型</p>
                           </div>
                         </>
                       );
                     })()}
-                  </div>
                 </div>
+                {/* 过期时间 */}
+                {!(previewRole === "member" && editingKey) && (
+                  <div className="grid grid-cols-[100px_1fr] items-start gap-3">
+                    <Label className="text-right text-muted-foreground text-sm pt-2.5">
+                      过期时间
+                    </Label>
+                    <div className="space-y-2 pt-2">
+                      <Switch
+                        checked={!formNeverExpires}
+                        onCheckedChange={(checked) => {
+                          setFormNeverExpires(!checked);
+                          if (checked && !formExpires) {
+                            setQuickExpiry(30 * 24 * 60 * 60 * 1000);
+                          }
+                          if (!checked) {
+                            setFormExpires("");
+                          }
+                        }}
+                      />
+                      {!formNeverExpires && (
+                        <>
+                          <Input type="datetime-local" value={formExpires} onChange={e => setFormExpires(e.target.value)} />
+                          <div className="flex gap-2 flex-wrap">
+                            {[
+                              { label: "一个月", offset: 30 * 24 * 60 * 60 * 1000 },
+                              { label: "一天", offset: 24 * 60 * 60 * 1000 },
+                              { label: "一小时", offset: 60 * 60 * 1000 },
+                            ].map(({ label, offset }) => (
+                              <button
+                                key={label}
+                                onClick={() => setQuickExpiry(offset)}
+                                className="px-3 py-1 text-xs rounded-full border border-border hover:border-primary hover:text-primary hover:bg-primary/5 transition-colors"
+                              >
+                                {label}
+                              </button>
+                            ))}
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                )}
                 {/* IP 白名单 */}
                 <div className="grid grid-cols-[100px_1fr] items-start gap-3">
                   <Label className="text-right text-muted-foreground text-sm pt-2.5">IP 白名单</Label>
-                  <textarea
-                    placeholder={"一行一个 IP，留空不限制\n例如：\n192.168.1.1\n10.0.0.0/8"}
-                    value={formIpWhitelist}
-                    onChange={e => setFormIpWhitelist(e.target.value)}
-                    rows={4}
-                    className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm resize-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring placeholder:text-muted-foreground"
-                  />
+                  <div className="space-y-2 pt-2">
+                    <Switch
+                      checked={formIpEnabled}
+                      onCheckedChange={setFormIpEnabled}
+                    />
+                    {formIpEnabled && (
+                      <textarea
+                        placeholder={"一行一个 IP，支持 CIDR\n例如：\n192.168.1.1\n10.0.0.0/8"}
+                        value={formIpWhitelist}
+                        onChange={e => setFormIpWhitelist(e.target.value)}
+                        rows={4}
+                        className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm resize-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring placeholder:text-muted-foreground"
+                      />
+                    )}
+                  </div>
                 </div>
               </div>
             </div>
@@ -2458,28 +2631,7 @@ Key 配置信息
                         placeholder="不填则使用默认分组"
                       />
                     </div>
-                    <div className="grid grid-cols-[100px_1fr] items-start gap-3">
-                      <Label className="text-right text-muted-foreground text-sm pt-2.5">过期时间</Label>
-                      <div>
-                        <Input type="datetime-local" value={tplFormExpires} onChange={e => setTplFormExpires(e.target.value)} />
-                        <div className="flex gap-2 mt-2 flex-wrap">
-                          {[
-                            { label: "永不过期", offset: null },
-                            { label: "一个月", offset: 30 * 24 * 60 * 60 * 1000 },
-                            { label: "一天", offset: 24 * 60 * 60 * 1000 },
-                            { label: "一小时", offset: 60 * 60 * 1000 },
-                          ].map(({ label, offset }) => (
-                            <button
-                              key={label}
-                              onClick={() => setQuickExpiryTpl(offset)}
-                              className="px-3 py-1 text-xs rounded-full border border-border hover:border-primary hover:text-primary hover:bg-primary/5 transition-colors"
-                            >
-                              {label}
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-                    </div>
+
                   </div>
                 </div>
 
@@ -2487,25 +2639,146 @@ Key 配置信息
                 <div>
                   <h3 className="text-sm font-semibold text-foreground mb-4 pb-2 border-b border-border">访问限制</h3>
                   <div className="space-y-3">
+                    <div className="space-y-2">
+                      <div className="flex items-center gap-4">
+                        <Label className="text-muted-foreground text-sm shrink-0">模型限制列表</Label>
+                        <label className="flex items-center gap-2 shrink-0">
+                          <input
+                            type="checkbox"
+                            checked={tplFollowGroupRange}
+                            onChange={(e) => setTplFollowGroupRange(e.target.checked)}
+                            className="rounded border-gray-300"
+                          />
+                          <span className="text-sm">跟随分组范围</span>
+                        </label>
+                          <label className="flex items-center gap-2 shrink-0 ml-auto">
+                            <input
+                              type="checkbox"
+                              checked={tplOnlyAvailable}
+                              onChange={(e) => setTplOnlyAvailable(e.target.checked)}
+                              className="rounded border-gray-300"
+                            />
+                            <span className="text-sm text-muted-foreground">仅看可用</span>
+                          </label>
+                        </div>
+                        {(() => {
+                          const filteredModels = MODELS.filter(m =>
+                            m.toLowerCase().includes(tplModelSearch.toLowerCase()) &&
+                            (!tplOnlyAvailable || isModelInGroups(m, tplFormGroups))
+                          );
+                          return (
+                            <>
+                              {/* 幽灵模型提示 */}
+                              {(() => {
+                                const ghosts = getGhostModels(tplFormGroups, tplFormModels);
+                                if (ghosts.length === 0) return null;
+                                return (
+                                  <div className="p-2 rounded-md bg-muted text-xs text-muted-foreground">
+                                    不在当前分组范围内的已选模型已自动置灰：{ghosts.join(", ")}
+                                  </div>
+                                );
+                              })()}
+                              {/* 模型网格 */}
+                              <div className="rounded-md border border-input p-3 space-y-2">
+                                <div className="relative pb-2 border-b border-border/50">
+                                  <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                                  <input
+                                    type="text"
+                                    placeholder="搜索模型..."
+                                    value={tplModelSearch}
+                                    onChange={(e) => setTplModelSearch(e.target.value)}
+                                    className="w-full h-8 pl-8 pr-2 text-sm rounded-md border border-input bg-background focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                                  />
+                                </div>
+                                <div className="grid grid-cols-3 gap-1.5 max-h-48 overflow-auto">
+                                  {filteredModels.length === 0 ? (
+                                    <div className="col-span-3 py-4 text-center text-xs text-muted-foreground">未找到模型</div>
+                                  ) : filteredModels.map((model) => {
+                                    const inGroup = isModelInGroups(model, tplFormGroups);
+                                    const checked = tplFollowGroupRange ? inGroup : tplFormModels.includes(model);
+                                    return (
+                                      <label
+                                        key={model}
+                                        className={`flex items-center gap-1 text-xs px-2 py-1 rounded border ${inGroup ? "border-input bg-background" : "border-muted bg-muted/30 text-muted-foreground/50 cursor-not-allowed"}`}
+                                      >
+                                        <input
+                                          type="checkbox"
+                                          checked={checked}
+                                          disabled={!inGroup || tplFollowGroupRange}
+                                          onChange={(e) => {
+                                            if (e.target.checked) {
+                                              setTplFormModels([...tplFormModels, model]);
+                                            } else {
+                                              setTplFormModels(tplFormModels.filter(m => m !== model));
+                                            }
+                                          }}
+                                          className="rounded border-gray-300"
+                                        />
+                                        <span className="truncate">{model}</span>
+                                      </label>
+                                    );
+                                  })}
+                                </div>
+                                <p className="text-xs text-muted-foreground pt-1.5 border-t border-border/50">使用该 API Key 发起调用时，仅支持访问已勾选的模型</p>
+                              </div>
+                            </>
+                          );
+                        })()}
+                    </div>
                     <div className="grid grid-cols-[100px_1fr] items-start gap-3">
-                      <Label className="text-right text-muted-foreground text-sm pt-2.5">模型限制列表</Label>
-                      <MultiSelect
-                        options={MODELS}
-                        selected={tplFormModels}
-                        onChange={setTplFormModels}
-                        placeholder="留空则支持所有模型"
-                        searchPlaceholder="搜索模型..."
-                      />
+                      <Label className="text-right text-muted-foreground text-sm pt-2.5">过期时间</Label>
+                      <div className="space-y-2 pt-2">
+                        <Switch
+                          checked={!tplFormNeverExpires}
+                          onCheckedChange={(checked) => {
+                            setTplFormNeverExpires(!checked);
+                            if (checked && !tplFormExpires) {
+                              setQuickExpiryTpl(30 * 24 * 60 * 60 * 1000);
+                            }
+                            if (!checked) {
+                              setTplFormExpires("");
+                            }
+                          }}
+                        />
+                        {!tplFormNeverExpires && (
+                          <>
+                            <Input type="datetime-local" value={tplFormExpires} onChange={e => setTplFormExpires(e.target.value)} />
+                            <div className="flex gap-2 flex-wrap">
+                              {[
+                                { label: "一个月", offset: 30 * 24 * 60 * 60 * 1000 },
+                                { label: "一天", offset: 24 * 60 * 60 * 1000 },
+                                { label: "一小时", offset: 60 * 60 * 1000 },
+                              ].map(({ label, offset }) => (
+                                <button
+                                  key={label}
+                                  onClick={() => setQuickExpiryTpl(offset)}
+                                  className="px-3 py-1 text-xs rounded-full border border-border hover:border-primary hover:text-primary hover:bg-primary/5 transition-colors"
+                                >
+                                  {label}
+                                </button>
+                              ))}
+                            </div>
+                          </>
+                        )}
+                      </div>
                     </div>
                     <div className="grid grid-cols-[100px_1fr] items-start gap-3">
                       <Label className="text-right text-muted-foreground text-sm pt-2.5">IP 白名单</Label>
-                      <textarea
-                        placeholder={"一行一个 IP，留空不限制\n例如：\n192.168.1.1\n10.0.0.0/8"}
-                        value={tplFormIpWhitelist}
-                        onChange={e => setTplFormIpWhitelist(e.target.value)}
-                        rows={3}
-                        className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm resize-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring placeholder:text-muted-foreground"
-                      />
+                      <div className="space-y-2 pt-2">
+                        <Switch
+                          checked={tplFormIpEnabled}
+                          onCheckedChange={setTplFormIpEnabled}
+                        />
+                        {tplFormIpEnabled && (
+                          <textarea
+                            placeholder={"一行一个 IP，支持 CIDR\n例如：\n192.168.1.1\n10.0.0.0/8"}
+                            value={tplFormIpWhitelist}
+                            onChange={e => setTplFormIpWhitelist(e.target.value)}
+                            rows={3}
+                            className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm resize-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring placeholder:text-muted-foreground"
+                          />
+                        )}
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -3009,6 +3282,15 @@ Key 配置信息
           )}
         </DialogContent>
       </Dialog>
+
+      {/* 部门模型访问策略弹窗 */}
+      <DeptModelPolicyDialog
+        open={modelPolicyOpen}
+        onOpenChange={setModelPolicyOpen}
+        enterpriseId={enterprise.id}
+        orgs={organizations}
+        org={orgNameFilter !== "all" ? organizations.find(o => o.id === orgNameFilter) ?? null : null}
+      />
     </div>
   );
 }

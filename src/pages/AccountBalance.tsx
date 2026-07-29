@@ -84,10 +84,10 @@ export default function AccountBalance({ enterprise, role }: Props) {
   // 代金券记录
   const voucherRecords = allMockRecords.filter((r) => r.type === "voucher_recharge");
 
-  // Alert settings
+  // Alert settings（Mock：默认已绑定联系方式并开启预警）
   const [alertMethod, setAlertMethod] = useState("email");
-  const [alertThreshold, setAlertThreshold] = useState("");
-  const [alertEmail, setAlertEmail] = useState("");
+  const [alertThreshold, setAlertThreshold] = useState("50000");
+  const [alertEmail, setAlertEmail] = useState("admin@example.com");
   const [savingAlert, setSavingAlert] = useState(false);
 
   // Redeem dialog

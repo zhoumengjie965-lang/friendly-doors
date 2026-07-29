@@ -3,7 +3,7 @@
 
 const MOCK_DATA_KEY = "ai_gateway_mock_data";
 const CURRENT_PHONE_KEY = "ai_gateway_phone";
-const MOCK_DATA_VERSION = "1.8"; // 数据版本，修改mock数据时更新此版本号
+const MOCK_DATA_VERSION = "2.2"; // 数据版本，修改mock数据时更新此版本号
 
 // ===== 数据类型定义 =====
 export interface MockUser {
@@ -127,6 +127,28 @@ export interface MockKeyTemplate {
   updated_at: string;
 }
 
+export interface MockDeptModelPolicy {
+  id: string;
+  enterprise_id: string;
+  name: string;
+  // 绑定的部门列表
+  bound_org_ids: string[];
+  // null = 全部允许；非空数组 = 仅允许列表中的模型
+  allowed_models: string[] | null;
+  updated_by: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface MockAuditLog {
+  id: string;
+  enterprise_id: string;
+  action: string;
+  operator: string;
+  detail: Record<string, any>;
+  created_at: string;
+}
+
 interface MockData {
   users: MockUser[];
   enterprises: MockEnterprise[];
@@ -136,6 +158,8 @@ interface MockData {
   models: MockModel[];
   invitations: MockInvitation[];
   keyTemplates: MockKeyTemplate[];
+  deptModelPolicies: MockDeptModelPolicy[];
+  auditLogs: MockAuditLog[];
 }
 
 // ===== 工具函数 =====
@@ -1076,6 +1100,29 @@ const initialData: MockData = {
       updated_at: getNow(),
     },
   ],
+  deptModelPolicies: [
+    {
+      id: "dmp_tech",
+      enterprise_id: "ent_1",
+      name: "研发部模型策略",
+      bound_org_ids: ["org_root", "org_tech"],
+      allowed_models: ["gpt-4o", "gpt-4o-mini", "gpt-4-turbo", "gpt-4", "claude-3-5-sonnet", "claude-3-haiku", "claude-3-opus", "claude-3-sonnet", "deepseek-chat", "deepseek-coder", "qwen-max", "qwen-plus", "glm-4", "glm-4-flash"],
+      updated_by: TEST_PHONE,
+      created_at: getNow(),
+      updated_at: getNow(),
+    },
+    {
+      id: "dmp_market",
+      enterprise_id: "ent_1",
+      name: "市场部模型策略",
+      bound_org_ids: ["org_market"],
+      allowed_models: ["gpt-4o-mini", "gpt-3.5-turbo", "claude-3-haiku", "glm-4-flash", "qwen-turbo", "deepseek-coder"],
+      updated_by: TEST_PHONE,
+      created_at: getNow(),
+      updated_at: getNow(),
+    },
+  ],
+  auditLogs: [],
 };
 
 // ===== 数据管理函数 =====
@@ -1094,7 +1141,21 @@ export function initMockData(): void {
 export function getMockData(): MockData {
   initMockData();
   const data = localStorage.getItem(MOCK_DATA_KEY);
-  return data ? JSON.parse(data) : initialData;
+  if (!data) return initialData;
+  const parsed = JSON.parse(data);
+  // 确保所有字段都存在（兼容旧版本数据）
+  return {
+    users: parsed.users ?? [],
+    enterprises: parsed.enterprises ?? [],
+    organizations: parsed.organizations ?? [],
+    members: parsed.members ?? [],
+    apiKeys: parsed.apiKeys ?? [],
+    models: parsed.models ?? [],
+    invitations: parsed.invitations ?? [],
+    keyTemplates: parsed.keyTemplates ?? [],
+    deptModelPolicies: parsed.deptModelPolicies ?? [],
+    auditLogs: parsed.auditLogs ?? [],
+  };
 }
 
 export function saveMockData(data: MockData): void {
@@ -1980,6 +2041,196 @@ export async function getOrgsWithTemplate(enterpriseId: string) {
   return data.organizations
     .filter(o => o.enterprise_id === enterpriseId && o.status === "active")
     .map(o => ({ id: o.id, name: o.name, key_template_id: o.key_template_id || null }));
+}
+
+// ===== 部门模型访问策略 API =====
+
+// 获取企业下所有策略
+export async function listDeptModelPolicies(enterpriseId: string): Promise<MockDeptModelPolicy[]> {
+  await delay(100);
+  const data = getMockData();
+  return (data.deptModelPolicies || []).filter((p) => p.enterprise_id === enterpriseId);
+}
+
+// 创建策略
+export async function createDeptModelPolicy(
+  enterpriseId: string,
+  name: string,
+  boundOrgIds: string[],
+  allowedModels: string[] | null,
+  operatorPhone: string
+): Promise<MockDeptModelPolicy> {
+  await delay(200);
+  const data = getMockData();
+  const policy: MockDeptModelPolicy = {
+    id: generateId(),
+    enterprise_id: enterpriseId,
+    name,
+    bound_org_ids: boundOrgIds,
+    allowed_models: allowedModels,
+    updated_by: operatorPhone,
+    created_at: getNow(),
+    updated_at: getNow(),
+  };
+  data.deptModelPolicies.push(policy);
+
+  // 记录审计日志
+  const orgNames = data.organizations
+    .filter((o) => boundOrgIds.includes(o.id))
+    .map((o) => o.name);
+  data.auditLogs.push({
+    id: generateId(),
+    enterprise_id: enterpriseId,
+    action: "创建部门模型访问策略",
+    operator: operatorPhone,
+    detail: { policy_name: name, bound_orgs: orgNames, allowed_models: allowedModels },
+    created_at: getNow(),
+  });
+
+  saveMockData(data);
+  return policy;
+}
+
+// 更新策略
+export async function updateDeptModelPolicy(
+  enterpriseId: string,
+  policyId: string,
+  name: string,
+  boundOrgIds: string[],
+  allowedModels: string[] | null,
+  operatorPhone: string
+): Promise<MockDeptModelPolicy> {
+  await delay(200);
+  const data = getMockData();
+  const idx = data.deptModelPolicies.findIndex(
+    (p) => p.id === policyId && p.enterprise_id === enterpriseId
+  );
+  if (idx === -1) throw new Error("策略不存在");
+
+  const previous = data.deptModelPolicies[idx];
+  const previousModels = previous.allowed_models;
+  const previousOrgs = previous.bound_org_ids;
+
+  data.deptModelPolicies[idx].name = name;
+  data.deptModelPolicies[idx].bound_org_ids = boundOrgIds;
+  data.deptModelPolicies[idx].allowed_models = allowedModels;
+  data.deptModelPolicies[idx].updated_by = operatorPhone;
+  data.deptModelPolicies[idx].updated_at = getNow();
+  const policy = data.deptModelPolicies[idx];
+
+  // 记录审计日志
+  const orgNames = data.organizations
+    .filter((o) => boundOrgIds.includes(o.id))
+    .map((o) => o.name);
+  data.auditLogs.push({
+    id: generateId(),
+    enterprise_id: enterpriseId,
+    action: "修改部门模型访问策略",
+    operator: operatorPhone,
+    detail: {
+      policy_id: policyId,
+      policy_name: name,
+      bound_orgs: orgNames,
+      previous_allowed_models: previousModels,
+      new_allowed_models: allowedModels,
+      previous_bound_org_ids: previousOrgs,
+      new_bound_org_ids: boundOrgIds,
+    },
+    created_at: getNow(),
+  });
+
+  saveMockData(data);
+  return policy;
+}
+
+// 删除策略
+export async function deleteDeptModelPolicy(
+  enterpriseId: string,
+  policyId: string,
+  operatorPhone: string
+): Promise<void> {
+  await delay(150);
+  const data = getMockData();
+  const policy = data.deptModelPolicies.find(
+    (p) => p.id === policyId && p.enterprise_id === enterpriseId
+  );
+  if (!policy) throw new Error("策略不存在");
+
+  data.deptModelPolicies = data.deptModelPolicies.filter((p) => p.id !== policyId);
+
+  data.auditLogs.push({
+    id: generateId(),
+    enterprise_id: enterpriseId,
+    action: "删除部门模型访问策略",
+    operator: operatorPhone,
+    detail: { policy_id: policyId, policy_name: policy.name },
+    created_at: getNow(),
+  });
+
+  saveMockData(data);
+}
+
+// 同步获取部门的模型访问策略（用于调用链路校验）
+export function getDeptModelPolicySync(enterpriseId: string, orgId: string): MockDeptModelPolicy | null {
+  const data = getMockData();
+  if (!Array.isArray(data.deptModelPolicies)) return null;
+  return (
+    data.deptModelPolicies.find(
+      (p) => p.enterprise_id === enterpriseId && p.bound_org_ids?.includes(orgId)
+    ) || null
+  );
+}
+
+// 统计策略影响的部门数量和 API Key 数量
+export function getPolicyImpact(
+  enterpriseId: string,
+  boundOrgIds: string[]
+): { deptCount: number; keyCount: number } {
+  const data = getMockData();
+  const memberPhones = new Set(
+    (data.members || [])
+      .filter(
+        (member) =>
+          member.enterprise_id === enterpriseId &&
+          !!member.organization_id &&
+          boundOrgIds.includes(member.organization_id)
+      )
+      .map((member) => member.user_phone)
+  );
+  const keyCount = (data.apiKeys || []).filter(
+    (key) => key.enterprise_id === enterpriseId && memberPhones.has(key.user_phone)
+  ).length;
+  return { deptCount: boundOrgIds.length, keyCount };
+}
+
+// 获取用户所属部门允许的模型列表（null 表示全部允许）
+export function getAllowedModelsForUser(phone: string, enterpriseId: string): string[] | null {
+  const data = getMockData();
+  if (!data || !Array.isArray(data.members)) return null;
+  const member = data.members.find(
+    (m) => m.user_phone === phone && m.enterprise_id === enterpriseId && m.status === "active"
+  );
+  if (!member || !member.organization_id) return null;
+  if (!Array.isArray(data.deptModelPolicies)) return null;
+  const policy = data.deptModelPolicies.find(
+    (p) => p.enterprise_id === enterpriseId && p.bound_org_ids?.includes(member.organization_id)
+  );
+  return policy?.allowed_models ?? null;
+}
+
+// 获取用户所属部门允许的模型列表（异步版本）
+export async function getAllowedModelsForUserAsync(phone: string, enterpriseId: string): Promise<string[] | null> {
+  await delay(100);
+  return getAllowedModelsForUser(phone, enterpriseId);
+}
+
+// 获取部门模型策略审计日志
+export async function getDeptModelPolicyAuditLogs(enterpriseId: string): Promise<MockAuditLog[]> {
+  await delay(200);
+  const data = getMockData();
+  return (data.auditLogs || [])
+    .filter((log) => log.enterprise_id === enterpriseId && log.action.includes("部门模型访问策略"))
+    .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
 }
 
 // 初始化

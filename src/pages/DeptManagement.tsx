@@ -59,6 +59,7 @@ import {
 } from "@/components/ui/table";
 import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
+import DeptModelPolicyDialog from "@/components/DeptModelPolicyDialog";
 import {
   Tooltip,
   TooltipContent,
@@ -84,6 +85,7 @@ import {
   Pencil,
   PauseCircle,
   Sliders,
+  ShieldCheck,
 } from "lucide-react";
 
 // Types
@@ -99,6 +101,7 @@ interface Member {
   name?: string;
   today_consumed?: number;
   month_consumed?: number;
+  budget_type?: "monthly" | "daily" | "unlimited";
 }
 
 interface Org {
@@ -280,6 +283,10 @@ export default function DeptManagement({ enterprise, role }: DeptManagementProps
   const [budgetDialogOpen, setBudgetDialogOpen] = useState(false);
   const [budgetValue, setBudgetValue] = useState("");
   const [budgetType, setBudgetType] = useState<"unlimited" | "daily" | "monthly">("daily");
+
+  // 部门模型访问策略
+  const [modelPolicyOpen, setModelPolicyOpen] = useState(false);
+  const [modelPolicyOrg, setModelPolicyOrg] = useState<Org | null>(null);
 
   // 二次确认弹窗状态
   const [memberRemoveConfirm, setMemberRemoveConfirm] = useState<Member | null>(null);
@@ -1207,6 +1214,15 @@ export default function DeptManagement({ enterprise, role }: DeptManagementProps
 
                   {activeTab === "members" ? (
                     <div className="flex items-center gap-3">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => { setModelPolicyOrg(selectedOrg); setModelPolicyOpen(true); }}
+                        className="h-9 border-blue-200 text-blue-600 hover:bg-blue-50"
+                      >
+                        <ShieldCheck className="h-4 w-4 mr-2" />
+                        模型访问策略
+                      </Button>
                       <div className="relative">
                         <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
                         <Input
@@ -1231,10 +1247,21 @@ export default function DeptManagement({ enterprise, role }: DeptManagementProps
                       </Button>
                     </div>
                   ) : (
-                    <Button size="sm" onClick={() => setCreateOrgOpen(true)} className="h-9">
-                      <Plus className="h-4 w-4 mr-2" />
-                      添加子部门
-                    </Button>
+                    <div className="flex items-center gap-3">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => { setModelPolicyOrg(selectedOrg); setModelPolicyOpen(true); }}
+                        className="h-9 border-blue-200 text-blue-600 hover:bg-blue-50"
+                      >
+                        <ShieldCheck className="h-4 w-4 mr-2" />
+                        模型访问策略
+                      </Button>
+                      <Button size="sm" onClick={() => setCreateOrgOpen(true)} className="h-9">
+                        <Plus className="h-4 w-4 mr-2" />
+                        添加子部门
+                      </Button>
+                    </div>
                   )}
                 </div>
 
@@ -2754,6 +2781,14 @@ export default function DeptManagement({ enterprise, role }: DeptManagementProps
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* 部门模型访问策略弹窗 */}
+      <DeptModelPolicyDialog
+        open={modelPolicyOpen}
+        onOpenChange={(open) => { setModelPolicyOpen(open); if (!open) setModelPolicyOrg(null); }}
+        enterpriseId={currentEnterprise?.id || enterprise.id}
+        org={modelPolicyOrg ? { id: modelPolicyOrg.id, name: modelPolicyOrg.name } : null}
+      />
     </div>
   );
 }

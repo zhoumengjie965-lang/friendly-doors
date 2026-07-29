@@ -40,6 +40,7 @@ interface ApiKeyItem {
   groups: string[]; // 多分组，按优先级排序
   allowed_models: string[];
   expires_at: string | null;
+  ip_whitelist: string | null;
   created_at: string;
 }
 
@@ -56,6 +57,7 @@ const MOCK_API_KEYS: ApiKeyItem[] = [
     groups: ["aliyun-test", "default"],
     allowed_models: ["无限制"],
     expires_at: null,
+    ip_whitelist: null,
     created_at: "2026-04-27T16:56:08",
   },
   {
@@ -69,6 +71,7 @@ const MOCK_API_KEYS: ApiKeyItem[] = [
     groups: ["default"],
     allowed_models: ["无限制"],
     expires_at: "2026-03-25T13:47:04",
+    ip_whitelist: null,
     created_at: "2026-03-25T13:47:04",
   },
   {
@@ -82,6 +85,7 @@ const MOCK_API_KEYS: ApiKeyItem[] = [
     groups: ["default", "general"],
     allowed_models: ["无限制"],
     expires_at: null,
+    ip_whitelist: null,
     created_at: "2026-03-18T10:08:53",
   },
   {
@@ -95,6 +99,7 @@ const MOCK_API_KEYS: ApiKeyItem[] = [
     groups: ["suno"],
     allowed_models: ["无限制"],
     expires_at: null,
+    ip_whitelist: null,
     created_at: "2026-03-17T17:32:38",
   },
 ];
@@ -408,6 +413,9 @@ export default function PersonalApiKeys() {
   // 模型选择：true=跟随分组范围（支持分组内全部模型），false=手动勾选
   const [followGroupRange, setFollowGroupRange] = useState(true);
   const [modelSearch, setModelSearch] = useState("");
+  const [onlyAvailable, setOnlyAvailable] = useState(true);
+  const [ipWhitelist, setIpWhitelist] = useState("");
+  const [ipEnabled, setIpEnabled] = useState(false);
 
   // 过滤数据
   const filteredKeys = useMemo(() => {
@@ -458,6 +466,12 @@ export default function PersonalApiKeys() {
     setPage(1);
   };
 
+  // 快捷设置过期时间
+  const setQuickExpiry = (offset: number) => {
+    const d = new Date(Date.now() + offset);
+    setFormData({ ...formData, expires_at: format(d, "yyyy-MM-dd'T'HH:mm") });
+  };
+
   // 打开创建弹窗
   const openCreate = () => {
     setFormData({
@@ -472,6 +486,9 @@ export default function PersonalApiKeys() {
     setNeverExpire(true);
     setFollowGroupRange(true);
     setModelSearch("");
+    setOnlyAvailable(true);
+    setIpWhitelist("");
+    setIpEnabled(false);
     setIsCreateOpen(true);
   };
 
@@ -486,6 +503,9 @@ export default function PersonalApiKeys() {
     setNeverExpire(key.expires_at === null);
     setFollowGroupRange(!key.allowed_models || key.allowed_models.length === 0 || key.allowed_models.includes("无限制"));
     setModelSearch("");
+    setOnlyAvailable(true);
+    setIpWhitelist(key.ip_whitelist || "");
+    setIpEnabled(!!key.ip_whitelist);
     setIsEditOpen(true);
   };
 
@@ -518,6 +538,7 @@ export default function PersonalApiKeys() {
       groups: groups,
       allowed_models: followGroupRange ? [] : (formData.allowed_models || []),
       expires_at: neverExpire ? null : (formData.expires_at || null),
+      ip_whitelist: ipEnabled && ipWhitelist.trim() ? ipWhitelist : null,
       created_at: new Date().toISOString(),
     };
 
@@ -546,6 +567,7 @@ export default function PersonalApiKeys() {
               groups: groups,
               allowed_models: followGroupRange ? [] : (formData.allowed_models || []),
               expires_at: neverExpire ? null : (formData.expires_at || null),
+              ip_whitelist: ipEnabled && ipWhitelist.trim() ? ipWhitelist : null,
             }
           : k
       )
@@ -845,21 +867,27 @@ export default function PersonalApiKeys() {
 
       {/* 创建弹窗 */}
       <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="sm:max-w-lg">
           <DialogHeader>
             <DialogTitle>创建 API Key</DialogTitle>
           </DialogHeader>
-          <div className="space-y-4 py-4">
-            <div className="space-y-2">
-              <Label>名称 <span className="text-red-500">*</span></Label>
+          <div className="space-y-3 py-4">
+            {/* 名称 */}
+            <div className="grid grid-cols-[100px_1fr] items-center gap-3">
+              <Label className="text-right text-muted-foreground text-sm">
+                <span className="text-red-500 mr-0.5">*</span>名称
+              </Label>
               <Input
                 placeholder="请输入名称"
                 value={formData.name || ""}
                 onChange={(e) => setFormData({ ...formData, name: e.target.value })}
               />
             </div>
-            <div className="space-y-2">
-              <Label>分组 <span className="text-red-500">*</span></Label>
+            {/* 分组 */}
+            <div className="grid grid-cols-[100px_1fr] items-start gap-3">
+              <Label className="text-right text-muted-foreground text-sm pt-2.5">
+                <span className="text-red-500 mr-0.5">*</span>分组
+              </Label>
               <GroupMultiSelect
                 groups={GROUP_OPTIONS}
                 selected={formData.groups || []}
@@ -867,136 +895,176 @@ export default function PersonalApiKeys() {
                 placeholder="选择分组"
               />
             </div>
-            <div className="space-y-2">
-              <Label>额度设置</Label>
-              <div className="flex items-center gap-4">
-                <label className="flex items-center gap-2">
-                  <input
-                    type="checkbox"
-                    checked={unlimitedQuota}
-                    onChange={(e) => setUnlimitedQuota(e.target.checked)}
-                  />
-                  <span className="text-sm">无限额度</span>
-                </label>
-                {!unlimitedQuota && (
-                  <Input
-                    type="number"
-                    placeholder="额度"
-                    className="w-32"
-                    value={formData.total_quota || ""}
-                    onChange={(e) => setFormData({ ...formData, total_quota: parseFloat(e.target.value) || 0 })}
-                  />
-                )}
+            {/* 额度上限 */}
+            <div className="grid grid-cols-[100px_1fr] items-center gap-3">
+              <Label className="text-right text-muted-foreground text-sm">额度上限</Label>
+              <div className="flex items-center gap-2">
+                <span className="text-muted-foreground text-sm font-medium shrink-0">¥</span>
+                <Input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  placeholder="0.00"
+                  className="flex-1"
+                  value={formData.total_quota || ""}
+                  onChange={(e) => setFormData({ ...formData, total_quota: parseFloat(e.target.value) || 0 })}
+                  disabled={unlimitedQuota}
+                />
               </div>
             </div>
-            <div className="space-y-2">
-              <Label>过期时间</Label>
-              <div className="flex items-center gap-4">
-                <label className="flex items-center gap-2">
-                  <input
-                    type="checkbox"
-                    checked={neverExpire}
-                    onChange={(e) => setNeverExpire(e.target.checked)}
-                  />
-                  <span className="text-sm">永不过期</span>
-                </label>
-                {!neverExpire && (
-                  <Input
-                    type="datetime-local"
-                    value={formData.expires_at?.slice(0, 16) || ""}
-                    onChange={(e) => setFormData({ ...formData, expires_at: e.target.value })}
-                  />
-                )}
-              </div>
+            {/* 无限额度 */}
+            <div className="grid grid-cols-[100px_1fr] items-center gap-3">
+              <Label className="text-right text-muted-foreground text-sm">无限额度</Label>
+              <Switch checked={unlimitedQuota} onCheckedChange={setUnlimitedQuota} />
             </div>
+            {/* 模型限制列表 */}
             <div className="space-y-2">
-              <Label>可用模型</Label>
-              <div className="flex items-center gap-3">
+              <div className="flex items-center gap-4">
+                <Label className="text-muted-foreground text-sm shrink-0">模型限制列表</Label>
                 <label className="flex items-center gap-2 shrink-0">
                   <input
                     type="checkbox"
                     checked={followGroupRange}
                     onChange={(e) => setFollowGroupRange(e.target.checked)}
+                    className="rounded border-gray-300"
                   />
                   <span className="text-sm">跟随分组范围</span>
-                  {followGroupRange && (() => {
-                    const cnt = getModelsForGroups(formData.groups || []).length;
-                    return <span className="text-xs text-muted-foreground">（共 {cnt} 个）</span>;
-                  })()}
                 </label>
-                <div className="relative w-40">
-                  <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                  <input
-                    type="text"
-                    placeholder="搜索模型..."
-                    value={modelSearch}
-                    onChange={(e) => setModelSearch(e.target.value)}
-                    className="w-full h-8 pl-8 pr-2 text-sm rounded-md border border-input bg-background focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-                  />
+                  <label className="flex items-center gap-2 shrink-0 ml-auto">
+                    <input
+                      type="checkbox"
+                      checked={onlyAvailable}
+                      onChange={(e) => setOnlyAvailable(e.target.checked)}
+                      className="rounded border-gray-300"
+                    />
+                    <span className="text-sm text-muted-foreground">仅看可用</span>
+                  </label>
                 </div>
-              </div>
-              {(() => {
-                const selectedGroups = formData.groups || [];
-                const selectedModels = formData.allowed_models || [];
-                const filteredModels = AVAILABLE_MODELS.filter(m =>
-                  m.toLowerCase().includes(modelSearch.toLowerCase())
-                );
-                return (
-                  <>
-                    {/* 幽灵模型提示 */}
-                    {(() => {
-                      const ghosts = getGhostModels(selectedGroups, selectedModels);
-                      if (ghosts.length === 0) return null;
-                      return (
-                        <div className="p-2 rounded-md bg-muted text-xs text-muted-foreground">
-                          不在当前分组范围内的已选模型已自动置灰：{ghosts.join(", ")}
-                        </div>
-                      );
-                    })()}
-                    {/* 模型网格 */}
-                    <div className="grid grid-cols-3 gap-1.5 max-h-48 overflow-auto p-2 rounded-md border border-input bg-background">
-                      {filteredModels.length === 0 ? (
-                        <div className="col-span-3 py-4 text-center text-xs text-muted-foreground">未找到模型</div>
-                      ) : filteredModels.map((model) => {
-                        const inGroup = isModelInGroups(model, selectedGroups);
-                        const checked = followGroupRange ? inGroup : selectedModels.includes(model);
+                {(() => {
+                  const selectedGroups = formData.groups || [];
+                  const selectedModels = formData.allowed_models || [];
+                  const filteredModels = AVAILABLE_MODELS.filter(m =>
+                    m.toLowerCase().includes(modelSearch.toLowerCase()) &&
+                    (!onlyAvailable || isModelInGroups(m, selectedGroups))
+                  );
+                  return (
+                    <>
+                      {(() => {
+                        const ghosts = getGhostModels(selectedGroups, selectedModels);
+                        if (ghosts.length === 0) return null;
                         return (
-                          <label
-                            key={model}
-                            className={`flex items-center gap-1 text-xs px-2 py-1 rounded border ${inGroup ? "border-input bg-background" : "border-muted bg-muted/30 text-muted-foreground/50 cursor-not-allowed"}`}
-                          >
-                            <input
-                              type="checkbox"
-                              checked={checked}
-                              disabled={!inGroup || followGroupRange}
-                              onChange={(e) => {
-                                if (e.target.checked) {
-                                  setFormData({ ...formData, allowed_models: [...selectedModels, model] });
-                                } else {
-                                  setFormData({ ...formData, allowed_models: selectedModels.filter((m) => m !== model) });
-                                }
-                              }}
-                            />
-                            <span className="truncate">{model}</span>
-                          </label>
+                          <div className="p-2 rounded-md bg-muted text-xs text-muted-foreground">
+                            不在当前分组范围内的已选模型已自动置灰：{ghosts.join(", ")}
+                          </div>
                         );
-                      })}
-                    </div>
-
-                  </>
-                );
-              })()}
+                      })()}
+                      <div className="rounded-md border border-input p-3 space-y-2">
+                        <div className="relative pb-2 border-b border-border/50">
+                          <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                          <input
+                            type="text"
+                            placeholder="搜索模型..."
+                            value={modelSearch}
+                            onChange={(e) => setModelSearch(e.target.value)}
+                            className="w-full h-8 pl-8 pr-2 text-sm rounded-md border border-input bg-background focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                          />
+                        </div>
+                        <div className="grid grid-cols-3 gap-1.5 max-h-48 overflow-auto">
+                          {filteredModels.length === 0 ? (
+                            <div className="col-span-3 py-4 text-center text-xs text-muted-foreground">未找到模型</div>
+                          ) : filteredModels.map((model) => {
+                            const inGroup = isModelInGroups(model, selectedGroups);
+                            const checked = followGroupRange ? inGroup : selectedModels.includes(model);
+                            return (
+                              <label
+                                key={model}
+                                className={`flex items-center gap-1 text-xs px-2 py-1 rounded border ${inGroup ? "border-input bg-background" : "border-muted bg-muted/30 text-muted-foreground/50 cursor-not-allowed"}`}
+                              >
+                                <input
+                                  type="checkbox"
+                                  checked={checked}
+                                  disabled={!inGroup || followGroupRange}
+                                  onChange={(e) => {
+                                    if (e.target.checked) {
+                                      setFormData({ ...formData, allowed_models: [...selectedModels, model] });
+                                    } else {
+                                      setFormData({ ...formData, allowed_models: selectedModels.filter((m) => m !== model) });
+                                    }
+                                  }}
+                                  className="rounded border-gray-300"
+                                />
+                                <span className="truncate">{model}</span>
+                              </label>
+                            );
+                          })}
+                        </div>
+                        <p className="text-xs text-muted-foreground pt-1.5 border-t border-border/50">使用该 API Key 发起调用时，仅支持访问已勾选的模型</p>
+                      </div>
+                    </>
+                  );
+                })()}
             </div>
-            <div className="space-y-2">
-              <Label>状态</Label>
-              <div className="flex items-center gap-2">
+            {/* 过期时间 */}
+            <div className="grid grid-cols-[100px_1fr] items-start gap-3">
+              <Label className="text-right text-muted-foreground text-sm pt-2.5">
+                过期时间
+              </Label>
+              <div className="space-y-2 pt-2">
                 <Switch
-                  checked={formData.status === "active"}
-                  onCheckedChange={(checked) =>
-                    setFormData({ ...formData, status: checked ? "active" : "disabled" })
-                  }
+                  checked={!neverExpire}
+                  onCheckedChange={(checked) => {
+                    setNeverExpire(!checked);
+                    if (checked && !formData.expires_at) {
+                      setQuickExpiry(30 * 24 * 60 * 60 * 1000);
+                    }
+                    if (!checked) {
+                      setFormData({ ...formData, expires_at: null });
+                    }
+                  }}
                 />
-                <span className="text-sm">{formData.status === "active" ? "启用" : "禁用"}</span>
+                {!neverExpire && (
+                  <>
+                    <Input
+                      type="datetime-local"
+                      value={formData.expires_at?.slice(0, 16) || ""}
+                      onChange={(e) => setFormData({ ...formData, expires_at: e.target.value })}
+                    />
+                    <div className="flex gap-2 flex-wrap">
+                      {[
+                        { label: "一个月", offset: 30 * 24 * 60 * 60 * 1000 },
+                        { label: "一天", offset: 24 * 60 * 60 * 1000 },
+                        { label: "一小时", offset: 60 * 60 * 1000 },
+                      ].map(({ label, offset }) => (
+                        <button
+                          key={label}
+                          onClick={() => setQuickExpiry(offset)}
+                          className="px-3 py-1 text-xs rounded-full border border-border hover:border-primary hover:text-primary hover:bg-primary/5 transition-colors"
+                        >
+                          {label}
+                        </button>
+                      ))}
+                    </div>
+                  </>
+                )}
+              </div>
+            </div>
+            {/* IP 白名单 */}
+            <div className="grid grid-cols-[100px_1fr] items-start gap-3">
+              <Label className="text-right text-muted-foreground text-sm pt-2.5">IP 白名单</Label>
+              <div className="space-y-2 pt-2">
+                <Switch
+                  checked={ipEnabled}
+                  onCheckedChange={setIpEnabled}
+                />
+                {ipEnabled && (
+                  <textarea
+                    placeholder={"一行一个 IP，支持 CIDR\n例如：\n192.168.1.1\n10.0.0.0/8"}
+                    value={ipWhitelist}
+                    onChange={e => setIpWhitelist(e.target.value)}
+                    rows={4}
+                    className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm resize-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring placeholder:text-muted-foreground"
+                  />
+                )}
               </div>
             </div>
           </div>
@@ -1013,21 +1081,27 @@ export default function PersonalApiKeys() {
 
       {/* 编辑弹窗 */}
       <Dialog open={isEditOpen} onOpenChange={setIsEditOpen}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="sm:max-w-lg">
           <DialogHeader>
             <DialogTitle>编辑 API Key</DialogTitle>
           </DialogHeader>
-          <div className="space-y-4 py-4">
-            <div className="space-y-2">
-              <Label>名称 <span className="text-red-500">*</span></Label>
+          <div className="space-y-3 py-4">
+            {/* 名称 */}
+            <div className="grid grid-cols-[100px_1fr] items-center gap-3">
+              <Label className="text-right text-muted-foreground text-sm">
+                <span className="text-red-500 mr-0.5">*</span>名称
+              </Label>
               <Input
                 placeholder="请输入名称"
                 value={formData.name || ""}
                 onChange={(e) => setFormData({ ...formData, name: e.target.value })}
               />
             </div>
-            <div className="space-y-2">
-              <Label>分组 <span className="text-red-500">*</span></Label>
+            {/* 分组 */}
+            <div className="grid grid-cols-[100px_1fr] items-start gap-3">
+              <Label className="text-right text-muted-foreground text-sm pt-2.5">
+                <span className="text-red-500 mr-0.5">*</span>分组
+              </Label>
               <GroupMultiSelect
                 groups={GROUP_OPTIONS}
                 selected={formData.groups || []}
@@ -1035,128 +1109,181 @@ export default function PersonalApiKeys() {
                 placeholder="选择分组"
               />
             </div>
-            <div className="space-y-2">
-              <Label>额度设置</Label>
-              <div className="flex items-center gap-4">
-                <label className="flex items-center gap-2">
-                  <input
-                    type="checkbox"
-                    checked={unlimitedQuota}
-                    onChange={(e) => setUnlimitedQuota(e.target.checked)}
-                  />
-                  <span className="text-sm">无限额度</span>
-                </label>
-                {!unlimitedQuota && (
-                  <Input
-                    type="number"
-                    placeholder="额度"
-                    className="w-32"
-                    value={formData.total_quota || ""}
-                    onChange={(e) => setFormData({ ...formData, total_quota: parseFloat(e.target.value) || 0 })}
-                  />
-                )}
+            {/* 额度上限 */}
+            <div className="grid grid-cols-[100px_1fr] items-center gap-3">
+              <Label className="text-right text-muted-foreground text-sm">额度上限</Label>
+              <div className="flex items-center gap-2">
+                <span className="text-muted-foreground text-sm font-medium shrink-0">¥</span>
+                <Input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  placeholder="0.00"
+                  className="flex-1"
+                  value={formData.total_quota || ""}
+                  onChange={(e) => setFormData({ ...formData, total_quota: parseFloat(e.target.value) || 0 })}
+                  disabled={unlimitedQuota}
+                />
               </div>
             </div>
-            <div className="space-y-2">
-              <Label>过期时间</Label>
-              <div className="flex items-center gap-4">
-                <label className="flex items-center gap-2">
-                  <input
-                    type="checkbox"
-                    checked={neverExpire}
-                    onChange={(e) => setNeverExpire(e.target.checked)}
-                  />
-                  <span className="text-sm">永不过期</span>
-                </label>
-                {!neverExpire && (
-                  <Input
-                    type="datetime-local"
-                    value={formData.expires_at?.slice(0, 16) || ""}
-                    onChange={(e) => setFormData({ ...formData, expires_at: e.target.value })}
-                  />
-                )}
-              </div>
+            {/* 无限额度 */}
+            <div className="grid grid-cols-[100px_1fr] items-center gap-3">
+              <Label className="text-right text-muted-foreground text-sm">无限额度</Label>
+              <Switch checked={unlimitedQuota} onCheckedChange={setUnlimitedQuota} />
             </div>
+            {/* 模型限制列表 */}
             <div className="space-y-2">
-              <Label>可用模型</Label>
-              <div className="flex items-center gap-3">
+              <div className="flex items-center gap-4">
+                <Label className="text-muted-foreground text-sm shrink-0">模型限制列表</Label>
                 <label className="flex items-center gap-2 shrink-0">
                   <input
                     type="checkbox"
                     checked={followGroupRange}
                     onChange={(e) => setFollowGroupRange(e.target.checked)}
+                    className="rounded border-gray-300"
                   />
                   <span className="text-sm">跟随分组范围</span>
-                  {followGroupRange && (() => {
-                    const cnt = getModelsForGroups(formData.groups || []).length;
-                    return <span className="text-xs text-muted-foreground">（共 {cnt} 个）</span>;
-                  })()}
                 </label>
-                <div className="relative w-40">
-                  <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                  <input
-                    type="text"
-                    placeholder="搜索模型..."
-                    value={modelSearch}
-                    onChange={(e) => setModelSearch(e.target.value)}
-                    className="w-full h-8 pl-8 pr-2 text-sm rounded-md border border-input bg-background focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-                  />
+                  <label className="flex items-center gap-2 shrink-0 ml-auto">
+                    <input
+                      type="checkbox"
+                      checked={onlyAvailable}
+                      onChange={(e) => setOnlyAvailable(e.target.checked)}
+                      className="rounded border-gray-300"
+                    />
+                    <span className="text-sm text-muted-foreground">仅看可用</span>
+                  </label>
                 </div>
-              </div>
-              {(() => {
-                const selectedGroups = formData.groups || [];
-                const selectedModels = formData.allowed_models || [];
-                const filteredModels = AVAILABLE_MODELS.filter(m =>
-                  m.toLowerCase().includes(modelSearch.toLowerCase())
-                );
-                return (
-                  <>
-                    {/* 幽灵模型提示 */}
-                    {(() => {
-                      const ghosts = getGhostModels(selectedGroups, selectedModels);
-                      if (ghosts.length === 0) return null;
-                      return (
-                        <div className="p-2 rounded-md bg-muted text-xs text-muted-foreground">
-                          不在当前分组范围内的已选模型已自动置灰：{ghosts.join(", ")}
-                        </div>
-                      );
-                    })()}
-                    {/* 模型网格 */}
-                    <div className="grid grid-cols-3 gap-1.5 max-h-48 overflow-auto p-2 rounded-md border border-input bg-background">
-                      {filteredModels.length === 0 ? (
-                        <div className="col-span-3 py-4 text-center text-xs text-muted-foreground">未找到模型</div>
-                      ) : filteredModels.map((model) => {
-                        const inGroup = isModelInGroups(model, selectedGroups);
-                        const checked = followGroupRange ? inGroup : selectedModels.includes(model);
+                {(() => {
+                  const selectedGroups = formData.groups || [];
+                  const selectedModels = formData.allowed_models || [];
+                  const filteredModels = AVAILABLE_MODELS.filter(m =>
+                    m.toLowerCase().includes(modelSearch.toLowerCase()) &&
+                    (!onlyAvailable || isModelInGroups(m, selectedGroups))
+                  );
+                  return (
+                    <>
+                      {(() => {
+                        const ghosts = getGhostModels(selectedGroups, selectedModels);
+                        if (ghosts.length === 0) return null;
                         return (
-                          <label
-                            key={model}
-                            className={`flex items-center gap-1 text-xs px-2 py-1 rounded border ${inGroup ? "border-input bg-background" : "border-muted bg-muted/30 text-muted-foreground/50 cursor-not-allowed"}`}
-                          >
-                            <input
-                              type="checkbox"
-                              checked={checked}
-                              disabled={!inGroup || followGroupRange}
-                              onChange={(e) => {
-                                if (e.target.checked) {
-                                  setFormData({ ...formData, allowed_models: [...selectedModels, model] });
-                                } else {
-                                  setFormData({ ...formData, allowed_models: selectedModels.filter((m) => m !== model) });
-                                }
-                              }}
-                            />
-                            <span className="truncate">{model}</span>
-                          </label>
+                          <div className="p-2 rounded-md bg-muted text-xs text-muted-foreground">
+                            不在当前分组范围内的已选模型已自动置灰：{ghosts.join(", ")}
+                          </div>
                         );
-                      })}
-                    </div>
-
-                  </>
-                );
-              })()}
+                      })()}
+                      <div className="rounded-md border border-input p-3 space-y-2">
+                        <div className="relative pb-2 border-b border-border/50">
+                          <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                          <input
+                            type="text"
+                            placeholder="搜索模型..."
+                            value={modelSearch}
+                            onChange={(e) => setModelSearch(e.target.value)}
+                            className="w-full h-8 pl-8 pr-2 text-sm rounded-md border border-input bg-background focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                          />
+                        </div>
+                        <div className="grid grid-cols-3 gap-1.5 max-h-48 overflow-auto">
+                          {filteredModels.length === 0 ? (
+                            <div className="col-span-3 py-4 text-center text-xs text-muted-foreground">未找到模型</div>
+                          ) : filteredModels.map((model) => {
+                            const inGroup = isModelInGroups(model, selectedGroups);
+                            const checked = followGroupRange ? inGroup : selectedModels.includes(model);
+                            return (
+                              <label
+                                key={model}
+                                className={`flex items-center gap-1 text-xs px-2 py-1 rounded border ${inGroup ? "border-input bg-background" : "border-muted bg-muted/30 text-muted-foreground/50 cursor-not-allowed"}`}
+                              >
+                                <input
+                                  type="checkbox"
+                                  checked={checked}
+                                  disabled={!inGroup || followGroupRange}
+                                  onChange={(e) => {
+                                    if (e.target.checked) {
+                                      setFormData({ ...formData, allowed_models: [...selectedModels, model] });
+                                    } else {
+                                      setFormData({ ...formData, allowed_models: selectedModels.filter((m) => m !== model) });
+                                    }
+                                  }}
+                                  className="rounded border-gray-300"
+                                />
+                                <span className="truncate">{model}</span>
+                              </label>
+                            );
+                          })}
+                        </div>
+                        <p className="text-xs text-muted-foreground pt-1.5 border-t border-border/50">使用该 API Key 发起调用时，仅支持访问已勾选的模型</p>
+                      </div>
+                    </>
+                  );
+                })()}
             </div>
-            <div className="space-y-2">
-              <Label>状态</Label>
+            {/* 过期时间 */}
+            <div className="grid grid-cols-[100px_1fr] items-start gap-3">
+              <Label className="text-right text-muted-foreground text-sm pt-2.5">
+                过期时间
+              </Label>
+              <div className="space-y-2 pt-2">
+                <Switch
+                  checked={!neverExpire}
+                  onCheckedChange={(checked) => {
+                    setNeverExpire(!checked);
+                    if (checked && !formData.expires_at) {
+                      setQuickExpiry(30 * 24 * 60 * 60 * 1000);
+                    }
+                    if (!checked) {
+                      setFormData({ ...formData, expires_at: null });
+                    }
+                  }}
+                />
+                {!neverExpire && (
+                  <>
+                    <Input
+                      type="datetime-local"
+                      value={formData.expires_at?.slice(0, 16) || ""}
+                      onChange={(e) => setFormData({ ...formData, expires_at: e.target.value })}
+                    />
+                    <div className="flex gap-2 flex-wrap">
+                      {[
+                        { label: "一个月", offset: 30 * 24 * 60 * 60 * 1000 },
+                        { label: "一天", offset: 24 * 60 * 60 * 1000 },
+                        { label: "一小时", offset: 60 * 60 * 1000 },
+                      ].map(({ label, offset }) => (
+                        <button
+                          key={label}
+                          onClick={() => setQuickExpiry(offset)}
+                          className="px-3 py-1 text-xs rounded-full border border-border hover:border-primary hover:text-primary hover:bg-primary/5 transition-colors"
+                        >
+                          {label}
+                        </button>
+                      ))}
+                    </div>
+                  </>
+                )}
+              </div>
+            </div>
+            {/* IP 白名单 */}
+            <div className="grid grid-cols-[100px_1fr] items-start gap-3">
+              <Label className="text-right text-muted-foreground text-sm pt-2.5">IP 白名单</Label>
+              <div className="space-y-2 pt-2">
+                <Switch
+                  checked={ipEnabled}
+                  onCheckedChange={setIpEnabled}
+                />
+                {ipEnabled && (
+                  <textarea
+                    placeholder={"一行一个 IP，支持 CIDR\n例如：\n192.168.1.1\n10.0.0.0/8"}
+                    value={ipWhitelist}
+                    onChange={e => setIpWhitelist(e.target.value)}
+                    rows={4}
+                    className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm resize-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring placeholder:text-muted-foreground"
+                  />
+                )}
+              </div>
+            </div>
+            {/* 状态 */}
+            <div className="grid grid-cols-[100px_1fr] items-center gap-3">
+              <Label className="text-right text-muted-foreground text-sm">状态</Label>
               <div className="flex items-center gap-2">
                 <Switch
                   checked={formData.status === "active"}
@@ -1164,7 +1291,7 @@ export default function PersonalApiKeys() {
                     setFormData({ ...formData, status: checked ? "active" : "disabled" })
                   }
                 />
-                <span className="text-sm">{formData.status === "active" ? "启用" : "禁用"}</span>
+                <span className="text-sm text-muted-foreground">{formData.status === "active" ? "启用" : "禁用"}</span>
               </div>
             </div>
           </div>

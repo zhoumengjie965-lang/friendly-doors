@@ -31,11 +31,12 @@ import AddonOrder from "@/pages/resource-subscription/AddonOrder";
 import RenewOrder from "@/pages/resource-subscription/RenewOrder";
 import {
   Building2, LogOut, ChevronDown,
-  ChevronRight, Check, Plus, UserCircle, Key
+  ChevronRight, Check, Plus, UserCircle, Key, CheckCircle2
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { FirstLoginGuideDialog, type GuideScenario } from "@/pages/FirstLoginGuide";
 
 const LAST_ENTERPRISE_KEY = "ai_gateway_last_enterprise";
 
@@ -71,6 +72,10 @@ export default function Workspace() {
   const [showSelector, setShowSelector] = useState(false);
   const [userName, setUserName] = useState<string | null>(null);
   const [showPersonalWelcomeToast, setShowPersonalWelcomeToast] = useState(false);
+
+  // 首次登录引导弹窗
+  const [guideScenario, setGuideScenario] = useState<GuideScenario | null>(null);
+  const [showGuideTip, setShowGuideTip] = useState(false);
 
   // user menu state
   const [userMenuOpen, setUserMenuOpen] = useState(false);
@@ -168,6 +173,15 @@ export default function Workspace() {
   };
 
   useEffect(() => { loadEnterprises(); }, []);
+
+  // 读取登录页选择的模拟场景，弹出引导弹窗
+  useEffect(() => {
+    const scenario = sessionStorage.getItem("first_login_guide_scenario");
+    if (scenario === "admin" || scenario === "member") {
+      setGuideScenario(scenario);
+      sessionStorage.removeItem("first_login_guide_scenario");
+    }
+  }, []);
 
   const handleCreateEnterprise = async () => {
     if (!newEnterpriseName.trim() || !phone) return;
@@ -546,6 +560,34 @@ export default function Workspace() {
             </div>
           </div>
         )}
+
+      {/* 首次登录引导弹窗 */}
+      {guideScenario && (
+        <FirstLoginGuideDialog
+          scenario={guideScenario}
+          open={!!guideScenario}
+          onClose={() => setGuideScenario(null)}
+          onSuccess={() => {
+            if (guideScenario === "admin") {
+              setGuideScenario(null);
+              navigate("/workspace/enterprise/balance");
+            } else {
+              setShowGuideTip(true);
+              setTimeout(() => setShowGuideTip(false), 2500);
+            }
+          }}
+        />
+      )}
+
+      {/* 密码设置成功浮动提示 */}
+      {showGuideTip && (
+        <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-[200] animate-in fade-in duration-300">
+          <div className="flex items-center gap-3 rounded-2xl bg-background border border-border px-8 py-5 shadow-2xl">
+            <CheckCircle2 className="h-7 w-7 text-green-500" />
+            <span className="text-lg font-medium text-foreground">密码设置成功</span>
+          </div>
+        </div>
+      )}
       </SidebarProvider>
     );
   }
@@ -638,6 +680,34 @@ export default function Workspace() {
       {/* Modals */}
       {showCreateEnterprise && <EnterpriseModal title="创建企业" placeholder="请输入企业名称" value={newEnterpriseName} onChange={setNewEnterpriseName} onConfirm={handleCreateEnterprise} onClose={() => { setShowCreateEnterprise(false); setNewEnterpriseName(""); }} loading={actionLoading} confirmText="创建" />}
       {showJoinEnterprise && <EnterpriseModal title="加入企业" placeholder="请输入邀请码" value={joinCode} onChange={setJoinCode} onConfirm={handleJoinEnterprise} onClose={() => { setShowJoinEnterprise(false); setJoinCode(""); }} loading={actionLoading} confirmText="加入" />}
+
+      {/* 首次登录引导弹窗 */}
+      {guideScenario && (
+        <FirstLoginGuideDialog
+          scenario={guideScenario}
+          open={!!guideScenario}
+          onClose={() => setGuideScenario(null)}
+          onSuccess={() => {
+            if (guideScenario === "admin") {
+              setGuideScenario(null);
+              navigate("/workspace/enterprise/balance");
+            } else {
+              setShowGuideTip(true);
+              setTimeout(() => setShowGuideTip(false), 2500);
+            }
+          }}
+        />
+      )}
+
+      {/* 密码设置成功浮动提示 */}
+      {showGuideTip && (
+        <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-[200] animate-in fade-in duration-300">
+          <div className="flex items-center gap-3 rounded-2xl bg-background border border-border px-8 py-5 shadow-2xl">
+            <CheckCircle2 className="h-7 w-7 text-green-500" />
+            <span className="text-lg font-medium text-foreground">密码设置成功</span>
+          </div>
+        </div>
+      )}
     </SidebarProvider>
   );
 }

@@ -8,9 +8,11 @@ import { useToast } from "@/hooks/use-toast";
 import { Eye, EyeOff } from "lucide-react";
 
 type LoginMode = "username" | "phone" | "email";
+type MockScenario = "none" | "admin" | "member";
 
 export default function Login() {
   const [loginMode, setLoginMode] = useState<LoginMode>("username");
+  const [mockScenario, setMockScenario] = useState<MockScenario>("none");
 
   // username mode
   const [username, setUsername] = useState("");
@@ -84,6 +86,9 @@ export default function Login() {
     setLoading(true);
     try {
       await loginWithPhone("18217795009");
+      if (mockScenario !== "none") {
+        sessionStorage.setItem("first_login_guide_scenario", mockScenario);
+      }
       navigate(inviteParam ? `/invite/${inviteParam}` : "/workspace");
     } catch {
       toast({ title: "登录失败", variant: "destructive" });
@@ -285,6 +290,46 @@ export default function Login() {
           >
             {loading ? "登录中..." : "登录"}
           </Button>
+
+          {/* Mock 场景选择 */}
+          <div className="pt-2 border-t border-border/60 space-y-2">
+            <p className="text-xs text-muted-foreground text-center">模拟首次登录场景（登录后弹窗）</p>
+            <div className="flex gap-1.5">
+              <button
+                type="button"
+                onClick={() => setMockScenario("admin")}
+                className={`flex-1 px-2 py-1.5 rounded-md text-xs font-medium transition-colors ${
+                  mockScenario === "admin"
+                    ? "bg-primary text-primary-foreground"
+                    : "bg-muted text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                管理员首次登录
+              </button>
+              <button
+                type="button"
+                onClick={() => setMockScenario("member")}
+                className={`flex-1 px-2 py-1.5 rounded-md text-xs font-medium transition-colors ${
+                  mockScenario === "member"
+                    ? "bg-primary text-primary-foreground"
+                    : "bg-muted text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                成员首次登录
+              </button>
+              <button
+                type="button"
+                onClick={() => setMockScenario("none")}
+                className={`flex-1 px-2 py-1.5 rounded-md text-xs font-medium transition-colors ${
+                  mockScenario === "none"
+                    ? "bg-primary text-primary-foreground"
+                    : "bg-muted text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                不模拟
+              </button>
+            </div>
+          </div>
         </div>
       </div>
     </div>
