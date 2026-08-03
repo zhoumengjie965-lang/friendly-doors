@@ -7,6 +7,7 @@ import {
 import {
   Wallet, Activity, Database, Zap, BarChart2, CalendarIcon, RefreshCw, LayoutGrid,
   PieChart as PieChartIcon, Users, Search, Building2, TrendingUp, X, ChevronRight, Bell,
+  Info,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -658,36 +659,18 @@ export default function ResourceStats({ enterprise }: Props) {
         </div>
       )}
 
-      {/* Header row */}
-      <div className="flex items-center justify-between mb-6">
-        <div />
-        <div className="flex items-center gap-2">
-          <Popover open={calendarOpen} onOpenChange={setCalendarOpen}>
-            <PopoverTrigger asChild>
-              <Button variant="outline" className="h-9 gap-2 text-sm font-normal border-border">
-                <CalendarIcon className="w-4 h-4 text-muted-foreground" />
-                <span className="text-foreground">{formatDateRange()}</span>
-              </Button>
-            </PopoverTrigger>
-            <PopoverContent className="w-auto p-0" align="end">
-              <Calendar
-                mode="range"
-                selected={dateRange}
-                onSelect={setDateRange}
-                initialFocus
-                className={cn("p-3 pointer-events-auto")}
-              />
-            </PopoverContent>
-          </Popover>
-          <Button variant="outline" size="icon" className="h-9 w-9 border-border">
-            <RefreshCw className="w-4 h-4 text-muted-foreground" />
-          </Button>
-        </div>
-      </div>
+      {/* View, department and date controls */}
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+        <div className="flex flex-wrap items-center gap-4">
+          {viewRole === "member" && (
+            <div className="flex items-center gap-2 text-sm">
+              <span className="text-muted-foreground">归属部门：</span>
+              <span className="font-medium text-foreground">研发一组</span>
+            </div>
+          )}
 
-      {/* org_admin: view mode tabs + dept context selector for my view */}
-      {viewRole === "org_admin" && (
-        <div className="flex items-center gap-4 mb-4">
+          {viewRole === "org_admin" && (
+            <>
           <div className="flex items-center bg-muted rounded-lg p-1 h-9">
             <button
               onClick={() => setOrgAdminViewMode("my")}
@@ -712,7 +695,6 @@ export default function ResourceStats({ enterprise }: Props) {
               部门视图
             </button>
           </div>
-          {/* Department context selector - show in both my view and dept view */}
           <div className="flex items-center gap-2">
             <span className="text-xs text-muted-foreground">归属部门：</span>
             <OrgTreeSelect
@@ -723,12 +705,11 @@ export default function ResourceStats({ enterprise }: Props) {
               triggerClassName="h-8 w-36 text-xs"
             />
           </div>
-        </div>
-      )}
+            </>
+          )}
 
-      {/* enterprise_admin: view mode tabs + dept context selector for my view */}
-      {viewRole === "enterprise_admin" && (
-        <div className="flex items-center gap-4 mb-4">
+          {viewRole === "enterprise_admin" && (
+            <>
           <div className="flex items-center bg-muted rounded-lg p-1 h-9">
             <button
               onClick={() => setEnterpriseAdminViewMode("my")}
@@ -764,17 +745,6 @@ export default function ResourceStats({ enterprise }: Props) {
               企业视图
             </button>
           </div>
-          {/* Breadcrumb navigation for drill-down - show below tabs when drilled down */}
-          {enterpriseAdminViewMode === "enterprise" && drillDownOrg && (
-            <div className="flex items-center gap-1 text-sm text-muted-foreground mt-2">
-              <span>企业全部</span>
-              <span>/</span>
-              <span className="font-medium text-foreground cursor-pointer hover:text-primary" onClick={() => setDrillDownOrg(null)}>
-                {mockAllOrgs.find(o => o.id === drillDownOrg)?.name}
-              </span>
-            </div>
-          )}
-          {/* Department context selector - show in my view and dept view */}
           {(enterpriseAdminViewMode === "my" || enterpriseAdminViewMode === "dept") && (
             <div className="flex items-center gap-2">
               <span className="text-xs text-muted-foreground">{enterpriseAdminViewMode === "my" ? "归属部门：" : "选择部门："}</span>
@@ -787,17 +757,55 @@ export default function ResourceStats({ enterprise }: Props) {
               />
             </div>
           )}
+            </>
+          )}
+        </div>
+
+        <div className="flex items-center gap-2">
+          <Popover open={calendarOpen} onOpenChange={setCalendarOpen}>
+            <PopoverTrigger asChild>
+              <Button variant="outline" className="h-9 gap-2 text-sm font-normal border-border">
+                <CalendarIcon className="w-4 h-4 text-muted-foreground" />
+                <span className="text-foreground">{formatDateRange()}</span>
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-auto p-0" align="end">
+              <Calendar
+                mode="range"
+                selected={dateRange}
+                onSelect={setDateRange}
+                initialFocus
+                className={cn("p-3 pointer-events-auto")}
+              />
+            </PopoverContent>
+          </Popover>
+          <Button variant="outline" size="icon" className="h-9 w-9 border-border">
+            <RefreshCw className="w-4 h-4 text-muted-foreground" />
+          </Button>
+        </div>
+      </div>
+
+      {viewRole === "enterprise_admin" && enterpriseAdminViewMode === "enterprise" && drillDownOrg && (
+        <div className="mb-4 flex items-center gap-1 text-sm text-muted-foreground">
+          <span>企业全部</span>
+          <span>/</span>
+          <span className="font-medium text-foreground cursor-pointer hover:text-primary" onClick={() => setDrillDownOrg(null)}>
+            {mockAllOrgs.find(o => o.id === drillDownOrg)?.name}
+          </span>
         </div>
       )}
+
+      {/* Statistics scope notice */}
+      <div className="mb-3 flex items-center gap-2 px-1 py-1 text-xs text-muted-foreground">
+        <Info className="h-3.5 w-3.5 shrink-0 text-primary/70" />
+        <span>
+          本页仅统计按量付费调用；Token Plan 权益抵扣用量请前往对应套餐详情查看。
+        </span>
+      </div>
 
       {/* Quota banner — member */}
       {viewRole === "member" && (
         <div className="space-y-3">
-          {/* 归属部门 - 只读显示 */}
-          <div className="flex items-center gap-2 text-sm">
-            <span className="text-muted-foreground">归属部门：</span>
-            <span className="font-medium text-foreground">研发一组</span>
-          </div>
           <div className="rounded-lg bg-blue-50 border border-blue-200 px-4 py-3 flex items-center gap-4">
             <div className="flex items-center gap-2 shrink-0">
               <div className="w-7 h-7 rounded-full bg-blue-100 flex items-center justify-center">

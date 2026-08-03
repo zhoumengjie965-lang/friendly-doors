@@ -1361,6 +1361,15 @@ function UserBillManagement() {
   const [regenerateConfirmOpen, setRegenerateConfirmOpen] = useState(false);
   const [regenerateConfirmType, setRegenerateConfirmType] = useState<"toSend" | "sent" | null>(null);
   const [diffConfirmOpen, setDiffConfirmOpen] = useState(false);
+  // 全量客户账单导出
+  const availableBillPeriods = useMemo(
+    () => Array.from(new Set(bills.map((bill) => bill.periodStart.slice(0, 7)))).sort().reverse(),
+    [bills]
+  );
+  const [fullBillOpen, setFullBillOpen] = useState(false);
+  const [fullBillPeriod, setFullBillPeriod] = useState("");
+  const [fullBillStatus, setFullBillStatus] = useState<"idle" | "generating" | "ready">("idle");
+  const [fullBillGeneratedAt, setFullBillGeneratedAt] = useState("");
 
   const filteredBills = useMemo(() => {
     return bills.filter((bill) => {
@@ -1409,6 +1418,71 @@ function UserBillManagement() {
 
   const handleBatchDownload = () => {
     alert(`批量下载 ${selectedBills.length} 个账单`);
+  };
+
+  const fullBillRecords = useMemo(
+    () => bills.filter((bill) => bill.periodStart.startsWith(fullBillPeriod)),
+    [bills, fullBillPeriod]
+  );
+  const isTestCustomer = (bill: UserBillRecord) => ["ENT-010", "ENT-011", "ENT-012"].includes(bill.subjectId);
+  const fullBillFormalCount = fullBillRecords.filter((bill) => !isTestCustomer(bill)).length;
+  const fullBillTestCount = fullBillRecords.filter(isTestCustomer).length;
+
+  const handleOpenFullBill = () => {
+    setFullBillPeriod(periodFilter || availableBillPeriods[0] || "");
+    setFullBillStatus("idle");
+    setFullBillGeneratedAt("");
+    setFullBillOpen(true);
+  };
+
+  const handleGenerateFullBill = () => {
+    if (!fullBillPeriod || fullBillRecords.length === 0) return;
+    setFullBillStatus("generating");
+    window.setTimeout(() => {
+      setFullBillGeneratedAt(format(new Date(), "yyyy-MM-dd HH:mm:ss"));
+      setFullBillStatus("ready");
+    }, 900);
+  };
+
+  const handleDownloadFullBill = () => {
+    const escapeCell = (value: string | number) =>
+      String(value).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+    const rows = fullBillRecords.flatMap((bill) =>
+      bill.details.map((detail) => `
+        <tr>
+          <td>${escapeCell(isTestCustomer(bill) ? "测试客户" : "正式客户")}</td>
+          <td>${escapeCell(bill.spaceType === "enterprise" ? "企业空间" : "个人空间")}</td>
+          <td>${escapeCell(bill.enterprise)}</td>
+          <td>${escapeCell(bill.subjectId)}</td>
+          <td>${escapeCell(bill.id)}</td>
+          <td>${escapeCell(fullBillPeriod)}</td>
+          <td>${escapeCell(detail.modelName)}</td>
+          <td>${escapeCell(detail.billingType === "token" ? "按量计费" : "按次计费")}</td>
+          <td>${escapeCell(detail.inputTokens)}</td>
+          <td>${escapeCell(detail.outputTokens)}</td>
+          <td>${escapeCell(detail.callCount || 0)}</td>
+          <td>${escapeCell(detail.subtotal.toFixed(2))}</td>
+          <td>${escapeCell((detail.voucherDeduction || 0).toFixed(2))}</td>
+          <td>${escapeCell((detail.balanceDeduction ?? detail.subtotal).toFixed(2))}</td>
+          <td>${escapeCell((detail.creditDeduction || 0).toFixed(2))}</td>
+        </tr>`)
+    ).join("");
+    const workbook = `<!doctype html><html><head><meta charset="UTF-8"></head><body>
+      <table border="1">
+        <thead><tr>
+          <th>客户类型</th><th>空间类型</th><th>主体名称</th><th>主体ID</th><th>账单编号</th><th>账期</th>
+          <th>模型名称</th><th>计费方式</th><th>输入Token</th><th>输出Token</th><th>调用次数</th>
+          <th>实际消费</th><th>代金券抵扣</th><th>充值余额支付</th><th>授信额度支付</th>
+        </tr></thead><tbody>${rows}</tbody>
+      </table>
+    </body></html>`;
+    const blob = new Blob(["\ufeff", workbook], { type: "application/vnd.ms-excel;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = `全量客户账单_${fullBillPeriod}.xls`;
+    anchor.click();
+    URL.revokeObjectURL(url);
   };
 
   const handleRegenerate = () => {
@@ -1556,6 +1630,14 @@ function UserBillManagement() {
               )}
             </div>
             <div className="flex items-center gap-2">
+              <Button
+                onClick={handleOpenFullBill}
+                size="sm"
+                className="h-8 gap-1.5 text-xs bg-blue-600 hover:bg-blue-700"
+              >
+                <FileSpreadsheet className="w-3.5 h-3.5" />
+                生成全量账单
+              </Button>
               <Button 
                 onClick={handleRegenerate} 
                 variant="outline" 
@@ -1748,6 +1830,93 @@ function UserBillManagement() {
           </div>
         </CardContent>
       </Card>
+
+      {/* 生成全量账单 */}
+      <Dialog open={fullBillOpen} onOpenChange={setFullBillOpen}>
+        <DialogContent className="sm:max-w-[520px]">
+          <DialogHeader>
+            <DialogTitle className="text-base">生成全量账单</DialogTitle>
+          </DialogHeader>
+
+          <div className="space-y-4 py-1">
+            <div className="space-y-2">
+              <Label className="text-sm font-medium">账期</Label>
+              <Select
+                value={fullBillPeriod}
+                onValueChange={(value) => {
+                  setFullBillPeriod(value);
+                  setFullBillStatus("idle");
+                  setFullBillGeneratedAt("");
+                }}
+                disabled={fullBillStatus === "generating"}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="选择账期" />
+                </SelectTrigger>
+                <SelectContent>
+                  {availableBillPeriods.map((period) => (
+                    <SelectItem key={period} value={period}>{period}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="rounded-lg border bg-muted/20 px-4 py-3 text-sm">
+              将合并 <span className="font-semibold">{fullBillRecords.length}</span> 份客户账单
+              <span className="ml-2 text-xs text-muted-foreground">
+                （正式客户 {fullBillFormalCount}，测试客户 {fullBillTestCount}）
+              </span>
+            </div>
+
+            {fullBillRecords.length === 0 && fullBillPeriod && (
+              <div className="flex items-start gap-2 rounded-md border border-amber-200 bg-amber-50 p-3 text-xs text-amber-700">
+                <AlertTriangle className="w-4 h-4 shrink-0" />
+                当前账期暂无可生成的客户账单。
+              </div>
+            )}
+
+            {fullBillStatus === "generating" && (
+              <div className="flex items-center gap-3 rounded-md border border-blue-200 bg-blue-50 p-3">
+                <Loader2 className="w-4 h-4 text-blue-600 animate-spin" />
+                <div>
+                  <p className="text-sm font-medium text-blue-700">正在生成全量账单</p>
+                  <p className="text-xs text-blue-600/80">正在合并客户账单明细，请稍候…</p>
+                </div>
+              </div>
+            )}
+
+            {fullBillStatus === "ready" && (
+              <div className="flex items-start gap-3 rounded-md border border-green-200 bg-green-50 p-3">
+                <CheckCircle2 className="w-4 h-4 text-green-600 mt-0.5" />
+                <div className="min-w-0">
+                  <p className="text-sm font-medium text-green-700">全量账单已生成</p>
+                  <p className="text-xs text-green-700/80 truncate">全量客户账单_{fullBillPeriod}.xls</p>
+                  <p className="text-xs text-muted-foreground mt-1">生成时间：{fullBillGeneratedAt}</p>
+                </div>
+              </div>
+            )}
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setFullBillOpen(false)}>
+              取消
+            </Button>
+            {fullBillStatus === "ready" ? (
+              <Button onClick={handleDownloadFullBill} className="gap-1.5">
+                <Download className="w-4 h-4" />
+                下载 Excel
+              </Button>
+            ) : (
+              <Button
+                onClick={handleGenerateFullBill}
+                disabled={!fullBillPeriod || fullBillRecords.length === 0 || fullBillStatus === "generating"}
+              >
+                {fullBillStatus === "generating" ? "生成中…" : "确认生成"}
+              </Button>
+            )}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Preview Dialog */}
       <Dialog open={previewOpen} onOpenChange={setPreviewOpen}>

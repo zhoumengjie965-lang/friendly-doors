@@ -42,20 +42,8 @@ function downloadCSV(filename: string, content: string) {
   URL.revokeObjectURL(link.href);
 }
 
-function getBillingSourceLabel(source: BillingSource): string {
-  switch (source.type) {
-    case "subscription": return source.name;
-    case "resource_pack": return source.name;
-    case "voucher": return "代金券";
-    case "balance": return "充值余额";
-  }
-}
-
-function getActualPayment(row: typeof mockUsageLogs[0]): number {
-  if (row.type === "错误") return 0;
-  const src = row.billingSource;
-  if (src.type === "subscription" || src.type === "resource_pack" || src.type === "voucher") return 0;
-  return Number(row.cost);
+function getBillingMethodLabel(source: BillingSource): "按量付费" | "权益抵扣" {
+  return source.type === "balance" ? "按量付费" : "权益抵扣";
 }
 
 function getCsvValue(row: typeof mockUsageLogs[0], header: string): string {
@@ -68,9 +56,10 @@ function getCsvValue(row: typeof mockUsageLogs[0], header: string): string {
     "用时/首字": String(row.duration ?? ""),
     "输入": String(row.input ?? ""),
     "输出": String(row.output ?? ""),
-    "扣费来源": getBillingSourceLabel(row.billingSource),
-    "消耗金额": `¥${Number(row.cost).toFixed(4)}`,
-    "实际支付": `¥${getActualPayment(row).toFixed(4)}`,
+    "计费方式": getBillingMethodLabel(row.billingSource),
+    "消耗金额": getBillingMethodLabel(row.billingSource) === "权益抵扣"
+      ? "¥0.0000"
+      : `¥${Number(row.cost).toFixed(4)}`,
     "详情": row.detail,
     "组织": row.org ?? "",
     "成员": row.member ?? "",
@@ -83,7 +72,7 @@ function getCsvValue(row: typeof mockUsageLogs[0], header: string): string {
   return v;
 }
 
-// ── 扣费来源类型 ──
+// ── 内部结算来源类型（用户端仅展示聚合后的计费方式） ──
 type BillingSource =
   | { type: "subscription"; name: string }   // 订阅包名称
   | { type: "resource_pack"; name: string }  // 资源包名称
@@ -322,6 +311,7 @@ function CallLogsTab({ role, globalOrg, globalMember }: {
   const [pageSize, setPageSize] = useState(10);
   const [filterGroup, setFilterGroup] = useState("all");
   const [filterType, setFilterType] = useState("all");
+  const [filterBillingSource, setFilterBillingSource] = useState("all");
   const [exportOpen, setExportOpen] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [selectedDetail, setSelectedDetail] = useState<typeof mockUsageLogs[0] | null>(null);
@@ -334,6 +324,8 @@ function CallLogsTab({ role, globalOrg, globalMember }: {
   const filtered = mockUsageLogs.filter(r => {
     if (filterGroup !== "all" && r.group !== filterGroup) return false;
     if (filterType !== "all" && r.type !== filterType) return false;
+    if (filterBillingSource === "payg" && r.billingSource.type !== "balance") return false;
+    if (filterBillingSource === "benefit" && r.billingSource.type === "balance") return false;
     if (filterModel.trim() && !r.model.toLowerCase().includes(filterModel.toLowerCase())) return false;
     if (filterApiKey.trim() && !r.apiKey.toLowerCase().includes(filterApiKey.toLowerCase())) return false;
     if ((isEnterpriseAdmin || isOrgAdmin) && globalOrg !== "all" && r.org !== globalOrg) return false;
@@ -343,16 +335,17 @@ function CallLogsTab({ role, globalOrg, globalMember }: {
 
   const paginated = filtered.slice((page - 1) * pageSize, page * pageSize);
 
-  const baseHeaders = ["时间", "APIKey", "分组", "类型", "模型", "用时/首字", "输入", "输出", "扣费来源", "消耗金额", "实际支付", "详情"];
+  const baseHeaders = ["时间", "APIKey", "分组", "类型", "模型", "用时/首字", "输入", "输出", "计费方式", "消耗金额", "详情"];
   const headers = isEnterpriseAdmin
-    ? ["时间", "APIKey", "组织", "成员", "分组", "类型", "模型", "用时/首字", "输入", "输出", "扣费来源", "消耗金额", "实际支付", "详情"]
+    ? ["时间", "APIKey", "组织", "成员", "分组", "类型", "模型", "用时/首字", "输入", "输出", "计费方式", "消耗金额", "详情"]
     : isOrgAdmin
-    ? ["时间", "APIKey", "成员", "分组", "类型", "模型", "用时/首字", "输入", "输出", "扣费来源", "消耗金额", "实际支付", "详情"]
+    ? ["时间", "APIKey", "成员", "分组", "类型", "模型", "用时/首字", "输入", "输出", "计费方式", "消耗金额", "详情"]
     : baseHeaders;
 
   const handleReset = () => {
     setFilterGroup("all");
     setFilterType("all");
+    setFilterBillingSource("all");
     setFilterModel("");
     setFilterApiKey("");
     setPage(1);
@@ -395,6 +388,16 @@ function CallLogsTab({ role, globalOrg, globalMember }: {
           </div>
           <Input className="h-9 w-40 text-sm" placeholder="APIKey名称" value={filterApiKey} onChange={e => setFilterApiKey(e.target.value)} />
           <Input className="h-9 w-36 text-sm" placeholder="模型名称" value={filterModel} onChange={e => setFilterModel(e.target.value)} />
+          <Select value={filterBillingSource} onValueChange={v => { setFilterBillingSource(v); setPage(1); }}>
+            <SelectTrigger className="h-9 w-36 text-sm">
+              <SelectValue placeholder="计费方式" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">全部计费方式</SelectItem>
+              <SelectItem value="payg">按量付费</SelectItem>
+              <SelectItem value="benefit">权益抵扣</SelectItem>
+            </SelectContent>
+          </Select>
           <Button size="sm" className="h-9">搜索</Button>
           <Button size="sm" variant="outline" className="h-9" onClick={handleReset}>重置</Button>
           <div className="flex-1" />
@@ -537,18 +540,22 @@ function CallLogsTab({ role, globalOrg, globalMember }: {
                   <td className="px-3 py-2.5 text-xs text-foreground">{row.duration}</td>
                   <td className="px-3 py-2.5 text-xs text-foreground">{row.input}</td>
                   <td className="px-3 py-2.5 text-xs text-foreground">{row.output}</td>
-                  {/* 扣费来源 */}
+                  {/* 计费方式 */}
                   <td className="px-3 py-2.5 text-xs text-foreground whitespace-nowrap">
-                    {getBillingSourceLabel(row.billingSource)}
+                    <span className={cn(
+                      "inline-flex rounded px-1.5 py-0.5",
+                      getBillingMethodLabel(row.billingSource) === "按量付费"
+                        ? "bg-blue-50 text-blue-700"
+                        : "bg-violet-50 text-violet-700"
+                    )}>
+                      {getBillingMethodLabel(row.billingSource)}
+                    </span>
                   </td>
                   {/* 消耗金额 */}
-                  <td className="px-3 py-2.5 text-xs text-foreground">¥{Number(row.cost).toFixed(4)}</td>
-                  {/* 实际支付 */}
                   <td className="px-3 py-2.5 text-xs text-foreground">
-                    {getActualPayment(row) === 0
+                    {getBillingMethodLabel(row.billingSource) === "权益抵扣"
                       ? <span className="text-muted-foreground">¥0.0000</span>
-                      : <span>¥{getActualPayment(row).toFixed(4)}</span>
-                    }
+                      : <span>¥{Number(row.cost).toFixed(4)}</span>}
                   </td>
                   {/* 详情 */}
                   <td className="px-3 py-2.5 text-xs">
@@ -633,7 +640,7 @@ function CallLogsTab({ role, globalOrg, globalMember }: {
                     <span className="text-lg font-semibold text-foreground">{c.creditUsed.toLocaleString()}</span>
                   </div>
                   <div className="text-xs text-muted-foreground mt-3 pt-3 border-t border-border">
-                    扣费来源：{getBillingSourceLabel(src)}
+                    计费方式：权益抵扣
                   </div>
                 </div>
               );

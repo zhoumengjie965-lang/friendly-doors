@@ -222,18 +222,53 @@ function GroupConfigSelector({
   // 二级弹窗状态
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingCustomGroups, setEditingCustomGroups] = useState<Record<string, CustomGroupEntry>>({});
+  const [customBaseTemplate, setCustomBaseTemplate] = useState("__none__");
+  const [pendingBaseTemplate, setPendingBaseTemplate] = useState("__none__");
+  const [importedBaseTemplate, setImportedBaseTemplate] = useState("__none__");
+  const [customBaselineGroups, setCustomBaselineGroups] = useState<Record<string, CustomGroupEntry>>({});
+  const [showTemplateCopy, setShowTemplateCopy] = useState(false);
+  const [hasImportedTemplate, setHasImportedTemplate] = useState(false);
 
   const activeTemplate = TEMPLATE_OPTIONS.find((t) => t.value === selectedTemplate);
+
+  const buildCustomGroupsFromTemplate = (templateValue: string) => {
+    const template = TEMPLATE_OPTIONS.find((item) => item.value === templateValue);
+    const templateGroups = new Map(template?.availableGroups.map((item) => [item.name, item.rate]) ?? []);
+    return Object.fromEntries(
+      ALL_BASE_GROUPS.map((group) => [
+        group.name,
+        {
+          available: templateGroups.has(group.name),
+          rate: templateGroups.get(group.name) ?? group.defaultRate,
+        },
+      ])
+    );
+  };
 
   // 打开自定义分组弹窗前，快照当前数据
   const handleOpenDialog = () => {
     if (Object.keys(customGroups).length > 0) {
       setEditingCustomGroups({ ...customGroups });
+      setPendingBaseTemplate(customBaseTemplate);
+      setImportedBaseTemplate(customBaseTemplate);
+      setCustomBaselineGroups(
+        customBaseTemplate === "__none__" ? {} : buildCustomGroupsFromTemplate(customBaseTemplate)
+      );
+      setShowTemplateCopy(true);
+      setHasImportedTemplate(customBaseTemplate !== "__none__");
     } else {
-      // 初始化：所有基础分组默认不可用，倍率=1
-      const init: Record<string, CustomGroupEntry> = {};
-      ALL_BASE_GROUPS.forEach((g) => { init[g.name] = { available: false, rate: g.defaultRate }; });
-      setEditingCustomGroups(init);
+      setPendingBaseTemplate("__none__");
+      setImportedBaseTemplate("__none__");
+      const initialGroups = Object.fromEntries(
+        ALL_BASE_GROUPS.map((group) => [
+          group.name,
+          { available: false, rate: group.defaultRate },
+        ])
+      );
+      setEditingCustomGroups(initialGroups);
+      setCustomBaselineGroups({});
+      setShowTemplateCopy(true);
+      setHasImportedTemplate(false);
     }
     setDialogOpen(true);
   };
@@ -244,11 +279,18 @@ function GroupConfigSelector({
       Object.entries(editingCustomGroups).filter(([, entry]) => entry.available)
     );
     setCustomGroups(validEntries);
+    setCustomBaseTemplate(importedBaseTemplate);
+    setShowTemplateCopy(false);
+    setHasImportedTemplate(false);
+    setCustomBaselineGroups({});
     setDialogOpen(false);
   };
 
   // 取消二级弹窗
   const handleCancelCustomDialog = () => {
+    setShowTemplateCopy(false);
+    setHasImportedTemplate(false);
+    setCustomBaselineGroups({});
     setDialogOpen(false);
   };
 
@@ -285,6 +327,16 @@ function GroupConfigSelector({
 
   // ── 渲染：自定义模式的分组列表（按名称排序） ──
   const enabledCount = Object.values(customGroups).filter((e) => e.available).length;
+  const savedTemplateDiffCount = customBaseTemplate === "__none__"
+    ? 0
+    : (() => {
+        const savedBaseline = buildCustomGroupsFromTemplate(customBaseTemplate);
+        return ALL_BASE_GROUPS.filter((group) => {
+          const current = customGroups[group.name] ?? { available: false, rate: group.defaultRate };
+          const baseline = savedBaseline[group.name] ?? { available: false, rate: group.defaultRate };
+          return current.available !== baseline.available || current.rate !== baseline.rate;
+        }).length;
+      })();
   const customGroupItems = Object.entries(customGroups)
     .filter(([, e]) => e.available)
     .sort(([a], [b]) => a.localeCompare(b, "zh-Hans-CN"))
@@ -462,8 +514,59 @@ function GroupConfigSelector({
           </DialogHeader>
 
           <p className="text-xs text-muted-foreground mb-3">
-            勾选后，该令牌分组将对当前用户/企业生效，并按填写倍率计费；未勾选的令牌分组不会生效。
+            可选择模板对比当前配置；只有点击“导入模板”才会替换当前表单。
           </p>
+
+          {showTemplateCopy && (
+          <div className="rounded-lg border border-blue-100 bg-blue-50/60 p-3 mb-3 space-y-2">
+            <div className="flex items-center gap-3">
+            <div className="shrink-0">
+              <p className="text-sm font-medium text-foreground">从模板复制</p>
+              <p className="text-xs text-muted-foreground">
+                基于模板：{customBaseTemplate === "__none__"
+                  ? "未使用"
+                  : `${TEMPLATE_OPTIONS.find((item) => item.value === customBaseTemplate)?.name ?? customBaseTemplate}，差异 ${savedTemplateDiffCount} 项`}
+              </p>
+            </div>
+            <span className="ml-auto text-xs text-muted-foreground shrink-0">查看对比</span>
+            <select
+              className="h-9 min-w-52 rounded-md border border-input bg-background px-3 text-sm"
+              value={pendingBaseTemplate}
+              onChange={(e) => {
+                const templateValue = e.target.value;
+                setPendingBaseTemplate(templateValue);
+                if (templateValue === "__none__") {
+                  setCustomBaselineGroups({});
+                  setHasImportedTemplate(false);
+                  setImportedBaseTemplate("__none__");
+                } else {
+                  setCustomBaselineGroups(buildCustomGroupsFromTemplate(templateValue));
+                  setHasImportedTemplate(true);
+                }
+              }}
+            >
+              <option value="__none__">不使用模板</option>
+              {TEMPLATE_OPTIONS.map((template) => (
+                <option key={template.value} value={template.value}>
+                  {template.name}（{template.remark}）
+                </option>
+              ))}
+            </select>
+            <Button
+              type="button"
+              size="sm"
+              disabled={pendingBaseTemplate === "__none__"}
+              onClick={() => {
+                const nextGroups = buildCustomGroupsFromTemplate(pendingBaseTemplate);
+                setEditingCustomGroups(nextGroups);
+                setImportedBaseTemplate(pendingBaseTemplate);
+              }}
+            >
+              导入模板
+            </Button>
+            </div>
+          </div>
+          )}
 
           <div className="border rounded-lg overflow-hidden">
             <table className="w-full text-sm">
@@ -471,13 +574,15 @@ function GroupConfigSelector({
                 <tr>
                   <th className="px-3 py-1.5 text-left font-medium text-muted-foreground">基础令牌分组</th>
                   <th className="px-3 py-1.5 text-center font-medium text-muted-foreground w-[90px]">是否可用</th>
-                  <th className="px-3 py-1.5 text-right font-medium text-muted-foreground w-[90px]">倍率</th>
+                  <th className="px-3 py-1.5 text-right font-medium text-muted-foreground w-[90px]">当前倍率</th>
+                  <th className="px-3 py-1.5 text-center font-medium text-muted-foreground w-[90px]">模板配置</th>
                   <th className="px-3 py-1.5 text-left font-medium text-muted-foreground">描述/模型系列</th>
                 </tr>
               </thead>
               <tbody className="divide-y">
                 {ALL_BASE_GROUPS.map((bg) => {
                   const entry = editingCustomGroups[bg.name] ?? { available: false, rate: bg.defaultRate };
+                  const baseline = customBaselineGroups[bg.name] ?? entry;
                   return (
                     <tr key={bg.name} className={`${entry.available ? "" : "opacity-45"} hover:bg-muted/30`}>
                       <td className="px-3 py-1.5 font-medium">{bg.name}</td>
@@ -500,6 +605,9 @@ function GroupConfigSelector({
                           }}
                           className={`h-7 text-sm w-full text-right ${!entry.available ? "opacity-40 cursor-not-allowed bg-muted" : ""}`}
                         />
+                      </td>
+                      <td className="px-3 py-1.5 text-center text-xs text-muted-foreground">
+                        {!hasImportedTemplate ? "—" : baseline.available ? `×${baseline.rate}` : "未启用"}
                       </td>
                       <td className="px-3 py-1.5 text-muted-foreground text-xs">{bg.desc}</td>
                     </tr>
@@ -634,6 +742,8 @@ interface Enterprise {
   enterprise_type?: "formal" | "test";
   group?: string;
   has_business_data?: boolean;
+  reseller_code?: string | null;
+  reseller_conflict_user_count?: number;
 }
 
 const CERT_STATUS: Record<string, { label: string; variant: "default" | "secondary" | "destructive" | "outline" }> = {
@@ -663,6 +773,8 @@ const MOCK_ENTERPRISES: Enterprise[] = [
     admins: [{ phone: "13800138001", name: "张三", user_type: "formal" }],
     enterprise_type: "formal",
     has_business_data: true,
+    reseller_code: "agent-001",
+    reseller_conflict_user_count: 3,
   },
   {
     id: "mock-002",
@@ -682,6 +794,8 @@ const MOCK_ENTERPRISES: Enterprise[] = [
     admins: [{ phone: "13800138002", name: "李四", user_type: "formal" }],
     enterprise_type: "formal",
     has_business_data: true,
+    reseller_code: "agent-002",
+    reseller_conflict_user_count: 1,
   },
   {
     id: "mock-003",
@@ -1107,7 +1221,7 @@ export default function AdminEnterprises() {
 
     const { data: ents, error } = await supabase
       .from("enterprises")
-      .select("id,name,owner_phone,enterprise_code,created_at,status,remark")
+        .select("id,name,owner_phone,enterprise_code,created_at,status,remark,reseller_code")
       .order("created_at", { ascending: false });
     
     if (error) {
@@ -1412,6 +1526,7 @@ export default function AdminEnterprises() {
           owner_phone: userData.phone,
           remark: remark,
           status: "enabled",
+          reseller_code: addForm.agentId || null,
         })
         .select()
         .single();
@@ -1762,7 +1877,7 @@ export default function AdminEnterprises() {
                         modelAccess: ["国际"],
                         remarkType: type,
                         remarkName: name,
-                        agentId: "",
+                        agentId: e.reseller_code || "",
                       }));
                       setEditSheetOpen(true);
                     }}
@@ -2184,25 +2299,21 @@ export default function AdminEnterprises() {
                 <p className="text-xs text-gray-400">备注格式：类型_输入信息</p>
               </div>
 
-              {/* 所属代理商 */}
+              {/* 代理商标签 */}
               <div className="space-y-1.5">
-                <Label className="text-sm">所属代理商</Label>
-                <Select value={undefined} onValueChange={(v) => setAddForm((prev) => ({ ...prev, agentId: v }))}>
-                  <SelectTrigger className="w-full h-10 bg-gray-50/50 border-gray-200 [&>span:not(.sr-only)]:line-clamp-none">
-                    <SelectValue placeholder="" />
-                    {addForm.agentId ? (
-                      <span
-                        role="button"
-                        className="inline-flex items-center gap-[2px] px-[6px] py-[1px] rounded-[4px] bg-blue-50 text-blue-600 text-xs leading-[18px] whitespace-nowrap"
-                        onPointerDown={(e) => { e.preventDefault(); e.stopPropagation(); }}
-                        onClick={(e) => { e.stopPropagation(); setAddForm(prev => ({ ...prev, agentId: "" })); }}
-                      >
-                        {AGENT_OPTIONS.find(a => a.value === addForm.agentId)?.label || addForm.agentId}
-                        <X className="h-3 w-3" />
-                      </span>
-                    ) : null}
+                <Label className="text-sm">代理商标签</Label>
+                <Select
+                  value={addForm.agentId || "direct"}
+                  onValueChange={(value) => setAddForm((prev) => ({
+                    ...prev,
+                    agentId: value === "direct" ? "" : value,
+                  }))}
+                >
+                  <SelectTrigger className="w-full h-10 bg-gray-50/50 border-gray-200">
+                    <SelectValue placeholder="请选择代理商标签" />
                   </SelectTrigger>
                   <SelectContent>
+                    <SelectItem value="direct">直客（无代理商标签）</SelectItem>
                     {AGENT_OPTIONS.map((a) => (
                       <SelectItem key={a.value} value={a.value}>
                         {a.label}
@@ -2210,6 +2321,7 @@ export default function AdminEnterprises() {
                     ))}
                   </SelectContent>
                 </Select>
+                <p className="text-xs text-gray-400">代理商企业及企业 Owner 的代理商归属需保持一致</p>
               </div>
             </div>
           </div>
@@ -2318,25 +2430,29 @@ export default function AdminEnterprises() {
               <p className="text-xs text-gray-400">备注格式：类型_输入信息</p>
             </div>
 
-            {/* 所属代理商 */}
+            {/* 代理商标签 */}
             <div className="space-y-1.5">
-              <Label className="text-sm">所属代理商</Label>
-              <Select value={undefined} onValueChange={(v) => setEditForm((prev) => ({ ...prev, agentId: v }))}>
-                <SelectTrigger className="w-full h-10 bg-gray-50/50 border-gray-200 [&>span:not(.sr-only)]:line-clamp-none">
-                  <SelectValue placeholder="" />
-                  {editForm.agentId ? (
-                    <span
-                      role="button"
-                      className="inline-flex items-center gap-[2px] px-[6px] py-[1px] rounded-[4px] bg-blue-50 text-blue-600 text-xs leading-[18px] whitespace-nowrap"
-                      onPointerDown={(e) => { e.preventDefault(); e.stopPropagation(); }}
-                      onClick={(e) => { e.stopPropagation(); setEditForm(prev => ({ ...prev, agentId: "" })); }}
-                    >
-                      {AGENT_OPTIONS.find(a => a.value === editForm.agentId)?.label || editForm.agentId}
-                      <X className="h-3 w-3" />
-                    </span>
-                  ) : null}
+              <Label className="text-sm">代理商标签</Label>
+              <Select
+                value={editForm.agentId || "direct"}
+                onValueChange={(value) => {
+                  const nextAgentId = value === "direct" ? "" : value;
+                  if (editTarget?.reseller_conflict_user_count && nextAgentId !== editForm.agentId) {
+                    toast({
+                      title: "无法修改代理商标签",
+                      description: "企业内用户还关联其他企业，请先处理相关企业关系后再修改。",
+                      variant: "destructive",
+                    });
+                    return;
+                  }
+                  setEditForm((prev) => ({ ...prev, agentId: nextAgentId }));
+                }}
+              >
+                <SelectTrigger className="w-full h-10 bg-gray-50/50 border-gray-200">
+                  <SelectValue placeholder="请选择代理商标签" />
                 </SelectTrigger>
                 <SelectContent>
+                  <SelectItem value="direct">直客（无代理商标签）</SelectItem>
                   {AGENT_OPTIONS.map((a) => (
                     <SelectItem key={a.value} value={a.value}>
                       {a.label}
@@ -2344,6 +2460,7 @@ export default function AdminEnterprises() {
                   ))}
                 </SelectContent>
               </Select>
+              <p className="text-xs text-gray-400">切换后将同步修改企业拥有者及全部成员的代理商标签</p>
             </div>
           </div>
 
@@ -2375,19 +2492,36 @@ export default function AdminEnterprises() {
                   toast({ title: "请选择历史分组", variant: "destructive" });
                   return;
                 }
+                const resellerChanged = (editTarget.reseller_code || "") !== editForm.agentId;
+                if (resellerChanged) {
+                  const nextLabel = AGENT_OPTIONS.find((item) => item.value === editForm.agentId)?.label || "直客";
+                  const confirmed = window.confirm(
+                    `确认将企业切换为「${nextLabel}」吗？\n企业拥有者及全部成员的代理商标签将同步修改，后续需通过新入口登录。`,
+                  );
+                  if (!confirmed) return;
+                }
                 // 组合备注：类型_输入信息
                 const remark = `${editForm.remarkType}_${editForm.remarkName}`;
                 setSavingEnterprise(true);
                 try {
                   const { error } = await supabase
                     .from("enterprises")
-                    .update({ name: editForm.name.trim(), remark })
+                    .update({
+                      name: editForm.name.trim(),
+                      remark,
+                      reseller_code: editForm.agentId || null,
+                    })
                     .eq("id", editTarget.id);
 
                   if (error) {
                     toast({ title: "保存失败", description: error.message, variant: "destructive" });
                   } else {
-                    toast({ title: "保存成功", description: `企业「${editForm.name}」已更新` });
+                    toast({
+                      title: "保存成功",
+                      description: resellerChanged
+                        ? `企业「${editForm.name}」及其成员的代理商标签已同步更新`
+                        : `企业「${editForm.name}」已更新`,
+                    });
                     setEditSheetOpen(false);
                     setEditTarget(null);
                     fetchData();

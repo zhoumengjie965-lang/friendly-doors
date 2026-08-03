@@ -182,6 +182,7 @@ export default function GroupRateSettings() {
   const [templateRules, setTemplateRules] = useState<Record<string, TemplateRuleConfig>>(DEFAULT_TEMPLATE_RULES);
   const [selectedTemplateId, setSelectedTemplateId] = useState<string | null>(null);
   const [templateRuleEditing, setTemplateRuleEditing] = useState(false);
+  const [templateBaseSource, setTemplateBaseSource] = useState("__none__");
   const [templateEditSnapshot, setTemplateEditSnapshot] = useState<{
     group: GroupConfig | null;
     rule: TemplateRuleConfig | null;
@@ -460,9 +461,19 @@ export default function GroupRateSettings() {
   const handleStartTemplateRuleEditing = () => {
     const tmpl = groups.find((g) => g.id === selectedTemplateId);
     if (!tmpl) return;
+    const currentRule = getTemplateRule(tmpl.name);
+    if (currentRule.availableGroups.length === 0) {
+      setTemplateBaseSource("__none__");
+      updateTemplateRule(tmpl.name, {
+        availableGroups: [...ALL_BASE_GROUP_NAMES],
+        rateOverrides: {},
+      });
+    } else {
+      setTemplateBaseSource("__none__");
+    }
     setTemplateEditSnapshot({
       group: { ...tmpl },
-      rule: { ...getTemplateRule(tmpl.name) },
+      rule: { ...currentRule },
     });
     setTemplateRuleEditing(true);
   };
@@ -508,6 +519,11 @@ export default function GroupRateSettings() {
       if (!confirmed) return;
     }
     setTemplateRuleEditing(false);
+    setNewTemplateGroupIds((prev) => {
+      const next = new Set(prev);
+      next.delete(tmpl.id);
+      return next;
+    });
     setTemplateEditSnapshot({ group: null, rule: null });
     toast({ title: "保存成功", description: `模板「${tmpl.name}」的规则配置已保存` });
   };
@@ -1188,7 +1204,7 @@ export default function GroupRateSettings() {
             const isHistorical = !selectedTemplate.configurable;
 
             return (
-              <Dialog open={!!selectedTemplateId} onOpenChange={(open) => { if (!open) { handleCancelTemplateRuleEditing(); setSelectedTemplateId(null); setTemplateRuleEditing(false); setTemplateEditSnapshot({ group: null, rule: null }); } }}>
+              <Dialog open={!!selectedTemplateId} onOpenChange={(open) => { if (!open) { handleCancelTemplateRuleEditing(); setSelectedTemplateId(null); setTemplateRuleEditing(false); setTemplateBaseSource("__none__"); setTemplateEditSnapshot({ group: null, rule: null }); } }}>
                 <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
                   <DialogHeader>
                     <div className="flex items-center justify-between w-full pr-6">
@@ -1229,8 +1245,56 @@ export default function GroupRateSettings() {
                     <div>
                       <h4 className="text-sm font-semibold text-foreground mb-2">规则配置</h4>
                       <p className="text-xs text-muted-foreground mb-2">
-                        控制该模板下可用的基础令牌分组及其倍率。勾选「是否可用」后纳入该模板，倍率默认为 1。
+                        {newTemplateGroupIds.has(selectedTemplate.id)
+                          ? "可直接使用默认配置，也可复制已有模板后再调整。"
+                          : "修改当前模板下可用的基础令牌分组及其倍率。"}
                       </p>
+                      {templateRuleEditing && newTemplateGroupIds.has(selectedTemplate.id) && (
+                        <div className="flex items-center gap-3 rounded-lg border border-blue-100 bg-blue-50/60 p-3 mb-3">
+                          <div className="shrink-0">
+                            <p className="text-sm font-medium text-foreground">从模板复制</p>
+                          </div>
+                          <select
+                            className="ml-auto h-9 min-w-56 rounded-md border border-input bg-background px-3 text-sm"
+                            value={templateBaseSource}
+                            onChange={(event) => {
+                              setTemplateBaseSource(event.target.value);
+                            }}
+                          >
+                            <option value="__none__">不使用模板</option>
+                            {groups
+                              .filter((group) =>
+                                group.category === "template" &&
+                                group.configurable &&
+                                group.id !== selectedTemplate.id &&
+                                group.name
+                              )
+                              .map((group) => (
+                                <option key={group.id} value={group.name}>
+                                  {group.name}{group.description ? `（${group.description}）` : ""}
+                                </option>
+                              ))}
+                          </select>
+                          <Button
+                            type="button"
+                            size="sm"
+                            disabled={templateBaseSource === "__none__"}
+                            onClick={() => {
+                              const sourceRule = getTemplateRule(templateBaseSource);
+                              updateTemplateRule(selectedTemplate.name, {
+                                availableGroups: [...sourceRule.availableGroups],
+                                rateOverrides: { ...sourceRule.rateOverrides },
+                              });
+                              toast({
+                                title: "模板配置已导入",
+                                description: `已复制「${templateBaseSource}」的分组和倍率，可继续修改。`,
+                              });
+                            }}
+                          >
+                            导入模板
+                          </Button>
+                        </div>
+                      )}
                       <div className="border rounded-lg overflow-hidden">
                         <table className="w-full text-sm">
                           <thead className="bg-muted/50">

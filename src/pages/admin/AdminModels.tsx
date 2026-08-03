@@ -51,6 +51,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -99,6 +100,8 @@ interface Model {
   endpointMappings?: EndpointMapping[];
   region?: string; // 可用地域
   sourceTag?: "官方" | "三方"; // 模型来源标签（为空表示不展示）
+  docMode?: "recommended" | "custom";
+  docPath?: string;
   specs?: ModelSpecs; // 模型规格
 }
 
@@ -417,6 +420,49 @@ const MATCH_TYPES = [
   { value: "contains", label: "包含匹配" },
 ];
 
+const MODEL_TYPES = [
+  "文本模型",
+  "多模态模型",
+  "图像模型",
+  "视频模型",
+  "音频模型",
+  "向量模型",
+  "重排序模型",
+];
+
+const DOCUMENT_OPTIONS = [
+  { label: "文本生成 / OpenAI兼容接口", path: "/docs/text/openai" },
+  { label: "文本生成 / OpenAI Responses接口", path: "/docs/text/openai-responses" },
+  { label: "文本生成 / Anthropic兼容接口", path: "/docs/text/anthropic" },
+  { label: "文本生成 / Gemini兼容接口", path: "/docs/text/gemini" },
+  { label: "文本生成 / Qwen兼容接口", path: "/docs/text/qwen" },
+  { label: "视频生成 / OpenAI兼容接口", path: "/docs/video/openai" },
+  { label: "音频生成 / OpenAI TTS兼容接口", path: "/docs/audio/openai-tts" },
+  { label: "检索与向量 / 文本向量化", path: "/docs/retrieval/embeddings" },
+  { label: "检索与向量 / 文本排序", path: "/docs/retrieval/rerank" },
+  { label: "图像生成 / OpenAI兼容接口", path: "/docs/image/openai" },
+];
+
+function getRecommendedDocument(model: Model) {
+  const endpointKeys = [
+    ...model.endpoints,
+    ...(model.endpointMappings || []).map((mapping) => mapping.key),
+  ]
+    .join(" ")
+    .toLowerCase();
+
+  if (model.type === "向量模型") return DOCUMENT_OPTIONS[7];
+  if (model.type === "重排序模型") return DOCUMENT_OPTIONS[8];
+  if (model.type === "视频模型") return DOCUMENT_OPTIONS[5];
+  if (model.type === "音频模型") return DOCUMENT_OPTIONS[6];
+  if (model.type === "图像模型") return DOCUMENT_OPTIONS[9];
+  if (endpointKeys.includes("anthropic")) return DOCUMENT_OPTIONS[2];
+  if (endpointKeys.includes("gemini") || endpointKeys.includes("google")) return DOCUMENT_OPTIONS[3];
+  if (endpointKeys.includes("qwen") || endpointKeys.includes("aliyun")) return DOCUMENT_OPTIONS[4];
+  if (endpointKeys.includes("response")) return DOCUMENT_OPTIONS[1];
+  return DOCUMENT_OPTIONS[0];
+}
+
 const PROVIDERS = [
   { value: "OpenAI", label: "OpenAI" },
   { value: "Anthropic", label: "Anthropic" },
@@ -511,7 +557,11 @@ export default function AdminModels() {
 
   // Handle edit
   const handleEdit = (model: Model) => {
-    setEditingModel({ ...model });
+    setEditingModel({
+      ...model,
+      type: model.type === "对话" ? "文本模型" : model.type,
+      docMode: model.docMode || "recommended",
+    });
     setSheetOpen(true);
   };
 
@@ -522,7 +572,7 @@ export default function AdminModels() {
       name: "",
       provider: "OpenAI",
       providerKey: "openai",
-      type: "对话",
+      type: "文本模型",
       matchType: "精确",
       syncWithOfficial: true,
       description: "",
@@ -535,6 +585,7 @@ export default function AdminModels() {
       updatedAt: new Date().toISOString().replace("T", " ").slice(0, 19),
       enabled: true,
       region: "国内",
+      docMode: "recommended",
       specs: {
         maxContextWindow: "128K",
         maxOutputTokens: 4096,
@@ -549,9 +600,30 @@ export default function AdminModels() {
   // Handle save
   const handleSave = () => {
     if (!editingModel) return;
-    setModels((prev) =>
-      prev.map((m) => (m.id === editingModel.id ? editingModel : m))
-    );
+    const recommendedDocument = getRecommendedDocument(editingModel);
+    const effectiveDocPath =
+      editingModel.docMode === "custom"
+        ? editingModel.docPath?.trim()
+        : editingModel.docPath || recommendedDocument.path;
+
+    if (!effectiveDocPath) {
+      toast({
+        title: "请配置接口文档",
+        description: "自定义文档模式下需要填写文档地址",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const modelToSave = { ...editingModel, docPath: effectiveDocPath };
+    setModels((prev) => {
+      const exists = prev.some((model) => model.id === editingModel.id);
+      return exists
+        ? prev.map((model) =>
+            model.id === editingModel.id ? modelToSave : model
+          )
+        : [modelToSave, ...prev];
+    });
     setSheetOpen(false);
     toast({ title: "保存成功", description: `模型「${editingModel.name}」已更新` });
   };
@@ -950,6 +1022,40 @@ export default function AdminModels() {
                   </p>
                 </div>
 
+                {/* 模型类型 */}
+                <div className="space-y-1.5">
+                  <Label className="text-sm">
+                    模型类型 <span className="text-red-500">*</span>
+                  </Label>
+                  <Select
+                    value={editingModel.type}
+                    onValueChange={(v) =>
+                      setEditingModel({
+                        ...editingModel,
+                        type: v,
+                        docPath:
+                          editingModel.docMode === "recommended"
+                            ? undefined
+                            : editingModel.docPath,
+                      })
+                    }
+                  >
+                    <SelectTrigger className="h-10">
+                      <SelectValue placeholder="请选择模型类型" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {MODEL_TYPES.map((type) => (
+                        <SelectItem key={type} value={type}>
+                          {type}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-muted-foreground">
+                    用于模型广场筛选，并结合端点映射推荐接口文档
+                  </p>
+                </div>
+
                 {/* 模型图标 */}
                 <div className="space-y-1.5">
                   <Label className="text-sm">模型图标</Label>
@@ -1181,6 +1287,146 @@ export default function AdminModels() {
                   <p className="text-xs text-muted-foreground">
                     留空则使用默认端点，支持 &#123;path, method&#125;
                   </p>
+                </div>
+
+                {/* 接口文档 */}
+                <div className="space-y-3 pt-2 border-t">
+                  <div className="flex items-center gap-2">
+                    <Label className="text-sm">接口文档</Label>
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Info className="w-4 h-4 text-muted-foreground cursor-help" />
+                        </TooltipTrigger>
+                        <TooltipContent className="max-w-xs">
+                          <p className="text-xs">
+                            模型广场的“API文档”将跳转至此处配置的文档
+                          </p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                  </div>
+
+                  <RadioGroup
+                    value={editingModel.docMode || "recommended"}
+                    onValueChange={(value: "recommended" | "custom") =>
+                      setEditingModel({
+                        ...editingModel,
+                        docMode: value,
+                        docPath:
+                          value === "recommended"
+                            ? undefined
+                            : editingModel.docPath,
+                      })
+                    }
+                    className="space-y-3"
+                  >
+                    <div className="space-y-2">
+                      <div className="flex items-center gap-2">
+                        <RadioGroupItem value="recommended" id="doc-recommended" />
+                        <Label htmlFor="doc-recommended" className="text-sm cursor-pointer">
+                          使用系统推荐
+                        </Label>
+                        <Badge variant="secondary" className="text-[10px]">
+                          根据模型类型与端点匹配
+                        </Badge>
+                      </div>
+
+                      {(editingModel.docMode || "recommended") === "recommended" && (
+                        <div className="ml-6 space-y-2">
+                          <div className="flex gap-2">
+                            <Select
+                              value={
+                                editingModel.docPath ||
+                                getRecommendedDocument(editingModel).path
+                              }
+                              onValueChange={(path) =>
+                                setEditingModel({ ...editingModel, docPath: path })
+                              }
+                            >
+                              <SelectTrigger className="h-10 flex-1">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {DOCUMENT_OPTIONS.map((document) => (
+                                  <SelectItem key={document.path} value={document.path}>
+                                    {document.label}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              className="h-10 px-3"
+                              onClick={() =>
+                                window.open(
+                                  editingModel.docPath ||
+                                    getRecommendedDocument(editingModel).path,
+                                  "_blank",
+                                  "noopener,noreferrer"
+                                )
+                              }
+                            >
+                              <ExternalLink className="w-4 h-4 mr-1.5" />
+                              预览
+                            </Button>
+                          </div>
+                          <p className="text-xs text-muted-foreground">
+                            已推荐：{getRecommendedDocument(editingModel).label}，可手动调整
+                          </p>
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="space-y-2">
+                      <div className="flex items-center gap-2">
+                        <RadioGroupItem value="custom" id="doc-custom" />
+                        <Label htmlFor="doc-custom" className="text-sm cursor-pointer">
+                          使用模型专属文档
+                        </Label>
+                      </div>
+
+                      {editingModel.docMode === "custom" && (
+                        <div className="ml-6 space-y-2">
+                          <div className="flex gap-2">
+                            <Input
+                              placeholder="请输入站内文档路径或完整地址"
+                              value={editingModel.docPath || ""}
+                              onChange={(e) =>
+                                setEditingModel({
+                                  ...editingModel,
+                                  docPath: e.target.value,
+                                })
+                              }
+                              className="h-10 flex-1"
+                            />
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              className="h-10 px-3"
+                              disabled={!editingModel.docPath?.trim()}
+                              onClick={() =>
+                                window.open(
+                                  editingModel.docPath,
+                                  "_blank",
+                                  "noopener,noreferrer"
+                                )
+                              }
+                            >
+                              <ExternalLink className="w-4 h-4 mr-1.5" />
+                              预览
+                            </Button>
+                          </div>
+                          <p className="text-xs text-muted-foreground">
+                            参数差异较大的模型可使用专属文档覆盖推荐结果
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  </RadioGroup>
                 </div>
 
                 {/* 参与官方同步 */}

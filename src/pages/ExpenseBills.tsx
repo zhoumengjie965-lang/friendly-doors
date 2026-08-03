@@ -1,4 +1,5 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -29,7 +30,6 @@ import {
 } from "@/components/ui/select";
 import {
   Download,
-  Eye,
   FileText,
   CalendarIcon,
   ChevronLeft,
@@ -81,6 +81,7 @@ interface BillItem {
   rechargeAmount: number;
   endingBalance: number;
   status: "unbilled" | "billed";
+  entitlementPurchase?: number;
 }
 
 // 明细数据
@@ -238,6 +239,18 @@ const dimensionLabels: Record<ShareDimension, string> = {
   department: "部门",
   member: "成员",
   apiKey: "API Key",
+};
+
+const DIMENSION_ORDER: ShareDimension[] = ["model", "department", "member", "apiKey"];
+
+const apiKeyNames: Record<string, string> = {
+  "sk-***1234": "生产环境 Key",
+  "sk-***3456": "生产环境 Key",
+  "sk-***5678": "产品测试 Key",
+  "sk-***7890": "运营自动化 Key",
+  "sk-***9012": "设计工具 Key",
+  "sk-***2468": "研发测试 Key",
+  "sk-***1357": "产品服务 Key",
 };
 
 // 月份选择器组件
@@ -402,7 +415,9 @@ function DayRangePicker({ startDate, endDate, onChange }: { startDate: Date; end
   );
 }
 
-export default function ExpenseBills({}: Props) {
+export default function ExpenseBills({ enterprise }: Props) {
+  const navigate = useNavigate();
+  const isAllocationPreview = new URLSearchParams(window.location.search).has("allocation");
   // 列表页状态
   const [startPeriod, setStartPeriod] = useState<string>("2025-01");
   const [endPeriod, setEndPeriod] = useState<string>("2025-04");
@@ -412,14 +427,17 @@ export default function ExpenseBills({}: Props) {
   // 明细页状态
   const [detailView, setDetailView] = useState(false);
   const [selectedBill, setSelectedBill] = useState<BillItem | null>(null);
-  const [viewType, setViewType] = useState<"detail" | "share">("detail");
+  const [viewType, setViewType] = useState<"detail" | "share">("share");
   // 时间范围筛选（Filtering）
   const [detailStartDate, setDetailStartDate] = useState<Date>(new Date("2025-04-01"));
   const [detailEndDate, setDetailEndDate] = useState<Date>(new Date("2025-04-30"));
   // 统计粒度（Grouping）：summary=汇总(无时间维度), day=按天展开
   const [grain, setGrain] = useState<"summary" | "day">("summary");
   // 维度复选框（Dimension Grouping）
-  const [selectedDimensions, setSelectedDimensions] = useState<ShareDimension[]>(["model"]);
+  const [selectedDimensions, setSelectedDimensions] = useState<ShareDimension[]>(
+    ["model"]
+  );
+  const [feeType, setFeeType] = useState<"usage" | "entitlement">("usage");
   // 导出记录弹窗
   const [exportDialogOpen, setExportDialogOpen] = useState(false);
 
@@ -458,15 +476,44 @@ export default function ExpenseBills({}: Props) {
   const handleViewDetail = (bill: BillItem) => {
     setSelectedBill(bill);
     setDetailView(true);
+    setViewType("share");
+    setGrain("summary");
+    setSelectedDimensions(["model"]);
+    setFeeType("usage");
     setDetailStartDate(new Date(bill.period + "-01"));
     setDetailEndDate(endOfMonth(new Date(bill.period + "-01")));
   };
 
-  // 返回列表
-  const handleBack = () => {
-    setDetailView(false);
-    setSelectedBill(null);
-  };
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const allocationPeriod = params.get("allocation");
+    if (!allocationPeriod) return;
+
+    const amount = Number(params.get("amount")) || 0;
+    const paygAmount = Number(params.get("payg"));
+    const entitlementPurchase = Number(params.get("entitlement")) || 0;
+    const existingBill = mockBills.find((bill) => bill.period === allocationPeriod);
+    const allocationBill: BillItem = {
+      ...(existingBill ?? {
+      id: `BILL-${allocationPeriod.replace("-", "")}-001`,
+      enterpriseName: "当前企业",
+      enterpriseId: "ENT-CURRENT",
+      consumptionAmount: amount,
+      discountAmount: 0,
+      payableAmount: amount,
+      paidAmount: amount,
+      refundAmount: 0,
+      rechargeAmount: 0,
+      endingBalance: 0,
+      status: "unbilled",
+      }),
+      period: allocationPeriod,
+      paidAmount: Number.isFinite(paygAmount) ? paygAmount : Math.max(0, amount - entitlementPurchase),
+      payableAmount: amount,
+      entitlementPurchase,
+    };
+    handleViewDetail(allocationBill);
+  }, []);
 
   // 生成分摊数据 - Filter(时间范围) -> Group By(统计粒度, 勾选维度)
   const shareData = useMemo(() => {
@@ -474,6 +521,7 @@ export default function ExpenseBills({}: Props) {
 
     // Step 1: Filter(时间范围)
     const filteredDetails = mockDetails.filter(item => {
+      if (isAllocationPreview) return true;
       const itemDate = new Date(item.timestamp);
       return itemDate >= detailStartDate && itemDate <= detailEndDate;
     });
@@ -524,15 +572,16 @@ export default function ExpenseBills({}: Props) {
       // 次要排序：花费降序
       return b.amount - a.amount;
     });
-  }, [selectedDimensions, grain, detailStartDate, detailEndDate]);
+  }, [selectedDimensions, grain, detailStartDate, detailEndDate, isAllocationPreview]);
 
   // 切换维度
   const toggleDimension = (dim: ShareDimension) => {
-    setSelectedDimensions(prev =>
-      prev.includes(dim)
+    setSelectedDimensions(prev => {
+      const next = prev.includes(dim)
         ? prev.filter(d => d !== dim)
-        : [...prev, dim]
-    );
+        : [...prev, dim];
+      return next.sort((a, b) => DIMENSION_ORDER.indexOf(a) - DIMENSION_ORDER.indexOf(b));
+    });
   };
 
   // 明细页渲染
@@ -541,117 +590,75 @@ export default function ExpenseBills({}: Props) {
       <div className="space-y-4">
         {/* 面包屑 */}
         <div className="text-sm text-muted-foreground flex items-center gap-1">
-          <button onClick={handleBack} className="hover:text-foreground">月结算单</button>
+          <button
+            onClick={() => {
+              navigate(enterprise
+                ? "/workspace/enterprise/cost-overview"
+                : "/workspace/cost-overview");
+            }}
+            className="hover:text-foreground"
+          >
+            费用总览
+          </button>
           <span>/</span>
           <span className="text-foreground font-medium">账单明细</span>
         </div>
-
-        {/* 筛选栏 - 第一行：视图切换 + 账单信息 */}
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center gap-4 flex-wrap">
-              {/* 视图切换 */}
-              <div className="flex items-center gap-2">
-                <span className="text-xs text-muted-foreground">账单视图:</span>
-                <Tabs value={viewType} onValueChange={(v) => setViewType(v as "detail" | "share")}>
-                  <TabsList className="h-8">
-                    <TabsTrigger value="detail" className="text-xs px-3">明细</TabsTrigger>
-                    <TabsTrigger value="share" className="text-xs px-3 flex items-center gap-1">
-                      分摊
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <HelpCircle className="w-3 h-3 text-muted-foreground cursor-help" />
-                        </TooltipTrigger>
-                        <TooltipContent>
-                          <p className="text-xs">可多选维度，按所选维度聚合统计数据</p>
-                        </TooltipContent>
-                      </Tooltip>
-                    </TabsTrigger>
-                  </TabsList>
-                </Tabs>
-              </div>
-
-              <div className="flex-1" />
-
-              {/* 账单信息 - 右上角 */}
-              <div className="flex items-center gap-6 bg-slate-50 px-4 py-2 rounded-md">
-                <div className="text-right">
-                  <p className="text-xs text-muted-foreground">结算单号</p>
-                  <p className="text-sm font-medium font-mono">{selectedBill.id}</p>
-                </div>
-                <div className="text-right">
-                  <p className="text-xs text-muted-foreground">账期</p>
-                  <p className="text-sm font-medium">{selectedBill.period}</p>
-                </div>
-                <div className="text-right">
-                  <p className="text-xs text-muted-foreground">应付金额</p>
-                  <p className="text-base font-bold">{formatAmount(selectedBill.payableAmount)}</p>
-                </div>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
 
         {/* 筛选栏 - 第二行：仅分摊视图显示（时间范围 + 统计粒度 + 维度选择） */}
         {viewType === "share" && (
           <Card>
             <CardContent className="p-4">
               <div className="flex items-center gap-4 flex-wrap">
-                {/* 时间范围选择器 */}
                 <div className="flex items-center gap-2">
-                  <span className="text-xs text-muted-foreground">时间范围:</span>
-                  <DayRangePicker
-                    startDate={detailStartDate}
-                    endDate={detailEndDate}
-                    onChange={(start, end) => {
-                      setDetailStartDate(start);
-                      setDetailEndDate(end);
-                    }}
-                  />
+                  <span className="text-xs text-muted-foreground">费用类型:</span>
+                  <Tabs value={feeType} onValueChange={(value) => setFeeType(value as "usage" | "entitlement")}>
+                    <TabsList className="h-8">
+                      <TabsTrigger value="usage" className="text-xs px-3">按量消费</TabsTrigger>
+                      {(selectedBill.entitlementPurchase ?? 0) > 0 && (
+                        <TabsTrigger value="entitlement" className="text-xs px-3">权益购买</TabsTrigger>
+                      )}
+                    </TabsList>
+                  </Tabs>
                 </div>
 
-                {/* 统计粒度选择 */}
+                {feeType === "usage" && (
+                <>
                 <div className="flex items-center gap-2">
                   <span className="text-xs text-muted-foreground">展示粒度:</span>
-                  <Select value={grain} onValueChange={(v) => setGrain(v as "summary" | "day")}>
-                    <SelectTrigger className="w-[110px] h-8 text-xs">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="summary" className="text-xs">汇总</SelectItem>
-                      <SelectItem value="day" className="text-xs">按天展开</SelectItem>
-                    </SelectContent>
-                  </Select>
+                  <Tabs value={grain} onValueChange={(value) => setGrain(value as "summary" | "day")}>
+                    <TabsList className="h-8">
+                      <TabsTrigger value="summary" className="text-xs px-3">当月汇总</TabsTrigger>
+                      <TabsTrigger value="day" className="text-xs px-3">按天</TabsTrigger>
+                    </TabsList>
+                  </Tabs>
                 </div>
 
-                {/* 分摊维度选择 */}
+                {/* 分摊视图选择 */}
                 <div className="flex items-center gap-2">
-                  <span className="text-xs text-muted-foreground">分摊维度:</span>
-                  <div className="flex items-center gap-2">
-                    {(Object.keys(dimensionLabels) as ShareDimension[]).map(dim => (
-                      <label key={dim} className="flex items-center gap-1 cursor-pointer">
+                  <span className="text-xs text-muted-foreground">分摊视图:</span>
+                  <div className="flex items-center gap-3">
+                    {(enterprise
+                      ? DIMENSION_ORDER
+                      : (["model", "apiKey"] as ShareDimension[])
+                    ).map((dim) => (
+                      <label key={dim} className="flex items-center gap-1.5 cursor-pointer">
                         <Checkbox
                           checked={selectedDimensions.includes(dim)}
-                          onCheckedChange={() => toggleDimension(dim)}
+                          onCheckedChange={() => {
+                            if (selectedDimensions.length === 1 && selectedDimensions.includes(dim)) return;
+                            toggleDimension(dim);
+                          }}
                           className="w-3.5 h-3.5"
                         />
-                        <span className="text-xs">{dimensionLabels[dim]}</span>
+                        <span className="text-xs">按{dimensionLabels[dim]}</span>
                       </label>
                     ))}
                   </div>
                 </div>
+                </>
+                )}
 
                 <div className="flex-1" />
-
-                {/* 查看导出记录按钮 */}
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="h-8 text-xs"
-                  onClick={() => setExportDialogOpen(true)}
-                >
-                  查看导出记录
-                </Button>
 
                 {/* 导出按钮 */}
                 <Button
@@ -773,7 +780,15 @@ export default function ExpenseBills({}: Props) {
               <Table>
                 <TableHeader>
                   <TableRow className="bg-slate-50 hover:bg-slate-50">
-                    {viewType === "detail" ? (
+                    {feeType === "entitlement" ? (
+                      <>
+                        <TableHead className="text-xs font-medium whitespace-nowrap">购买时间</TableHead>
+                        <TableHead className="text-xs font-medium whitespace-nowrap">权益名称</TableHead>
+                        <TableHead className="text-xs font-medium whitespace-nowrap">订单号</TableHead>
+                        <TableHead className="text-xs font-medium whitespace-nowrap">购买人</TableHead>
+                        <TableHead className="text-xs font-medium text-right whitespace-nowrap">实际消费</TableHead>
+                      </>
+                    ) : viewType === "detail" ? (
                       <>
                         <TableHead className="text-xs font-medium whitespace-nowrap">时间</TableHead>
                         <TableHead className="text-xs font-medium whitespace-nowrap">部门</TableHead>
@@ -786,26 +801,38 @@ export default function ExpenseBills({}: Props) {
                       </>
                     ) : (
                       <>
-                        {/* 固定时间列（仅按天展开时显示） */}
-                        {grain === "day" && (
-                          <TableHead className="text-xs font-medium whitespace-nowrap">时间</TableHead>
-                        )}
+                        <TableHead className="text-xs font-medium whitespace-nowrap">时间</TableHead>
                         {/* 动态维度列 */}
                         {selectedDimensions.map(dim => (
                           <TableHead key={dim} className="text-xs font-medium whitespace-nowrap">
                             {dimensionLabels[dim]}
                           </TableHead>
                         ))}
-                        {/* 固定统计列 */}
-                        <TableHead className="text-xs font-medium text-right whitespace-nowrap">请求数</TableHead>
-                        <TableHead className="text-xs font-medium whitespace-nowrap">用量</TableHead>
-                        <TableHead className="text-xs font-medium text-right whitespace-nowrap">花费</TableHead>
+                        <TableHead className="text-xs font-medium text-right whitespace-nowrap">实际消费</TableHead>
                       </>
                     )}
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {viewType === "detail" ? (
+                  {feeType === "entitlement" ? (
+                    <>
+                      <TableRow className="hover:bg-slate-50/50">
+                        <TableCell className="text-xs whitespace-nowrap">{selectedBill.period}-08</TableCell>
+                        <TableCell className="text-xs whitespace-nowrap">企业标准版年度订阅</TableCell>
+                        <TableCell className="text-xs font-mono whitespace-nowrap">ORDER-{selectedBill.period.replace("-", "")}-001</TableCell>
+                        <TableCell className="text-xs whitespace-nowrap">企业管理员</TableCell>
+                        <TableCell className="text-xs text-right whitespace-nowrap font-semibold">
+                          {formatAmount(selectedBill.entitlementPurchase ?? 0)}
+                        </TableCell>
+                      </TableRow>
+                      <TableRow className="bg-slate-50/80 hover:bg-slate-50/80">
+                        <TableCell colSpan={4} className="text-xs font-semibold">权益购买合计</TableCell>
+                        <TableCell className="text-xs text-right whitespace-nowrap font-bold">
+                          {formatAmount(selectedBill.entitlementPurchase ?? 0)}
+                        </TableCell>
+                      </TableRow>
+                    </>
+                  ) : viewType === "detail" ? (
                     mockDetails.map(item => (
                       <TableRow key={item.id} className="hover:bg-slate-50/50">
                         <TableCell className="text-xs whitespace-nowrap">{item.timestamp}</TableCell>
@@ -880,29 +907,52 @@ export default function ExpenseBills({}: Props) {
                   ) : (
                     <>
                       {/* 数据行 */}
-                      {shareData.map((item, idx) => (
+                      {shareData.map((item, idx) => {
+                        const rawTotal = shareData.reduce((sum, row) => sum + row.amount, 0);
+                        const allocationTotal = selectedBill.paidAmount > 0
+                          ? selectedBill.paidAmount
+                          : rawTotal;
+                        const allocatedAmount = rawTotal > 0
+                          ? allocationTotal * (item.amount / rawTotal)
+                          : 0;
+                        return (
                         <TableRow key={idx} className="hover:bg-slate-50/50">
-                          {/* 固定时间列（仅按天展开时显示） */}
-                          {grain === "day" && (
-                            <TableCell className="text-xs whitespace-nowrap">{item.timeKey}</TableCell>
-                          )}
+                          <TableCell className="text-xs whitespace-nowrap">
+                            {grain === "day" ? item.timeKey : selectedBill.period}
+                          </TableCell>
                           {/* 动态维度列 */}
                           {selectedDimensions.map(dim => (
                             <TableCell key={dim} className="text-xs whitespace-nowrap">
-                              {item[dim] || "-"}
+                              {dim === "apiKey" && item.apiKey ? (
+                                <div>
+                                  <div className="font-medium text-foreground">
+                                    {apiKeyNames[item.apiKey] || "未命名 Key"}
+                                  </div>
+                                  <div className="mt-0.5 text-[10px] font-mono text-muted-foreground">
+                                    {item.apiKey}
+                                  </div>
+                                </div>
+                              ) : (
+                                item[dim] || "-"
+                              )}
                             </TableCell>
                           ))}
-                          {/* 固定统计列 */}
-                          <TableCell className="text-xs text-right whitespace-nowrap">{item.requestCount}</TableCell>
-                          <TableCell className="text-xs whitespace-nowrap">
-                            <div className="space-y-0.5">
-                              <div>输入: {item.inputTokens.toLocaleString()}</div>
-                              <div>输出: {item.outputTokens.toLocaleString()}</div>
-                            </div>
-                          </TableCell>
-                          <TableCell className="text-xs text-right whitespace-nowrap font-bold">{formatAmount(item.amount)}</TableCell>
+                          <TableCell className="text-xs text-right whitespace-nowrap font-semibold">{formatAmount(allocatedAmount)}</TableCell>
                         </TableRow>
-                      ))}
+                        );
+                      })}
+                      <TableRow className="bg-slate-50/80 hover:bg-slate-50/80">
+                        <TableCell colSpan={selectedDimensions.length + 1} className="text-xs font-semibold">
+                          分摊合计
+                        </TableCell>
+                        <TableCell className="text-xs text-right whitespace-nowrap font-bold">
+                          {formatAmount(
+                            selectedBill.paidAmount > 0
+                              ? selectedBill.paidAmount
+                              : shareData.reduce((sum, row) => sum + row.amount, 0)
+                          )}
+                        </TableCell>
+                      </TableRow>
                     </>
                   )}
                 </TableBody>
@@ -986,7 +1036,6 @@ export default function ExpenseBills({}: Props) {
                     <TableHead className="text-xs font-medium text-right whitespace-nowrap">实际消耗金额</TableHead>
                     <TableHead className="text-xs font-medium whitespace-nowrap">结算单号</TableHead>
                     <TableHead className="text-xs font-medium text-center whitespace-nowrap">账单状态</TableHead>
-                    <TableHead className="text-xs font-medium text-center whitespace-nowrap">操作</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -1007,22 +1056,11 @@ export default function ExpenseBills({}: Props) {
                             {bill.status === "billed" ? "已出账" : "未出账"}
                           </Badge>
                         </TableCell>
-                        <TableCell className="text-center whitespace-nowrap">
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="h-7 px-2 text-xs"
-                            onClick={() => handleViewDetail(bill)}
-                          >
-                            <Eye className="w-3.5 h-3.5 mr-1" />
-                            查看明细
-                          </Button>
-                        </TableCell>
                       </TableRow>
                     ))
                   ) : (
                     <TableRow>
-                      <TableCell colSpan={8} className="text-center py-12 text-muted-foreground">
+                      <TableCell colSpan={7} className="text-center py-12 text-muted-foreground">
                         <div className="flex flex-col items-center gap-2">
                           <FileText className="w-8 h-8 text-muted-foreground/50" />
                           <p className="text-sm">没有找到需要的数据哦~</p>

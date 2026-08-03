@@ -1,11 +1,13 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { Button } from "@/components/ui/button";
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
 import {
   Tooltip, TooltipTrigger, TooltipContent, TooltipProvider,
 } from "@/components/ui/tooltip";
-import { CalendarDays } from "lucide-react";
+import { CalendarDays, PieChart } from "lucide-react";
 import {
   ResponsiveContainer, BarChart, Bar, XAxis, YAxis,
   CartesianGrid, Tooltip as ReTooltip, Legend,
@@ -52,6 +54,7 @@ const chartData = mockTrendData.map(d => ({
 }));
 
 export default function CostOverview({ enterprise, role }: Props) {
+  const navigate = useNavigate();
   const [selectedPeriod, setSelectedPeriod] = useState<string>(allPeriods[allPeriods.length - 1]);
 
   const currentPeriodData = mockTrendData.find(d => d.period === selectedPeriod);
@@ -244,6 +247,7 @@ export default function CostOverview({ enterprise, role }: Props) {
                 <TableHead className="text-muted-foreground text-right">充值余额支付（元）</TableHead>
                 <TableHead className="text-muted-foreground text-right">欠费（元）</TableHead>
                 <TableHead className="text-muted-foreground">状态</TableHead>
+                <TableHead className="text-muted-foreground text-center">操作</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -290,6 +294,21 @@ export default function CostOverview({ enterprise, role }: Props) {
                         }`} />
                         {row.status}
                       </span>
+                    </TableCell>
+                    <TableCell className="text-center">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-7 px-2 text-xs text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+                        onClick={() => {
+                          const billsPath = enterprise ? "/workspace/enterprise/bills" : "/workspace/bills";
+                          const paygAmount = row.balancePayment + row.voucherDeduction + row.creditPayment;
+                          navigate(`${billsPath}?allocation=${row.period}&amount=${row.total}&payg=${paygAmount}&entitlement=${row.entitlementPurchase}`);
+                        }}
+                      >
+                        <PieChart className="w-3.5 h-3.5 mr-1" />
+                        查看详情
+                      </Button>
                     </TableCell>
                   </TableRow>
                 );

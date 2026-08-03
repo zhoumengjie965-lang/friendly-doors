@@ -54,7 +54,7 @@ import { Progress } from "@/components/ui/progress";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { format } from "date-fns";
 import OrgTreeSelect from "@/components/OrgTreeSelect";
-import { GROUP_MODEL_MAP, ALL_MODELS, getGroupModelCount, getModelsForGroups, isModelInGroups, getGhostModels, groupLabelToValue } from "@/lib/groupModels";
+import { GROUP_MODEL_MAP, ALL_MODELS, getGroupModelCount, getModelsForGroups, isModelInGroups, groupLabelToValue } from "@/lib/groupModels";
 
 interface Enterprise {
   id: string;
@@ -737,6 +737,7 @@ export default function ApiKeys({ enterprise, role }: Props) {
   const [followGroupRange, setFollowGroupRange] = useState(true);
   const [modelSearch, setModelSearch] = useState("");
   const [onlyAvailable, setOnlyAvailable] = useState(true);
+  const [removedModelNotice, setRemovedModelNotice] = useState<string[]>([]);
 
   // Key template management (admin creates templates, binds to orgs)
   const [tplOpen, setTplOpen] = useState(false);
@@ -755,6 +756,7 @@ export default function ApiKeys({ enterprise, role }: Props) {
   const [tplFollowGroupRange, setTplFollowGroupRange] = useState(true);
   const [tplModelSearch, setTplModelSearch] = useState("");
   const [tplOnlyAvailable, setTplOnlyAvailable] = useState(true);
+  const [tplRemovedModelNotice, setTplRemovedModelNotice] = useState<string[]>([]);
   const [tplFormIpWhitelist, setTplFormIpWhitelist] = useState("");
   const [tplFormIpEnabled, setTplFormIpEnabled] = useState(false);
   const [tplFormNeverExpires, setTplFormNeverExpires] = useState(true);
@@ -977,6 +979,7 @@ Key 配置信息
     setFollowGroupRange(cfg.models.length === 0);
     setModelSearch("");
     setOnlyAvailable(true);
+    setRemovedModelNotice([]);
     setSheetOpen(true);
   };
 
@@ -1005,6 +1008,7 @@ Key 配置信息
       setFollowGroupRange(cfg.models.length === 0);
       setModelSearch("");
       setOnlyAvailable(true);
+      setRemovedModelNotice([]);
     } else {
       setFormGroups(["生产通道（×0.95）"]);
       setFormExpires("");
@@ -1017,6 +1021,7 @@ Key 配置信息
       setFollowGroupRange(true);
       setModelSearch("");
       setOnlyAvailable(true);
+      setRemovedModelNotice([]);
     }
     setSheetOpen(true);
   };
@@ -1035,6 +1040,7 @@ Key 配置信息
     setFollowGroupRange(!k.allowed_models || k.allowed_models.length === 0);
     setModelSearch("");
     setOnlyAvailable(true);
+    setRemovedModelNotice([]);
     // 企业模式下所有角色编辑个人Key都只改名称
     if (activeTab === "my") {
       setSimpleDialogOpen(true);
@@ -1680,7 +1686,42 @@ Key 配置信息
                     </TableCell>
                     <TableCell>
                       {!k.allowed_models || k.allowed_models.length === 0
-                        ? <Badge variant="outline" className="text-xs font-normal">不限制</Badge>
+                        ? deptAllowedModels === null
+                          ? <Badge variant="outline" className="text-xs font-normal">无限制</Badge>
+                          : (
+                            <TooltipProvider>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <button type="button" className="inline-flex items-center gap-1">
+                                    <Badge
+                                      variant="outline"
+                                      className="cursor-help border-amber-300 bg-amber-50 text-xs font-normal text-amber-700"
+                                    >
+                                      无限制
+                                    </Badge>
+                                    <AlertTriangle className="h-3.5 w-3.5 text-amber-500" />
+                                  </button>
+                                </TooltipTrigger>
+                                <TooltipContent side="top" align="start" className="max-w-sm p-2">
+                                  <div className="min-w-48 space-y-1">
+                                    <p className="mb-1.5 flex items-center gap-1 border-b border-border pb-1.5 text-xs font-medium text-amber-600">
+                                      <AlertTriangle className="h-3.5 w-3.5" />
+                                      部分模型受部门权限限制
+                                    </p>
+                                    {deptAllowedModels.map((model) => (
+                                      <div key={model} className="flex items-center gap-1.5 text-xs text-foreground">
+                                        <span>{model}</span>
+                                      </div>
+                                    ))}
+                                    <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                                      <span>其他模型不可用</span>
+                                      <Lock className="ml-auto h-3 w-3 shrink-0 text-muted-foreground" />
+                                    </div>
+                                  </div>
+                                </TooltipContent>
+                              </Tooltip>
+                            </TooltipProvider>
+                          )
                         : (() => {
                             const restrictedModels = deptAllowedModels === null
                               ? []
@@ -2179,12 +2220,22 @@ Key 配置信息
                     <Label className="text-right text-muted-foreground text-sm pt-2.5">
                       <span className="text-destructive mr-0.5">*</span>分组
                     </Label>
-                    <GroupMultiSelect
-                      groups={GROUP_OPTIONS}
-                      selected={formGroups}
-                      onChange={setFormGroups}
-                      placeholder="请选择分组"
-                    />
+                      <GroupMultiSelect
+                        groups={GROUP_OPTIONS}
+                        selected={formGroups}
+                        onChange={(nextGroups) => {
+                          const nextAvailable = new Set(getModelsForGroups(nextGroups));
+                          const removed = formModels.filter((model) => !nextAvailable.has(model));
+                          setFormGroups(nextGroups);
+                          if (removed.length > 0) {
+                            setFormModels(formModels.filter((model) => nextAvailable.has(model)));
+                            setRemovedModelNotice(removed);
+                          } else {
+                            setRemovedModelNotice([]);
+                          }
+                        }}
+                        placeholder="请选择分组"
+                      />
                   </div>
                 )}
 
@@ -2263,15 +2314,11 @@ Key 配置信息
               <div className="space-y-3">
                 {/* 模型限制 */}
                 <div className="space-y-2">
-                  {/* 部门模型访问策略提示 */}
-                  {deptAllowedModels !== null && (
-                    <div className="p-2 rounded-md bg-amber-50 border border-amber-200 text-xs text-amber-700">
-                      <ShieldCheck className="inline h-3.5 w-3.5 mr-1 -mt-0.5" />
-                      当前部门模型访问策略已限制可用模型范围：仅可在已开放模型中选择。未开放模型已置灰。
-                    </div>
-                  )}
                   <div className="flex items-center gap-4">
-                    <Label className="text-muted-foreground text-sm shrink-0">模型限制列表</Label>
+                    <Label className="text-muted-foreground text-sm shrink-0">
+                      模型限制列表
+                      <span className="ml-1 text-xs">（已选 {followGroupRange && formGroups.length > 0 ? MODELS.filter((m) => isModelInGroups(m, formGroups) && (deptAllowedModels === null || deptAllowedModels.includes(m))).length : formModels.length} 个）</span>
+                    </Label>
                     <label className="flex items-center gap-2 shrink-0">
                       <input
                         type="checkbox"
@@ -2279,7 +2326,7 @@ Key 配置信息
                         onChange={(e) => setFollowGroupRange(e.target.checked)}
                         className="rounded border-gray-300"
                       />
-                      <span className="text-sm">跟随分组范围</span>
+                      <span className="text-sm">使用分组全部模型</span>
                     </label>
                       <label className="flex items-center gap-2 shrink-0 ml-auto">
                         <input
@@ -2288,26 +2335,24 @@ Key 配置信息
                           onChange={(e) => setOnlyAvailable(e.target.checked)}
                           className="rounded border-gray-300"
                         />
-                        <span className="text-sm text-muted-foreground">仅看可用</span>
+                        <span className="text-sm text-muted-foreground">仅看分组支持</span>
                       </label>
                     </div>
                     {(() => {
-                      const filteredModels = MODELS.filter(m =>
-                        m.toLowerCase().includes(modelSearch.toLowerCase()) &&
+                      const policyVisibleModels = MODELS.filter(
+                        (m) => deptAllowedModels === null || deptAllowedModels.includes(m)
+                      );
+                      const filteredModels = formGroups.length === 0 ? [] : policyVisibleModels.filter(m =>
+                        m.toLowerCase().includes(modelSearch.trim().toLowerCase()) &&
                         (!onlyAvailable || isModelInGroups(m, formGroups))
                       );
                       return (
                         <>
-                          {/* 幽灵模型提示 */}
-                          {(() => {
-                            const ghosts = getGhostModels(formGroups, formModels);
-                            if (ghosts.length === 0) return null;
-                            return (
-                              <div className="p-2 rounded-md bg-muted text-xs text-muted-foreground">
-                                不在当前分组范围内的已选模型已自动置灰：{ghosts.join(", ")}
-                              </div>
-                            );
-                          })()}
+                          {removedModelNotice.length > 0 && (
+                            <div className="p-2 rounded-md bg-amber-50 border border-amber-200 text-xs text-amber-700">
+                              可用范围已变化，已自动移除：{removedModelNotice.join("、")}
+                            </div>
+                          )}
                           {/* 模型网格 */}
                           <div className="rounded-md border border-input p-3 space-y-2">
                             <div className="relative pb-2 border-b border-border/50">
@@ -2322,23 +2367,28 @@ Key 配置信息
                             </div>
                             <div className="grid grid-cols-3 gap-1.5 max-h-48 overflow-auto">
                               {filteredModels.length === 0 ? (
-                                <div className="col-span-3 py-4 text-center text-xs text-muted-foreground">未找到模型</div>
+                                <div className="col-span-3 py-4 text-center text-xs text-muted-foreground">
+                                  {modelSearch.trim()
+                                    ? "未找到匹配的模型"
+                                    : formGroups.length === 0
+                                      ? "请先选择分组"
+                                      : onlyAvailable
+                                        ? "当前分组暂无可用模型，请调整分组"
+                                        : "暂无可用模型"}
+                                </div>
                               ) : filteredModels.map((model) => {
                                 const inGroup = isModelInGroups(model, formGroups);
-                                const allowedByDept = deptAllowedModels === null || deptAllowedModels.includes(model);
-                                const checked = followGroupRange ? (inGroup && allowedByDept) : formModels.includes(model);
-                                const disabled = !inGroup || followGroupRange || !allowedByDept;
+                                const checked = followGroupRange ? inGroup : formModels.includes(model);
+                                const disabled = !inGroup || followGroupRange;
                                 return (
                                   <TooltipProvider key={model}>
                                     <Tooltip>
                                       <TooltipTrigger asChild>
                                         <label
                                           className={`flex items-center gap-1 text-xs px-2 py-1 rounded border ${
-                                            !allowedByDept
-                                              ? "border-red-200 bg-red-50 text-red-400 cursor-not-allowed"
-                                              : inGroup
-                                                ? "border-input bg-background"
-                                                : "border-muted bg-muted/30 text-muted-foreground/50 cursor-not-allowed"
+                                            inGroup
+                                              ? "border-input bg-background"
+                                              : "border-muted bg-muted/30 text-muted-foreground/50 cursor-not-allowed"
                                           }`}
                                         >
                                           <input
@@ -2357,11 +2407,6 @@ Key 配置信息
                                           <span className="truncate">{model}</span>
                                         </label>
                                       </TooltipTrigger>
-                                      {!allowedByDept && (
-                                        <TooltipContent side="top">
-                                          <p className="text-xs text-red-500">当前模型不可用，原因：所属部门未开放该模型访问权限。</p>
-                                        </TooltipContent>
-                                      )}
                                     </Tooltip>
                                   </TooltipProvider>
                                 );
@@ -2627,7 +2672,17 @@ Key 配置信息
                       <GroupMultiSelect
                         groups={GROUP_OPTIONS}
                         selected={tplFormGroups}
-                        onChange={setTplFormGroups}
+                        onChange={(nextGroups) => {
+                          const nextAvailable = new Set(getModelsForGroups(nextGroups));
+                          const removed = tplFormModels.filter((model) => !nextAvailable.has(model));
+                          setTplFormGroups(nextGroups);
+                          if (removed.length > 0) {
+                            setTplFormModels(tplFormModels.filter((model) => nextAvailable.has(model)));
+                            setTplRemovedModelNotice(removed);
+                          } else {
+                            setTplRemovedModelNotice([]);
+                          }
+                        }}
                         placeholder="不填则使用默认分组"
                       />
                     </div>
@@ -2641,7 +2696,10 @@ Key 配置信息
                   <div className="space-y-3">
                     <div className="space-y-2">
                       <div className="flex items-center gap-4">
-                        <Label className="text-muted-foreground text-sm shrink-0">模型限制列表</Label>
+                        <Label className="text-muted-foreground text-sm shrink-0">
+                          模型限制列表
+                          <span className="ml-1 text-xs">（已选 {tplFollowGroupRange && tplFormGroups.length > 0 ? MODELS.filter((m) => isModelInGroups(m, tplFormGroups)).length : tplFormModels.length} 个）</span>
+                        </Label>
                         <label className="flex items-center gap-2 shrink-0">
                           <input
                             type="checkbox"
@@ -2649,7 +2707,7 @@ Key 配置信息
                             onChange={(e) => setTplFollowGroupRange(e.target.checked)}
                             className="rounded border-gray-300"
                           />
-                          <span className="text-sm">跟随分组范围</span>
+                          <span className="text-sm">使用分组全部模型</span>
                         </label>
                           <label className="flex items-center gap-2 shrink-0 ml-auto">
                             <input
@@ -2658,26 +2716,21 @@ Key 配置信息
                               onChange={(e) => setTplOnlyAvailable(e.target.checked)}
                               className="rounded border-gray-300"
                             />
-                            <span className="text-sm text-muted-foreground">仅看可用</span>
+                            <span className="text-sm text-muted-foreground">仅看分组支持</span>
                           </label>
                         </div>
                         {(() => {
-                          const filteredModels = MODELS.filter(m =>
+                          const filteredModels = tplFormGroups.length === 0 ? [] : MODELS.filter(m =>
                             m.toLowerCase().includes(tplModelSearch.toLowerCase()) &&
                             (!tplOnlyAvailable || isModelInGroups(m, tplFormGroups))
                           );
                           return (
                             <>
-                              {/* 幽灵模型提示 */}
-                              {(() => {
-                                const ghosts = getGhostModels(tplFormGroups, tplFormModels);
-                                if (ghosts.length === 0) return null;
-                                return (
-                                  <div className="p-2 rounded-md bg-muted text-xs text-muted-foreground">
-                                    不在当前分组范围内的已选模型已自动置灰：{ghosts.join(", ")}
-                                  </div>
-                                );
-                              })()}
+                              {tplRemovedModelNotice.length > 0 && (
+                                <div className="p-2 rounded-md bg-amber-50 border border-amber-200 text-xs text-amber-700">
+                                  可用范围已变化，已自动移除：{tplRemovedModelNotice.join("、")}
+                                </div>
+                              )}
                               {/* 模型网格 */}
                               <div className="rounded-md border border-input p-3 space-y-2">
                                 <div className="relative pb-2 border-b border-border/50">
@@ -2692,7 +2745,15 @@ Key 配置信息
                                 </div>
                                 <div className="grid grid-cols-3 gap-1.5 max-h-48 overflow-auto">
                                   {filteredModels.length === 0 ? (
-                                    <div className="col-span-3 py-4 text-center text-xs text-muted-foreground">未找到模型</div>
+                                    <div className="col-span-3 py-4 text-center text-xs text-muted-foreground">
+                                      {tplModelSearch.trim()
+                                        ? "未找到匹配的模型"
+                                        : tplFormGroups.length === 0
+                                          ? "请先选择分组"
+                                          : tplOnlyAvailable
+                                            ? "当前分组暂无可用模型，请调整分组"
+                                            : "暂无可用模型"}
+                                    </div>
                                   ) : filteredModels.map((model) => {
                                     const inGroup = isModelInGroups(model, tplFormGroups);
                                     const checked = tplFollowGroupRange ? inGroup : tplFormModels.includes(model);

@@ -63,6 +63,21 @@ interface EnterpriseEntry {
   org: OrgInfo | null;
 }
 
+function PasswordSuccessNotice({ visible }: { visible: boolean }) {
+  if (!visible) return null;
+  return (
+    <div className="pointer-events-none fixed left-1/2 top-6 z-[200] -translate-x-1/2 animate-in fade-in slide-in-from-top-3 duration-300">
+      <div className="flex min-w-[320px] items-center gap-3 rounded-xl border border-green-200 bg-background px-4 py-3 shadow-lg">
+        <CheckCircle2 className="h-5 w-5 shrink-0 text-green-600" />
+        <div>
+          <p className="text-sm font-medium text-foreground">密码设置成功</p>
+          <p className="text-xs text-muted-foreground">后续可使用用户名和密码登录</p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function Workspace() {
   const [enterprises, setEnterprises] = useState<EnterpriseEntry[]>([]);
   const [enterprise, setEnterprise] = useState<Enterprise | null>(null);
@@ -75,7 +90,7 @@ export default function Workspace() {
 
   // 首次登录引导弹窗
   const [guideScenario, setGuideScenario] = useState<GuideScenario | null>(null);
-  const [showGuideTip, setShowGuideTip] = useState(false);
+  const [showPasswordSuccess, setShowPasswordSuccess] = useState(false);
 
   // user menu state
   const [userMenuOpen, setUserMenuOpen] = useState(false);
@@ -481,6 +496,8 @@ export default function Workspace() {
                 <AccountBalance enterprise={null} role="member" />
               ) : location.pathname === "/workspace/cost-overview" ? (
                 <CostOverview enterprise={null} role="member" />
+              ) : location.pathname === "/workspace/bills" ? (
+                <ExpenseBills enterprise={null} role="member" />
               ) : location.pathname === "/workspace/token-plan" ? (
                 <TokenPlan mode="personal" />
               ) : location.pathname === "/workspace/resource-packages" ? (
@@ -572,22 +589,13 @@ export default function Workspace() {
               setGuideScenario(null);
               navigate("/workspace/enterprise/balance");
             } else {
-              setShowGuideTip(true);
-              setTimeout(() => setShowGuideTip(false), 2500);
+              setShowPasswordSuccess(true);
+              setTimeout(() => setShowPasswordSuccess(false), 2500);
             }
           }}
         />
       )}
-
-      {/* 密码设置成功浮动提示 */}
-      {showGuideTip && (
-        <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-[200] animate-in fade-in duration-300">
-          <div className="flex items-center gap-3 rounded-2xl bg-background border border-border px-8 py-5 shadow-2xl">
-            <CheckCircle2 className="h-7 w-7 text-green-500" />
-            <span className="text-lg font-medium text-foreground">密码设置成功</span>
-          </div>
-        </div>
-      )}
+      <PasswordSuccessNotice visible={showPasswordSuccess} />
       </SidebarProvider>
     );
   }
@@ -692,22 +700,13 @@ export default function Workspace() {
               setGuideScenario(null);
               navigate("/workspace/enterprise/balance");
             } else {
-              setShowGuideTip(true);
-              setTimeout(() => setShowGuideTip(false), 2500);
+              setShowPasswordSuccess(true);
+              setTimeout(() => setShowPasswordSuccess(false), 2500);
             }
           }}
         />
       )}
-
-      {/* 密码设置成功浮动提示 */}
-      {showGuideTip && (
-        <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-[200] animate-in fade-in duration-300">
-          <div className="flex items-center gap-3 rounded-2xl bg-background border border-border px-8 py-5 shadow-2xl">
-            <CheckCircle2 className="h-7 w-7 text-green-500" />
-            <span className="text-lg font-medium text-foreground">密码设置成功</span>
-          </div>
-        </div>
-      )}
+      <PasswordSuccessNotice visible={showPasswordSuccess} />
     </SidebarProvider>
   );
 }

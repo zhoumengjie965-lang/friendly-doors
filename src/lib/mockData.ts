@@ -3,7 +3,7 @@
 
 const MOCK_DATA_KEY = "ai_gateway_mock_data";
 const CURRENT_PHONE_KEY = "ai_gateway_phone";
-const MOCK_DATA_VERSION = "2.2"; // 数据版本，修改mock数据时更新此版本号
+const MOCK_DATA_VERSION = "2.3"; // 数据版本，修改mock数据时更新此版本号
 
 // ===== 数据类型定义 =====
 export interface MockUser {
@@ -839,6 +839,23 @@ const initialData: MockData = {
       updated_at: getNow(),
     },
     {
+      id: "key_unlimited_dept_restricted",
+      name: "全模型访问密钥",
+      key: generateApiKey(),
+      enterprise_id: "ent_1",
+      user_phone: TEST_PHONE,
+      status: "active",
+      models: [],
+      groups: ["官方价格（×1.0）"],
+      rate_limit: 1000,
+      monthly_quota: 10000,
+      used_quota: 860,
+      expires_at: getFutureDate(365),
+      last_used_at: getNow(),
+      created_at: getNow(),
+      updated_at: getNow(),
+    },
+    {
       id: "key_10",
       name: "营销自动化密钥",
       key: generateApiKey(),
@@ -1106,7 +1123,7 @@ const initialData: MockData = {
       enterprise_id: "ent_1",
       name: "研发部模型策略",
       bound_org_ids: ["org_root", "org_tech"],
-      allowed_models: ["gpt-4o", "gpt-4o-mini", "gpt-4-turbo", "gpt-4", "claude-3-5-sonnet", "claude-3-haiku", "claude-3-opus", "claude-3-sonnet", "deepseek-chat", "deepseek-coder", "qwen-max", "qwen-plus", "glm-4", "glm-4-flash"],
+      allowed_models: ["gpt-4"],
       updated_by: TEST_PHONE,
       created_at: getNow(),
       updated_at: getNow(),

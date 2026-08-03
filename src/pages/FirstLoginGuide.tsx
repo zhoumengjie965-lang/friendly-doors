@@ -144,8 +144,13 @@ function AdminGuideDialog({
   };
 
   return (
-    <Dialog open={open} onOpenChange={(v) => !v && handleClose()}>
-      <DialogContent className="max-w-md max-h-[85vh] overflow-y-auto">
+    <Dialog open={open}>
+      <DialogContent
+        className="max-w-md max-h-[85vh] overflow-y-auto"
+        showCloseButton={false}
+        onEscapeKeyDown={(event) => event.preventDefault()}
+        onPointerDownOutside={(event) => event.preventDefault()}
+      >
         {step === "bind" && (
           <>
             <DialogHeader>
@@ -154,7 +159,7 @@ function AdminGuideDialog({
               </div>
               <DialogTitle className="text-center">完善联系方式</DialogTitle>
               <DialogDescription className="text-center leading-relaxed pt-1">
-                为保障企业账户安全，并及时接收余额、账单等重要通知，请绑定手机号或邮箱。
+                为保障企业账户安全，请及时绑定手机号或邮箱。
               </DialogDescription>
             </DialogHeader>
 
@@ -332,8 +337,13 @@ function MemberGuideDialog({
   };
 
   return (
-    <Dialog open={open} onOpenChange={(v) => !v && handleClose()}>
-      <DialogContent className="max-w-md">
+    <Dialog open={open}>
+      <DialogContent
+        className="max-w-md"
+        showCloseButton={false}
+        onEscapeKeyDown={(event) => event.preventDefault()}
+        onPointerDownOutside={(event) => event.preventDefault()}
+      >
         {step === "set" && (
           <>
             <DialogHeader>

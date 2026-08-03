@@ -32,6 +32,7 @@ interface UserRow {
   invite_revenue: number;
   inviter: string | null;
   user_type?: "formal" | "test";
+  reseller_code?: string | null;
 }
 
 interface MemberDetail {
@@ -275,18 +276,53 @@ function GroupConfigSelector({
   // 二级弹窗状态
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingCustomGroups, setEditingCustomGroups] = useState<Record<string, CustomGroupEntry>>({});
+  const [customBaseTemplate, setCustomBaseTemplate] = useState("__none__");
+  const [pendingBaseTemplate, setPendingBaseTemplate] = useState("__none__");
+  const [importedBaseTemplate, setImportedBaseTemplate] = useState("__none__");
+  const [customBaselineGroups, setCustomBaselineGroups] = useState<Record<string, CustomGroupEntry>>({});
+  const [showTemplateCopy, setShowTemplateCopy] = useState(false);
+  const [hasImportedTemplate, setHasImportedTemplate] = useState(false);
 
   const activeTemplate = TEMPLATE_OPTIONS.find((t) => t.value === selectedTemplate);
+
+  const buildCustomGroupsFromTemplate = (templateValue: string) => {
+    const template = TEMPLATE_OPTIONS.find((item) => item.value === templateValue);
+    const templateGroups = new Map(template?.availableGroups.map((item) => [item.name, item.rate]) ?? []);
+    return Object.fromEntries(
+      ALL_BASE_GROUPS.map((group) => [
+        group.name,
+        {
+          available: templateGroups.has(group.name),
+          rate: templateGroups.get(group.name) ?? group.defaultRate,
+        },
+      ])
+    );
+  };
 
   // 打开自定义分组弹窗前，快照当前数据
   const handleOpenDialog = () => {
     if (Object.keys(customGroups).length > 0) {
       setEditingCustomGroups({ ...customGroups });
+      setPendingBaseTemplate(customBaseTemplate);
+      setImportedBaseTemplate(customBaseTemplate);
+      setCustomBaselineGroups(
+        customBaseTemplate === "__none__" ? {} : buildCustomGroupsFromTemplate(customBaseTemplate)
+      );
+      setShowTemplateCopy(true);
+      setHasImportedTemplate(customBaseTemplate !== "__none__");
     } else {
-      // 初始化：所有基础分组默认不可用，倍率=1
-      const init: Record<string, CustomGroupEntry> = {};
-      ALL_BASE_GROUPS.forEach((g) => { init[g.name] = { available: false, rate: g.defaultRate }; });
-      setEditingCustomGroups(init);
+      setPendingBaseTemplate("__none__");
+      setImportedBaseTemplate("__none__");
+      const initialGroups = Object.fromEntries(
+        ALL_BASE_GROUPS.map((group) => [
+          group.name,
+          { available: false, rate: group.defaultRate },
+        ])
+      );
+      setEditingCustomGroups(initialGroups);
+      setCustomBaselineGroups({});
+      setShowTemplateCopy(true);
+      setHasImportedTemplate(false);
     }
     setDialogOpen(true);
   };
@@ -297,11 +333,18 @@ function GroupConfigSelector({
       Object.entries(editingCustomGroups).filter(([, entry]) => entry.available)
     );
     setCustomGroups(validEntries);
+    setCustomBaseTemplate(importedBaseTemplate);
+    setShowTemplateCopy(false);
+    setHasImportedTemplate(false);
+    setCustomBaselineGroups({});
     setDialogOpen(false);
   };
 
   // 取消二级弹窗
   const handleCancelCustomDialog = () => {
+    setShowTemplateCopy(false);
+    setHasImportedTemplate(false);
+    setCustomBaselineGroups({});
     setDialogOpen(false);
   };
 
@@ -338,6 +381,16 @@ function GroupConfigSelector({
 
   // ── 渲染：自定义模式的分组列表（按名称排序） ──
   const enabledCount = Object.values(customGroups).filter((e) => e.available).length;
+  const savedTemplateDiffCount = customBaseTemplate === "__none__"
+    ? 0
+    : (() => {
+        const savedBaseline = buildCustomGroupsFromTemplate(customBaseTemplate);
+        return ALL_BASE_GROUPS.filter((group) => {
+          const current = customGroups[group.name] ?? { available: false, rate: group.defaultRate };
+          const baseline = savedBaseline[group.name] ?? { available: false, rate: group.defaultRate };
+          return current.available !== baseline.available || current.rate !== baseline.rate;
+        }).length;
+      })();
   const customGroupItems = Object.entries(customGroups)
     .filter(([, e]) => e.available)
     .sort(([a], [b]) => a.localeCompare(b, "zh-Hans-CN"))
@@ -515,8 +568,59 @@ function GroupConfigSelector({
           </DialogHeader>
 
           <p className="text-xs text-muted-foreground mb-3">
-            勾选后，该令牌分组将对当前用户/企业生效，并按填写倍率计费；未勾选的令牌分组不会生效。
+            可选择模板对比当前配置；只有点击“导入模板”才会替换当前表单。
           </p>
+
+          {showTemplateCopy && (
+          <div className="rounded-lg border border-blue-100 bg-blue-50/60 p-3 mb-3 space-y-2">
+            <div className="flex items-center gap-3">
+            <div className="shrink-0">
+              <p className="text-sm font-medium text-foreground">从模板复制</p>
+              <p className="text-xs text-muted-foreground">
+                基于模板：{customBaseTemplate === "__none__"
+                  ? "未使用"
+                  : `${TEMPLATE_OPTIONS.find((item) => item.value === customBaseTemplate)?.name ?? customBaseTemplate}，差异 ${savedTemplateDiffCount} 项`}
+              </p>
+            </div>
+            <span className="ml-auto text-xs text-muted-foreground shrink-0">查看对比</span>
+            <select
+              className="h-9 min-w-52 rounded-md border border-input bg-background px-3 text-sm"
+              value={pendingBaseTemplate}
+              onChange={(e) => {
+                const templateValue = e.target.value;
+                setPendingBaseTemplate(templateValue);
+                if (templateValue === "__none__") {
+                  setCustomBaselineGroups({});
+                  setHasImportedTemplate(false);
+                  setImportedBaseTemplate("__none__");
+                } else {
+                  setCustomBaselineGroups(buildCustomGroupsFromTemplate(templateValue));
+                  setHasImportedTemplate(true);
+                }
+              }}
+            >
+              <option value="__none__">不使用模板</option>
+              {TEMPLATE_OPTIONS.map((template) => (
+                <option key={template.value} value={template.value}>
+                  {template.name}（{template.remark}）
+                </option>
+              ))}
+            </select>
+            <Button
+              type="button"
+              size="sm"
+              disabled={pendingBaseTemplate === "__none__"}
+              onClick={() => {
+                const nextGroups = buildCustomGroupsFromTemplate(pendingBaseTemplate);
+                setEditingCustomGroups(nextGroups);
+                setImportedBaseTemplate(pendingBaseTemplate);
+              }}
+            >
+              导入模板
+            </Button>
+            </div>
+          </div>
+          )}
 
           <div className="border rounded-lg overflow-hidden">
             <table className="w-full text-sm">
@@ -524,13 +628,15 @@ function GroupConfigSelector({
                 <tr>
                   <th className="px-3 py-1.5 text-left font-medium text-muted-foreground">基础令牌分组</th>
                   <th className="px-3 py-1.5 text-center font-medium text-muted-foreground w-[90px]">是否可用</th>
-                  <th className="px-3 py-1.5 text-right font-medium text-muted-foreground w-[90px]">倍率</th>
+                  <th className="px-3 py-1.5 text-right font-medium text-muted-foreground w-[90px]">当前倍率</th>
+                  <th className="px-3 py-1.5 text-center font-medium text-muted-foreground w-[90px]">模板配置</th>
                   <th className="px-3 py-1.5 text-left font-medium text-muted-foreground">描述/模型系列</th>
                 </tr>
               </thead>
               <tbody className="divide-y">
                 {ALL_BASE_GROUPS.map((bg) => {
                   const entry = editingCustomGroups[bg.name] ?? { available: false, rate: bg.defaultRate };
+                  const baseline = customBaselineGroups[bg.name] ?? entry;
                   return (
                     <tr key={bg.name} className={`${entry.available ? "" : "opacity-45"} hover:bg-muted/30`}>
                       <td className="px-3 py-1.5 font-medium">{bg.name}</td>
@@ -553,6 +659,9 @@ function GroupConfigSelector({
                           }}
                           className={`h-7 text-sm w-full text-right ${!entry.available ? "opacity-40 cursor-not-allowed bg-muted" : ""}`}
                         />
+                      </td>
+                      <td className="px-3 py-1.5 text-center text-xs text-muted-foreground">
+                        {!hasImportedTemplate ? "—" : baseline.available ? `×${baseline.rate}` : "未启用"}
                       </td>
                       <td className="px-3 py-1.5 text-muted-foreground text-xs">{bg.desc}</td>
                     </tr>
@@ -950,8 +1059,17 @@ export default function AdminUsers() {
     });
 
     setUsers(
-      usersData.map((u) => {
-        const userEnts = membersByPhone[u.phone] || [];
+      usersData.map((u, index) => {
+        const userEnts = [...(membersByPhone[u.phone] || [])];
+        // 企业拥有者 Mock：用于展示拥有者标签只能从企业侧统一迁移
+        if (index === 0 && !userEnts.some((enterprise) => enterprise.role === "owner")) {
+          userEnts.unshift({
+            id: "mock-reseller-owner-enterprise",
+            name: "代理商A示例企业",
+            role: "owner",
+            enterprise_type: "formal",
+          });
+        }
         const ownerBal = ownerBalanceMap[u.phone] || { balance: 0, total: 0 };
         const isOwner = userEnts.some((e) => e.role === "owner");
         return {
@@ -966,6 +1084,8 @@ export default function AdminUsers() {
           invite_revenue: 0,
           inviter: null,
           user_type: "test",
+          // 代理商标签 Mock：企业用户跟随代理商 A，部分独立用户用于展示其他归属
+          reseller_code: userEnts.length > 0 ? "agent-001" : (index % 3 === 1 ? "agent-002" : null),
         };
       })
     );
@@ -1047,7 +1167,7 @@ export default function AdminUsers() {
       selectedHistoricalGroup: "",
       customGroups: {},
       modelAccess: ["国际"],
-      agentId: "",
+      agentId: user.reseller_code || "",
     });
     setShowPassword(false);
     setDrawerOpen(true);
@@ -1612,25 +1732,22 @@ export default function AdminUsers() {
                 </div>
               </div>
 
-              {/* 所属代理商 */}
+              {/* 代理商标签 */}
               <div className="space-y-1.5">
-                <Label className="text-sm">所属代理商</Label>
-                <Select value={editForm.agentId || undefined} onValueChange={(v) => setEditForm((prev) => ({ ...prev, agentId: v }))}>
-                  <SelectTrigger className="w-full h-10 bg-white [&>span:not(.sr-only)]:line-clamp-none">
-                    <SelectValue placeholder="" style={{ display: 'none' }} />
-                    {editForm.agentId ? (
-                      <span
-                        role="button"
-                        className="inline-flex items-center gap-[2px] px-[6px] py-[1px] rounded-[4px] bg-blue-50 text-blue-600 text-xs leading-[18px] whitespace-nowrap"
-                        onPointerDown={(e) => { e.preventDefault(); e.stopPropagation(); }}
-                        onClick={(e) => { e.stopPropagation(); setEditForm(prev => ({ ...prev, agentId: "" })); }}
-                      >
-                        {AGENT_OPTIONS.find(a => a.value === editForm.agentId)?.label || editForm.agentId}
-                        <X className="h-3 w-3" />
-                      </span>
-                    ) : null}
+                <Label className="text-sm">代理商标签</Label>
+                <Select
+                  value={editForm.agentId || "direct"}
+                  disabled={drawerUser.role === "企业主" || drawerUser.enterprises.some((enterprise) => enterprise.role === "owner")}
+                  onValueChange={(value) => setEditForm((prev) => ({
+                    ...prev,
+                    agentId: value === "direct" ? "" : value,
+                  }))}
+                >
+                  <SelectTrigger className="w-full h-10 bg-white">
+                    <SelectValue placeholder="请选择代理商标签" />
                   </SelectTrigger>
                   <SelectContent>
+                    <SelectItem value="direct">直客（无代理商标签）</SelectItem>
                     {AGENT_OPTIONS.map((a) => (
                       <SelectItem key={a.value} value={a.value}>
                         {a.label}
@@ -1638,6 +1755,13 @@ export default function AdminUsers() {
                     ))}
                   </SelectContent>
                 </Select>
+                <p className="text-xs text-gray-400">
+                  {drawerUser.role === "企业主" || drawerUser.enterprises.some((enterprise) => enterprise.role === "owner")
+                    ? "该用户是企业拥有者，请从企业编辑页统一迁移企业及成员"
+                    : drawerUser.enterprises.length > 0
+                      ? "修改后，该用户将退出所有归属不一致的企业"
+                      : "修改后，用户将通过新代理商入口登录"}
+                </p>
               </div>
 
               {/* Section B: 权限设置 */}
@@ -1781,6 +1905,14 @@ export default function AdminUsers() {
                       toast({ title: "请选择历史分组", variant: "destructive" });
                       return;
                     }
+                    const resellerChanged = (drawerUser.reseller_code || "") !== editForm.agentId;
+                    if (resellerChanged && drawerUser.enterprises.length > 0) {
+                      const nextLabel = AGENT_OPTIONS.find((item) => item.value === editForm.agentId)?.label || "直客";
+                      const confirmed = window.confirm(
+                        `修改后，该用户将退出所有归属不一致的企业，并改为通过${nextLabel}入口登录。个人账号及个人数据不会删除。是否继续？`,
+                      );
+                      if (!confirmed) return;
+                    }
                     setSavingUser(true);
                     setTimeout(() => {
                       const groupLabel = editForm.groupMode === "template"
@@ -1788,8 +1920,19 @@ export default function AdminUsers() {
                         : editForm.groupMode === "all"
                         ? `历史分组「${editForm.selectedHistoricalGroup}」`
                         : `自定义分组(${Object.keys(editForm.customGroups).length}个通道)`;
+                      setUsers((current) => current.map((user) => user.id === drawerUser.id ? {
+                        ...user,
+                        reseller_code: editForm.agentId || null,
+                        enterprises: resellerChanged ? [] : user.enterprises,
+                        role: resellerChanged ? "普通用户" : user.role,
+                      } : user));
                       setSavingUser(false);
-                      toast({ title: "保存成功", description: `用户「${editForm.username}」的分组已更新为${groupLabel}` });
+                      toast({
+                        title: "保存成功",
+                        description: resellerChanged
+                          ? `用户「${editForm.username}」的代理商标签已更新，归属不一致的企业关系已解除`
+                          : `用户「${editForm.username}」的分组已更新为${groupLabel}`,
+                      });
                       setDrawerOpen(false);
                     }, 500);
                   }}

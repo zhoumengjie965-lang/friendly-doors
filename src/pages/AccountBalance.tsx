@@ -1,13 +1,13 @@
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
-import { Wallet, Ticket, Mail, MessageSquare, ChevronLeft, ChevronRight, Inbox, Download, HelpCircle, CreditCard } from "lucide-react";
+import { Wallet, Ticket, ChevronLeft, ChevronRight, Inbox, Download, HelpCircle, CreditCard, Plus, Trash2 } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { toast } from "sonner";
@@ -45,7 +45,17 @@ interface Props {
   role: string;
 }
 
+interface AlertRecipient {
+  id: string;
+  name: string;
+  email: string;
+  phone: string;
+}
+
+const MAX_ALERT_RECIPIENTS = 5;
+
 export default function AccountBalance({ enterprise, role }: Props) {
+  const isEnterpriseMode = Boolean(enterprise);
 
   const [balanceData] = useState<BalanceData>({
     id: "bal-001",
@@ -85,9 +95,18 @@ export default function AccountBalance({ enterprise, role }: Props) {
   const voucherRecords = allMockRecords.filter((r) => r.type === "voucher_recharge");
 
   // Alert settings（Mock：默认已绑定联系方式并开启预警）
-  const [alertMethod, setAlertMethod] = useState("email");
+  const [alertEnabled, setAlertEnabled] = useState(true);
   const [alertThreshold, setAlertThreshold] = useState("50000");
-  const [alertEmail, setAlertEmail] = useState("admin@example.com");
+  const [alertRecipients, setAlertRecipients] = useState<AlertRecipient[]>([
+    { id: "recipient-1", name: "财务负责人", email: "finance@example.com", phone: "" },
+    { id: "recipient-2", name: "技术负责人", email: "", phone: "13800138000" },
+  ]);
+  const serializedAlertSettings = useMemo(
+    () => JSON.stringify({ alertThreshold, alertRecipients }),
+    [alertThreshold, alertRecipients],
+  );
+  const [savedAlertSettings, setSavedAlertSettings] = useState(serializedAlertSettings);
+  const hasUnsavedAlertChanges = serializedAlertSettings !== savedAlertSettings;
   const [savingAlert, setSavingAlert] = useState(false);
 
   // Redeem dialog
@@ -97,9 +116,143 @@ export default function AccountBalance({ enterprise, role }: Props) {
 
   // Mock 模式下不需要 fetch
 
+  useEffect(() => {
+    if (!hasUnsavedAlertChanges) return;
+
+    const handleBeforeUnload = (event: BeforeUnloadEvent) => {
+      event.preventDefault();
+      event.returnValue = "";
+    };
+
+    const handleDocumentClick = (event: MouseEvent) => {
+      const target = event.target as HTMLElement | null;
+      const link = target?.closest("a[href]") as HTMLAnchorElement | null;
+      if (!link || link.target === "_blank" || event.defaultPrevented) return;
+
+      const destination = new URL(link.href, window.location.href);
+      const current = new URL(window.location.href);
+      if (destination.href === current.href) return;
+
+      if (!window.confirm("当前余额预警设置尚未保存，离开后修改将丢失。确定离开吗？")) {
+        event.preventDefault();
+        event.stopPropagation();
+      }
+    };
+
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    document.addEventListener("click", handleDocumentClick, true);
+    return () => {
+      window.removeEventListener("beforeunload", handleBeforeUnload);
+      document.removeEventListener("click", handleDocumentClick, true);
+    };
+  }, [hasUnsavedAlertChanges]);
+
   const handleSaveAlert = async () => {
-    // Mock 模式下暂不执行
+    if (!alertEnabled) {
+      toast.info("请先开启余额预警，再保存设置");
+      return;
+    }
+
+    if (!alertThreshold || Number(alertThreshold) < 0) {
+      toast.error("请输入有效的预警金额");
+      return;
+    }
+    if (isEnterpriseMode && alertRecipients.length === 0) {
+      toast.error("请至少添加一名接收人");
+      return;
+    }
+
+    const unavailableRecipient = isEnterpriseMode && alertRecipients.find((recipient) => {
+      return !recipient.email.trim() && !recipient.phone.trim();
+    });
+    if (unavailableRecipient) {
+      toast.error(`${unavailableRecipient.name.trim() || "未命名接收人"}没有可用的通知联系方式`);
+      return;
+    }
+
+    const invalidEmailRecipient = isEnterpriseMode && alertRecipients.find(
+      (recipient) => recipient.email.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(recipient.email.trim()),
+    );
+    if (invalidEmailRecipient) {
+      toast.error(`${invalidEmailRecipient.name.trim() || "未命名接收人"}的邮箱格式不正确`);
+      return;
+    }
+
+    const invalidPhoneRecipient = isEnterpriseMode && alertRecipients.find(
+      (recipient) => recipient.phone.trim() && !/^1\d{10}$/.test(recipient.phone.replace(/\s/g, "")),
+    );
+    if (invalidPhoneRecipient) {
+      toast.error(`${invalidPhoneRecipient.name.trim() || "未命名接收人"}的手机号格式不正确`);
+      return;
+    }
+
+    const normalizedEmails = alertRecipients
+      .map((recipient) => recipient.email.trim().toLowerCase())
+      .filter(Boolean);
+    if (isEnterpriseMode && new Set(normalizedEmails).size !== normalizedEmails.length) {
+      toast.error("接收人中存在重复邮箱，请修改后再保存");
+      return;
+    }
+
+    const normalizedPhones = alertRecipients
+      .map((recipient) => recipient.phone.replace(/\s/g, ""))
+      .filter(Boolean);
+    if (isEnterpriseMode && new Set(normalizedPhones).size !== normalizedPhones.length) {
+      toast.error("接收人中存在重复手机号，请修改后再保存");
+      return;
+    }
+
+    setSavingAlert(true);
+    await new Promise((resolve) => setTimeout(resolve, 400));
+    setSavedAlertSettings(serializedAlertSettings);
+    setSavingAlert(false);
+    toast.success("余额预警设置已保存");
   };
+
+  const updateRecipient = (id: string, field: keyof Omit<AlertRecipient, "id">, value: string) => {
+    setAlertRecipients((current) => current.map((recipient) => (
+      recipient.id === id ? { ...recipient, [field]: value } : recipient
+    )));
+  };
+
+  const addRecipient = () => {
+    if (alertRecipients.length >= MAX_ALERT_RECIPIENTS) {
+      toast.info(`最多添加 ${MAX_ALERT_RECIPIENTS} 名接收人`);
+      return;
+    }
+    setAlertRecipients((current) => [
+      ...current,
+      { id: `recipient-${Date.now()}`, name: "", email: "", phone: "" },
+    ]);
+  };
+
+  const removeRecipient = (id: string) => {
+    setAlertRecipients((current) => current.filter((recipient) => recipient.id !== id));
+  };
+
+  const getEmailError = (recipient: AlertRecipient) => {
+    const email = recipient.email.trim().toLowerCase();
+    if (!email) return "";
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return "邮箱格式不正确";
+    if (alertRecipients.some((item) => item.id !== recipient.id && item.email.trim().toLowerCase() === email)) {
+      return "该邮箱已添加";
+    }
+    return "";
+  };
+
+  const getPhoneError = (recipient: AlertRecipient) => {
+    const phone = recipient.phone.replace(/\s/g, "");
+    if (!phone) return "";
+    if (!/^1\d{10}$/.test(phone)) return "请输入11位手机号";
+    if (alertRecipients.some((item) => item.id !== recipient.id && item.phone.replace(/\s/g, "") === phone)) {
+      return "该手机号已添加";
+    }
+    return "";
+  };
+
+  const hasRecipientFieldErrors = alertRecipients.some(
+    (recipient) => Boolean(getEmailError(recipient) || getPhoneError(recipient)),
+  );
 
   const handleRedeem = async () => {
     if (!redeemCode.trim()) { toast.error("请输入兑换码"); return; }
@@ -116,8 +269,6 @@ export default function AccountBalance({ enterprise, role }: Props) {
       </div>
     );
   }
-
-  const thresholdAmount = alertThreshold ? (parseFloat(alertThreshold) * 0.01).toFixed(2) : null;
 
   return (
     <div className="max-w-5xl space-y-6">
@@ -203,70 +354,157 @@ export default function AccountBalance({ enterprise, role }: Props) {
       </div>
 
       {/* 余额预警设置 */}
-        <div className="bg-card border border-border rounded-xl p-5">
-          {/* Title row with save button */}
-          <div className="flex items-center justify-between mb-4">
-            <div>
+      <div className="bg-card border border-border rounded-xl p-5">
+        <div className="flex items-center justify-between">
+          <div>
+            <div className="flex items-center gap-2">
               <h2 className="font-semibold text-foreground">充值余额预警设置</h2>
-              <p className="text-xs text-muted-foreground mt-0.5">当充值余额低于预警金额时，将通过所选方式通知您（授信额度与代金券不计入预警判断）</p>
+              <Switch
+                checked={alertEnabled}
+                onCheckedChange={setAlertEnabled}
+                aria-label="启用充值余额预警"
+              />
+              <span className="text-xs text-muted-foreground">{alertEnabled ? "已开启" : "已关闭"}</span>
             </div>
-            <Button onClick={handleSaveAlert} disabled={savingAlert} size="sm">
+          </div>
+          <div>
+            <Button
+              onClick={handleSaveAlert}
+              disabled={savingAlert || !alertEnabled || !hasUnsavedAlertChanges || (isEnterpriseMode && hasRecipientFieldErrors)}
+              size="sm"
+            >
               {savingAlert ? "保存中..." : "保存设置"}
             </Button>
           </div>
-          <div className="space-y-4">
-            {/* Row 1: notification method */}
+        </div>
+
+        <div className="mt-4 space-y-4 border-t border-border pt-4">
+          <div className="max-w-sm">
             <div className="space-y-1.5">
-              <Label className="text-xs text-muted-foreground">通知方式</Label>
-              <RadioGroup value={alertMethod} onValueChange={setAlertMethod} className="flex gap-4">
-                <div className="flex items-center gap-1.5">
-                  <RadioGroupItem value="email" id="method-email" />
-                  <Label htmlFor="method-email" className="flex items-center gap-1 cursor-pointer text-sm">
-                    <Mail className="w-3.5 h-3.5" /> 邮件通知
-                  </Label>
-                </div>
-                <div className="flex items-center gap-1.5">
-                  <RadioGroupItem value="sms" id="method-sms" />
-                  <Label htmlFor="method-sms" className="flex items-center gap-1 cursor-pointer text-sm">
-                    <MessageSquare className="w-3.5 h-3.5" /> 短信通知
-                  </Label>
-                </div>
-              </RadioGroup>
+              <Label className="text-sm font-medium">预警金额（元）</Label>
+              <Input
+                type="number"
+                min="0"
+                step="0.01"
+                placeholder="输入预警金额"
+                value={alertThreshold ? (parseFloat(alertThreshold) * 0.01).toFixed(2) : ""}
+                onChange={(e) => {
+                  const yuan = parseFloat(e.target.value);
+                  setAlertThreshold(isNaN(yuan) ? "" : String(Math.round(yuan / 0.01)));
+                }}
+                className="h-9 text-sm"
+              />
+              <p className="text-xs text-muted-foreground">
+                {alertThreshold
+                  ? `¥${(parseFloat(alertThreshold) * 0.01).toFixed(2)} = ${alertThreshold} 额度`
+                  : "1 额度 = ¥0.01"}
+              </p>
             </div>
-            {/* Row 2: email + threshold side by side */}
-            <div className="grid grid-cols-2 gap-6">
-              <div className="space-y-1.5">
-                <Label className="text-xs text-muted-foreground">通知邮箱</Label>
-                <Input
-                  placeholder="留空则使用账号绑定邮箱"
-                  value={alertEmail}
-                  onChange={(e) => setAlertEmail(e.target.value)}
-                  className="h-9 text-sm"
-                />
+
+          </div>
+
+          {isEnterpriseMode ? (
+          <div className="space-y-2.5">
+            <div className="flex items-center justify-between">
+              <div>
+                <div className="flex items-center gap-2">
+                  <Label className="text-sm font-medium">通知接收人</Label>
+                  <span className="text-xs text-muted-foreground">
+                    {alertRecipients.length}/{MAX_ALERT_RECIPIENTS}
+                  </span>
+                </div>
+                <p className="mt-1 text-xs text-muted-foreground">接收人无需注册为企业成员；填写邮箱则发送邮件，填写手机号则发送短信，两项都填则同时发送。</p>
               </div>
-              <div className="space-y-1.5">
-                <Label className="text-xs text-muted-foreground">预警金额（元）</Label>
-                <Input
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  placeholder="输入预警金额"
-                  value={alertThreshold ? (parseFloat(alertThreshold) * 0.01).toFixed(2) : ""}
-                  onChange={(e) => {
-                    const yuan = parseFloat(e.target.value);
-                    setAlertThreshold(isNaN(yuan) ? "" : String(Math.round(yuan / 0.01)));
-                  }}
-                  className="h-9 text-sm"
-                />
-                <p className="text-xs text-muted-foreground">
-                  {alertThreshold
-                    ? `¥${(parseFloat(alertThreshold) * 0.01).toFixed(2)} = ${alertThreshold} 额度`
-                    : "1 额度 = ¥0.01"}
-                </p>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={addRecipient}
+                disabled={alertRecipients.length >= MAX_ALERT_RECIPIENTS}
+                title={alertRecipients.length >= MAX_ALERT_RECIPIENTS ? `最多添加 ${MAX_ALERT_RECIPIENTS} 名接收人` : undefined}
+              >
+                <Plus className="mr-1.5 h-4 w-4" />
+                {alertRecipients.length >= MAX_ALERT_RECIPIENTS ? "已达上限" : "添加接收人"}
+              </Button>
+            </div>
+
+            <div className="overflow-hidden rounded-lg border border-border">
+              <div className="hidden grid-cols-[1fr_1.5fr_1.2fr_44px] gap-3 bg-muted/40 px-4 py-2.5 text-xs font-medium text-muted-foreground md:grid">
+                <span>接收人</span>
+                <span>邮箱</span>
+                <span>手机号</span>
+                <span />
               </div>
+              {alertRecipients.length === 0 ? (
+                <div className="flex flex-col items-center justify-center px-4 py-8 text-center">
+                  <Inbox className="mb-2 h-7 w-7 text-muted-foreground/60" />
+                  <p className="text-sm text-muted-foreground">暂未添加接收人</p>
+                  <Button type="button" variant="link" size="sm" onClick={addRecipient}>添加接收人</Button>
+                </div>
+              ) : (
+                alertRecipients.map((recipient, index) => {
+                  const emailError = getEmailError(recipient);
+                  const phoneError = getPhoneError(recipient);
+                  return (
+                    <div
+                      key={recipient.id}
+                      className="grid grid-cols-1 gap-3 border-t border-border px-4 py-3 first:border-t-0 md:grid-cols-[1fr_1.5fr_1.2fr_44px] md:items-start"
+                    >
+                      <Input
+                        aria-label={`接收人 ${index + 1} 名称`}
+                        placeholder="姓名或角色（选填）"
+                        value={recipient.name}
+                        onChange={(e) => updateRecipient(recipient.id, "name", e.target.value)}
+                        className="h-9 text-sm"
+                      />
+                      <div>
+                        <Input
+                          type="email"
+                          aria-label={`接收人 ${index + 1} 邮箱`}
+                          aria-invalid={Boolean(emailError)}
+                          placeholder="邮箱（选填）"
+                          value={recipient.email}
+                          onChange={(e) => updateRecipient(recipient.id, "email", e.target.value)}
+                          className={`h-9 text-sm ${emailError ? "border-destructive focus-visible:ring-destructive" : ""}`}
+                        />
+                        {emailError && <p className="mt-1 text-xs text-destructive">{emailError}</p>}
+                      </div>
+                      <div>
+                        <Input
+                          type="tel"
+                          aria-label={`接收人 ${index + 1} 手机号`}
+                          aria-invalid={Boolean(phoneError)}
+                          placeholder="手机号（选填）"
+                          value={recipient.phone}
+                          onChange={(e) => updateRecipient(recipient.id, "phone", e.target.value)}
+                          className={`h-9 text-sm ${phoneError ? "border-destructive focus-visible:ring-destructive" : ""}`}
+                        />
+                        {phoneError && <p className="mt-1 text-xs text-destructive">{phoneError}</p>}
+                      </div>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        aria-label={`删除接收人 ${index + 1}`}
+                        onClick={() => removeRecipient(recipient.id)}
+                        className="h-9 w-9 text-muted-foreground hover:text-destructive"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  );
+                })
+              )}
             </div>
           </div>
+          ) : (
+            <p className="text-xs text-muted-foreground">
+              预警通知将发送至当前账号已绑定的邮箱和手机号。
+            </p>
+          )}
+
         </div>
+      </div>
 
       {/* 充值记录 */}
       <div className="bg-card border border-border rounded-xl p-6 space-y-4">
