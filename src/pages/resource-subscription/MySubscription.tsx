@@ -307,7 +307,7 @@ export default function MySubscription({ currentMemberId = "1", mode = "enterpri
             <Sparkles className="w-4 h-4 text-blue-500" />
             <h2 className="text-base font-semibold text-foreground">配置</h2>
           </div>
-          <Button variant="outline" size="sm" className="h-8 text-xs">
+          <Button variant="outline" size="sm" className="h-8 text-xs" onClick={() => navigate(`/workspace/docs/token-plan/${isPersonal ? "personal" : "enterprise"}-quick-start`)}>
             <BookOpen className="w-3.5 h-3.5 mr-1.5" />查看使用指南
           </Button>
         </div>

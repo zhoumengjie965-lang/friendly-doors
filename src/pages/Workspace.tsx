@@ -29,6 +29,7 @@ import ConfirmOrder from "@/pages/resource-subscription/ConfirmOrder";
 import UpgradeOrder from "@/pages/resource-subscription/UpgradeOrder";
 import AddonOrder from "@/pages/resource-subscription/AddonOrder";
 import RenewOrder from "@/pages/resource-subscription/RenewOrder";
+import TokenPlanDocs from "@/pages/resource-subscription/TokenPlanDocs";
 import {
   Building2, LogOut, ChevronDown,
   ChevronRight, Check, Plus, UserCircle, Key, CheckCircle2
@@ -498,6 +499,8 @@ export default function Workspace() {
                 <CostOverview enterprise={null} role="member" />
               ) : location.pathname === "/workspace/bills" ? (
                 <ExpenseBills enterprise={null} role="member" />
+              ) : location.pathname.startsWith("/workspace/docs/token-plan") ? (
+                <TokenPlanDocs />
               ) : location.pathname === "/workspace/token-plan" ? (
                 <TokenPlan mode="personal" />
               ) : location.pathname === "/workspace/resource-packages" ? (
@@ -650,6 +653,8 @@ export default function Workspace() {
                   .filter(e => e.enterprise.id === enterprise.id && e.role === "org_admin" && e.org)
                   .map(e => e.org!)}
               />
+            ) : location.pathname.startsWith("/workspace/docs/token-plan") ? (
+              <TokenPlanDocs />
             ) : location.pathname === "/workspace/token-plan" ? (
               <TokenPlan mode="enterprise" role={role} enterpriseId={enterprise.id} />
             ) : location.pathname === "/workspace/resource-packages" ? (
