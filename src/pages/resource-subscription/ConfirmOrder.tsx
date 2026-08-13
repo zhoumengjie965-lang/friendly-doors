@@ -493,10 +493,10 @@ export default function ConfirmOrder({ mode, balance = 5000 }: Props) {
 
               {/* 购买说明 */}
               <div className="space-y-1.5 text-xs text-muted-foreground/80 leading-relaxed px-1">
-                <p>计费说明：单次消耗的 Credits 由模型类型、Token 用量等动态决定，实际消耗以明细为准。</p>
-                <p>额度说明：套餐额度用尽后此 Key 将停止服务，如需继续使用请切换至按量付费 Key。</p>
-                <p>支付说明：不支持使用代金券下单购买。</p>
-                <p>退款政策：Token Plan 企业版不支持退款，订阅后不可退订。</p>
+                <p>计费说明：单次消耗的 Credits 由模型类型、Token 用量等因素动态决定，实际消耗以用量明细为准。</p>
+                <p>额度说明：套餐额度用尽后，订阅专用 Key 将停止服务；如需继续调用，请切换至按量付费 Key。</p>
+                <p>支付说明：Token Plan 暂不支持使用代金券购买。</p>
+                <p>退款政策：Token Plan 企业版购买成功后不支持退款；关闭自动续费不影响当前周期使用。</p>
               </div>
             </>
           ) : (
@@ -568,10 +568,10 @@ export default function ConfirmOrder({ mode, balance = 5000 }: Props) {
 
               {/* 购买说明 */}
               <div className="space-y-1.5 text-xs text-muted-foreground/80 leading-relaxed px-1">
-                <p>计费说明：单次消耗的 Credits 由模型类型、Token 用量等动态决定，实际消耗以明细为准。</p>
-                <p>额度说明：{isResource ? "资源包额度用尽后将停止服务，如需继续使用请切换至按量付费 Key。" : "套餐额度用尽后此 Key 将停止服务，如需继续使用请切换至按量付费 Key。"}</p>
-                <p>支付说明：不支持使用代金券下单购买。</p>
-                <p>退款政策：{isResource ? "资源包不支持退款，购买后不可退。" : `${mode === "personal" ? "Token Plan 个人版" : "Token Plan 企业版"}不支持退款，订阅后不可退订。`}</p>
+                <p>计费说明：单次消耗的 Credits 由模型类型、Token 用量等因素动态决定，实际消耗以用量明细为准。</p>
+                <p>额度说明：{isResource ? "资源包额度用尽后将停止服务，如需继续使用请切换至按量付费 Key。" : "套餐额度用尽后，订阅专用 Key 将停止服务；如需继续调用，请切换至按量付费 Key。"}</p>
+                <p>支付说明：{isResource ? "不支持使用代金券下单购买。" : "Token Plan 暂不支持使用代金券购买。"}</p>
+                <p>退款政策：{isResource ? "资源包不支持退款，购买后不可退。" : `${mode === "personal" ? "Token Plan 个人版" : "Token Plan 企业版"}购买成功后不支持退款；关闭自动续费不影响当前周期使用。`}</p>
               </div>
             </>
           )}
@@ -936,7 +936,6 @@ function ResultRow({ label, value, highlight }: { label: string; value: string; 
     </div>
   );
 }
-
 
 
 

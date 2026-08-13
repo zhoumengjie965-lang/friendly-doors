@@ -229,14 +229,6 @@ export default function RenewOrder({ balance = 5000, mode = "enterprise" }: { ba
         <h1 className="text-xl font-bold text-foreground">续费订阅</h1>
       </div>
 
-      {/* 顶部提示 */}
-      <div className="flex items-start gap-2 rounded-lg bg-blue-50 border border-blue-200 px-4 py-3">
-        <Info className="w-4 h-4 text-blue-500 mt-0.5 shrink-0" />
-        <div className="text-xs text-blue-700 space-y-1">
-          <p>续费后到期时间将在当前到期时间基础上顺延{isPersonal ? "，订阅档位保持不变。" : "，席位档位与数量保持不变。"}</p>
-        </div>
-      </div>
-
       <div className="grid lg:grid-cols-[1fr_400px] gap-8 items-start">
         {/* ── 左栏：当前席位（只读）+ 续费周期 ── */}
         <div className="space-y-4">
@@ -309,6 +301,10 @@ export default function RenewOrder({ balance = 5000, mode = "enterprise" }: { ba
                     </button>
                   );
                 })}
+              </div>
+              <div className="space-y-1.5 px-1 pt-1 text-xs leading-relaxed text-muted-foreground/80">
+                <p>续费说明：续费周期从原到期日顺延，续费后的最终到期日不得超过当前日期之后 24 个月。</p>
+                <p>权益说明：套餐额度按周期发放，未使用额度在周期结束后清零，不结转至下一周期。</p>
               </div>
             </div>
           </div>

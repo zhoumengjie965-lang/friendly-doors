@@ -151,7 +151,7 @@ export default function SeatAddonDialog({ open, onOpenChange, entitlement, onCon
               <div>
                 <p className="text-blue-700 font-medium">计费说明</p>
                 <p className="text-blue-600 text-xs">
-                  购买成功后立即生效，到期时间将与当前已购套餐保持一致。
+                  加购成功后立即生效，新增席位与当前企业订阅同时到期。
                 </p>
               </div>
             </div>
@@ -160,7 +160,7 @@ export default function SeatAddonDialog({ open, onOpenChange, entitlement, onCon
               <div>
                 <p className="text-blue-700 font-medium">用量说明</p>
                 <p className="text-blue-600 text-xs">
-                  新席位按主账户当前周期剩余天数计价，自动续费规则跟随主账户。
+                  新增席位按当前企业订阅的剩余天数计价，自动续费设置跟随企业订阅；本周期额度按剩余天数折算，下个周期恢复为完整周期额度。
                 </p>
               </div>
             </div>

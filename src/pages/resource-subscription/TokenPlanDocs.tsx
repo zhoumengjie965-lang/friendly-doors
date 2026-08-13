@@ -1,5 +1,6 @@
 import { useMemo } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
+import { getTokenPlanFaqs, TOKEN_PLAN_FAQ_GROUPS } from "./token-plan-faq";
 import {
   ArrowLeft,
   BookOpen,
@@ -203,17 +204,17 @@ function EditionPage({ edition }: { edition: "personal" | "team" }) {
 
       <Section title="Credit 抵扣说明">
         <p>模型调用统一折算为 Credit，并从当前订阅或席位的周期额度中扣减。单次消耗由模型类型、Token 用量、思考模式及工具调用等因素决定，实际消耗以控制台用量明细为准。</p>
-        <p>以 qwen3.8-max 为例，单次请求的 Credit 消耗示例如下（不同模型的单价不同，实际以账单为准）：</p>
+        <p>以 glm-5.2 为例，单次请求的 Credit 消耗示例如下（不同模型的单价不同，实际以账单为准）：</p>
         <div className="overflow-x-auto">
           <table className="w-full min-w-[560px] border-collapse border border-border text-left text-sm">
             <thead className="bg-muted/50 text-foreground">
               <tr>{["Token 类型", "数量", "消耗 Credits"].map((head) => <th key={head} className="border border-border px-3 py-2 font-medium">{head}</th>)}</tr>
             </thead>
             <tbody>
-              <tr><td className="border border-border px-3 py-2">输入 Tokens</td><td className="border border-border px-3 py-2">8,349</td><td className="border border-border px-3 py-2">1.67</td></tr>
-              <tr><td className="border border-border px-3 py-2">缓存 Tokens</td><td className="border border-border px-3 py-2">40,794</td><td className="border border-border px-3 py-2">0.82</td></tr>
-              <tr><td className="border border-border px-3 py-2">输出 Tokens</td><td className="border border-border px-3 py-2">573</td><td className="border border-border px-3 py-2">0.69</td></tr>
-              <tr className="font-semibold text-foreground"><td className="border border-border px-3 py-2" colSpan={2}>合计</td><td className="border border-border px-3 py-2">约 3.18 Credits</td></tr>
+              <tr><td className="border border-border px-3 py-2">输入 Tokens</td><td className="border border-border px-3 py-2">5,000</td><td className="border border-border px-3 py-2">8.00</td></tr>
+              <tr><td className="border border-border px-3 py-2">缓存 Tokens</td><td className="border border-border px-3 py-2">20,000</td><td className="border border-border px-3 py-2">8.00</td></tr>
+              <tr><td className="border border-border px-3 py-2">输出 Tokens</td><td className="border border-border px-3 py-2">1,000</td><td className="border border-border px-3 py-2">5.60</td></tr>
+              <tr className="font-semibold text-foreground"><td className="border border-border px-3 py-2" colSpan={2}>合计</td><td className="border border-border px-3 py-2">约 21.60 Credits</td></tr>
             </tbody>
           </table>
         </div>
@@ -379,25 +380,15 @@ function SubscriptionRules() {
 
 function Faq({ edition }: { edition: "personal" | "enterprise" }) {
   const enterprise = edition === "enterprise";
-  const faqs = [
-    ["套餐 Credit 会结转到下一周期吗？", "不会。Credit 仅在当前订阅周期内有效，周期结束后未使用额度自动清零。"],
-    ["购买后可以退款吗？", "不可以。新购、续费、加购及升级成功后均不支持退款。"],
-    ["额度用完后会怎样？", "套餐额度用完后，订阅专用 API Key 将停止服务；如需继续调用，可切换至按量付费 API Key。"],
-    ["关闭自动续费会立即失效吗？", "不会。关闭后当前订阅仍可使用至到期时间，仅不再自动续订下一周期。"],
-    ...(enterprise ? [
-      ["一个席位可以多人共用吗？", "不可以。每个席位同一时间只能分配给一名企业成员，专属 API Key 也不得共享。"],
-      ["席位回收后额度如何处理？", "席位保留当期剩余额度。重新分配后，新成员使用该席位的剩余额度。"],
-      ["回收后的席位可以分配给其他成员吗？", "可以。回收后席位恢复为未分配状态，可重新分配给其他企业成员。"],
-      ["如何为成员更换席位？", "先回收该成员当前持有的席位，再为其分配新的未分配席位。"],
-      ["席位到期后还能继续使用 API Key 吗？", "不能。席位到期且未续费后，专属 API Key 将无法继续调用；完成续费并保持席位分配后可恢复使用。"],
-    ] : []),
-  ];
+  const groupedFaqs = getTokenPlanFaqs(edition);
   return (
     <div className="space-y-8">
       <div><Badge variant="outline" className="mb-3">{enterprise ? "企业版" : "个人版"}</Badge><h1 className="text-3xl font-bold tracking-tight">常见问题</h1></div>
-      <div className="divide-y divide-border rounded-xl border border-border">
-        {faqs.map(([question, answer]) => <div key={question} className="p-5"><h2 className="text-sm font-semibold text-foreground">{question}</h2><p className="mt-2 text-sm leading-6 text-muted-foreground">{answer}</p></div>)}
-      </div>
+      {TOKEN_PLAN_FAQ_GROUPS.map((group) => {
+        const items = groupedFaqs.filter((faq) => faq.group === group.key);
+        if (items.length === 0) return null;
+        return <section key={group.key} className="space-y-3"><h2 className="text-lg font-semibold text-foreground">{group.title}</h2><div className="divide-y divide-border rounded-xl border border-border">{items.map((faq) => <div key={faq.id} className="p-5"><h3 className="text-sm font-semibold text-foreground">{faq.question}</h3><p className="mt-2 text-sm leading-6 text-muted-foreground">{faq.answer}</p></div>)}</div></section>;
+      })}
     </div>
   );
 }

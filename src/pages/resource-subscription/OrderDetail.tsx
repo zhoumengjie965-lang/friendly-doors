@@ -333,14 +333,14 @@ function AddSeatsOrderPage({
           <Info className="w-4 h-4 text-muted-foreground mt-0.5 shrink-0" />
           <div className="text-muted-foreground">
             <span className="font-medium text-foreground">计费说明</span>
-            <span className="ml-2">购买成功后立即生效，到期时间将与当前已购套餐保持一致</span>
+            <span className="ml-2">加购成功后立即生效，新增席位与当前企业订阅同时到期</span>
           </div>
         </div>
         <div className="flex items-start gap-2.5 text-sm">
           <AlertCircle className="w-4 h-4 text-muted-foreground mt-0.5 shrink-0" />
           <div className="text-muted-foreground">
             <span className="font-medium text-foreground">用量说明</span>
-            <span className="ml-2">新席位按主账户当前周期剩余天数计价，自动续费规则跟随主账户</span>
+            <span className="ml-2">新增席位按当前企业订阅的剩余天数计价，自动续费设置跟随企业订阅；本周期额度按剩余天数折算，下个周期恢复为完整周期额度</span>
           </div>
         </div>
         <div className="flex items-start gap-2.5 text-sm">

@@ -113,7 +113,7 @@ import { formatCredit, formatDateTime } from "./shared";
 export { formatCredit, formatDateTime };
 
 // 订阅 API 调用基础地址
-export const SUBSCRIPTION_BASE_URL = "https://api.ai-gateway.com/v1";
+export const SUBSCRIPTION_BASE_URL = "https://neolink.com/api/v1";
 
 // 订阅支持的模型列表
 export const SUBSCRIPTION_SUPPORTED_MODELS: string[] = [

@@ -1,0 +1,50 @@
+export type TokenPlanEdition = "personal" | "enterprise";
+export type TokenPlanFaqGroupKey = "purchase" | "credit" | "access" | "team";
+
+export interface TokenPlanFaq {
+  id: string; group: TokenPlanFaqGroupKey; question: string; answer: string;
+  editions: TokenPlanEdition[]; productPage?: TokenPlanEdition[];
+}
+
+export const TOKEN_PLAN_FAQ_GROUPS: Array<{ key: TokenPlanFaqGroupKey; title: string }> = [
+  { key: "purchase", title: "套餐购买与续费" }, { key: "credit", title: "Credit 与用量" },
+  { key: "access", title: "API Key 与接入" }, { key: "team", title: "成员与席位" },
+];
+const BOTH: TokenPlanEdition[] = ["personal", "enterprise"];
+
+export const TOKEN_PLAN_FAQS: TokenPlanFaq[] = [
+  { id: "edition-choice", group: "purchase", question: "个人版和企业版有什么区别，应该如何选择？", answer: "个人版面向个人使用；企业版面向企业和团队，并提供成员与席位管理能力。两者的套餐档位、价格和支持模型保持一致，可根据是否需要团队协作与统一管理选择。", editions: BOTH, productPage: BOTH },
+  { id: "buy-both", group: "purchase", question: "个人版和企业版可以同时购买吗？", answer: "可以。个人版订阅与企业版订阅相互独立，分别管理套餐额度和 API Key。", editions: BOTH },
+  { id: "refund", group: "purchase", question: "购买后可以退款吗？", answer: "不可以。新购、续费、加购及升级订单支付成功后均不支持退款，请在购买前确认套餐档位、订阅周期和席位数量。", editions: BOTH, productPage: BOTH },
+  { id: "validity", group: "purchase", question: "套餐有效期如何计算？", answer: "套餐有效期以自然月为单位，自购买成功当日开始计算，并在有效期结束后一天的 0 点到期。例如，非闰年 1 月 31 日购买 1 个月套餐，将于 3 月 1 日 0 点到期。", editions: BOTH },
+  { id: "renewal-period", group: "purchase", question: "是否支持提前续费和多次续费？", answer: "支持手动续费和自动续费。月付订阅可续费 1 个月、3 个月或 6 个月，年付订阅每次可续费 1 年；支持多次续费，每次均从原到期日顺延，续费后的最终到期日不得超过当前日期之后 24 个月。", editions: BOTH },
+  { id: "renewal-credit", group: "purchase", question: "续费后为什么当前周期的 Credit 没有增加？", answer: "续费只会延长订阅有效期，不会补充当前周期额度。新周期开始后，系统会按套餐规则发放新周期 Credit。", editions: BOTH },
+  { id: "auto-renewal", group: "purchase", question: "如何开启或关闭自动续费？", answer: "可在“我的订阅”中开启或关闭自动续费。关闭后不会影响当前周期使用，仅不再自动续订下一周期。", editions: BOTH },
+  { id: "voucher", group: "purchase", question: "可以使用代金券购买 Token Plan 吗？", answer: "暂不支持使用代金券购买 Token Plan。", editions: BOTH },
+  { id: "credit-carry", group: "credit", question: "套餐 Credit 会结转到下一周期吗？", answer: "不会。Credit 仅在当前订阅周期内有效，周期结束后未使用额度自动清零。", editions: BOTH, productPage: BOTH },
+  { id: "credit-issued", group: "credit", question: "套餐 Credit 何时发放和重置？", answer: "套餐 Credit 按订阅周期发放。进入新周期后，系统发放该周期额度；上一周期未使用的 Credit 不会结转。", editions: BOTH },
+  { id: "credit-exhausted", group: "credit", question: "额度用完后会怎样？", answer: "套餐额度用完后，订阅专用 API Key 将停止服务，不会自动转为按量计费。如需继续调用，可切换至按量付费 API Key。", editions: BOTH, productPage: BOTH },
+  { id: "credit-deduction", group: "credit", question: "不同模型如何抵扣 Credit？", answer: "单次消耗由模型类型、Token 用量、思考模式及工具调用等因素决定，不同模型及输入、缓存和输出等计费项的单价可能不同，实际消耗以账单和控制台用量明细为准。", editions: BOTH },
+  { id: "usage-view", group: "credit", question: "在哪里查看额度和使用明细？", answer: "可在“我的订阅”查看额度变化和使用明细。企业版成员可查看本人用量，企业管理员还可查看各席位及成员的用量。", editions: BOTH },
+  { id: "upgrade-credit", group: "credit", question: "升级套餐后，已使用的额度如何处理？", answer: "升级后额度更新为目标档位对应额度，当前周期已经使用的额度会保留，不会重新清零。", editions: BOTH },
+  { id: "seat-credit", group: "credit", question: "企业版成员是否共享套餐额度？", answer: "不共享。每个席位拥有独立的周期额度，成员使用其获配席位对应的额度。", editions: ["enterprise"] },
+  { id: "get-key", group: "access", question: "在哪里获取 Token Plan API Key？", answer: "购买个人版或获配企业版席位后，可在“我的订阅”的配置区域生成或复制订阅专用 API Key，并查看调用所需的 Base URL。", editions: BOTH },
+  { id: "key-difference", group: "access", question: "订阅专用 API Key 和按量付费 API Key 可以混用吗？", answer: "不可以。Token Plan 调用需使用订阅专用 API Key 和对应的 Base URL；按量付费 API Key 不会抵扣套餐 Credit。", editions: BOTH, productPage: ["personal"] },
+  { id: "same-key-tools", group: "access", question: "同一个 API Key 可以配置到多个工具吗？", answer: "可以配置到多个兼容工具中，但仅限 API Key 所属用户本人使用，所有调用共同消耗该订阅或席位的额度，不得共享或公开泄露。", editions: BOTH },
+  { id: "reset-key", group: "access", question: "重置 API Key 后，旧 Key 还能使用吗？", answer: "不能。重置后旧 Key 会立即失效，请及时更新接口或客户端中的调用配置。", editions: BOTH },
+  { id: "expired-key", group: "access", question: "订阅到期后 API Key 还能继续使用吗？", answer: "不能。订阅到期且未续费后，订阅专用 API Key 将停止服务。", editions: BOTH },
+  { id: "supported-models", group: "access", question: "如何查看支持的模型和工具？", answer: "支持的模型以套餐概览和控制台展示为准；客户端配置方式可查看文档中心的客户端工具接入指南。", editions: BOTH },
+  { id: "invalid-key", group: "access", question: "提示 API Key 无效时如何排查？", answer: "请确认 API Key 已完整复制、未被重置、订阅仍在有效期内，并检查是否使用了 Token Plan 对应的 Base URL。", editions: BOTH },
+  { id: "unsupported-model", group: "access", question: "提示模型不支持时如何处理？", answer: "请确认请求中的 model 名称正确，且该模型属于当前套餐支持范围；实际可用模型以控制台展示为准。", editions: BOTH },
+  { id: "seat-share", group: "team", question: "一个席位可以多人共用吗？", answer: "不可以。每个席位同一时间只能分配给一名企业成员，订阅专用 API Key 也不得共享。", editions: ["enterprise"], productPage: ["enterprise"] },
+  { id: "member-seat-count", group: "team", question: "一名成员可以同时拥有多个席位吗？", answer: "不可以。每名成员同一时间只能持有一个 Token Plan 企业版席位。", editions: ["enterprise"] },
+  { id: "change-seat", group: "team", question: "如何为成员更换席位？", answer: "先回收该成员当前持有的席位，再为其分配新的未分配席位。", editions: ["enterprise"] },
+  { id: "recall-seat", group: "team", question: "回收后的席位可以分配给其他成员吗？", answer: "可以。回收后席位恢复为未分配状态，可重新分配给其他企业成员；席位当期剩余额度会保留。", editions: ["enterprise"] },
+  { id: "recall-key", group: "team", question: "席位回收后，原成员的 API Key 还能使用吗？", answer: "不能。席位回收后，原成员将无法继续使用该席位对应的套餐额度和订阅专用 API Key。", editions: ["enterprise"] },
+  { id: "disabled-member", group: "team", question: "禁用成员后，其席位会自动回收吗？", answer: "不会。禁用成员后，其 API Key 将停止调用，但已分配的 Token Plan 席位仍保持占用；重新启用成员后可恢复使用。", editions: ["enterprise"] },
+  { id: "removed-member", group: "team", question: "移除成员后，其席位如何处理？", answer: "成员被移出企业后，其已分配的 Token Plan 席位会自动回收并恢复为未分配状态，可重新分配给其他成员。", editions: ["enterprise"] },
+  { id: "team-usage", group: "team", question: "企业管理员如何查看成员用量？", answer: "企业管理员可在企业订阅的席位列表查看额度使用进度，并通过“查看用量明细”查看席位记录；也可在“资源统计”中按成员、模型和时间范围分析团队用量。", editions: ["enterprise"] },
+];
+
+export const getTokenPlanFaqs = (edition: TokenPlanEdition) => TOKEN_PLAN_FAQS.filter((faq) => faq.editions.includes(edition));
+export const getProductPageFaqs = (edition: TokenPlanEdition) => TOKEN_PLAN_FAQS.filter((faq) => faq.productPage?.includes(edition));

@@ -143,12 +143,6 @@ export default function UpgradeOrder({ mode = "enterprise" }: Props) {
         <h1 className="text-xl font-bold text-foreground">确认订单</h1>
       </div>
 
-      {/* 顶部提示 */}
-      <div className="flex items-start gap-2 rounded-lg bg-blue-50 border border-blue-200 px-4 py-3">
-        <Info className="w-4 h-4 text-blue-500 mt-0.5 shrink-0" />
-        <p className="text-xs text-blue-700">升级成功后立即生效，到期时间将与当前已购套餐保持一致。</p>
-      </div>
-
       <div className="grid lg:grid-cols-[1fr_400px] gap-8 items-start">
         {/* ── 左栏：席位表格 + 升级目标 ── */}
         <div className="space-y-4">
@@ -257,9 +251,10 @@ export default function UpgradeOrder({ mode = "enterprise" }: Props) {
 
           {/* 计费说明（左下角灰色小字） */}
           <p className="text-xs text-muted-foreground/70 leading-relaxed px-1">
-            计费说明：升级费用按当前套餐剩余周期折算，仅收取差价部分。<br />
-            额度说明：升级后席位额度将更新为{seatTierLabel[targetTier]}对应额度，已使用额度不影响升级。<br />
-            退款政策：席位升级不支持退款，升级后不可降级。
+            生效说明：升级成功后立即生效，到期时间将与当前已购套餐保持一致。<br />
+            计费说明：升级费用按当前订阅的剩余周期折算，仅收取目标档位与当前档位的差价。<br />
+            额度说明：升级后，本周期额度按{seatTierLabel[targetTier]}对应额度更新；已使用额度保留，可用额度根据更新后的额度计算。<br />
+            降级说明：当前周期内不支持降级。
           </p>
         </div>
 

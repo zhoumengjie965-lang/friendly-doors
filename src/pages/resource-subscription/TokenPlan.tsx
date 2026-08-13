@@ -20,20 +20,13 @@ import {
   MOCK_PLANS,
 } from "./shared";
 import { cn } from "@/lib/utils";
+import { getProductPageFaqs } from "./token-plan-faq";
 
 interface Props {
   mode: "enterprise" | "personal";
   role?: string;
   enterpriseId?: string;
 }
-
-const FAQ_LIST = [
-  { q: "模型积分是如何结算的？", a: "模型调用按后台统一基准价（¥0.01/积分）与各模型抵扣系数折算为积分后，从套餐额度中扣减。" },
-  { q: "我可以同时购买多个订阅吗？", a: "同一企业/个人同时只能持有 1 个生效中的周期订阅。如需更多席位，可在订阅详情页加购席位。" },
-  { q: "订阅内的模型是否会随时变动？", a: "适用模型清单以购买时的商品配置为准。后台新增可用模型时，自动加入「全部模型」类套餐；指定模型套餐不会自动变化。" },
-  { q: "如果团队额度用完了怎么办？", a: "可在下单时开启「用尽即停」避免超量扣费；未开启时额度用完将自动按量计费，从充值余额扣款。" },
-  { q: "席位如何分配与管理？", a: "购买后管理员可在「订阅管理」中为团队成员分配席位，每席位独立享有 Credit 额度与 API Key 配额。" },
-];
 
 // 每个套餐的主题色（用于装饰条/光晕/选中态）
 const PLAN_THEMES: Record<string, { from: string; to: string; accent: string; glow: string }> = {
@@ -49,6 +42,7 @@ function getTheme(planId: string) {
 export default function TokenPlan({ mode, role = "member", enterpriseId }: Props) {
   const navigate = useNavigate();
   const [cycle, setCycle] = useState<Cycle>("month");
+  const productFaqs = useMemo(() => getProductPageFaqs(mode), [mode]);
 
   const canPurchase = mode === "personal" || role === "admin";
 
@@ -169,17 +163,22 @@ export default function TokenPlan({ mode, role = "member", enterpriseId }: Props
           <h2 className="text-lg font-semibold text-foreground">常见问题</h2>
         </div>
         <Accordion type="single" collapsible className="w-full">
-          {FAQ_LIST.map((item, idx) => (
-            <AccordionItem key={idx} value={`item-${idx}`}>
+          {productFaqs.map((item) => (
+            <AccordionItem key={item.id} value={item.id}>
               <AccordionTrigger className="text-sm text-left hover:no-underline">
-                {item.q}
+                {item.question}
               </AccordionTrigger>
               <AccordionContent className="text-sm text-muted-foreground leading-relaxed">
-                {item.a}
+                {item.answer}
               </AccordionContent>
             </AccordionItem>
           ))}
         </Accordion>
+        <div className="mt-5 flex justify-end">
+          <Button variant="link" className="h-auto gap-1 px-0" onClick={() => navigate(`/workspace/docs/token-plan/${mode}-faq`)}>
+            查看更多常见问题 <ArrowRight className="h-4 w-4" />
+          </Button>
+        </div>
       </section>
     </div>
   );

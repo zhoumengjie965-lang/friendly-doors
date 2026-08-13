@@ -10,7 +10,7 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog";
-import { ArrowLeft, Info, CheckCircle2, Loader2, Minus, Plus, Wallet } from "lucide-react";
+import { ArrowLeft, CheckCircle2, Loader2, Minus, Plus, Wallet } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import {
   MOCK_SEAT_SUBSCRIPTIONS,
@@ -280,16 +280,6 @@ export default function AddonOrder({ balance = 5000 }: { balance?: number }) {
         <h1 className="text-xl font-bold text-foreground">加购席位</h1>
       </div>
 
-      {/* 顶部提示 */}
-      <div className="flex items-start gap-2 rounded-lg bg-blue-50 border border-blue-200 px-4 py-3">
-        <Info className="w-4 h-4 text-blue-500 mt-0.5 shrink-0" />
-        <div className="text-xs text-blue-700 space-y-1">
-          <p>购买成功后立即生效，到期时间将与当前已购套餐保持一致。</p>
-          <p>计费说明：新席位按主账户当前周期剩余天数计价，自动续费规则跟随主账户。</p>
-          <p>额度说明：本周期内可用额度按主账户当前周期剩余天数对应额度折算，下周期重置至完整额度。</p>
-        </div>
-      </div>
-
       <div className="grid lg:grid-cols-[1fr_400px] gap-8 items-start">
         {/* ── 左栏：三档位选择 ── */}
         <div className="space-y-4">
@@ -362,6 +352,11 @@ export default function AddonOrder({ balance = 5000 }: { balance?: number }) {
                 </div>
               );
             })}
+          </div>
+          <div className="space-y-1.5 px-1 text-xs leading-relaxed text-muted-foreground/80">
+            <p>生效说明：加购成功后立即生效，到期时间将与当前已购套餐保持一致。</p>
+            <p>计费说明：新增席位按当前企业订阅的剩余天数计价，自动续费设置跟随企业订阅。</p>
+            <p>额度说明：新增席位本周期额度按剩余天数折算，下个周期恢复为完整周期额度。</p>
           </div>
         </div>
 

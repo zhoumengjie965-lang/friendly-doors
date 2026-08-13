@@ -407,9 +407,24 @@ export default function TeamSubscription({ role: _role = "admin" }: Props) {
             <Button variant="outline" size="sm" className="h-8 text-xs text-red-500 hover:text-red-600" disabled={!someSelected} onClick={openRecycleBatch}>
               <UserMinus className="w-3.5 h-3.5 mr-1.5" />回收
             </Button>
-            <Button variant="outline" size="sm" className="h-8 text-xs" disabled={!canBatchUpgrade} onClick={handleUpgradeBatch}>
-              <ArrowUpCircle className="w-3.5 h-3.5 mr-1.5" />升级
-            </Button>
+            {selectedTiers.size > 1 ? (
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <span className="inline-flex cursor-not-allowed">
+                      <Button variant="outline" size="sm" className="h-8 text-xs" disabled>
+                        <ArrowUpCircle className="w-3.5 h-3.5 mr-1.5" />升级
+                      </Button>
+                    </span>
+                  </TooltipTrigger>
+                  <TooltipContent>仅支持同一档位批量操作</TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            ) : (
+              <Button variant="outline" size="sm" className="h-8 text-xs" disabled={!canBatchUpgrade} onClick={handleUpgradeBatch}>
+                <ArrowUpCircle className="w-3.5 h-3.5 mr-1.5" />升级
+              </Button>
+            )}
           </div>
         </div>
         <div className="rounded-lg border border-border overflow-hidden">
