@@ -55,6 +55,8 @@ import AdminOrderManagement from "./AdminOrderManagement";
 import AdminOrderDetail from "./AdminOrderDetail";
 import AdminEntitlementManagement from "./AdminEntitlementManagement";
 import AdminEntitlementDetail from "./AdminEntitlementDetail";
+import AdminResellers from "./AdminResellers";
+import AdminResellerDetail from "./AdminResellerDetail";
 
 // 一级菜单页面（空页面）
 function AdminHome() {
@@ -182,6 +184,7 @@ const CONSOLE_NAV_GROUPS = [
     items: [
       { label: "企业管理", icon: Building2, path: "enterprises" },
       { label: "用户管理", icon: Users, path: "users" },
+      { label: "代理商管理", icon: Network, path: "resellers" },
       { label: "消费趋势", icon: TrendingUp, path: "consumption-trends" },
       { label: "调用日志", icon: FileText, path: "call-logs" },
       { label: "服务可用性监控", icon: Shield, path: "service-availability" },
@@ -288,6 +291,8 @@ function ConsoleLayout() {
           <Route path="enterprises" element={<AdminEnterprises />} />
           <Route path="enterprises/:id" element={<AdminEnterpriseDetail />} />
           <Route path="users" element={<AdminUsers />} />
+          <Route path="resellers" element={<AdminResellers />} />
+          <Route path="resellers/:id" element={<AdminResellerDetail />} />
           <Route path="consumption-trends" element={<AdminConsumptionTrends />} />
           <Route path="products" element={<AdminSubscriptionManagement />} />
           <Route path="subscription-management" element={<AdminSubscriptionList />} />

@@ -13,6 +13,7 @@ import { Search, Plus, X, UserCircle, Eye, EyeOff, Shield, ChevronDown, RotateCc
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useToast } from "@/hooks/use-toast";
+import { addDemoUser, getResellerDemoState, getResellerName, migrateUser, preflightUserMigration, setDemoUserStatus } from "@/lib/resellerDemo";
 
 interface EnterpriseRef { id: string; name: string; role: string; enterprise_type?: "formal" | "test"; }
 
@@ -771,7 +772,7 @@ function ModelAccessSelect({
   );
 }
 
-export default function AdminUsers() {
+export default function AdminUsers({ resellerScopeId }: { resellerScopeId?: string } = {}) {
   const { toast } = useToast();
   const [users, setUsers] = useState<UserRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -781,6 +782,14 @@ export default function AdminUsers() {
   const [tokenGroupFilter, setTokenGroupFilter] = useState<string>("all");
   const [tokenGroupSearchQuery, setTokenGroupSearchQuery] = useState("");
   const [tagFilter, setTagFilter] = useState<string>("all");
+  const [resellerFilter, setResellerFilter] = useState<string>("all");
+  const [demoRevision, setDemoRevision] = useState(0);
+  const demoState = (() => { void demoRevision; return getResellerDemoState(); })();
+  const enabledResellers = demoState.resellers.filter((item) => item.status === "enabled");
+  const [migrationTarget, setMigrationTarget] = useState<UserRow | null>(null);
+  const [migrationResellerId, setMigrationResellerId] = useState("direct");
+  const [migrationReason, setMigrationReason] = useState("");
+  const [migrationChecked, setMigrationChecked] = useState(false);
 
   // 标签类型选项
   const TAG_TYPE_OPTIONS = [
@@ -1003,7 +1012,9 @@ export default function AdminUsers() {
       return;
     }
 
-    const phones = usersData.map((u) => u.phone);
+    const localUsers = getResellerDemoState().users.filter((item) => item.locallyCreated && !usersData.some((user) => user.phone === item.phone)).map((item) => ({ id: `demo-${item.phone}`, phone: item.phone, name: item.name, created_at: item.createdAt, status: item.status }));
+    const allUsersData = [...usersData, ...localUsers];
+    const phones = allUsersData.map((u) => u.phone);
 
     const { data: membersData, error: membersError } = await supabase
       .from("members")
@@ -1059,17 +1070,9 @@ export default function AdminUsers() {
     });
 
     setUsers(
-      usersData.map((u, index) => {
+      allUsersData.map((u) => {
         const userEnts = [...(membersByPhone[u.phone] || [])];
-        // 企业拥有者 Mock：用于展示拥有者标签只能从企业侧统一迁移
-        if (index === 0 && !userEnts.some((enterprise) => enterprise.role === "owner")) {
-          userEnts.unshift({
-            id: "mock-reseller-owner-enterprise",
-            name: "代理商A示例企业",
-            role: "owner",
-            enterprise_type: "formal",
-          });
-        }
+        const assignment = getResellerDemoState().users.find((item) => item.phone === u.phone);
         const ownerBal = ownerBalanceMap[u.phone] || { balance: 0, total: 0 };
         const isOwner = userEnts.some((e) => e.role === "owner");
         return {
@@ -1084,8 +1087,7 @@ export default function AdminUsers() {
           invite_revenue: 0,
           inviter: null,
           user_type: "test",
-          // 代理商标签 Mock：企业用户跟随代理商 A，部分独立用户用于展示其他归属
-          reseller_code: userEnts.length > 0 ? "agent-001" : (index % 3 === 1 ? "agent-002" : null),
+          reseller_code: assignment?.resellerId ?? null,
         };
       })
     );
@@ -1179,6 +1181,7 @@ export default function AdminUsers() {
     setUsers((prev) => prev.map((u) => u.id === user.id ? { ...u, status: newStatus } : u));
     if (drawerUser?.id === user.id) setDrawerUser((prev) => prev ? { ...prev, status: newStatus } : prev);
     await supabase.from("users").update({ status: newStatus }).eq("id", user.id);
+    setDemoUserStatus(user.phone, newStatus);
     toast({ title: newStatus === "active" ? "已启用" : "已禁用", description: `用户 ${user.name || user.phone} 已${newStatus === "active" ? "启用" : "禁用"}` });
   };
 
@@ -1228,32 +1231,23 @@ export default function AdminUsers() {
       toast({ title: "请输入密码", variant: "destructive" });
       return;
     }
+    const effectiveAgentId = resellerScopeId || addForm.agentId;
+    if (!effectiveAgentId) {
+      toast({ title: "请选择用户归属（平台直客或代理商）", variant: "destructive" });
+      return;
+    }
 
     // 组合备注：类型_输入信息（选填）
     const remark = addForm.remarkName.trim() ? `${addForm.remarkType}_${addForm.remarkName}` : "";
 
     setAddingUser(true);
     try {
-      const { error } = await supabase.auth.signUp({
-        email: `${addForm.username.trim()}@friendlydoors.local`,
-        password: addForm.password.trim(),
-        options: {
-          data: {
-            name: addForm.displayName.trim() || addForm.username.trim(),
-            remark: remark,
-          },
-        },
-      });
-
-      if (error) {
-        toast({ title: "创建失败", description: error.message, variant: "destructive" });
-        return;
-      }
+      addDemoUser({ phone: addForm.username.trim(), name: addForm.displayName.trim() || addForm.username.trim(), resellerId: effectiveAgentId === "direct" ? null : effectiveAgentId });
 
       toast({ title: "用户创建成功", description: `用户 ${addForm.username} 已添加` });
       setAddDialogOpen(false);
       setAddForm({ username: "", displayName: "", password: "", remarkType: "正式用户", remarkName: "", voucherEnabled: false, groupMode: "template" as const, selectedTemplate: TEMPLATE_OPTIONS[0]?.value || "default", selectedHistoricalGroup: "", customGroups: {}, modelAccess: ["国际"], agentId: "" });
-      fetchAll();
+      setDemoRevision((value) => value + 1); fetchAll();
     } catch (err: any) {
       toast({ title: "创建失败", description: err.message || "未知错误", variant: "destructive" });
     } finally {
@@ -1293,7 +1287,8 @@ export default function AdminUsers() {
         return u.user_type !== undefined;
       }
       return true;
-    });
+    })
+    .filter((u) => resellerScopeId ? u.reseller_code === resellerScopeId : resellerFilter === "all" || (resellerFilter === "direct" ? !u.reseller_code : u.reseller_code === resellerFilter));
 
   const roleLabel = (role: string) => {
     const map: Record<string, string> = { owner: "企业主", org_admin: "组织管理员", member: "成员" };
@@ -1311,7 +1306,7 @@ export default function AdminUsers() {
         <div className="flex items-center gap-3">
           <div>
             <h1 className="text-xl font-semibold text-foreground">用户管理</h1>
-            <p className="text-sm text-muted-foreground mt-0.5">共 {users.length} 名用户</p>
+            <p className="text-sm text-muted-foreground mt-0.5">共 {filtered.length} 名用户</p>
           </div>
         </div>
         <Button
@@ -1439,6 +1434,10 @@ export default function AdminUsers() {
             ))}
           </SelectContent>
         </Select>
+        {!resellerScopeId && <Select value={resellerFilter} onValueChange={setResellerFilter}>
+          <SelectTrigger className="w-[150px] h-9 bg-white"><SelectValue placeholder="代理商归属" /></SelectTrigger>
+          <SelectContent><SelectItem value="all">全部归属</SelectItem><SelectItem value="direct">平台直客</SelectItem>{demoState.resellers.map((item) => <SelectItem key={item.id} value={item.id}>{item.name}</SelectItem>)}</SelectContent>
+        </Select>}
         <Button variant="outline" className="h-9" onClick={handleSearch}>
           查询
         </Button>
@@ -1482,10 +1481,11 @@ export default function AdminUsers() {
 
       {/* Table */}
       <div className="bg-card border rounded-xl overflow-hidden">
-        <div className="grid grid-cols-[60px_100px_80px_160px_80px_80px_140px_100px_90px_1fr] text-xs font-medium text-muted-foreground border-b bg-gray-50/50">
+        <div className={`grid ${resellerScopeId ? "grid-cols-[60px_100px_80px_150px_70px_70px_120px_90px_1fr]" : "grid-cols-[60px_100px_80px_110px_150px_70px_70px_120px_90px_1fr]"} text-xs font-medium text-muted-foreground border-b bg-gray-50/50`}>
           <span className="px-3 py-3">ID</span>
           <span className="px-3 py-3">用户名</span>
           <span className="px-3 py-3">状态</span>
+          {!resellerScopeId && <span className="px-3 py-3">代理商归属</span>}
           <span className="px-3 py-3">个人空间剩余额度/总额度</span>
           <span className="px-3 py-3">分组</span>
           <span className="px-3 py-3">角色</span>
@@ -1503,7 +1503,7 @@ export default function AdminUsers() {
           filtered.map((u, index) => (
             <div
               key={u.id}
-              className={`grid grid-cols-[60px_100px_80px_160px_80px_80px_140px_100px_90px_1fr] border-b last:border-0 text-sm items-center hover:bg-gray-50/50 ${index % 2 === 1 ? "bg-gray-50/30" : ""}`}
+              className={`grid ${resellerScopeId ? "grid-cols-[60px_100px_80px_150px_70px_70px_120px_90px_1fr]" : "grid-cols-[60px_100px_80px_110px_150px_70px_70px_120px_90px_1fr]"} border-b last:border-0 text-sm items-center hover:bg-gray-50/50 ${index % 2 === 1 ? "bg-gray-50/30" : ""}`}
             >
               <span className="text-muted-foreground px-3 py-3.5 font-mono text-xs truncate">
                 {u.id.slice(0, 6)}
@@ -1519,6 +1519,7 @@ export default function AdminUsers() {
                   <Badge variant="outline" className="text-xs text-red-600 border-red-200 bg-red-50">已禁用</Badge>
                 )}
               </span>
+              {!resellerScopeId && <span className="px-3 py-3.5 text-xs"><Badge variant="secondary" className="font-normal">{getResellerName(u.reseller_code, demoState)}</Badge></span>}
               <span className="text-muted-foreground tabular-nums px-3 py-3.5 text-xs">
                 <span className="text-green-600">¥{formatNumber(u.personal_balance)}</span>
                 <span className="text-gray-400"> / </span>
@@ -1732,36 +1733,11 @@ export default function AdminUsers() {
                 </div>
               </div>
 
-              {/* 代理商标签 */}
+              {/* 代理商归属 */}
               <div className="space-y-1.5">
-                <Label className="text-sm">代理商标签</Label>
-                <Select
-                  value={editForm.agentId || "direct"}
-                  disabled={drawerUser.role === "企业主" || drawerUser.enterprises.some((enterprise) => enterprise.role === "owner")}
-                  onValueChange={(value) => setEditForm((prev) => ({
-                    ...prev,
-                    agentId: value === "direct" ? "" : value,
-                  }))}
-                >
-                  <SelectTrigger className="w-full h-10 bg-white">
-                    <SelectValue placeholder="请选择代理商标签" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="direct">直客（无代理商标签）</SelectItem>
-                    {AGENT_OPTIONS.map((a) => (
-                      <SelectItem key={a.value} value={a.value}>
-                        {a.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <p className="text-xs text-gray-400">
-                  {drawerUser.role === "企业主" || drawerUser.enterprises.some((enterprise) => enterprise.role === "owner")
-                    ? "该用户是企业拥有者，请从企业编辑页统一迁移企业及成员"
-                    : drawerUser.enterprises.length > 0
-                      ? "修改后，该用户将退出所有归属不一致的企业"
-                      : "修改后，用户将通过新代理商入口登录"}
-                </p>
+                <Label className="text-sm">代理商归属</Label>
+                <div className="h-10 px-3 border rounded-md bg-gray-50 flex items-center justify-between"><span className="text-sm">{getResellerName(drawerUser.reseller_code, demoState)}</span><Button type="button" variant="outline" size="sm" onClick={() => { setMigrationTarget(drawerUser); setMigrationResellerId("direct"); setMigrationReason(""); setMigrationChecked(false); }}>迁移归属</Button></div>
+                <p className="text-xs text-gray-400">归属不可直接编辑；有企业关系的用户需从企业整体迁移。</p>
               </div>
 
               {/* Section B: 权限设置 */}
@@ -2035,7 +2011,7 @@ export default function AdminUsers() {
 
               <div className="space-y-1.5">
                 <Label className="text-sm">所属代理商</Label>
-                <Select value={addForm.agentId || undefined} onValueChange={(v) => setAddForm((prev) => ({ ...prev, agentId: v }))}>
+                <Select value={resellerScopeId || addForm.agentId || undefined} disabled={!!resellerScopeId} onValueChange={(v) => setAddForm((prev) => ({ ...prev, agentId: v }))}>
                   <SelectTrigger className="w-full h-10 bg-gray-50/50 border-gray-200 [&>span:not(.sr-only)]:line-clamp-none">
                     <SelectValue placeholder="" style={{ display: 'none' }} />
                     {addForm.agentId ? (
@@ -2045,17 +2021,14 @@ export default function AdminUsers() {
                         onPointerDown={(e) => { e.preventDefault(); e.stopPropagation(); }}
                         onClick={(e) => { e.stopPropagation(); setAddForm(prev => ({ ...prev, agentId: "" })); }}
                       >
-                        {AGENT_OPTIONS.find(a => a.value === addForm.agentId)?.label || addForm.agentId}
+                        {addForm.agentId === "direct" ? "平台直客" : getResellerName(addForm.agentId, demoState)}
                         <X className="h-3 w-3" />
                       </span>
                     ) : null}
                   </SelectTrigger>
                   <SelectContent>
-                    {AGENT_OPTIONS.map((a) => (
-                      <SelectItem key={a.value} value={a.value}>
-                        {a.label}
-                      </SelectItem>
-                    ))}
+                    <SelectItem value="direct">平台直客</SelectItem>
+                    {enabledResellers.map((a) => <SelectItem key={a.id} value={a.id}>{a.name}</SelectItem>)}
                   </SelectContent>
                 </Select>
               </div>
@@ -2431,6 +2404,18 @@ export default function AdminUsers() {
               </>
             );
           })()}
+        </DialogContent>
+      </Dialog>
+      <Dialog open={!!migrationTarget} onOpenChange={(open) => !open && setMigrationTarget(null)}>
+        <DialogContent className="sm:max-w-[520px]">
+          <DialogHeader><DialogTitle>迁移用户归属</DialogTitle></DialogHeader>
+          {migrationTarget && <div className="space-y-4">
+            <div className="rounded-lg border bg-muted/30 p-3 text-sm"><p>用户：{migrationTarget.name || migrationTarget.phone}（{migrationTarget.phone}）</p><p className="text-muted-foreground mt-1">当前归属：{getResellerName(migrationTarget.reseller_code, demoState)}</p></div>
+            <div className="space-y-1.5"><Label>目标归属</Label><Select value={migrationResellerId} onValueChange={(value) => { setMigrationResellerId(value); setMigrationChecked(false); }}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="direct">平台直客</SelectItem>{enabledResellers.filter((item) => item.id !== migrationTarget.reseller_code).map((item) => <SelectItem key={item.id} value={item.id}>{item.name}</SelectItem>)}</SelectContent></Select></div>
+            <div className="space-y-1.5"><Label>迁移原因 *</Label><Textarea value={migrationReason} onChange={(e) => setMigrationReason(e.target.value)} placeholder="请输入客户迁移原因" /></div>
+            {migrationChecked && (() => { const result = preflightUserMigration(migrationTarget.phone, migrationTarget.enterprises); return <div className={`rounded-lg border p-3 text-sm ${result.ok ? "border-green-200 bg-green-50 text-green-700" : "border-red-200 bg-red-50 text-red-700"}`}>{result.ok ? <><p className="font-medium">预检通过</p><p className="mt-1">将迁移 1 名用户。历史财务数据不受本次迁移影响。</p></> : <><p className="font-medium">预检未通过</p>{result.blockers.map((item) => <p key={item} className="mt-1">• {item}</p>)}</>}</div>; })()}
+          </div>}
+          <DialogFooter><Button variant="outline" onClick={() => setMigrationTarget(null)}>取消</Button>{!migrationChecked ? <Button onClick={() => { if (!migrationReason.trim()) { toast({ title: "请输入迁移原因", variant: "destructive" }); return; } setMigrationChecked(true); }}>执行预检</Button> : <Button disabled={!migrationTarget || !preflightUserMigration(migrationTarget.phone, migrationTarget.enterprises).ok} onClick={() => { if (!migrationTarget) return; migrateUser(migrationTarget.phone, migrationResellerId === "direct" ? null : migrationResellerId, migrationReason.trim()); toast({ title: "迁移成功", description: "旧代理商入口已失效，请通过新入口登录；历史财务数据不受影响。" }); setMigrationTarget(null); setDrawerOpen(false); setDemoRevision((value) => value + 1); fetchAll(); }}>确认迁移</Button>}</DialogFooter>
         </DialogContent>
       </Dialog>
     </div>

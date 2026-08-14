@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { format, startOfMonth, endOfMonth } from "date-fns";
+import { useMemo, useState } from "react";
+import { eachDayOfInterval, format, startOfMonth, endOfMonth } from "date-fns";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
   PieChart, Pie, Cell,
@@ -476,8 +476,7 @@ export default function ResourceStats({ enterprise }: Props) {
     to: endOfMonth(new Date("2024-02-01")),
   });
   const [calendarOpen, setCalendarOpen] = useState(false);
-  const [activeSubTab, setActiveSubTab] = useState<"consumption" | "calls">("consumption");
-  const [granularity, setGranularity] = useState<"hour" | "day" | "week">("day");
+  const [activeSubTab, setActiveSubTab] = useState<"usage" | "calls" | "cost">("cost");
   const [viewRole, setViewRole] = useState<ViewRole>("member");
   const [selectedOrg, setSelectedOrg] = useState("org-1");
   const [memberFilter, setMemberFilter] = useState("");
@@ -548,8 +547,39 @@ export default function ResourceStats({ enterprise }: Props) {
     (viewRole === "org_admin" && orgAdminViewMode === "my") ||
     (viewRole === "enterprise_admin" && enterpriseAdminViewMode === "my");
 
-  const chartData = activeSubTab === "consumption" ? mockDayData : mockCallData;
-  const yLabel = activeSubTab === "consumption" ? "Tokens" : "次数";
+  const chartData = useMemo(() => {
+    if (activeSubTab === "usage") {
+      return mockDayData.map((item) => ({
+        date: item.date,
+        qwen: item.claude,
+        deepseek: item.gpt4,
+        glm: item.gemini,
+        minimax: 0,
+      }));
+    }
+    if (activeSubTab === "calls") {
+      return mockCallData.map((item) => ({
+        date: item.date,
+        qwen: item.claude,
+        deepseek: item.gpt4,
+        glm: item.gemini,
+        minimax: 0,
+      }));
+    }
+    const from = dateRange?.from ?? new Date("2024-02-01");
+    const to = dateRange?.to ?? from;
+    return eachDayOfInterval({ start: from, end: to }).map((date, index) => {
+      const factor = 0.75 + ((index * 7) % 8) / 10;
+      return {
+        date: format(date, "MM-dd"),
+        qwen: Number((126.5 * factor).toFixed(2)),
+        deepseek: Number((86.2 * factor).toFixed(2)),
+        glm: Number((58.8 * factor).toFixed(2)),
+        minimax: Number((34.6 * factor).toFixed(2)),
+      };
+    });
+  }, [activeSubTab, dateRange]);
+  const yLabel = activeSubTab === "usage" ? "Tokens" : activeSubTab === "calls" ? "次数" : "金额（元）";
 
   const cardLabels = { big: "已消耗预算", mid1: "统计调用次数", mid2: "消耗Tokens" };
 
@@ -1294,15 +1324,26 @@ export default function ResourceStats({ enterprise }: Props) {
             </div>
             <div className="flex items-center bg-muted rounded-lg p-1 h-8">
               <button
-                onClick={() => setActiveSubTab("consumption")}
+                onClick={() => setActiveSubTab("cost")}
                 className={cn(
                   "px-3 py-1 rounded-md text-xs font-medium transition-all",
-                  activeSubTab === "consumption"
+                  activeSubTab === "cost"
                     ? "bg-background text-foreground shadow-sm"
                     : "text-muted-foreground hover:text-foreground"
                 )}
               >
-                模型消耗分布
+                模型消费分析
+              </button>
+              <button
+                onClick={() => setActiveSubTab("usage")}
+                className={cn(
+                  "px-3 py-1 rounded-md text-xs font-medium transition-all",
+                  activeSubTab === "usage"
+                    ? "bg-background text-foreground shadow-sm"
+                    : "text-muted-foreground hover:text-foreground"
+                )}
+              >
+                模型用量分布
               </button>
               <button
                 onClick={() => setActiveSubTab("calls")}
@@ -1316,22 +1357,6 @@ export default function ResourceStats({ enterprise }: Props) {
                 模型调用分布
               </button>
             </div>
-          </div>
-          <div className="flex items-center bg-muted rounded-lg p-1 h-8">
-            {(["hour", "day", "week"] as const).map((g) => (
-              <button
-                key={g}
-                onClick={() => setGranularity(g)}
-                className={cn(
-                  "px-2.5 py-1 rounded-md text-xs font-medium transition-all",
-                  granularity === g
-                    ? "bg-background text-foreground shadow-sm"
-                    : "text-muted-foreground hover:text-foreground"
-                )}
-              >
-                {g === "hour" ? "按小时" : g === "day" ? "按天" : "按周"}
-              </button>
-            ))}
           </div>
         </div>
 
@@ -1349,7 +1374,7 @@ export default function ResourceStats({ enterprise }: Props) {
               axisLine={false}
               tickLine={false}
               width={50}
-              tickFormatter={(v) => activeSubTab === "consumption" && v >= 1000 ? `${v / 1000}K` : String(v)}
+              tickFormatter={(v) => activeSubTab === "cost" ? `¥${v}` : activeSubTab === "usage" && v >= 1000 ? `${v / 1000}K` : String(v)}
               label={{ value: yLabel, angle: -90, position: "insideLeft", offset: 10, style: { fontSize: 11, fill: "hsl(var(--muted-foreground))" } }}
             />
             <Tooltip
@@ -1360,11 +1385,13 @@ export default function ResourceStats({ enterprise }: Props) {
                 fontSize: 12,
               }}
               cursor={{ fill: "hsl(var(--muted))" }}
+              formatter={(value: number, name: string) => [activeSubTab === "cost" ? `¥${Number(value).toFixed(2)}` : activeSubTab === "calls" ? `${value} 次` : `${value} Tokens`, name]}
             />
             <Legend iconType="square" iconSize={8} wrapperStyle={{ fontSize: 12, paddingTop: 12 }} />
-            <Bar dataKey="claude" name="Claude 3" stackId="a" fill="#4ade80" radius={[0, 0, 0, 0]} />
-            <Bar dataKey="gpt4" name="GPT-4" stackId="a" fill="#60a5fa" radius={[0, 0, 0, 0]} />
-            <Bar dataKey="gemini" name="Gemini Pro" stackId="a" fill="#a78bfa" radius={[4, 4, 0, 0]} />
+            <Bar dataKey="qwen" name="Qwen" stackId="a" fill="#60a5fa" radius={[0, 0, 0, 0]} />
+            <Bar dataKey="deepseek" name="DeepSeek" stackId="a" fill="#4ade80" radius={[0, 0, 0, 0]} />
+            <Bar dataKey="glm" name="GLM" stackId="a" fill="#a78bfa" radius={[0, 0, 0, 0]} />
+            <Bar dataKey="minimax" name="MiniMax" stackId="a" fill="#fb923c" radius={[4, 4, 0, 0]} />
           </BarChart>
         </ResponsiveContainer>
       </div>
@@ -1710,15 +1737,26 @@ export default function ResourceStats({ enterprise }: Props) {
                 </div>
                 <div className="flex items-center bg-muted rounded-lg p-1 h-8">
                   <button
-                    onClick={() => setActiveSubTab("consumption")}
+                    onClick={() => setActiveSubTab("cost")}
                     className={cn(
                       "px-3 py-1 rounded-md text-xs font-medium transition-all",
-                      activeSubTab === "consumption"
+                      activeSubTab === "cost"
                         ? "bg-background text-foreground shadow-sm"
                         : "text-muted-foreground hover:text-foreground"
                     )}
                   >
-                    模型消耗分布
+                    模型消费分析
+                  </button>
+                  <button
+                    onClick={() => setActiveSubTab("usage")}
+                    className={cn(
+                      "px-3 py-1 rounded-md text-xs font-medium transition-all",
+                      activeSubTab === "usage"
+                        ? "bg-background text-foreground shadow-sm"
+                        : "text-muted-foreground hover:text-foreground"
+                    )}
+                  >
+                    模型用量分布
                   </button>
                   <button
                     onClick={() => setActiveSubTab("calls")}
@@ -1732,22 +1770,6 @@ export default function ResourceStats({ enterprise }: Props) {
                     模型调用分布
                   </button>
                 </div>
-              </div>
-              <div className="flex items-center bg-muted rounded-lg p-1 h-8">
-                {(["hour", "day", "week"] as const).map((g) => (
-                  <button
-                    key={g}
-                    onClick={() => setGranularity(g)}
-                    className={cn(
-                      "px-2.5 py-1 rounded-md text-xs font-medium transition-all",
-                      granularity === g
-                        ? "bg-background text-foreground shadow-sm"
-                        : "text-muted-foreground hover:text-foreground"
-                    )}
-                  >
-                    {g === "hour" ? "按小时" : g === "day" ? "按天" : "按周"}
-                  </button>
-                ))}
               </div>
             </div>
 
@@ -1765,7 +1787,7 @@ export default function ResourceStats({ enterprise }: Props) {
                   axisLine={false}
                   tickLine={false}
                   width={50}
-                  tickFormatter={(v) => activeSubTab === "consumption" && v >= 1000 ? `${v / 1000}K` : String(v)}
+                  tickFormatter={(v) => activeSubTab === "cost" ? `¥${v}` : activeSubTab === "usage" && v >= 1000 ? `${v / 1000}K` : String(v)}
                   label={{ value: yLabel, angle: -90, position: "insideLeft", offset: 10, style: { fontSize: 11, fill: "hsl(var(--muted-foreground))" } }}
                 />
                 <Tooltip
@@ -1775,11 +1797,13 @@ export default function ResourceStats({ enterprise }: Props) {
                     borderRadius: 8,
                     fontSize: 12,
                   }}
+                  formatter={(value: number, name: string) => [activeSubTab === "cost" ? `¥${Number(value).toFixed(2)}` : activeSubTab === "calls" ? `${value} 次` : `${value} Tokens`, name]}
                 />
                 <Legend wrapperStyle={{ paddingTop: 16 }} />
-                <Bar dataKey="claude" name="Claude 3" stackId="a" fill="#4ade80" radius={[0, 0, 0, 0]} />
-                <Bar dataKey="gpt4" name="GPT-4" stackId="a" fill="#60a5fa" radius={[0, 0, 0, 0]} />
-                <Bar dataKey="gemini" name="Gemini Pro" stackId="a" fill="#a78bfa" radius={[4, 4, 0, 0]} />
+                <Bar dataKey="qwen" name="Qwen" stackId="a" fill="#60a5fa" radius={[0, 0, 0, 0]} />
+                <Bar dataKey="deepseek" name="DeepSeek" stackId="a" fill="#4ade80" radius={[0, 0, 0, 0]} />
+                <Bar dataKey="glm" name="GLM" stackId="a" fill="#a78bfa" radius={[0, 0, 0, 0]} />
+                <Bar dataKey="minimax" name="MiniMax" stackId="a" fill="#fb923c" radius={[4, 4, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
           </div>

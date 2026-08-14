@@ -3,7 +3,7 @@
 
 const MOCK_DATA_KEY = "ai_gateway_mock_data";
 const CURRENT_PHONE_KEY = "ai_gateway_phone";
-const MOCK_DATA_VERSION = "2.3"; // 数据版本，修改mock数据时更新此版本号
+const MOCK_DATA_VERSION = "2.4"; // 数据版本，修改mock数据时更新此版本号
 
 // ===== 数据类型定义 =====
 export interface MockUser {
@@ -1123,7 +1123,12 @@ const initialData: MockData = {
       enterprise_id: "ent_1",
       name: "研发部模型策略",
       bound_org_ids: ["org_root", "org_tech"],
-      allowed_models: ["gpt-4"],
+      allowed_models: [
+        "gpt-4", "gpt-4o", "gpt-4o-mini",
+        "claude-3-5-sonnet", "claude-3-haiku", "gemini-1.5-pro",
+        "qwen-max", "qwen-plus", "deepseek-chat",
+        "glm-4", "moonshot-v1", "llama-3-70b",
+      ],
       updated_by: TEST_PHONE,
       created_at: getNow(),
       updated_at: getNow(),

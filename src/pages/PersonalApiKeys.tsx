@@ -76,7 +76,7 @@ const MOCK_API_KEYS: ApiKeyItem[] = [
   },
   {
     id: "3",
-    name: "通用分组key",
+    name: "通用key",
     key_value: "ENPf***********zGTK",
     status: "active",
     total_quota: null,
@@ -692,7 +692,6 @@ export default function PersonalApiKeys() {
               <TableHead className="w-32">名称</TableHead>
               <TableHead className="w-24">状态</TableHead>
               <TableHead className="w-40">剩余额度/总额度</TableHead>
-              <TableHead className="w-32">分组</TableHead>
               <TableHead className="w-48">API Key</TableHead>
               <TableHead className="w-32">可用模型</TableHead>
               <TableHead className="w-40">过期时间</TableHead>
@@ -703,7 +702,7 @@ export default function PersonalApiKeys() {
           <TableBody>
             {paginatedKeys.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={9} className="text-center py-12 text-muted-foreground">
+                <TableCell colSpan={8} className="text-center py-12 text-muted-foreground">
                   暂无数据
                 </TableCell>
               </TableRow>
@@ -720,27 +719,6 @@ export default function PersonalApiKeys() {
                     </Badge>
                   </TableCell>
                   <TableCell>{formatQuota(key.total_quota, key.used_quota)}</TableCell>
-                  <TableCell>
-                    <div className="flex flex-wrap gap-1">
-                      {key.groups && key.groups.length > 0 ? (
-                        key.groups.slice(0, 2).map((g) => {
-                          const groupInfo = GROUP_OPTIONS.find(opt => opt.value === g);
-                          return (
-                            <span key={g} className="px-2 py-0.5 rounded bg-gray-100 text-gray-700 text-xs">
-                              {groupInfo?.label || g}
-                            </span>
-                          );
-                        })
-                      ) : (
-                        <span className="px-2 py-0.5 rounded bg-gray-100 text-gray-700 text-xs">
-                          {key.group_name}
-                        </span>
-                      )}
-                      {key.groups && key.groups.length > 2 && (
-                        <span className="text-xs text-muted-foreground">+{key.groups.length - 2}</span>
-                      )}
-                    </div>
-                  </TableCell>
                   <TableCell>
                     <div className="flex items-center gap-2">
                       <code className="text-xs bg-gray-100 px-2 py-1 rounded font-mono">
@@ -772,7 +750,7 @@ export default function PersonalApiKeys() {
                   </TableCell>
                   <TableCell>
                     {key.allowed_models.includes("无限制") || !key.allowed_models || key.allowed_models.length === 0 ? (
-                      <span className="text-xs text-muted-foreground">跟随分组范围</span>
+                      <span className="text-xs text-muted-foreground">全部模型</span>
                     ) : (
                       <div className="flex flex-wrap gap-1">
                         {key.allowed_models.slice(0, 2).map((m) => (
@@ -883,18 +861,6 @@ export default function PersonalApiKeys() {
                 onChange={(e) => setFormData({ ...formData, name: e.target.value })}
               />
             </div>
-            {/* 分组 */}
-            <div className="grid grid-cols-[100px_1fr] items-start gap-3">
-              <Label className="text-right text-muted-foreground text-sm pt-2.5">
-                <span className="text-red-500 mr-0.5">*</span>分组
-              </Label>
-              <GroupMultiSelect
-                groups={GROUP_OPTIONS}
-                selected={formData.groups || []}
-                onChange={(groups) => setFormData({ ...formData, groups })}
-                placeholder="选择分组"
-              />
-            </div>
             {/* 额度上限 */}
             <div className="grid grid-cols-[100px_1fr] items-center gap-3">
               <Label className="text-right text-muted-foreground text-sm">额度上限</Label>
@@ -920,7 +886,7 @@ export default function PersonalApiKeys() {
             {/* 模型限制列表 */}
             <div className="space-y-2">
               <div className="flex items-center gap-4">
-                <Label className="text-muted-foreground text-sm shrink-0">模型限制列表</Label>
+                <Label className="text-muted-foreground text-sm shrink-0">模型可用范围</Label>
                 <label className="flex items-center gap-2 shrink-0">
                   <input
                     type="checkbox"
@@ -928,36 +894,18 @@ export default function PersonalApiKeys() {
                     onChange={(e) => setFollowGroupRange(e.target.checked)}
                     className="rounded border-gray-300"
                   />
-                  <span className="text-sm">跟随分组范围</span>
+                  <span className="text-sm">全部模型</span>
                 </label>
-                  <label className="flex items-center gap-2 shrink-0 ml-auto">
-                    <input
-                      type="checkbox"
-                      checked={onlyAvailable}
-                      onChange={(e) => setOnlyAvailable(e.target.checked)}
-                      className="rounded border-gray-300"
-                    />
-                    <span className="text-sm text-muted-foreground">仅看可用</span>
-                  </label>
                 </div>
                 {(() => {
                   const selectedGroups = formData.groups || [];
                   const selectedModels = formData.allowed_models || [];
                   const filteredModels = AVAILABLE_MODELS.filter(m =>
                     m.toLowerCase().includes(modelSearch.toLowerCase()) &&
-                    (!onlyAvailable || isModelInGroups(m, selectedGroups))
+                    isModelInGroups(m, selectedGroups)
                   );
                   return (
                     <>
-                      {(() => {
-                        const ghosts = getGhostModels(selectedGroups, selectedModels);
-                        if (ghosts.length === 0) return null;
-                        return (
-                          <div className="p-2 rounded-md bg-muted text-xs text-muted-foreground">
-                            不在当前分组范围内的已选模型已自动置灰：{ghosts.join(", ")}
-                          </div>
-                        );
-                      })()}
                       <div className="rounded-md border border-input p-3 space-y-2">
                         <div className="relative pb-2 border-b border-border/50">
                           <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
@@ -1097,18 +1045,6 @@ export default function PersonalApiKeys() {
                 onChange={(e) => setFormData({ ...formData, name: e.target.value })}
               />
             </div>
-            {/* 分组 */}
-            <div className="grid grid-cols-[100px_1fr] items-start gap-3">
-              <Label className="text-right text-muted-foreground text-sm pt-2.5">
-                <span className="text-red-500 mr-0.5">*</span>分组
-              </Label>
-              <GroupMultiSelect
-                groups={GROUP_OPTIONS}
-                selected={formData.groups || []}
-                onChange={(groups) => setFormData({ ...formData, groups })}
-                placeholder="选择分组"
-              />
-            </div>
             {/* 额度上限 */}
             <div className="grid grid-cols-[100px_1fr] items-center gap-3">
               <Label className="text-right text-muted-foreground text-sm">额度上限</Label>
@@ -1134,7 +1070,7 @@ export default function PersonalApiKeys() {
             {/* 模型限制列表 */}
             <div className="space-y-2">
               <div className="flex items-center gap-4">
-                <Label className="text-muted-foreground text-sm shrink-0">模型限制列表</Label>
+                <Label className="text-muted-foreground text-sm shrink-0">模型可用范围</Label>
                 <label className="flex items-center gap-2 shrink-0">
                   <input
                     type="checkbox"
@@ -1142,36 +1078,18 @@ export default function PersonalApiKeys() {
                     onChange={(e) => setFollowGroupRange(e.target.checked)}
                     className="rounded border-gray-300"
                   />
-                  <span className="text-sm">跟随分组范围</span>
+                  <span className="text-sm">全部模型</span>
                 </label>
-                  <label className="flex items-center gap-2 shrink-0 ml-auto">
-                    <input
-                      type="checkbox"
-                      checked={onlyAvailable}
-                      onChange={(e) => setOnlyAvailable(e.target.checked)}
-                      className="rounded border-gray-300"
-                    />
-                    <span className="text-sm text-muted-foreground">仅看可用</span>
-                  </label>
                 </div>
                 {(() => {
                   const selectedGroups = formData.groups || [];
                   const selectedModels = formData.allowed_models || [];
                   const filteredModels = AVAILABLE_MODELS.filter(m =>
                     m.toLowerCase().includes(modelSearch.toLowerCase()) &&
-                    (!onlyAvailable || isModelInGroups(m, selectedGroups))
+                    isModelInGroups(m, selectedGroups)
                   );
                   return (
                     <>
-                      {(() => {
-                        const ghosts = getGhostModels(selectedGroups, selectedModels);
-                        if (ghosts.length === 0) return null;
-                        return (
-                          <div className="p-2 rounded-md bg-muted text-xs text-muted-foreground">
-                            不在当前分组范围内的已选模型已自动置灰：{ghosts.join(", ")}
-                          </div>
-                        );
-                      })()}
                       <div className="rounded-md border border-input p-3 space-y-2">
                         <div className="relative pb-2 border-b border-border/50">
                           <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />

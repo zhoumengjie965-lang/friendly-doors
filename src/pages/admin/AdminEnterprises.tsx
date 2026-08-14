@@ -20,6 +20,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Search, ExternalLink, ChevronDown, Plus, X, Pencil, Trash2, Power, Download, Check } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { getAdminSession } from "@/lib/adminAuth";
+import { getResellerDemoState, getResellerName, migrateEnterprise, setEnterpriseAssignment } from "@/lib/resellerDemo";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 
 const MODEL_ACCESS_OPTIONS = [
@@ -327,16 +328,6 @@ function GroupConfigSelector({
 
   // ── 渲染：自定义模式的分组列表（按名称排序） ──
   const enabledCount = Object.values(customGroups).filter((e) => e.available).length;
-  const savedTemplateDiffCount = customBaseTemplate === "__none__"
-    ? 0
-    : (() => {
-        const savedBaseline = buildCustomGroupsFromTemplate(customBaseTemplate);
-        return ALL_BASE_GROUPS.filter((group) => {
-          const current = customGroups[group.name] ?? { available: false, rate: group.defaultRate };
-          const baseline = savedBaseline[group.name] ?? { available: false, rate: group.defaultRate };
-          return current.available !== baseline.available || current.rate !== baseline.rate;
-        }).length;
-      })();
   const customGroupItems = Object.entries(customGroups)
     .filter(([, e]) => e.available)
     .sort(([a], [b]) => a.localeCompare(b, "zh-Hans-CN"))
@@ -522,11 +513,6 @@ function GroupConfigSelector({
             <div className="flex items-center gap-3">
             <div className="shrink-0">
               <p className="text-sm font-medium text-foreground">从模板复制</p>
-              <p className="text-xs text-muted-foreground">
-                基于模板：{customBaseTemplate === "__none__"
-                  ? "未使用"
-                  : `${TEMPLATE_OPTIONS.find((item) => item.value === customBaseTemplate)?.name ?? customBaseTemplate}，差异 ${savedTemplateDiffCount} 项`}
-              </p>
             </div>
             <span className="ml-auto text-xs text-muted-foreground shrink-0">查看对比</span>
             <select
@@ -1021,7 +1007,7 @@ function AdminCellWithTag({ admins }: { admins: AdminInfo[] }) {
   );
 }
 
-export default function AdminEnterprises() {
+export default function AdminEnterprises({ resellerScopeId }: { resellerScopeId?: string } = {}) {
   const { toast } = useToast();
   const navigate = useNavigate();
   const session = getAdminSession();
@@ -1117,6 +1103,10 @@ export default function AdminEnterprises() {
 
   // ...
   const [savingEnterprise, setSavingEnterprise] = useState(false);
+  const [migrationTarget, setMigrationTarget] = useState<Enterprise | null>(null);
+  const [migrationResellerId, setMigrationResellerId] = useState("direct");
+  const [migrationReason, setMigrationReason] = useState("");
+  const [migrationChecked, setMigrationChecked] = useState(false);
 
   // Voucher config dialog state
   const [voucherConfigOpen, setVoucherConfigOpen] = useState(false);
@@ -1465,7 +1455,7 @@ export default function AdminEnterprises() {
     }
   };
 
-  const filtered = enterprises.filter(
+  const filtered = enterprises.filter((enterprise) => !resellerScopeId || enterprise.reseller_code === resellerScopeId).filter(
     (e) => {
       const matchSearch = e.name.includes(search) ||
         e.owner_phone.includes(search) ||
@@ -1512,21 +1502,26 @@ export default function AdminEnterprises() {
         .or(`phone.eq.${addForm.adminPhone.trim()},id.eq.${addForm.adminPhone.trim()}`)
         .maybeSingle();
 
-      if (userError || !userData) {
+      const demoOwner = getResellerDemoState().users.find((item) => item.phone === addForm.adminPhone.trim());
+      if ((userError || !userData) && !demoOwner) {
         toast({ title: "管理员不存在", description: "请检查手机号或用户ID是否正确", variant: "destructive" });
         setAddingEnterprise(false);
         return;
       }
+
+      const ownerPhone = userData?.phone || demoOwner!.phone;
+      const ownerAssignment = getResellerDemoState().users.find((item) => item.phone === ownerPhone);
+      const ownerResellerId = ownerAssignment?.resellerId ?? null;
 
       // 创建企业
       const { data: enterpriseData, error: enterpriseError } = await supabase
         .from("enterprises")
         .insert({
           name: addForm.enterpriseName.trim(),
-          owner_phone: userData.phone,
+          owner_phone: ownerPhone,
           remark: remark,
           status: "enabled",
-          reseller_code: addForm.agentId || null,
+          reseller_code: ownerResellerId,
         })
         .select()
         .single();
@@ -1547,9 +1542,10 @@ export default function AdminEnterprises() {
       // 将管理员添加为成员
       await supabase.from("members").insert({
         enterprise_id: enterpriseData.id,
-        user_phone: userData.phone,
+        user_phone: ownerPhone,
         role: "owner",
       });
+      setEnterpriseAssignment(enterpriseData.id, ownerResellerId);
 
       toast({ title: "企业创建成功", description: `企业「${addForm.enterpriseName}」已添加` });
       setAddDialogOpen(false);
@@ -1577,7 +1573,7 @@ export default function AdminEnterprises() {
         <div className="flex items-center gap-3">
           <div>
             <h1 className="text-xl font-semibold text-foreground">企业管理</h1>
-            <p className="text-sm text-muted-foreground mt-0.5">共 {enterprises.length} 家企业</p>
+            <p className="text-sm text-muted-foreground mt-0.5">共 {filtered.length} 家企业</p>
           </div>
           <Button
             className="h-9 bg-blue-600 hover:bg-blue-700 text-white"
@@ -2299,29 +2295,11 @@ export default function AdminEnterprises() {
                 <p className="text-xs text-gray-400">备注格式：类型_输入信息</p>
               </div>
 
-              {/* 代理商标签 */}
+              {/* 代理商归属 */}
               <div className="space-y-1.5">
-                <Label className="text-sm">代理商标签</Label>
-                <Select
-                  value={addForm.agentId || "direct"}
-                  onValueChange={(value) => setAddForm((prev) => ({
-                    ...prev,
-                    agentId: value === "direct" ? "" : value,
-                  }))}
-                >
-                  <SelectTrigger className="w-full h-10 bg-gray-50/50 border-gray-200">
-                    <SelectValue placeholder="请选择代理商标签" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="direct">直客（无代理商标签）</SelectItem>
-                    {AGENT_OPTIONS.map((a) => (
-                      <SelectItem key={a.value} value={a.value}>
-                        {a.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <p className="text-xs text-gray-400">代理商企业及企业 Owner 的代理商归属需保持一致</p>
+                <Label className="text-sm">代理商归属</Label>
+                <div className="h-10 px-3 rounded-md border bg-gray-50 flex items-center text-sm">根据企业 Owner 自动继承</div>
+                <p className="text-xs text-gray-400">创建时将读取 Owner 的归属，归属不允许在此单独选择。</p>
               </div>
             </div>
           </div>
@@ -2430,37 +2408,11 @@ export default function AdminEnterprises() {
               <p className="text-xs text-gray-400">备注格式：类型_输入信息</p>
             </div>
 
-            {/* 代理商标签 */}
+            {/* 代理商归属 */}
             <div className="space-y-1.5">
-              <Label className="text-sm">代理商标签</Label>
-              <Select
-                value={editForm.agentId || "direct"}
-                onValueChange={(value) => {
-                  const nextAgentId = value === "direct" ? "" : value;
-                  if (editTarget?.reseller_conflict_user_count && nextAgentId !== editForm.agentId) {
-                    toast({
-                      title: "无法修改代理商标签",
-                      description: "企业内用户还关联其他企业，请先处理相关企业关系后再修改。",
-                      variant: "destructive",
-                    });
-                    return;
-                  }
-                  setEditForm((prev) => ({ ...prev, agentId: nextAgentId }));
-                }}
-              >
-                <SelectTrigger className="w-full h-10 bg-gray-50/50 border-gray-200">
-                  <SelectValue placeholder="请选择代理商标签" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="direct">直客（无代理商标签）</SelectItem>
-                  {AGENT_OPTIONS.map((a) => (
-                    <SelectItem key={a.value} value={a.value}>
-                      {a.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <p className="text-xs text-gray-400">切换后将同步修改企业拥有者及全部成员的代理商标签</p>
+              <Label className="text-sm">代理商归属</Label>
+              <div className="h-10 px-3 rounded-md border bg-gray-50 flex items-center justify-between text-sm"><span>{getResellerName(editTarget?.reseller_code, getResellerDemoState())}</span><Button type="button" variant="outline" size="sm" onClick={() => { if (!editTarget) return; setMigrationTarget(editTarget); setMigrationResellerId("direct"); setMigrationReason(""); setMigrationChecked(false); }}>整体迁移</Button></div>
+              <p className="text-xs text-gray-400">企业归属不可直接编辑，需通过独立的企业整体迁移流程处理。</p>
             </div>
           </div>
 
@@ -2821,6 +2773,16 @@ export default function AdminEnterprises() {
               {toggleStatusTarget?.status === "enabled" ? "确认禁用" : "确认启用"}
             </Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      <Dialog open={!!migrationTarget} onOpenChange={(open) => !open && setMigrationTarget(null)}>
+        <DialogContent className="sm:max-w-[540px]"><DialogHeader><DialogTitle>迁移企业及全部成员</DialogTitle></DialogHeader>
+          {migrationTarget && <div className="space-y-4"><div className="rounded-lg border bg-muted/30 p-3 text-sm"><p className="font-medium">{migrationTarget.name}</p><p className="text-muted-foreground mt-1">当前归属：{getResellerName(migrationTarget.reseller_code, getResellerDemoState())} · 预计影响 {Math.max(migrationTarget.member_count, migrationTarget.admins.length)} 名成员</p></div>
+            <div className="space-y-1.5"><Label>目标归属</Label><Select value={migrationResellerId} onValueChange={(value) => { setMigrationResellerId(value); setMigrationChecked(false); }}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="direct">平台直客</SelectItem>{getResellerDemoState().resellers.filter((item) => item.status === "enabled" && item.id !== migrationTarget.reseller_code).map((item) => <SelectItem key={item.id} value={item.id}>{item.name}</SelectItem>)}</SelectContent></Select></div>
+            <div className="space-y-1.5"><Label>迁移原因 *</Label><Textarea value={migrationReason} onChange={(e) => setMigrationReason(e.target.value)} placeholder="请输入企业迁移原因" /></div>
+            {migrationChecked && <div className={`rounded-lg border p-3 text-sm ${migrationTarget.reseller_conflict_user_count ? "border-red-200 bg-red-50 text-red-700" : "border-green-200 bg-green-50 text-green-700"}`}>{migrationTarget.reseller_conflict_user_count ? <><p className="font-medium">预检未通过</p><p className="mt-1">发现 {migrationTarget.reseller_conflict_user_count} 名成员仍关联其他企业，请先解除冲突关系。</p></> : <><p className="font-medium">预检通过</p><p className="mt-1">企业、Owner 及全部成员将整体迁移；历史财务数据不受影响。</p></>}</div>}
+          </div>}
+          <DialogFooter><Button variant="outline" onClick={() => setMigrationTarget(null)}>取消</Button>{!migrationChecked ? <Button onClick={() => { if (!migrationReason.trim()) { toast({ title: "请输入迁移原因", variant: "destructive" }); return; } setMigrationChecked(true); }}>执行预检</Button> : <Button disabled={!!migrationTarget?.reseller_conflict_user_count} onClick={() => { if (!migrationTarget) return; const to = migrationResellerId === "direct" ? null : migrationResellerId; const phones = [...new Set([migrationTarget.owner_phone, ...migrationTarget.admins.map((item) => item.phone)])]; migrateEnterprise({ enterpriseId: migrationTarget.id, memberPhones: phones, toResellerId: to, reason: migrationReason.trim() }); setEnterprises((items) => items.map((item) => item.id === migrationTarget.id ? { ...item, reseller_code: to } : item)); toast({ title: "企业整体迁移成功", description: "Owner 与成员归属已同步，历史财务数据不受影响。" }); setMigrationTarget(null); setEditSheetOpen(false); }}>确认迁移</Button>}</DialogFooter>
         </DialogContent>
       </Dialog>
     </div>

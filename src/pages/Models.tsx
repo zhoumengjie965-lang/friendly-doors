@@ -53,6 +53,15 @@ interface GroupPrice {
   }[];
 }
 
+interface DynamicTimePricing {
+  baseLabel: string;
+  basePeriods: string[];
+  derivedLabel: string;
+  multiplier: number;
+  timezone: string;
+  periods: string[];
+}
+
 // 假数据 - AI 模型列表
 interface Model {
   id: string;
@@ -74,6 +83,7 @@ interface Model {
   };
   isOfficialPrice?: boolean; // 是否为官方原价
   sourceTag?: "官方" | "三方"; // 模型来源标签（不展示时不传）
+  dynamicTimePricing?: DynamicTimePricing; // 条件组驱动的分时价格
   // 模型规格
   specs?: {
     maxContextWindow: string; // 如 "128K", "1M", "2M"
@@ -403,6 +413,48 @@ const mockModels: Model[] = [
     },
   },
   {
+    id: "deepseek-v4-flash",
+    name: "deepseek/deepseek-v4-flash",
+    provider: "DeepSeek",
+    description: "高效轻量化 MoE 模型，支持分时动态计价",
+    fullDescription:
+      "高效轻量化 MoE 模型，总参 284B、激活 13B，原生支持百万超长上下文能力。推理速度快、延迟低，适合日常对话、内容创作、基础 RAG、批量文案处理等高频场景。",
+    category: "对话",
+    pricing: "闲时 ¥1.5000/M tokens 起",
+    icon: MessageSquare,
+    color: "hsl(220, 75%, 52%)",
+    tags: ["文本模型", "分时价"],
+    apiEndpoint: "deepseek:/v1/chat/completions",
+    contextTiers: [
+      { label: "闲时", inputPrice: 1.5, outputPrice: 4.5 },
+    ],
+    groupPrices: [
+      {
+        group: "default",
+        billingType: "按量计费",
+        discount: 1.0,
+        inputTiers: [{ price: 1.5, label: "闲时" }],
+        outputTiers: [{ price: 4.5, label: "闲时" }],
+        cachePrice: 0.05,
+      },
+    ],
+    dynamicTimePricing: {
+      baseLabel: "闲时",
+      basePeriods: ["00:00–09:00", "12:00–14:00", "18:00–24:00"],
+      derivedLabel: "其余时段",
+      multiplier: 2,
+      timezone: "Asia/Shanghai",
+      periods: ["09:00–12:00", "14:00–18:00"],
+    },
+    cardPrice: { input: 1.5, output: 4.5 },
+    specs: {
+      maxContextWindow: "1M",
+      maxOutputTokens: 8192,
+      supportedFeatures: ["支持流式", "工具调用", "超长上下文"],
+      releaseDate: "2026-08-01",
+    },
+  },
+  {
     id: "qwen-max",
     name: "通义千问 Max",
     provider: "阿里云",
@@ -705,13 +757,17 @@ export default function Models() {
                     // 文本模型 - 显示输入和输出价格
                     <>
                       <div>
-                        <p className="text-[10px] text-muted-foreground mb-0.5">输入价格</p>
+                        <p className="text-[10px] text-muted-foreground mb-0.5">
+                          {model.dynamicTimePricing ? "闲时输入价格" : "输入价格"}
+                        </p>
                         <p className="text-sm font-medium text-foreground whitespace-nowrap">
                           ¥{model.cardPrice.input.toFixed(4)} / M
                         </p>
                       </div>
                       <div>
-                        <p className="text-[10px] text-muted-foreground mb-0.5">输出价格</p>
+                        <p className="text-[10px] text-muted-foreground mb-0.5">
+                          {model.dynamicTimePricing ? "闲时输出价格" : "输出价格"}
+                        </p>
                         <p className="text-sm font-medium text-foreground whitespace-nowrap">
                           ¥{model.cardPrice.output.toFixed(4)} / M
                         </p>
@@ -806,21 +862,14 @@ export default function Models() {
 
                 {/* Group Pricing */}
                 <div>
-                  <div className="flex items-center gap-2 mb-3">
-                    <h4 className="text-sm font-semibold">分组价格</h4>
-                    <Badge 
-                      variant="outline" 
-                      className="text-[9px] h-4 px-1.5 border-blue-200 text-blue-500 bg-transparent whitespace-nowrap"
-                    >
-                      专属折扣
-                    </Badge>
-                  </div>
+                  <h4 className="text-sm font-semibold mb-3">模型价格</h4>
                   <div className="border rounded-lg overflow-hidden">
                     <Table>
                       <TableHeader>
                         <TableRow className="bg-muted/50">
-                          <TableHead className="text-xs py-2">分组</TableHead>
-                          <TableHead className="text-xs py-2">计费类型</TableHead>
+                          <TableHead className="text-xs py-2">
+                            {selectedModel.dynamicTimePricing ? "档位" : "计费类型"}
+                          </TableHead>
                           {selectedModel.groupPrices.some(
                             (g) => g.inputTiers.length > 1 || g.outputTiers.length > 1
                           ) && <TableHead className="text-xs py-2">区间长度</TableHead>}
@@ -832,7 +881,45 @@ export default function Models() {
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {selectedModel.groupPrices.flatMap((group) => {
+                        {selectedModel.dynamicTimePricing ? (() => {
+                          const group = selectedModel.groupPrices[0];
+                          const rule = selectedModel.dynamicTimePricing;
+                          const rows = [
+                            { label: rule.baseLabel, multiplier: 1 },
+                            { label: rule.derivedLabel, multiplier: rule.multiplier },
+                          ];
+                          return rows.map((row) => (
+                            <TableRow key={row.label}>
+                              <TableCell className="text-xs py-2.5">
+                                <div>
+                                  <div>{row.label}</div>
+                                  {row.multiplier === 1 && (
+                                    <div className="mt-0.5 text-[10px] leading-4 text-muted-foreground">
+                                      （{rule.basePeriods.join("、")}）
+                                    </div>
+                                  )}
+                                </div>
+                              </TableCell>
+                              <TableCell className="text-xs py-2.5">
+                                {group?.inputTiers[0]
+                                  ? formatPrice(group.inputTiers[0].price * row.multiplier)
+                                  : "-"}
+                              </TableCell>
+                              <TableCell className="text-xs py-2.5">
+                                {group?.outputTiers[0]
+                                  ? formatPrice(group.outputTiers[0].price * row.multiplier)
+                                  : "-"}
+                              </TableCell>
+                              {selectedModel.groupPrices.some((g) => g.cachePrice !== undefined) && (
+                                <TableCell className="text-xs py-2.5">
+                                  {group?.cachePrice !== undefined
+                                    ? formatPrice(group.cachePrice * row.multiplier)
+                                    : "-"}
+                                </TableCell>
+                              )}
+                            </TableRow>
+                          ));
+                        })() : selectedModel.groupPrices.slice(0, 1).flatMap((group) => {
                           const hasMultipleTiers =
                             group.inputTiers.length > 1 || group.outputTiers.length > 1;
                           const tierCount = Math.max(
@@ -843,14 +930,6 @@ export default function Models() {
                           if (!hasMultipleTiers) {
                             return [
                               <TableRow key={group.group}>
-                                <TableCell className="text-xs py-2.5 font-medium">
-                                  {group.group}
-                                  {group.discount !== 1.0 && (
-                                    <span className="ml-1 text-[10px] text-muted-foreground">
-                                      (×{group.discount})
-                                    </span>
-                                  )}
-                                </TableCell>
                                 <TableCell className="text-xs py-2.5">
                                   {group.billingType}
                                 </TableCell>
@@ -876,19 +955,6 @@ export default function Models() {
                           // 多个阶梯，每阶梯一行
                           return Array.from({ length: tierCount }, (_, idx) => (
                             <TableRow key={`${group.group}-${idx}`}>
-                              {idx === 0 && (
-                                <TableCell
-                                  className="text-xs py-2.5 font-medium"
-                                  rowSpan={tierCount}
-                                >
-                                  {group.group}
-                                  {group.discount !== 1.0 && (
-                                    <span className="ml-1 text-[10px] text-muted-foreground">
-                                      (×{group.discount})
-                                    </span>
-                                  )}
-                                </TableCell>
-                              )}
                               {idx === 0 && (
                                 <TableCell
                                   className="text-xs py-2.5"

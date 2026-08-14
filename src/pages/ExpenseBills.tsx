@@ -873,7 +873,7 @@ export default function ExpenseBills({ enterprise }: Props) {
                                 {/* 日志详情 */}
                                 <div className="flex gap-4">
                                   <span className="text-muted-foreground w-16">日志详情</span>
-                                  <span>模型倍率: {item.calculation?.modelRatio}, 缓存倍率: {item.calculation?.cacheRatio}, 输出倍率: {item.calculation?.outputRatio}, 分组倍率: {item.calculation?.groupRatio}</span>
+                                  <span>模型倍率: {item.calculation?.modelRatio}, 缓存倍率: {item.calculation?.cacheRatio}, 输出倍率: {item.calculation?.outputRatio}</span>
                                 </div>
                                 {/* 计费过程 */}
                                 <div className="flex gap-4">

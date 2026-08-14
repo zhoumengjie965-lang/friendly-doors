@@ -1085,9 +1085,9 @@ const MOCK_USER_BILLS: UserBillRecord[] = [
         cacheDiscount: 1, tierDiscount: 1, subtotal: 5120.00, callCount: 1920, callPrice: 0,
         voucherDeduction: 0, balanceDeduction: 5120.00,
         pricingItems: [
-          { billingType: "按次计费", itemName: "文生/图生视频、768P、6s", specification: "—", usage: "1,200 次", unitPrice: "¥2.00/次", amount: 2400 },
-          { billingType: "按次计费", itemName: "文生/图生视频、768P、10s", specification: "—", usage: "400 次", unitPrice: "¥4.00/次", amount: 1600 },
-          { billingType: "按次计费", itemName: "文生/图生视频、1080P、6s", specification: "—", usage: "320 次", unitPrice: "¥3.50/次", amount: 1120 },
+          { billingType: "按次计费", itemName: "输出", specification: "文生/图生视频、768P、6s", usage: "1,200 次", unitPrice: "¥2.00/次", amount: 2400 },
+          { billingType: "按次计费", itemName: "输出", specification: "文生/图生视频、768P、10s", usage: "400 次", unitPrice: "¥4.00/次", amount: 1600 },
+          { billingType: "按次计费", itemName: "输出", specification: "文生/图生视频、1080P、6s", usage: "320 次", unitPrice: "¥3.50/次", amount: 1120 },
         ],
       },
       // tts-1 按次计费（语音合成）
@@ -1109,12 +1109,12 @@ const MOCK_USER_BILLS: UserBillRecord[] = [
         cacheDiscount: 1, tierDiscount: 0.9, subtotal: 51047.39,
         voucherDeduction: 3000, balanceDeduction: 48047.39,
         pricingItems: [
-          { billingType: "按量计费", itemName: "包含视频输入、480P/720P", specification: "—", usage: "384,397,113 Tokens", unitPrice: "¥28.00/M Tokens", amount: 9686.81 },
-          { billingType: "按量计费", itemName: "不包含视频输入、480P/720P", specification: "—", usage: "216,879,637 Tokens", unitPrice: "¥46.00/M Tokens", amount: 8978.17 },
-          { billingType: "按量计费", itemName: "包含视频输入、1080P", specification: "—", usage: "144,441,996 Tokens", unitPrice: "¥31.00/M Tokens", amount: 4029.93 },
-          { billingType: "按量计费", itemName: "不包含视频输入、1080P", specification: "—", usage: "289,489,249 Tokens", unitPrice: "¥51.00/M Tokens", amount: 13285.67 },
-          { billingType: "按量计费", itemName: "包含视频输入、4K", specification: "—", usage: "140,089,456 Tokens", unitPrice: "¥16.00/M Tokens", amount: 2017.29 },
-          { billingType: "按量计费", itemName: "不包含视频输入、4K", specification: "—", usage: "557,563,795 Tokens", unitPrice: "¥26.00/M Tokens", amount: 13049.52 },
+          { billingType: "按量计费", itemName: "输出", specification: "包含视频输入、480/720p", usage: "384,397,113 Tokens", unitPrice: "¥28.00/M Tokens", amount: 9686.81 },
+          { billingType: "按量计费", itemName: "输出", specification: "不包含视频输入、480/720p", usage: "216,879,637 Tokens", unitPrice: "¥46.00/M Tokens", amount: 8978.17 },
+          { billingType: "按量计费", itemName: "输出", specification: "包含视频输入、1080p", usage: "144,441,996 Tokens", unitPrice: "¥31.00/M Tokens", amount: 4029.93 },
+          { billingType: "按量计费", itemName: "输出", specification: "不包含视频输入、1080p", usage: "289,489,249 Tokens", unitPrice: "¥51.00/M Tokens", amount: 13285.67 },
+          { billingType: "按量计费", itemName: "输出", specification: "包含视频输入、4K", usage: "140,089,456 Tokens", unitPrice: "¥16.00/M Tokens", amount: 2017.29 },
+          { billingType: "按量计费", itemName: "输出", specification: "不包含视频输入、4K", usage: "557,563,795 Tokens", unitPrice: "¥26.00/M Tokens", amount: 13049.52 },
         ],
       },
     ],
@@ -1480,10 +1480,17 @@ function UserBillManagement() {
     if (detail.pricingItems?.length) return detail.pricingItems;
 
     if (detail.billingType === "call") {
+      const outputSpecification = detail.modelName.includes("embedding")
+        ? "向量化"
+        : detail.modelName.includes("tts")
+          ? "语音合成"
+          : detail.modelName.includes("whisper")
+            ? "语音识别"
+            : "按次调用";
       return [{
         billingType: "按次计费" as const,
-        itemName: "—",
-        specification: "—",
+        itemName: "输出",
+        specification: outputSpecification,
         usage: `${formatNumber(detail.callCount || 0)} 次`,
         unitPrice: `¥${(detail.callPrice || 0).toFixed(2)}/次`,
         amount: detail.subtotal,
@@ -1535,6 +1542,30 @@ function UserBillManagement() {
     }));
   };
 
+  const getUsageDisplay = (usage: string, unitPrice: string) => {
+    const match = usage.trim().match(/^([\d,]+(?:\.\d+)?)\s+(.+)$/);
+    if (!match) return { value: usage, unit: "—" };
+    const rawValue = Number(match[1].replace(/,/g, ""));
+    const rawUnit = match[2];
+    if (unitPrice.includes("/M Tokens") && rawUnit === "Tokens") {
+      return { value: formatNumber(rawValue / 1_000_000), unit: "百万 Tokens" };
+    }
+    if (unitPrice.includes("/M 字符") && rawUnit === "字符") {
+      return { value: formatNumber(rawValue / 1_000_000), unit: "百万字符" };
+    }
+    return { value: match[1], unit: rawUnit };
+  };
+
+  const getPriceDisplay = (unitPrice: string) => {
+    const match = unitPrice.trim().match(/^([¥$])([\d,]+(?:\.\d+)?)(?:\/(.+))?$/);
+    if (!match) return { value: unitPrice, unit: "—" };
+    const currency = match[1] === "¥" ? "元" : "美元";
+    const denominator = match[3]
+      ?.replace(/^M Tokens$/, "百万 Tokens")
+      .replace(/^M 字符$/, "百万字符");
+    return { value: match[2], unit: denominator ? `${currency}/${denominator}` : currency };
+  };
+
   const fullBillRecords = useMemo(
     () => bills.filter((bill) => bill.periodStart.startsWith(fullBillPeriod)),
     [bills, fullBillPeriod]
@@ -1565,24 +1596,26 @@ function UserBillManagement() {
     const rows = fullBillRecords.flatMap((bill) =>
       bill.details.flatMap((detail) =>
         getBillingLineItems(detail).map((item, itemIndex) => {
-          const originalAmount = detail.tierDiscount > 0 ? item.amount / detail.tierDiscount : item.amount;
           const billingItemLabel = item.specification && !["—", "文本"].includes(item.specification)
             ? `${item.itemName}（${item.specification}）`
             : item.itemName;
+          const usage = getUsageDisplay(item.usage, item.unitPrice);
+          const price = getPriceDisplay(item.unitPrice);
           return `
         <tr>
-          <td>${escapeCell(fullBillPeriod)}</td>
-          <td>${escapeCell(bill.enterprise)}</td>
-          <td>${escapeCell(detail.modelName)}</td>
+          ${itemIndex === 0 ? `<td rowspan="${getBillingLineItems(detail).length}">${escapeCell(fullBillPeriod)}</td>` : ""}
+          ${itemIndex === 0 ? `<td rowspan="${getBillingLineItems(detail).length}">${escapeCell(bill.enterprise)}</td>` : ""}
+          ${itemIndex === 0 ? `<td rowspan="${getBillingLineItems(detail).length}">${escapeCell(detail.modelName)}</td>` : ""}
           <td>${escapeCell(billingItemLabel)}</td>
-          <td>${escapeCell(item.unitPrice)}</td>
-          <td>${escapeCell(item.usage)}</td>
-          <td>${escapeCell(`${(detail.tierDiscount * 100).toFixed(0)}%`)}</td>
-          <td>${escapeCell(originalAmount.toFixed(2))}</td>
-          <td>${itemIndex === 0 ? escapeCell(detail.subtotal.toFixed(2)) : ""}</td>
-          <td>${itemIndex === 0 ? escapeCell((detail.voucherDeduction || 0).toFixed(2)) : ""}</td>
-          <td>${itemIndex === 0 ? escapeCell((detail.balanceDeduction ?? detail.subtotal).toFixed(2)) : ""}</td>
-          <td>${itemIndex === 0 ? escapeCell((detail.creditDeduction || 0).toFixed(2)) : ""}</td>
+          <td>${escapeCell(price.value)}</td>
+          <td>${escapeCell(price.unit)}</td>
+          <td>${escapeCell(usage.value)}</td>
+          <td>${escapeCell(usage.unit)}</td>
+          ${itemIndex === 0 ? `<td rowspan="${getBillingLineItems(detail).length}">${escapeCell(`${(detail.tierDiscount * 100).toFixed(0)}%`)}</td>` : ""}
+          ${itemIndex === 0 ? `<td rowspan="${getBillingLineItems(detail).length}">${escapeCell(detail.subtotal.toFixed(2))}</td>` : ""}
+          ${itemIndex === 0 ? `<td rowspan="${getBillingLineItems(detail).length}">${escapeCell((detail.voucherDeduction || 0).toFixed(2))}</td>` : ""}
+          ${itemIndex === 0 ? `<td rowspan="${getBillingLineItems(detail).length}">${escapeCell((detail.balanceDeduction ?? detail.subtotal).toFixed(2))}</td>` : ""}
+          ${itemIndex === 0 ? `<td rowspan="${getBillingLineItems(detail).length}">${escapeCell((detail.creditDeduction || 0).toFixed(2))}</td>` : ""}
         </tr>`;
         })
       )
@@ -1590,8 +1623,8 @@ function UserBillManagement() {
     const workbook = `<!doctype html><html><head><meta charset="UTF-8"></head><body>
       <table border="1">
         <thead><tr>
-          <th>账期</th><th>客户名称</th><th>模型名称</th><th>计费项</th><th>计费单价</th><th>用量</th>
-          <th>阶梯折扣</th><th>单项费用</th><th>总费用</th><th>代金券抵扣</th><th>充值余额支付</th><th>授信额度支付</th>
+          <th>账期</th><th>客户名称</th><th>模型名称</th><th>计费项</th><th>计费单价</th><th>计费单位</th><th>用量</th><th>用量单位</th>
+          <th>阶梯折扣</th><th>实际消费（元）</th><th>代金券抵扣（元）</th><th>充值余额支付（元）</th><th>授信额度支付（元）</th>
         </tr></thead><tbody>${rows}</tbody>
       </table>
     </body></html>`;
@@ -1723,6 +1756,7 @@ function UserBillManagement() {
   };
 
   const formatCurrency = (value: number) => `¥${value.toLocaleString("zh-CN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  const formatAmount = (value: number) => value.toLocaleString("zh-CN", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
   const formatTokens = (value: number) => {
     if (value >= 100000000) return `${(value / 100000000).toFixed(2)}亿`;
@@ -2063,14 +2097,15 @@ function UserBillManagement() {
                       <tr className="border-b">
                         <th className="px-3 py-2.5 text-left font-medium text-muted-foreground">模型名称</th>
                         <th className="px-3 py-2.5 text-left font-medium text-muted-foreground min-w-[220px]">计费项</th>
-                        <th className="px-3 py-2.5 text-right font-medium text-muted-foreground min-w-[145px]">计费单价</th>
-                        <th className="px-3 py-2.5 text-right font-medium text-muted-foreground min-w-[130px]">用量</th>
+                        <th className="px-3 py-2.5 text-right font-medium text-muted-foreground min-w-[90px]">计费单价</th>
+                        <th className="px-3 py-2.5 text-center font-medium text-muted-foreground min-w-[120px]">计费单位</th>
+                        <th className="px-3 py-2.5 text-right font-medium text-muted-foreground min-w-[110px]">用量</th>
+                        <th className="px-3 py-2.5 text-center font-medium text-muted-foreground min-w-[100px]">用量单位</th>
                         <th className="px-3 py-2.5 text-center font-medium text-muted-foreground">阶梯折扣</th>
-                        <th className="px-3 py-2.5 text-right font-medium text-muted-foreground">单项费用</th>
-                        <th className="px-3 py-2.5 text-right font-medium text-muted-foreground">总费用</th>
-                        <th className="px-3 py-2.5 text-right font-medium text-muted-foreground">代金券抵扣</th>
-                        <th className="px-3 py-2.5 text-right font-medium text-muted-foreground">充值余额支付</th>
-                        <th className="px-3 py-2.5 text-right font-medium text-muted-foreground">授信额度支付</th>
+                        <th className="px-3 py-2.5 text-right font-medium text-muted-foreground">实际消费（元）</th>
+                        <th className="px-3 py-2.5 text-right font-medium text-muted-foreground">代金券抵扣（元）</th>
+                        <th className="px-3 py-2.5 text-right font-medium text-muted-foreground">充值余额支付（元）</th>
+                        <th className="px-3 py-2.5 text-right font-medium text-muted-foreground">授信额度支付（元）</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y">
@@ -2079,7 +2114,8 @@ function UserBillManagement() {
                         .flatMap((detail, detailIndex) => {
                           const lineItems = getBillingLineItems(detail);
                           return lineItems.map((item, itemIndex) => {
-                            const originalAmount = detail.tierDiscount > 0 ? item.amount / detail.tierDiscount : item.amount;
+                            const usage = getUsageDisplay(item.usage, item.unitPrice);
+                            const price = getPriceDisplay(item.unitPrice);
                             return (
                               <tr key={`${detailIndex}-${itemIndex}`} className="hover:bg-muted/20">
                                 {itemIndex === 0 && (
@@ -2093,25 +2129,26 @@ function UserBillManagement() {
                                     <span className="ml-1 text-muted-foreground">（{item.specification}）</span>
                                   )}
                                 </td>
-                                <td className="px-3 py-2 text-right font-mono whitespace-nowrap">{item.unitPrice}</td>
-                                <td className="px-3 py-2 text-right font-mono whitespace-nowrap">{item.usage}</td>
-                                <td className="px-3 py-2 text-center">
-                                  <span className="text-green-600">{(detail.tierDiscount * 100).toFixed(0)}%</span>
-                                </td>
-                                <td className="px-3 py-2 text-right font-mono">{formatCurrency(originalAmount)}</td>
+                                <td className="px-3 py-2 text-right font-mono whitespace-nowrap">{price.value}</td>
+                                <td className="px-3 py-2 text-center text-muted-foreground whitespace-nowrap">{price.unit}</td>
+                                <td className="px-3 py-2 text-right font-mono whitespace-nowrap">{usage.value}</td>
+                                <td className="px-3 py-2 text-center text-muted-foreground whitespace-nowrap">{usage.unit}</td>
                                 {itemIndex === 0 && (
                                   <>
+                                    <td rowSpan={lineItems.length} className="px-3 py-2 text-center align-middle border-l">
+                                      <span className="text-green-600">{(detail.tierDiscount * 100).toFixed(0)}%</span>
+                                    </td>
                                     <td rowSpan={lineItems.length} className="px-3 py-2 text-right font-mono font-medium align-middle border-l">
-                                      {formatCurrency(detail.subtotal)}
+                                      {formatAmount(detail.subtotal)}
                                     </td>
                                     <td rowSpan={lineItems.length} className="px-3 py-2 text-right font-mono text-amber-600 align-middle">
-                                      {formatCurrency(detail.voucherDeduction ?? 0)}
+                                      {formatAmount(detail.voucherDeduction ?? 0)}
                                     </td>
                                     <td rowSpan={lineItems.length} className="px-3 py-2 text-right font-mono align-middle">
-                                      {formatCurrency(detail.balanceDeduction ?? detail.subtotal)}
+                                      {formatAmount(detail.balanceDeduction ?? detail.subtotal)}
                                     </td>
                                     <td rowSpan={lineItems.length} className="px-3 py-2 text-right font-mono text-red-600 align-middle">
-                                      {formatCurrency(detail.creditDeduction ?? 0)}
+                                      {formatAmount(detail.creditDeduction ?? 0)}
                                     </td>
                                   </>
                                 )}
@@ -2122,22 +2159,17 @@ function UserBillManagement() {
                       {/* 月度汇总行 */}
                         {(() => {
                           const sortedDetails = [...previewBill.details].sort((a, b) => a.modelName.localeCompare(b.modelName));
-                        const totalOriginalAmount = sortedDetails.reduce(
-                          (sum, d) => sum + (d.tierDiscount > 0 ? d.subtotal / d.tierDiscount : d.subtotal),
-                          0
-                        );
                         const totalVoucherDeduction = sortedDetails.reduce((sum, d) => sum + (d.voucherDeduction ?? 0), 0);
                         const totalBalanceDeduction = sortedDetails.reduce((sum, d) => sum + (d.balanceDeduction ?? d.subtotal), 0);
                         const totalCreditDeduction = sortedDetails.reduce((sum, d) => sum + (d.creditDeduction ?? 0), 0);
                         return (
                           <tr className="bg-muted/50 border-t-2 border-muted font-medium">
-                            <td className="px-3 py-3 font-medium text-muted-foreground" colSpan={4}>月度汇总</td>
+                            <td className="px-3 py-3 font-medium text-muted-foreground" colSpan={6}>月度汇总</td>
                             <td className="px-3 py-3 text-center">-</td>
-                            <td className="px-3 py-3 text-right font-mono font-bold">{formatCurrency(totalOriginalAmount)}</td>
-                            <td className="px-3 py-3 text-right font-mono font-bold text-green-700 border-r">{formatCurrency(previewBill.totalAmount)}</td>
-                            <td className="px-3 py-3 text-right font-mono font-bold text-amber-600 border-r">{formatCurrency(totalVoucherDeduction)}</td>
-                            <td className="px-3 py-3 text-right font-mono font-bold border-r">{formatCurrency(totalBalanceDeduction)}</td>
-                            <td className="px-3 py-3 text-right font-mono font-bold text-red-600">{formatCurrency(totalCreditDeduction)}</td>
+                            <td className="px-3 py-3 text-right font-mono font-bold text-green-700 border-r">{formatAmount(previewBill.totalAmount)}</td>
+                            <td className="px-3 py-3 text-right font-mono font-bold text-amber-600 border-r">{formatAmount(totalVoucherDeduction)}</td>
+                            <td className="px-3 py-3 text-right font-mono font-bold border-r">{formatAmount(totalBalanceDeduction)}</td>
+                            <td className="px-3 py-3 text-right font-mono font-bold text-red-600">{formatAmount(totalCreditDeduction)}</td>
                           </tr>
                         );
                       })()}
@@ -2162,10 +2194,10 @@ function UserBillManagement() {
                         <th className="px-3 py-2.5 text-right font-medium text-muted-foreground">数量</th>
                         <th className="px-3 py-2.5 text-left font-medium text-muted-foreground">生效时长</th>
                         <th className="px-3 py-2.5 text-left font-medium text-muted-foreground">生效时间</th>
-                        <th className="px-3 py-2.5 text-right font-medium text-muted-foreground">单价</th>
-                        <th className="px-3 py-2.5 text-right font-medium text-muted-foreground">价格优惠</th>
-                        <th className="px-3 py-2.5 text-right font-medium text-muted-foreground">实付金额</th>
-                        <th className="px-3 py-2.5 text-right font-medium text-muted-foreground">充值余额支付</th>
+                        <th className="px-3 py-2.5 text-right font-medium text-muted-foreground">单价（元）</th>
+                        <th className="px-3 py-2.5 text-right font-medium text-muted-foreground">价格优惠（元）</th>
+                        <th className="px-3 py-2.5 text-right font-medium text-muted-foreground">实付金额（元）</th>
+                        <th className="px-3 py-2.5 text-right font-medium text-muted-foreground">充值余额支付（元）</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y">
@@ -2199,23 +2231,23 @@ function UserBillManagement() {
                               <td className="px-3 py-2 text-right font-mono">{order.quantity}</td>
                               <td className="px-3 py-2 text-muted-foreground">{order.duration}</td>
                               <td className="px-3 py-2 text-muted-foreground whitespace-nowrap">{order.effectiveStart} ~ {order.effectiveEnd}</td>
-                              <td className="px-3 py-2 text-right font-mono">{formatCurrency(order.unitPrice)}</td>
-                              <td className="px-3 py-2 text-right font-mono text-emerald-600">{order.discountAmount > 0 ? `-${formatCurrency(order.discountAmount)}` : "-"}</td>
-                              <td className="px-3 py-2 text-right font-mono font-medium">{formatCurrency(order.paidAmount)}</td>
-                              <td className="px-3 py-2 text-right font-mono font-medium">{formatCurrency(order.orderAmount)}</td>
+                              <td className="px-3 py-2 text-right font-mono">{formatAmount(order.unitPrice)}</td>
+                              <td className="px-3 py-2 text-right font-mono text-emerald-600">{order.discountAmount > 0 ? `-${formatAmount(order.discountAmount)}` : "-"}</td>
+                              <td className="px-3 py-2 text-right font-mono font-medium">{formatAmount(order.paidAmount)}</td>
+                              <td className="px-3 py-2 text-right font-mono font-medium">{formatAmount(order.orderAmount)}</td>
                             </tr>
                           ))}
                           {/* 汇总行 */}
                           <tr className="bg-muted/50 border-t-2 border-muted font-medium">
                             <td className="px-3 py-3 font-medium text-muted-foreground" colSpan={10}>权益购买汇总</td>
                             <td className="px-3 py-3 text-right font-mono font-bold text-emerald-600">
-                              {formatCurrency((previewBill.subscriptionOrders || []).reduce((sum, o) => sum + o.discountAmount, 0))}
+                              {formatAmount((previewBill.subscriptionOrders || []).reduce((sum, o) => sum + o.discountAmount, 0))}
                             </td>
                             <td className="px-3 py-3 text-right font-mono font-bold">
-                              {formatCurrency((previewBill.subscriptionOrders || []).reduce((sum, o) => sum + o.paidAmount, 0))}
+                              {formatAmount((previewBill.subscriptionOrders || []).reduce((sum, o) => sum + o.paidAmount, 0))}
                             </td>
                             <td className="px-3 py-3 text-right font-mono font-bold">
-                              {formatCurrency((previewBill.subscriptionOrders || []).reduce((sum, o) => sum + o.orderAmount, 0))}
+                              {formatAmount((previewBill.subscriptionOrders || []).reduce((sum, o) => sum + o.orderAmount, 0))}
                             </td>
                           </tr>
                         </>

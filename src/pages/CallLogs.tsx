@@ -11,7 +11,7 @@ import {
   Tooltip, TooltipContent, TooltipProvider, TooltipTrigger,
 } from "@/components/ui/tooltip";
 import {
-  RefreshCw, Settings, ChevronDown, ChevronUp, Activity, ClipboardList,
+  ChevronDown, ChevronUp, Activity, ClipboardList,
   Shield, Calendar, X, Download,
 } from "lucide-react";
 import {
@@ -50,7 +50,6 @@ function getCsvValue(row: typeof mockUsageLogs[0], header: string): string {
   const map: Record<string, string> = {
     "时间": row.time,
     "APIKey": row.apiKey,
-    "分组": row.group,
     "类型": row.type,
     "模型": String(row.model ?? ""),
     "用时/首字": String(row.duration ?? ""),
@@ -114,28 +113,28 @@ interface ConsumptionDetail {
 // ── Mock data ──
 const mockUsageLogs = [
   // 示例 1：订阅包扣费
-  { time: "2026-05-27 08:36:04", apiKey: "通用分组key", group: "default", org: "技术部", member: "张三", type: "消费", model: "o3-pro", duration: "3.2", streaming: "流首", input: 20, output: 38, cost: 0.007350, ip: "10.244.109.64", detail: "模型：1.25 * 分组倍率：1", billingSource: { type: "subscription", name: "团队专业版·月包" } as BillingSource,
+  { time: "2026-05-27 08:36:04", apiKey: "通用key", group: "default", org: "技术部", member: "张三", type: "消费", model: "o3-pro", duration: "3.2", streaming: "流首", input: 20, output: 38, cost: 0.007350, ip: "10.244.109.64", detail: "按实际生效价格计费", billingSource: { type: "subscription", name: "团队专业版·月包" } as BillingSource,
     calc: { inputTokens: 20, outputTokens: 38, billingMethod: "按实际用量计费", inputPrice: 35, outputPrice: 175, inputFee: 0.000700, outputFee: 0.006650, totalFee: 0.007350, creditUsed: 735 } as ConsumptionDetail },
   // 示例 2：资源包扣费
-  { time: "2026-05-27 08:35:42", apiKey: "通用分组key", group: "default", org: "技术部", member: "张三", type: "消费", model: "qwen2.5-flash", duration: "2.1", streaming: "流首", input: 28, output: 1, cost: 0.002285, ip: "10.244.109.64", detail: "模型：0.085714286 * 分组倍率：1", billingSource: { type: "resource_pack", name: "Token 资源包 100万" } as BillingSource,
+  { time: "2026-05-27 08:35:42", apiKey: "通用key", group: "default", org: "技术部", member: "张三", type: "消费", model: "qwen2.5-flash", duration: "2.1", streaming: "流首", input: 28, output: 1, cost: 0.002285, ip: "10.244.109.64", detail: "按实际生效价格计费", billingSource: { type: "resource_pack", name: "Token 资源包 100万" } as BillingSource,
     calc: { inputTokens: 28, cacheTokens: 5280, outputTokens: 1, billingMethod: "按实际用量计费", inputPrice: 2.1, cachePrice: 0.42, outputPrice: 8.4, inputFee: 0.000059, cacheFee: 0.002218, outputFee: 0.000008, totalFee: 0.002285, creditUsed: 228 } as ConsumptionDetail },
   // 示例 3：代金券扣费
-  { time: "2026-05-27 08:35:40", apiKey: "通用分组key", group: "default", org: "技术部", member: "张三", type: "消费", model: "gpt-4o", duration: "1.1", streaming: "流首", input: 3, output: 1, cost: 1.484849, ip: "10.244.109.64", detail: "模型：1.25 * 分组倍率：1", billingSource: { type: "voucher" } as BillingSource,
+  { time: "2026-05-27 08:35:40", apiKey: "通用key", group: "default", org: "技术部", member: "张三", type: "消费", model: "gpt-4o", duration: "1.1", streaming: "流首", input: 3, output: 1, cost: 1.484849, ip: "10.244.109.64", detail: "按实际生效价格计费", billingSource: { type: "voucher" } as BillingSource,
     calc: { inputTokens: 3, cacheCreationTokens: 33857, outputTokens: 1, billingMethod: "按实际用量计费", inputPrice: 35, cacheCreationPrice: 43.75, outputPrice: 175, inputFee: 0.000105, cacheCreationFee: 1.481094, outputFee: 0.000175, totalFee: 1.484849 } as ConsumptionDetail },
   // 示例 4：充值余额扣费
-  { time: "2026-05-27 08:35:38", apiKey: "通用分组key", group: "default", org: "技术部", member: "张三", type: "消费", model: "gemini-2.5-flash", duration: "6.1", streaming: "流首", input: 6, output: 223, cost: 0.005388, ip: "10.244.109.64", detail: "模型：0.042857143 * 分组倍率：1", billingSource: { type: "balance" } as BillingSource,
+  { time: "2026-05-27 08:35:38", apiKey: "通用key", group: "default", org: "技术部", member: "张三", type: "消费", model: "gemini-2.5-flash", duration: "6.1", streaming: "流首", input: 6, output: 223, cost: 0.005388, ip: "10.244.109.64", detail: "按实际生效价格计费", billingSource: { type: "balance" } as BillingSource,
     calc: { inputTokens: 6, outputTokens: 223, hitTier: "≤32K", billingMethod: "按上下文长度计费", hitTierPrice: "≤32K", inputPrice: 6.000001, outputPrice: 23.999997, inputFee: 0.000036, outputFee: 0.005352, totalFee: 0.005388 } as ConsumptionDetail },
   // 示例 5：订阅包扣费（按次计费）
-  { time: "2026-05-27 08:36:01", apiKey: "通用分组key", group: "default", org: "技术部", member: "张三", type: "消费", model: "suno_brics", duration: "0.1", streaming: "流首", input: 0, output: 0, cost: 0.030000, ip: "10.244.109.64", detail: "价格：¥0.030000 / 次", billingSource: { type: "subscription", name: "团队专业版·月包" } as BillingSource,
+  { time: "2026-05-27 08:36:01", apiKey: "通用key", group: "default", org: "技术部", member: "张三", type: "消费", model: "suno_brics", duration: "0.1", streaming: "流首", input: 0, output: 0, cost: 0.030000, ip: "10.244.109.64", detail: "价格：¥0.030000 / 次", billingSource: { type: "subscription", name: "团队专业版·月包" } as BillingSource,
     calc: { operationType: "LYRICS", billingCount: 1, billingMethod: "按次计费", perCallPrice: 0.03, modelFee: 0.03, totalFee: 0.03, creditUsed: 3000 } as ConsumptionDetail },
   // 示例 6：充值余额扣费（图片生成）
-  { time: "2026-05-27 08:35:39", apiKey: "通用分组key", group: "default", org: "技术部", member: "张三", type: "消费", model: "dall-e-3", duration: "1.5", streaming: "非流", input: 0, output: 0, cost: 0.800000, ip: "10.244.109.64", detail: "价格：¥0.800000 / 次", billingSource: { type: "balance" } as BillingSource,
+  { time: "2026-05-27 08:35:39", apiKey: "通用key", group: "default", org: "技术部", member: "张三", type: "消费", model: "dall-e-3", duration: "1.5", streaming: "非流", input: 0, output: 0, cost: 0.800000, ip: "10.244.109.64", detail: "价格：¥0.800000 / 次", billingSource: { type: "balance" } as BillingSource,
     calc: { billingCount: 1, billingMethod: "按次计费", perCallPrice: 0.8, modelFee: 0.8, totalFee: 0.8 } as ConsumptionDetail },
   // 错误日志（无 calc）
-  { time: "2026-05-27 08:35:54", apiKey: "通用分组key", group: "default", org: "技术部", member: "张三", type: "错误", model: "gpt-oss-120b", duration: "0.0", streaming: "异常", input: 0, output: 0, cost: 0, ip: "10.244.109.64", detail: "分组gpt官网 下模型 gpt-oss-120b 无可用通道（distribution error）", billingSource: { type: "balance" } as BillingSource },
-  { time: "2026-05-27 08:35:48", apiKey: "通用分组key", group: "default", org: "技术部", member: "张三", type: "错误", model: "gpt-oss-120b", duration: "0.0", streaming: "异常", input: 0, output: 0, cost: 0, ip: "10.244.109.64", detail: "分组gpt官网 下模型 gpt-oss-120b 无可用通道（distribution error）", billingSource: { type: "balance" } as BillingSource },
+  { time: "2026-05-27 08:35:54", apiKey: "通用key", group: "default", org: "技术部", member: "张三", type: "错误", model: "gpt-oss-120b", duration: "0.0", streaming: "异常", input: 0, output: 0, cost: 0, ip: "10.244.109.64", detail: "模型 gpt-oss-120b 暂无可用通道（distribution error）", billingSource: { type: "balance" } as BillingSource },
+  { time: "2026-05-27 08:35:48", apiKey: "通用key", group: "default", org: "技术部", member: "张三", type: "错误", model: "gpt-oss-120b", duration: "0.0", streaming: "异常", input: 0, output: 0, cost: 0, ip: "10.244.109.64", detail: "模型 gpt-oss-120b 暂无可用通道（distribution error）", billingSource: { type: "balance" } as BillingSource },
   // 示例 9：资源包扣费
-  { time: "2026-05-27 08:35:33", apiKey: "通用分组key", group: "default", org: "技术部", member: "张三", type: "消费", model: "glm-5.1", duration: "6.1", streaming: "流首", input: 6, output: 194, cost: 0.004090, ip: "10.244.109.64", detail: "模型：0.042857143 * 分组倍率：1", billingSource: { type: "resource_pack", name: "Token 资源包 100万" } as BillingSource,
+  { time: "2026-05-27 08:35:33", apiKey: "通用key", group: "default", org: "技术部", member: "张三", type: "消费", model: "glm-5.1", duration: "6.1", streaming: "流首", input: 6, output: 194, cost: 0.004090, ip: "10.244.109.64", detail: "按实际生效价格计费", billingSource: { type: "resource_pack", name: "Token 资源包 100万" } as BillingSource,
     calc: { inputTokens: 6, outputTokens: 194, billingMethod: "按实际用量计费", inputPrice: 8, outputPrice: 6, inputFee: 0.000048, outputFee: 0.004042, totalFee: 0.004090, preDeductFee: 0.004100, supplementalFee: -0.000010, creditUsed: 409 } as ConsumptionDetail },
 ];
 
@@ -170,7 +169,7 @@ const apiKeyColors: Record<string, string> = {
   test: "bg-gray-700 text-white",
   prod: "bg-blue-700 text-white",
   "dev-key": "bg-violet-700 text-white",
-  "通用分组key": "bg-indigo-600 text-white",
+  "通用key": "bg-indigo-600 text-white",
 };
 function getApiKeyColor(key: string) {
   return apiKeyColors[key] ?? "bg-gray-600 text-white";
@@ -309,7 +308,6 @@ function CallLogsTab({ role, globalOrg, globalMember }: {
   const [filterApiKey, setFilterApiKey] = useState("");
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
-  const [filterGroup, setFilterGroup] = useState("all");
   const [filterType, setFilterType] = useState("all");
   const [filterBillingSource, setFilterBillingSource] = useState("all");
   const [exportOpen, setExportOpen] = useState(false);
@@ -319,10 +317,7 @@ function CallLogsTab({ role, globalOrg, globalMember }: {
   const isEnterpriseAdmin = role === "enterprise_admin";
   const isOrgAdmin = role === "org_admin";
 
-  const allGroups = Array.from(new Set(mockUsageLogs.map(r => r.group)));
-
   const filtered = mockUsageLogs.filter(r => {
-    if (filterGroup !== "all" && r.group !== filterGroup) return false;
     if (filterType !== "all" && r.type !== filterType) return false;
     if (filterBillingSource === "payg" && r.billingSource.type !== "balance") return false;
     if (filterBillingSource === "benefit" && r.billingSource.type === "balance") return false;
@@ -332,18 +327,20 @@ function CallLogsTab({ role, globalOrg, globalMember }: {
     if (isOrgAdmin && globalMember !== "all" && r.member !== globalMember) return false;
     return true;
   });
+  const totalConsumption = filtered
+    .filter((row) => row.type === "消费")
+    .reduce((sum, row) => sum + row.cost, 0);
 
   const paginated = filtered.slice((page - 1) * pageSize, page * pageSize);
 
-  const baseHeaders = ["时间", "APIKey", "分组", "类型", "模型", "用时/首字", "输入", "输出", "计费方式", "消耗金额", "详情"];
+  const baseHeaders = ["时间", "APIKey", "类型", "模型", "用时/首字", "输入", "输出", "计费方式", "消耗金额", "详情"];
   const headers = isEnterpriseAdmin
-    ? ["时间", "APIKey", "组织", "成员", "分组", "类型", "模型", "用时/首字", "输入", "输出", "计费方式", "消耗金额", "详情"]
+    ? ["时间", "APIKey", "组织", "成员", "类型", "模型", "用时/首字", "输入", "输出", "计费方式", "消耗金额", "详情"]
     : isOrgAdmin
-    ? ["时间", "APIKey", "成员", "分组", "类型", "模型", "用时/首字", "输入", "输出", "计费方式", "消耗金额", "详情"]
+    ? ["时间", "APIKey", "成员", "类型", "模型", "用时/首字", "输入", "输出", "计费方式", "消耗金额", "详情"]
     : baseHeaders;
 
   const handleReset = () => {
-    setFilterGroup("all");
     setFilterType("all");
     setFilterBillingSource("all");
     setFilterModel("");
@@ -401,6 +398,9 @@ function CallLogsTab({ role, globalOrg, globalMember }: {
           <Button size="sm" className="h-9">搜索</Button>
           <Button size="sm" variant="outline" className="h-9" onClick={handleReset}>重置</Button>
           <div className="flex-1" />
+          <span className="text-sm text-muted-foreground whitespace-nowrap">
+            消费总额：<span className="font-semibold text-foreground">¥{totalConsumption.toFixed(2)}</span>
+          </span>
           <Button
             size="sm"
             variant="outline"
@@ -414,23 +414,6 @@ function CallLogsTab({ role, globalOrg, globalMember }: {
         </div>
       </div>
 
-      {/* Summary + toolbar */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <span className="bg-blue-50 border border-blue-200 text-blue-700 text-xs px-2.5 py-1 rounded-md">消耗额度：¥0.05</span>
-          <span className="bg-muted border border-border text-muted-foreground text-xs px-2.5 py-1 rounded-md">RPM：0</span>
-          <span className="bg-muted border border-border text-muted-foreground text-xs px-2.5 py-1 rounded-md">TPM：0</span>
-        </div>
-        <div className="flex items-center gap-2">
-          <button className="p-1.5 hover:bg-muted rounded-md text-muted-foreground transition-colors">
-            <RefreshCw className="w-4 h-4" />
-          </button>
-          <button className="p-1.5 hover:bg-muted rounded-md text-muted-foreground transition-colors">
-            <Settings className="w-4 h-4" />
-          </button>
-        </div>
-      </div>
-
       {/* Table */}
       <div className="bg-card border border-border rounded-xl overflow-hidden">
         <div className="overflow-x-auto">
@@ -438,19 +421,6 @@ function CallLogsTab({ role, globalOrg, globalMember }: {
             <thead>
               <tr className="border-b border-border bg-muted/40">
                 {headers.map(h => {
-                  if (h === "分组") return (
-                    <th key={h} className="px-3 py-2.5 text-left text-xs font-medium text-muted-foreground whitespace-nowrap">
-                      <Select value={filterGroup} onValueChange={v => { setFilterGroup(v); setPage(1); }}>
-                        <SelectTrigger className="h-auto w-auto border-0 bg-transparent p-0 shadow-none focus:ring-0 gap-1 [&>svg]:w-3 [&>svg]:h-3 [&>svg]:opacity-60">
-                          <span className={`text-xs font-medium ${filterGroup !== "all" ? "text-primary" : "text-muted-foreground"}`}>分组</span>
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="all">全部</SelectItem>
-                          {allGroups.map(g => <SelectItem key={g} value={g}>{g}</SelectItem>)}
-                        </SelectContent>
-                      </Select>
-                    </th>
-                  );
                   if (h === "类型") return (
                     <th key={h} className="px-3 py-2.5 text-left text-xs font-medium text-muted-foreground whitespace-nowrap">
                       <Select value={filterType} onValueChange={v => { setFilterType(v); setPage(1); }}>
@@ -529,7 +499,6 @@ function CallLogsTab({ role, globalOrg, globalMember }: {
                       </TooltipProvider>
                     </td>
                   )}
-                  <td className="px-3 py-2.5 text-xs text-foreground">{row.group}</td>
                   <td className="px-3 py-2.5">
                     {row.type === "错误"
                       ? <span className="bg-red-100 text-red-600 border border-red-200 text-xs px-1.5 py-0.5 rounded">错误</span>

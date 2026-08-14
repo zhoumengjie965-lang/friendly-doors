@@ -1464,7 +1464,7 @@ Key 配置信息
     const filtered = filterFn ? filterFn(keys) : filterKeys(keys);
     const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
     const paged = paginate(filtered, page);
-    const colSpan = 9 + ((showOrg || showCreator) ? 1 : 0) + (showCreator ? 2 : 0);
+    const colSpan = 8 + ((showOrg || showCreator) ? 1 : 0) + (showCreator ? 2 : 0);
 
     return (
       <div>
@@ -1494,23 +1494,6 @@ Key 配置信息
                 {showOrg ? <TableHead className="font-medium">部门</TableHead> : (showCreator && <TableHead className="font-medium">部门</TableHead>)}
                 {showCreator && <TableHead className="font-medium">成员</TableHead>}
                 {showCreator && <TableHead className="font-medium">分类</TableHead>}
-                <TableHead className="font-medium">
-                  <div className="flex items-center gap-1">
-                    分组
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <button className="hover:bg-muted rounded p-0.5"><ChevronDown className="w-3 h-3" /></button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="start">
-                        <DropdownMenuCheckboxItem checked={groupFilter === "all"} onCheckedChange={() => setGroupFilter("all")}>全部</DropdownMenuCheckboxItem>
-                        {[...new Set(keys.map(k => k.group_name).filter(Boolean))].map(g => (
-                          <DropdownMenuCheckboxItem key={g} checked={groupFilter === g} onCheckedChange={() => setGroupFilter(g!)}>{g}</DropdownMenuCheckboxItem>
-                        ))}
-                        <DropdownMenuCheckboxItem checked={groupFilter === "__none__"} onCheckedChange={() => setGroupFilter("__none__")}>未分组</DropdownMenuCheckboxItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  </div>
-                </TableHead>
                 <TableHead className="font-medium">API Key</TableHead>
                 <TableHead className="font-medium">可用模型</TableHead>
                 <TableHead className="font-medium">过期时间</TableHead>
@@ -1629,50 +1612,6 @@ Key 配置信息
                         </Badge>
                       </TableCell>
                     )}
-                    <TableCell>
-                      {k.groups && k.groups.length > 0 ? (
-                        <div className="flex items-center gap-1 flex-wrap">
-                          {/* 显示前2个分组 */}
-                          {k.groups.slice(0, 2).map((group) => (
-                            <span 
-                              key={group} 
-                              className="inline-flex items-center px-2 py-0.5 rounded bg-gray-100 text-gray-700 text-xs whitespace-nowrap"
-                            >
-                              {group}
-                            </span>
-                          ))}
-                          
-                          {/* >2 个时显示 +N 计数 */}
-                          {k.groups.length > 2 && (
-                            <TooltipProvider delayDuration={200}>
-                              <Tooltip>
-                                <TooltipTrigger asChild>
-                                  <span className="inline-flex items-center px-1.5 py-0.5 rounded bg-gray-100 border border-gray-200 text-gray-500 text-xs cursor-pointer hover:bg-gray-200">
-                                    +{k.groups.length - 2}
-                                  </span>
-                                </TooltipTrigger>
-                                <TooltipContent side="top" sideOffset={8} avoidCollisions={false} className="max-w-md p-3 z-[100]">
-                                  <div className="flex flex-wrap gap-2 max-w-[320px]">
-                                    {k.groups.map((group) => (
-                                      <span 
-                                        key={group} 
-                                        className="inline-flex items-center px-2 py-1 rounded bg-muted border border-border text-muted-foreground text-xs whitespace-nowrap"
-                                      >
-                                        {group}
-                                      </span>
-                                    ))}
-                                  </div>
-                                </TooltipContent>
-                              </Tooltip>
-                            </TooltipProvider>
-                          )}
-                        </div>
-                      ) : k.group_name ? (
-                        <span className="inline-flex items-center px-2 py-0.5 rounded bg-gray-100 text-gray-700 text-xs">{k.group_name}</span>
-                      ) : (
-                        <span className="text-sm text-muted-foreground">—</span>
-                      )}
-                    </TableCell>
                     <TableCell>
                       <div className="flex items-center gap-1.5 font-mono text-xs">
                         <span className="text-foreground">{maskKey(k.key_value, visibleKeys.has(k.id))}</span>
@@ -2197,7 +2136,7 @@ Key 配置信息
 
       {/* Create / Edit Sheet */}
       <Sheet open={sheetOpen} onOpenChange={(open) => { setSheetOpen(open); if (!open) setCreatingProd(false); }}>
-        <SheetContent className="!w-[520px] !max-w-[520px] flex flex-col p-0 overflow-hidden">
+        <SheetContent className="!w-[640px] !max-w-[640px] flex flex-col p-0 overflow-hidden">
           <SheetHeader className="px-6 pt-6 pb-4 border-b border-border shrink-0">
             <SheetTitle>{editingKey ? "编辑 API Key" : "创建 API Key"}</SheetTitle>
           </SheetHeader>
@@ -2214,31 +2153,6 @@ Key 配置信息
                   </Label>
                   <Input placeholder="请输入名称" value={formName} onChange={e => setFormName(e.target.value)} />
                 </div>
-                {/* 分组 */}
-                {!(previewRole === "member" && editingKey) && (
-                  <div className="grid grid-cols-[100px_1fr] items-start gap-3">
-                    <Label className="text-right text-muted-foreground text-sm pt-2.5">
-                      <span className="text-destructive mr-0.5">*</span>分组
-                    </Label>
-                      <GroupMultiSelect
-                        groups={GROUP_OPTIONS}
-                        selected={formGroups}
-                        onChange={(nextGroups) => {
-                          const nextAvailable = new Set(getModelsForGroups(nextGroups));
-                          const removed = formModels.filter((model) => !nextAvailable.has(model));
-                          setFormGroups(nextGroups);
-                          if (removed.length > 0) {
-                            setFormModels(formModels.filter((model) => nextAvailable.has(model)));
-                            setRemovedModelNotice(removed);
-                          } else {
-                            setRemovedModelNotice([]);
-                          }
-                        }}
-                        placeholder="请选择分组"
-                      />
-                  </div>
-                )}
-
               </div>
             </div>
 
@@ -2280,7 +2194,7 @@ Key 配置信息
                 {/* 额度上限（非生产Key时正常显示） */}
                 {!creatingProd && (
                   <div className="grid grid-cols-[100px_1fr] items-center gap-3">
-                    <Label className="text-right text-muted-foreground text-sm">额度上限</Label>
+                    <Label className="text-right text-muted-foreground text-sm">金额</Label>
                     <div className="flex items-center gap-2">
                       <span className="text-muted-foreground text-sm font-medium shrink-0">¥</span>
                       <Input
@@ -2314,81 +2228,71 @@ Key 配置信息
               <div className="space-y-3">
                 {/* 模型限制 */}
                 <div className="space-y-2">
-                  <div className="flex items-center gap-4">
-                    <Label className="text-muted-foreground text-sm shrink-0">
-                      模型限制列表
-                      <span className="ml-1 text-xs">（已选 {followGroupRange && formGroups.length > 0 ? MODELS.filter((m) => isModelInGroups(m, formGroups) && (deptAllowedModels === null || deptAllowedModels.includes(m))).length : formModels.length} 个）</span>
+                  <div className="grid grid-cols-[100px_1fr] items-center gap-3">
+                    <Label className="text-right text-muted-foreground text-sm">
+                      模型可用范围
+                      {!followGroupRange && <span className="ml-1 text-xs">（已选 {formModels.length} 个）</span>}
                     </Label>
-                    <label className="flex items-center gap-2 shrink-0">
-                      <input
-                        type="checkbox"
-                        checked={followGroupRange}
-                        onChange={(e) => setFollowGroupRange(e.target.checked)}
-                        className="rounded border-gray-300"
-                      />
-                      <span className="text-sm">使用分组全部模型</span>
-                    </label>
-                      <label className="flex items-center gap-2 shrink-0 ml-auto">
+                    <div className="flex items-center gap-3 min-w-0">
+                      <label className="order-2 ml-auto flex items-center gap-2 shrink-0">
                         <input
                           type="checkbox"
-                          checked={onlyAvailable}
-                          onChange={(e) => setOnlyAvailable(e.target.checked)}
+                          checked={followGroupRange}
+                          onChange={(e) => {
+                            const useAllAvailable = e.target.checked;
+                            setFollowGroupRange(useAllAvailable);
+                            if (!useAllAvailable && formModels.length === 0) {
+                              setFormModels(MODELS.filter((model) =>
+                                (deptAllowedModels === null || deptAllowedModels.includes(model)) &&
+                                (formGroups.length === 0 || isModelInGroups(model, formGroups))
+                              ));
+                            }
+                          }}
                           className="rounded border-gray-300"
                         />
-                        <span className="text-sm text-muted-foreground">仅看分组支持</span>
+                        <span className="text-sm">全部模型</span>
                       </label>
+                      <div className="order-1 relative w-52">
+                        <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                        <input
+                          type="text"
+                          placeholder="搜索模型..."
+                          value={modelSearch}
+                          onChange={(e) => setModelSearch(e.target.value)}
+                          className="w-full h-8 pl-8 pr-2 text-sm rounded-md border border-input bg-background focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                        />
+                      </div>
+                    </div>
                     </div>
                     {(() => {
-                      const policyVisibleModels = MODELS.filter(
-                        (m) => deptAllowedModels === null || deptAllowedModels.includes(m)
+                      const backendAvailableModels = MODELS.filter((model) =>
+                        (deptAllowedModels === null || deptAllowedModels.includes(model)) &&
+                        (formGroups.length === 0 || isModelInGroups(model, formGroups))
                       );
-                      const filteredModels = formGroups.length === 0 ? [] : policyVisibleModels.filter(m =>
-                        m.toLowerCase().includes(modelSearch.trim().toLowerCase()) &&
-                        (!onlyAvailable || isModelInGroups(m, formGroups))
+                      const filteredModels = backendAvailableModels.filter((model) =>
+                        model.toLowerCase().includes(modelSearch.trim().toLowerCase())
                       );
                       return (
                         <>
-                          {removedModelNotice.length > 0 && (
-                            <div className="p-2 rounded-md bg-amber-50 border border-amber-200 text-xs text-amber-700">
-                              可用范围已变化，已自动移除：{removedModelNotice.join("、")}
-                            </div>
-                          )}
                           {/* 模型网格 */}
-                          <div className="rounded-md border border-input p-3 space-y-2">
-                            <div className="relative pb-2 border-b border-border/50">
-                              <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                              <input
-                                type="text"
-                                placeholder="搜索模型..."
-                                value={modelSearch}
-                                onChange={(e) => setModelSearch(e.target.value)}
-                                className="w-full h-8 pl-8 pr-2 text-sm rounded-md border border-input bg-background focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-                              />
-                            </div>
+                          <div className="ml-[112px] rounded-md border border-input p-3 space-y-2">
                             <div className="grid grid-cols-3 gap-1.5 max-h-48 overflow-auto">
                               {filteredModels.length === 0 ? (
                                 <div className="col-span-3 py-4 text-center text-xs text-muted-foreground">
-                                  {modelSearch.trim()
-                                    ? "未找到匹配的模型"
-                                    : formGroups.length === 0
-                                      ? "请先选择分组"
-                                      : onlyAvailable
-                                        ? "当前分组暂无可用模型，请调整分组"
-                                        : "暂无可用模型"}
+                                  {modelSearch.trim() ? "未找到匹配的模型" : "后台暂未配置可用模型"}
                                 </div>
                               ) : filteredModels.map((model) => {
-                                const inGroup = isModelInGroups(model, formGroups);
-                                const checked = followGroupRange ? inGroup : formModels.includes(model);
-                                const disabled = !inGroup || followGroupRange;
+                                const checked = followGroupRange || formModels.includes(model);
+                                const disabled = followGroupRange;
                                 return (
                                   <TooltipProvider key={model}>
                                     <Tooltip>
                                       <TooltipTrigger asChild>
                                         <label
                                           className={`flex items-center gap-1 text-xs px-2 py-1 rounded border ${
-                                            inGroup
-                                              ? "border-input bg-background"
-                                              : "border-muted bg-muted/30 text-muted-foreground/50 cursor-not-allowed"
+                                            disabled
+                                              ? "border-muted bg-muted/30 text-muted-foreground"
+                                              : "border-input bg-background"
                                           }`}
                                         >
                                           <input
@@ -2412,7 +2316,6 @@ Key 配置信息
                                 );
                               })}
                             </div>
-                            <p className="text-xs text-muted-foreground pt-1.5 border-t border-border/50">使用该 API Key 发起调用时，仅支持访问已勾选的模型</p>
                           </div>
                         </>
                       );
@@ -2487,7 +2390,7 @@ Key 配置信息
           {/* 底部固定按钮 */}
           <div className="shrink-0 px-6 py-4 border-t border-border flex justify-end gap-3 bg-background">
             <Button variant="outline" className="w-24" onClick={() => setSheetOpen(false)} disabled={saving}>取消</Button>
-            <Button className="w-24" onClick={handleSave} disabled={saving || !formName.trim() || (previewRole !== "member" && formGroups.length === 0)}>
+            <Button className="w-24" onClick={handleSave} disabled={saving || !formName.trim() || (!followGroupRange && formModels.length === 0)}>
               {saving ? "保存中..." : "确定"}
             </Button>
           </div>
@@ -2577,7 +2480,7 @@ Key 配置信息
               <ShieldCheck className="w-4 h-4 text-primary shrink-0 mt-0.5" />
               <p className="text-sm text-primary/80">
                 创建模板并绑定到部门后，该部门内所有成员创建的 Key 权限将自动套用模板配置，立即生效。
-                <span className="text-red-600 font-medium">未绑定模板的部门不进行任何限制（全分组、全模型、不限 IP、永不过期）。</span>
+                <span className="text-red-600 font-medium">未绑定模板的部门不进行额外限制（全部模型、不限 IP、永不过期）。</span>
               </p>
             </div>
 
@@ -2666,28 +2569,7 @@ Key 配置信息
                 {/* 基本信息 */}
                 <div>
                   <h3 className="text-sm font-semibold text-foreground mb-4 pb-2 border-b border-border">基本信息</h3>
-                  <div className="space-y-3">
-                    <div className="grid grid-cols-[100px_1fr] items-start gap-3">
-                      <Label className="text-right text-muted-foreground text-sm pt-2.5">分组</Label>
-                      <GroupMultiSelect
-                        groups={GROUP_OPTIONS}
-                        selected={tplFormGroups}
-                        onChange={(nextGroups) => {
-                          const nextAvailable = new Set(getModelsForGroups(nextGroups));
-                          const removed = tplFormModels.filter((model) => !nextAvailable.has(model));
-                          setTplFormGroups(nextGroups);
-                          if (removed.length > 0) {
-                            setTplFormModels(tplFormModels.filter((model) => nextAvailable.has(model)));
-                            setTplRemovedModelNotice(removed);
-                          } else {
-                            setTplRemovedModelNotice([]);
-                          }
-                        }}
-                        placeholder="不填则使用默认分组"
-                      />
-                    </div>
-
-                  </div>
+                  <div className="space-y-3" />
                 </div>
 
                 {/* 访问限制 */}
@@ -2697,8 +2579,8 @@ Key 配置信息
                     <div className="space-y-2">
                       <div className="flex items-center gap-4">
                         <Label className="text-muted-foreground text-sm shrink-0">
-                          模型限制列表
-                          <span className="ml-1 text-xs">（已选 {tplFollowGroupRange && tplFormGroups.length > 0 ? MODELS.filter((m) => isModelInGroups(m, tplFormGroups)).length : tplFormModels.length} 个）</span>
+                          模型可用范围
+                          <span className="ml-1 text-xs">（已选 {tplFollowGroupRange ? MODELS.length : tplFormModels.length} 个）</span>
                         </Label>
                         <label className="flex items-center gap-2 shrink-0">
                           <input
@@ -2707,22 +2589,12 @@ Key 配置信息
                             onChange={(e) => setTplFollowGroupRange(e.target.checked)}
                             className="rounded border-gray-300"
                           />
-                          <span className="text-sm">使用分组全部模型</span>
+                          <span className="text-sm">全部模型</span>
                         </label>
-                          <label className="flex items-center gap-2 shrink-0 ml-auto">
-                            <input
-                              type="checkbox"
-                              checked={tplOnlyAvailable}
-                              onChange={(e) => setTplOnlyAvailable(e.target.checked)}
-                              className="rounded border-gray-300"
-                            />
-                            <span className="text-sm text-muted-foreground">仅看分组支持</span>
-                          </label>
                         </div>
                         {(() => {
-                          const filteredModels = tplFormGroups.length === 0 ? [] : MODELS.filter(m =>
-                            m.toLowerCase().includes(tplModelSearch.toLowerCase()) &&
-                            (!tplOnlyAvailable || isModelInGroups(m, tplFormGroups))
+                          const filteredModels = MODELS.filter(m =>
+                            m.toLowerCase().includes(tplModelSearch.toLowerCase())
                           );
                           return (
                             <>
@@ -2748,24 +2620,19 @@ Key 配置信息
                                     <div className="col-span-3 py-4 text-center text-xs text-muted-foreground">
                                       {tplModelSearch.trim()
                                         ? "未找到匹配的模型"
-                                        : tplFormGroups.length === 0
-                                          ? "请先选择分组"
-                                          : tplOnlyAvailable
-                                            ? "当前分组暂无可用模型，请调整分组"
-                                            : "暂无可用模型"}
+                                        : "暂无可用模型"}
                                     </div>
                                   ) : filteredModels.map((model) => {
-                                    const inGroup = isModelInGroups(model, tplFormGroups);
-                                    const checked = tplFollowGroupRange ? inGroup : tplFormModels.includes(model);
+                                    const checked = tplFollowGroupRange || tplFormModels.includes(model);
                                     return (
                                       <label
                                         key={model}
-                                        className={`flex items-center gap-1 text-xs px-2 py-1 rounded border ${inGroup ? "border-input bg-background" : "border-muted bg-muted/30 text-muted-foreground/50 cursor-not-allowed"}`}
+                                        className="flex items-center gap-1 text-xs px-2 py-1 rounded border border-input bg-background"
                                       >
                                         <input
                                           type="checkbox"
                                           checked={checked}
-                                          disabled={!inGroup || tplFollowGroupRange}
+                                          disabled={tplFollowGroupRange}
                                           onChange={(e) => {
                                             if (e.target.checked) {
                                               setTplFormModels([...tplFormModels, model]);
@@ -2860,10 +2727,6 @@ Key 配置信息
                   </div>
                   <div className="grid grid-cols-2 gap-x-6 gap-y-3">
                     <div>
-                      <span className="text-xs text-muted-foreground">分组</span>
-                      <p className="text-sm text-foreground mt-0.5">{tpl.config.groups.length > 0 ? tpl.config.groups.join("、") : "默认分组"}</p>
-                    </div>
-                    <div>
                       <span className="text-xs text-muted-foreground">过期时间</span>
                       <p className="text-sm text-foreground mt-0.5">{tpl.config.expires ? tpl.config.expires.replace("T", " ") : "永不过期"}</p>
                     </div>
@@ -2904,7 +2767,7 @@ Key 配置信息
             <AlertDialogDescription asChild>
               <div className="space-y-1.5">
                 <p>此模板已绑定 <span className="font-medium text-foreground">{templates.find(t => t.id === tplSelectedId)?.bound_orgs ?? 0} 个部门</span>，保存后配置将立即同步生效到这些部门下的所有令牌。</p>
-                <p className="text-muted-foreground">影响范围：分组、过期时间、模型限制、IP 白名单等全部配置项。</p>
+                <p className="text-muted-foreground">影响范围：过期时间、模型可用范围、IP 白名单等全部配置项。</p>
               </div>
             </AlertDialogDescription>
           </AlertDialogHeader>
@@ -2972,7 +2835,7 @@ Key 配置信息
             <DialogTitle>成员高级权限管理</DialogTitle>
           </DialogHeader>
           <p className="text-sm text-muted-foreground -mt-1">
-            被勾选的成员在新建 Key 时将显示完整配置表单（包含分组、预算、访问限制等高级选项）。
+            被勾选的成员在新建 Key 时将显示完整配置表单（包含预算、访问限制等高级选项）。
           </p>
           <div className="max-h-72 overflow-y-auto space-y-1 border border-border rounded-lg p-2">
             {orgMembers.length === 0 ? (
