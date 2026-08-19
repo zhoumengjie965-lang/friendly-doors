@@ -10,7 +10,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
-import { Crown, Users, UserPlus, UserMinus, Inbox, Download, Plus, RefreshCw, Wallet, ArrowUpCircle, Filter, Search, Info } from "lucide-react";
+import { Crown, Users, UserPlus, UserMinus, Inbox, Download, Plus, RefreshCw, Wallet, ArrowUpCircle, Filter, Search, Info, History } from "lucide-react";
 import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from "@/components/ui/tooltip";
 import { MOCK_SEAT_SUBSCRIPTIONS, MOCK_ENTERPRISE_MEMBERS, subStatusLabel, subStatusClass, seatTierLabel, formatCredit, formatDateTime, type Seat, type SeatTier } from "./subscriptions-data";
 import { useToast } from "@/hooks/use-toast";
@@ -18,6 +18,36 @@ import { useToast } from "@/hooks/use-toast";
 interface Props { role?: string }
 
 const TIER_ORDER: SeatTier[] = ["lite", "standard", "premium"];
+
+const MOCK_SUBSCRIPTION_HISTORY = [
+  {
+    id: "SUB20250501008", planName: "Enterprise 标准版（席位）", cycle: "年付", seatCount: 8,
+    startedAt: "2025-05-01T00:00:00", endedAt: "2026-05-01T00:00:00", orderId: "ORD20250501008",
+    issuedCredits: 8_995_200_000, usedCredits: 7_842_560_000, expiredCredits: 1_152_640_000,
+    seats: [
+      { id: "SEAT-H-001", member: "张三", tier: "标准版", issued: 1_124_400_000, used: 986_320_000 },
+      { id: "SEAT-H-002", member: "李四", tier: "标准版", issued: 1_124_400_000, used: 1_038_720_000 },
+      { id: "SEAT-H-003", member: "周八", tier: "尊享版", issued: 2_796_000_000, used: 2_568_400_000 },
+    ],
+    deductions: [
+      { id: "HDED-001", time: "2026-04-28T14:32:18", seatId: "SEAT-H-001", member: "张三", model: "Doubao-Seed-2.1-pro", item: "输入：32,500 tokens；输出：8,200 tokens", credits: 44_800 },
+      { id: "HDED-002", time: "2026-04-27T10:15:44", seatId: "SEAT-H-002", member: "李四", model: "Claude-3.5-Sonnet", item: "输入：30,000 tokens", credits: 75_000 },
+      { id: "HDED-003", time: "2026-04-26T09:05:12", seatId: "SEAT-H-003", member: "周八", model: "GPT-4o", item: "输入：25,000 tokens；输出：18,000 tokens", credits: 104_000 },
+    ],
+  },
+  {
+    id: "SUB20250201003", planName: "Enterprise 轻量版（席位）", cycle: "月付", seatCount: 5,
+    startedAt: "2025-02-01T00:00:00", endedAt: "2025-05-01T00:00:00", orderId: "ORD20250201003",
+    issuedCredits: 396_000_000, usedCredits: 351_680_000, expiredCredits: 44_320_000,
+    seats: [
+      { id: "SEAT-H-011", member: "张三", tier: "轻享版", issued: 79_200_000, used: 75_600_000 },
+      { id: "SEAT-H-012", member: "王五", tier: "轻享版", issued: 79_200_000, used: 68_420_000 },
+    ],
+    deductions: [
+      { id: "HDED-011", time: "2025-04-29T11:20:33", seatId: "SEAT-H-011", member: "张三", model: "DeepSeek-V4-pro", item: "输入：15,000 tokens", credits: 18_000 },
+    ],
+  },
+];
 
 export default function TeamSubscription({ role: _role = "admin" }: Props) {
   const { toast } = useToast();
@@ -40,19 +70,126 @@ export default function TeamSubscription({ role: _role = "admin" }: Props) {
   const [recycleDialogOpen, setRecycleDialogOpen] = useState(false);
   const [recycleSeatIds, setRecycleSeatIds] = useState<string[]>([]);
   const [tierFilter, setTierFilter] = useState<SeatTier | "all">("all");
+  const [historyDialogOpen, setHistoryDialogOpen] = useState(false);
+  const [selectedHistoryId, setSelectedHistoryId] = useState<string | null>(null);
+  const selectedHistory = MOCK_SUBSCRIPTION_HISTORY.find((subscription) => subscription.id === selectedHistoryId) ?? null;
+
+  const historyDialog = (
+    <Dialog open={historyDialogOpen} onOpenChange={setHistoryDialogOpen}>
+      <DialogContent className="sm:max-w-4xl p-0 overflow-hidden">
+        <DialogHeader className="border-b border-border px-5 py-4">
+          <DialogTitle className="flex items-center gap-2 text-base">
+            <History className="h-4 w-4 text-muted-foreground" />历史订阅
+          </DialogTitle>
+        </DialogHeader>
+        <div className="p-5">
+          <div className="rounded-lg border border-border overflow-hidden">
+            <Table>
+              <TableHeader>
+                <TableRow className="bg-muted/50 hover:bg-muted/50">
+                  <TableHead>订阅编号</TableHead>
+                  <TableHead>套餐</TableHead>
+                  <TableHead>订阅周期</TableHead>
+                  <TableHead>席位数</TableHead>
+                  <TableHead>有效时间</TableHead>
+                  <TableHead>状态</TableHead>
+                  <TableHead className="text-right">操作</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {MOCK_SUBSCRIPTION_HISTORY.map((subscription) => (
+                  <TableRow key={subscription.id}>
+                    <TableCell className="font-mono text-xs text-muted-foreground">{subscription.id}</TableCell>
+                    <TableCell className="text-sm font-medium">{subscription.planName}</TableCell>
+                    <TableCell className="text-sm">{subscription.cycle}</TableCell>
+                    <TableCell className="text-sm">{subscription.seatCount} 席</TableCell>
+                    <TableCell className="text-xs text-muted-foreground whitespace-nowrap">
+                      {formatDateTime(subscription.startedAt)} 至<br />{formatDateTime(subscription.endedAt)}
+                    </TableCell>
+                    <TableCell><Badge variant="outline" className="font-normal text-gray-500">已失效</Badge></TableCell>
+                    <TableCell className="text-right">
+                      <Button variant="link" size="sm" className="h-auto p-0 text-xs" onClick={() => setSelectedHistoryId(subscription.id)}>
+                        查看详情
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+
+  const historyDetailDialog = (
+    <Dialog open={!!selectedHistory} onOpenChange={(open) => !open && setSelectedHistoryId(null)}>
+      <DialogContent className="sm:max-w-5xl p-0 flex max-h-[85vh] flex-col overflow-hidden">
+        <DialogHeader className="border-b border-border px-5 py-4">
+          <DialogTitle className="text-base">历史订阅详情</DialogTitle>
+        </DialogHeader>
+        {selectedHistory && (
+          <div className="flex-1 space-y-5 overflow-y-auto p-5">
+            <div className="flex flex-wrap items-center gap-x-8 gap-y-2 rounded-lg border border-border bg-muted/20 px-4 py-3 text-sm">
+              <span><span className="text-muted-foreground">订阅编号：</span><span className="font-mono text-xs">{selectedHistory.id}</span></span>
+              <span><span className="text-muted-foreground">套餐：</span>{selectedHistory.planName}</span>
+              <span><span className="text-muted-foreground">有效时间：</span>{formatDateTime(selectedHistory.startedAt)} 至 {formatDateTime(selectedHistory.endedAt)}</span>
+              <Badge variant="outline" className="font-normal text-gray-500">已失效</Badge>
+            </div>
+
+            <section className="space-y-3">
+              <h3 className="text-sm font-semibold">积分汇总</h3>
+              <div className="grid grid-cols-3 gap-3">
+                <div className="rounded-lg border border-border p-4"><p className="text-xs text-muted-foreground">累计发放积分</p><p className="mt-1 text-lg font-semibold">{formatCredit(selectedHistory.issuedCredits)}</p></div>
+                <div className="rounded-lg border border-border p-4"><p className="text-xs text-muted-foreground">累计消耗积分</p><p className="mt-1 text-lg font-semibold text-orange-600">{formatCredit(selectedHistory.usedCredits)}</p></div>
+                <div className="rounded-lg border border-border p-4"><p className="text-xs text-muted-foreground">到期清零积分</p><p className="mt-1 text-lg font-semibold text-muted-foreground">{formatCredit(selectedHistory.expiredCredits)}</p></div>
+              </div>
+            </section>
+
+            <section className="space-y-3">
+              <h3 className="text-sm font-semibold">历史席位</h3>
+              <div className="rounded-lg border border-border overflow-hidden">
+                <Table>
+                  <TableHeader><TableRow className="bg-muted/50 hover:bg-muted/50"><TableHead>席位ID</TableHead><TableHead>成员</TableHead><TableHead>席位规格</TableHead><TableHead className="text-right">发放积分</TableHead><TableHead className="text-right">消耗积分</TableHead></TableRow></TableHeader>
+                  <TableBody>{selectedHistory.seats.map((seat) => <TableRow key={seat.id}><TableCell className="font-mono text-xs text-muted-foreground">{seat.id}</TableCell><TableCell>{seat.member}</TableCell><TableCell>{seat.tier}</TableCell><TableCell className="text-right">{formatCredit(seat.issued)}</TableCell><TableCell className="text-right text-orange-600">{formatCredit(seat.used)}</TableCell></TableRow>)}</TableBody>
+                </Table>
+              </div>
+            </section>
+
+            <section className="space-y-3">
+              <div className="flex items-center justify-between"><h3 className="text-sm font-semibold">抵扣明细</h3><span className="text-xs text-muted-foreground">共 {selectedHistory.deductions.length} 条</span></div>
+              <div className="rounded-lg border border-border overflow-hidden">
+                <Table>
+                  <TableHeader><TableRow className="bg-muted/50 hover:bg-muted/50"><TableHead>时间</TableHead><TableHead>席位ID</TableHead><TableHead>成员</TableHead><TableHead>模型</TableHead><TableHead>抵扣项</TableHead><TableHead className="text-right">消耗积分</TableHead></TableRow></TableHeader>
+                  <TableBody>{selectedHistory.deductions.map((record) => <TableRow key={record.id}><TableCell className="whitespace-nowrap text-xs text-muted-foreground">{formatDateTime(record.time)}</TableCell><TableCell className="font-mono text-xs text-muted-foreground">{record.seatId}</TableCell><TableCell>{record.member}</TableCell><TableCell><Badge variant="outline" className="font-normal">{record.model}</Badge></TableCell><TableCell className="text-xs text-muted-foreground">{record.item}</TableCell><TableCell className="text-right font-medium text-orange-600">-{formatCredit(record.credits)}</TableCell></TableRow>)}</TableBody>
+                </Table>
+              </div>
+            </section>
+          </div>
+        )}
+      </DialogContent>
+    </Dialog>
+  );
 
   if (!activeSub) {
     return (
       <div className="w-full space-y-6">
-        <div>
-          <h1 className="text-2xl font-bold text-foreground">资源与订阅 / 企业订阅</h1>
-          <p className="text-muted-foreground mt-1 text-sm">管理当前生效的席位制订阅。</p>
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <h1 className="text-2xl font-bold text-foreground">资源与订阅 / 企业订阅</h1>
+            <p className="text-muted-foreground mt-1 text-sm">管理当前生效的席位制订阅。</p>
+          </div>
+          <Button variant="outline" size="sm" onClick={() => setHistoryDialogOpen(true)}>
+            <History className="w-3.5 h-3.5 mr-1.5" />历史订阅
+          </Button>
         </div>
         <div className="border border-border rounded-lg p-12 text-center text-muted-foreground">
           <Inbox className="w-10 h-10 mx-auto mb-3 opacity-40" />
           <p className="text-sm">当前没有生效的订阅</p>
-          <p className="text-xs mt-1">前往 token plan 购买席位制订阅后即可在此管理。</p>
+          <p className="text-xs mt-1">历史订阅及相关订单仍可通过“历史订阅”查看。</p>
         </div>
+        {historyDialog}
+        {historyDetailDialog}
       </div>
     );
   }
@@ -303,6 +440,9 @@ export default function TeamSubscription({ role: _role = "admin" }: Props) {
           </span>
         </div>
         <div className="flex items-center gap-2">
+          <Button variant="ghost" size="sm" className="h-8 text-xs" onClick={() => setHistoryDialogOpen(true)}>
+            <History className="w-3.5 h-3.5 mr-1.5" />历史订阅
+          </Button>
           <Button variant="outline" size="sm" className="h-8 text-xs" onClick={() => navigate("/workspace/addon-order")}>
             <Plus className="w-3.5 h-3.5 mr-1.5" />加购席位
           </Button>
@@ -501,6 +641,9 @@ export default function TeamSubscription({ role: _role = "admin" }: Props) {
       </section>
 
       {/* 抵扣明细弹窗 */}
+      {historyDialog}
+      {historyDetailDialog}
+
       <Dialog open={usageDrawerOpen} onOpenChange={setUsageDrawerOpen}>
         <DialogContent className="sm:max-w-5xl p-0 flex flex-col max-h-[85vh]">
           <DialogHeader className="flex-row items-center justify-between border-b border-border p-4 space-y-0">

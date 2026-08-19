@@ -7,6 +7,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import {
@@ -17,10 +18,10 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Search, ExternalLink, ChevronDown, Plus, X, Pencil, Trash2, Power, Download, Check } from "lucide-react";
+import { Search, ExternalLink, ChevronDown, Plus, X, Pencil, Trash2, Power, Download, Check, GripVertical } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { getAdminSession } from "@/lib/adminAuth";
-import { getResellerDemoState, getResellerName, migrateEnterprise, setEnterpriseAssignment } from "@/lib/resellerDemo";
+import { getResellerDemoState, getResellerName, migrateEnterprise, rechargeCustomer, setCustomerDiscount, setEnterpriseAssignment } from "@/lib/resellerDemo";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 
 const MODEL_ACCESS_OPTIONS = [
@@ -229,6 +230,8 @@ function GroupConfigSelector({
   const [customBaselineGroups, setCustomBaselineGroups] = useState<Record<string, CustomGroupEntry>>({});
   const [showTemplateCopy, setShowTemplateCopy] = useState(false);
   const [hasImportedTemplate, setHasImportedTemplate] = useState(false);
+  const [groupOrder, setGroupOrder] = useState<string[]>([]);
+  const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
 
   const activeTemplate = TEMPLATE_OPTIONS.find((t) => t.value === selectedTemplate);
 
@@ -272,9 +275,8 @@ function GroupConfigSelector({
       setHasImportedTemplate(false);
     }
     setDialogOpen(true);
+    setGroupOrder([...ALL_BASE_GROUPS].sort((a, b) => a.name.localeCompare(b.name, "zh-Hans-CN")).map((g) => g.name));
   };
-
-  // 保存二级弹窗中的自定义分组
   const handleSaveCustomDialog = () => {
     const validEntries = Object.fromEntries(
       Object.entries(editingCustomGroups).filter(([, entry]) => entry.available)
@@ -505,7 +507,7 @@ function GroupConfigSelector({
           </DialogHeader>
 
           <p className="text-xs text-muted-foreground mb-3">
-            可选择模板对比当前配置；只有点击“导入模板”才会替换当前表单。
+            可选择模板对比当前配置；只有点击"导入模板"才会替换当前表单。
           </p>
 
           {showTemplateCopy && (
@@ -558,6 +560,7 @@ function GroupConfigSelector({
             <table className="w-full text-sm">
               <thead className="bg-muted/50">
                 <tr>
+                  <th className="px-2 py-1.5 w-[32px]"></th>
                   <th className="px-3 py-1.5 text-left font-medium text-muted-foreground">基础令牌分组</th>
                   <th className="px-3 py-1.5 text-center font-medium text-muted-foreground w-[90px]">是否可用</th>
                   <th className="px-3 py-1.5 text-right font-medium text-muted-foreground w-[90px]">当前倍率</th>
@@ -566,11 +569,31 @@ function GroupConfigSelector({
                 </tr>
               </thead>
               <tbody className="divide-y">
-                {ALL_BASE_GROUPS.map((bg) => {
+                {groupOrder.map((groupName, index) => {
+                  const bg = ALL_BASE_GROUPS.find((g) => g.name === groupName);
+                  if (!bg) return null;
                   const entry = editingCustomGroups[bg.name] ?? { available: false, rate: bg.defaultRate };
                   const baseline = customBaselineGroups[bg.name] ?? entry;
                   return (
-                    <tr key={bg.name} className={`${entry.available ? "" : "opacity-45"} hover:bg-muted/30`}>
+                    <tr
+                      key={bg.name}
+                      draggable
+                      onDragStart={() => setDraggedIndex(index)}
+                      onDragOver={(e) => { e.preventDefault(); }}
+                      onDrop={() => {
+                        if (draggedIndex === null || draggedIndex === index) return;
+                        const newOrder = [...groupOrder];
+                        const [moved] = newOrder.splice(draggedIndex, 1);
+                        newOrder.splice(index, 0, moved);
+                        setGroupOrder(newOrder);
+                        setDraggedIndex(null);
+                      }}
+                      onDragEnd={() => setDraggedIndex(null)}
+                      className={`${entry.available ? "" : "opacity-45"} hover:bg-muted/30 ${draggedIndex === index ? "opacity-30" : ""} cursor-grab active:cursor-grabbing`}
+                    >
+                      <td className="px-2 py-1.5 text-center text-muted-foreground/50">
+                        <GripVertical className="w-4 h-4 mx-auto" />
+                      </td>
                       <td className="px-3 py-1.5 font-medium">{bg.name}</td>
                       <td className="px-3 py-1.5 text-center">
                         <Checkbox
@@ -1041,6 +1064,8 @@ export default function AdminEnterprises({ resellerScopeId }: { resellerScopeId?
   const [rechargeAmount, setRechargeAmount] = useState("");
   const [rechargeRemark, setRechargeRemark] = useState("");
   const [rechargeLoading, setRechargeLoading] = useState(false);
+  const [discountTarget, setDiscountTarget] = useState<Enterprise | null>(null);
+  const [discountValue, setDiscountValue] = useState("100");
   // Credit-specific states
   const [editingLimit, setEditingLimit] = useState(false);
   const [limitDraft, setLimitDraft] = useState("");
@@ -1095,6 +1120,7 @@ export default function AdminEnterprises({ resellerScopeId }: { resellerScopeId?
     selectedTemplate: "default",
     selectedHistoricalGroup: "",
     customGroups: {} as Record<string, CustomGroupEntry>,
+    customConfigEnabled: false,
     modelAccess: ["国际"] as string[],
     remarkType: "正式用户",
     remarkName: "",
@@ -1203,7 +1229,11 @@ export default function AdminEnterprises({ resellerScopeId }: { resellerScopeId?
     const useMockData = true;
     if (useMockData) {
       setTimeout(() => {
-        setEnterprises(MOCK_ENTERPRISES);
+        const demoAssignments = getResellerDemoState().enterprises;
+        setEnterprises(MOCK_ENTERPRISES.map((enterprise) => {
+          const assignment = demoAssignments.find((item) => item.enterpriseId === enterprise.id);
+          return { ...enterprise, balance: assignment?.balance ?? enterprise.balance };
+        }));
         setLoading(false);
       }, 500);
       return;
@@ -1314,12 +1344,15 @@ export default function AdminEnterprises({ resellerScopeId }: { resellerScopeId?
 
       if (rechargeType === "balance") {
         const inputVal = parseFloat(rechargeAmount);
-        if (isNaN(inputVal) || inputVal === 0) {
+        if (isNaN(inputVal) || inputVal === 0 || (resellerScopeId && inputVal <= 0)) {
           toast({ title: "请输入有效金额", variant: "destructive" });
           setRechargeLoading(false);
           return;
         }
         const delta = inputVal;
+        if (resellerScopeId) {
+          rechargeCustomer({ resellerId: resellerScopeId, amount: inputVal, targetType: "enterprise", targetId: rechargeTarget.id, targetName: rechargeTarget.name, remark: rechargeRemark.trim() });
+        }
         if (useMockData) {
           await new Promise(resolve => setTimeout(resolve, 400));
           setEnterprises(prev => prev.map(e =>
@@ -1335,7 +1368,7 @@ export default function AdminEnterprises({ resellerScopeId }: { resellerScopeId?
           });
           if (error) throw error;
         }
-        toast({ title: `已为「${rechargeTarget.name}」充值余额 ¥${delta.toFixed(2)}` });
+        toast({ title: resellerScopeId ? `已向「${rechargeTarget.name}」划拨 ¥${delta.toFixed(2)}` : `已为「${rechargeTarget.name}」充值余额 ¥${delta.toFixed(2)}` });
       } else {
         const newLimitVal = parseFloat(limitDraft);
         const newBalanceVal = parseFloat(creditBalanceDraft);
@@ -1564,7 +1597,9 @@ export default function AdminEnterprises({ resellerScopeId }: { resellerScopeId?
   // Toggle enterprise status (enable/disable) dialog state
   const [toggleStatusTarget, setToggleStatusTarget] = useState<Enterprise | null>(null);
 
-  const COLS = "grid-cols-[2fr_1.5fr_80px_1fr_1.2fr_1fr_80px_100px_88px]";
+  const COLS = resellerScopeId
+    ? "grid-cols-[2fr_1.5fr_90px_1.2fr_110px_150px]"
+    : "grid-cols-[2fr_1.5fr_80px_1fr_1.2fr_1fr_80px_100px_88px]";
 
   return (
     <div className="p-6 space-y-5">
@@ -1737,9 +1772,9 @@ export default function AdminEnterprises({ resellerScopeId }: { resellerScopeId?
         {/* Header row */}
         <div className={`grid ${COLS} gap-3 px-5 py-3 bg-muted/50 text-xs font-medium text-muted-foreground border-b`}>
           <span>企业名称</span>
-          <span>企业管理员</span>
+          <span>{resellerScopeId ? "企业拥有者" : "企业管理员"}</span>
           <span>状态</span>
-          <DropdownMenu>
+          {!resellerScopeId && <DropdownMenu>
             <DropdownMenuTrigger className="flex items-center gap-1 hover:text-foreground focus:outline-none">
               认证状态
               <ChevronDown className="w-3.5 h-3.5" />
@@ -1761,10 +1796,10 @@ export default function AdminEnterprises({ resellerScopeId }: { resellerScopeId?
                 {certFilter === "rejected" ? "✓ " : "  "}未通过
               </DropdownMenuItem>
             </DropdownMenuContent>
-          </DropdownMenu>
+          </DropdownMenu>}
           <span>余额 / 历史消耗</span>
-          <span>部门 / 成员</span>
-          <span>API Key</span>
+          {!resellerScopeId && <span>部门 / 成员</span>}
+          {!resellerScopeId && <span>API Key</span>}
           <span>注册时间</span>
           <span>操作</span>
         </div>
@@ -1806,9 +1841,9 @@ export default function AdminEnterprises({ resellerScopeId }: { resellerScopeId?
                 </span>
 
                 {/* 认证状态 */}
-                <span>
+                {!resellerScopeId && <span>
                   <Badge variant={certBadge.variant} className="text-xs">{certBadge.label}</Badge>
-                </span>
+                </span>}
 
                 {/* 余额 / 总消耗 */}
                 <div className="text-xs leading-5">
@@ -1817,15 +1852,15 @@ export default function AdminEnterprises({ resellerScopeId }: { resellerScopeId?
                 </div>
 
                 {/* 部门 / 成员 */}
-                <div className="text-xs text-muted-foreground">
+                {!resellerScopeId && <div className="text-xs text-muted-foreground">
                   <span className="text-foreground font-medium">{e.org_count}</span> 部门 ·{" "}
                   <span className="text-foreground font-medium">{e.member_count}</span> 人
-                </div>
+                </div>}
 
                 {/* API Key 数量 */}
-                <div className="text-xs text-muted-foreground">
+                {!resellerScopeId && <div className="text-xs text-muted-foreground">
                   <span className="text-foreground font-medium">{e.api_key_count}</span> 个
-                </div>
+                </div>}
 
                 {/* 注册时间 */}
                 <div className="text-xs text-muted-foreground">
@@ -1840,7 +1875,7 @@ export default function AdminEnterprises({ resellerScopeId }: { resellerScopeId?
                     className="h-7 px-2 text-xs text-blue-600 hover:text-blue-700 hover:bg-blue-50"
                     onClick={() => openRechargeDialog(e)}
                   >
-                    充值
+                    {resellerScopeId ? "划拨" : "充值"}
                   </Button>
                   <Button
                     size="sm"
@@ -1870,6 +1905,7 @@ export default function AdminEnterprises({ resellerScopeId }: { resellerScopeId?
                         groupMode: "template" as const,
                         selectedTemplate: e.group && TEMPLATE_OPTIONS.some(t => t.value === e.group) ? (e.group as string) : "default",
                         customGroups: {},
+                        customConfigEnabled: false,
                         modelAccess: ["国际"],
                         remarkType: type,
                         remarkName: name,
@@ -1923,7 +1959,7 @@ export default function AdminEnterprises({ resellerScopeId }: { resellerScopeId?
       <Dialog open={!!rechargeTarget} onOpenChange={(open) => { if (!open) setRechargeTarget(null); }}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>手动充值</DialogTitle>
+            <DialogTitle>{resellerScopeId ? "客户划拨" : "手动充值"}</DialogTitle>
           </DialogHeader>
           {rechargeTarget && (() => {
             const currentBalance = rechargeType === "balance" ? rechargeTarget.balance : rechargeTarget.credit_balance;
@@ -1987,7 +2023,8 @@ export default function AdminEnterprises({ resellerScopeId }: { resellerScopeId?
                   )}
                 </div>
                 <div className="space-y-4">
-                  <div className="space-y-2">
+                  {resellerScopeId && (() => { const current = getResellerDemoState().resellers.find((item) => item.id === resellerScopeId); return <div className="rounded-md border border-blue-200 bg-blue-50 px-3 py-2 text-sm text-blue-700">本次划拨将从代理商可用额度扣除。当前可用总额度：<span className="font-semibold tabular-nums">¥{((current?.balance || 0) + (current?.creditBalance || 0)).toFixed(2)}</span></div>; })()}
+                  {!resellerScopeId && <div className="space-y-2">
                     <Label>充值类型</Label>
                     <div className="flex gap-3">
                       <label className="flex items-center gap-2 cursor-pointer flex-1 p-3 border rounded-md hover:border-blue-300 hover:bg-blue-50/30 transition-colors has-[:checked]:border-blue-500 has-[:checked]:bg-blue-50">
@@ -2010,7 +2047,7 @@ export default function AdminEnterprises({ resellerScopeId }: { resellerScopeId?
                           <p className="text-xs text-muted-foreground">普通现金余额，可直接消费</p>
                         </div>
                       </label>
-                      <label className="flex items-center gap-2 cursor-pointer flex-1 p-3 border rounded-md hover:border-blue-300 hover:bg-blue-50/30 transition-colors has-[:checked]:border-blue-500 has-[:checked]:bg-blue-50">
+                      {!resellerScopeId && <label className="flex items-center gap-2 cursor-pointer flex-1 p-3 border rounded-md hover:border-blue-300 hover:bg-blue-50/30 transition-colors has-[:checked]:border-blue-500 has-[:checked]:bg-blue-50">
                         <input
                           type="radio"
                           name="rechargeType"
@@ -2030,18 +2067,18 @@ export default function AdminEnterprises({ resellerScopeId }: { resellerScopeId?
                           <p className="text-sm font-medium">授信额度</p>
                           <p className="text-xs text-muted-foreground">先用后付额度，账期后结算</p>
                         </div>
-                      </label>
+                      </label>}
                     </div>
-                  </div>
+                  </div>}
                   {rechargeType === "balance" ? (
                     <div className="space-y-1.5">
-                      <Label>充值金额 <span className="text-red-500">*</span></Label>
+                      <Label>{resellerScopeId ? "划拨金额" : "充值金额"} <span className="text-red-500">*</span></Label>
                       <div className="relative">
                         <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">¥</span>
                         <Input
                           type="number"
                           step="0.01"
-                          placeholder="请输入充值金额（支持负数）"
+                          placeholder={resellerScopeId ? "请输入划拨金额" : "请输入充值金额（支持负数）"}
                           value={rechargeAmount}
                           onChange={(e) => setRechargeAmount(e.target.value)}
                           className="pl-7"
@@ -2205,7 +2242,7 @@ export default function AdminEnterprises({ resellerScopeId }: { resellerScopeId?
                 <DialogFooter>
                   <Button variant="outline" onClick={() => setRechargeTarget(null)} disabled={rechargeLoading}>取消</Button>
                   <Button onClick={handleRecharge} disabled={submitDisabled}>
-                    {rechargeLoading ? "处理中…" : "确认保存"}
+                    {rechargeLoading ? "处理中…" : resellerScopeId ? "确认划拨" : "确认保存"}
                   </Button>
                 </DialogFooter>
               </>
@@ -2245,7 +2282,7 @@ export default function AdminEnterprises({ resellerScopeId }: { resellerScopeId?
               {/* 企业管理员 */}
               <div className="space-y-1.5">
                 <Label className="text-sm">
-                  企业管理员 <span className="text-red-500">*</span>
+                  {resellerScopeId ? "企业拥有者" : "企业管理员"} <span className="text-red-500">*</span>
                 </Label>
                 <Input
                   placeholder="请输入手机号或用户ID"
@@ -2353,9 +2390,19 @@ export default function AdminEnterprises({ resellerScopeId }: { resellerScopeId?
 
             {/* 分组 */}
             <div className="space-y-1.5">
-              <Label className="text-sm">
-                分组 <span className="text-red-500">*</span>
-              </Label>
+              <div className="flex items-center justify-between">
+                <Label className="text-sm">
+                  分组 <span className="text-red-500">*</span>
+                </Label>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-muted-foreground">开放客户端配置</span>
+                  <Switch
+                    checked={editForm.customConfigEnabled}
+                    onCheckedChange={(checked) => setEditForm((prev) => ({ ...prev, customConfigEnabled: checked }))}
+                  />
+                </div>
+              </div>
+
               <GroupConfigSelector
                 groupMode={editForm.groupMode}
                 setGroupMode={(mode) => setEditForm((prev) => ({ ...prev, groupMode: mode }))}
@@ -2774,6 +2821,9 @@ export default function AdminEnterprises({ resellerScopeId }: { resellerScopeId?
             </Button>
           </DialogFooter>
         </DialogContent>
+      </Dialog>
+      <Dialog open={!!discountTarget} onOpenChange={(open) => !open && setDiscountTarget(null)}>
+        <DialogContent className="sm:max-w-[440px]"><DialogHeader><DialogTitle>设置企业折扣</DialogTitle></DialogHeader>{discountTarget && <div className="space-y-4"><div className="rounded-lg border bg-muted/30 p-3 text-sm">企业：<span className="font-medium">{discountTarget.name}</span></div><div className="space-y-2"><Label>结算折扣 *</Label><div className="relative"><Input type="number" min="1" max="100" value={discountValue} onChange={(e) => setDiscountValue(e.target.value)} className="pr-8" /><span className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground">%</span></div><p className="text-xs text-muted-foreground">例如 90% 表示该企业按九折结算。</p></div><div className="rounded-lg border bg-muted/30 p-3 text-sm">演示：原价 ¥100，折后结算价 <span className="font-medium">¥{Number(discountValue || 0).toFixed(2)}</span></div></div>}<DialogFooter><Button variant="outline" onClick={() => setDiscountTarget(null)}>取消</Button><Button disabled={!discountTarget || Number(discountValue) <= 0 || Number(discountValue) > 100} onClick={() => { if (!discountTarget) return; try { setCustomerDiscount("enterprise", discountTarget.id, Number(discountValue) / 100); setDiscountTarget(null); toast({ title: "企业折扣已更新" }); } catch (error) { toast({ title: "保存失败", description: error instanceof Error ? error.message : "未知错误", variant: "destructive" }); } }}>保存折扣</Button></DialogFooter></DialogContent>
       </Dialog>
       <Dialog open={!!migrationTarget} onOpenChange={(open) => !open && setMigrationTarget(null)}>
         <DialogContent className="sm:max-w-[540px]"><DialogHeader><DialogTitle>迁移企业及全部成员</DialogTitle></DialogHeader>

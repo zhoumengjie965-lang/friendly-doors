@@ -41,8 +41,8 @@ interface DeptModelPolicyDialogProps {
   onOpenChange: (open: boolean) => void;
   enterpriseId: string;
   onSaved?: () => void;
-  orgs?: DeptOption[];
-  org?: DeptOption | null;
+  orgs?: Array<{ id: string; name: string }>;
+  org?: { id: string; name: string } | null;
 }
 
 export default function DeptModelPolicyDialog({

@@ -45,7 +45,7 @@ import {
   Plus, RefreshCw, Eye, EyeOff, Copy, Check, Pencil, Trash2,
   ToggleLeft, ToggleRight, ChevronDown, Search, X, Building2, Settings, ShieldCheck,
   Users, FileText, Send, Loader2, ArrowRight, ArrowLeft, CheckCircle, Mail,
-  GripVertical, AlertTriangle, Lock,
+  AlertTriangle, Lock, Info,
 } from "lucide-react";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
@@ -54,7 +54,7 @@ import { Progress } from "@/components/ui/progress";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { format } from "date-fns";
 import OrgTreeSelect from "@/components/OrgTreeSelect";
-import { GROUP_MODEL_MAP, ALL_MODELS, getGroupModelCount, getModelsForGroups, isModelInGroups, groupLabelToValue } from "@/lib/groupModels";
+import { ALL_MODELS, isModelInGroups } from "@/lib/groupModels";
 
 interface Enterprise {
   id: string;
@@ -269,7 +269,7 @@ function MultiSelect({ options, selected, onChange, placeholder = "请选择", s
   );
 }
 
-// 分组多选组件（支持搜索、多选、拖拽排序、全选）
+// 分组多选组件（多选、勾选状态、折叠展示）
 interface GroupMultiSelectProps {
   groups: string[];
   selected: string[];
@@ -279,56 +279,14 @@ interface GroupMultiSelectProps {
 
 function GroupMultiSelect({ groups, selected, onChange, placeholder = "选择分组" }: GroupMultiSelectProps) {
   const [open, setOpen] = useState(false);
-  const [search, setSearch] = useState("");
   const containerRef = useRef<HTMLDivElement>(null);
-  const dragIndexRef = useRef<number | null>(null);
 
-  // 过滤分组列表
-  const filteredGroups = groups.filter(g =>
-    g.toLowerCase().includes(search.toLowerCase())
-  );
-
-  // 是否全选
-  const isAllSelected = selected.length === groups.length && groups.length > 0;
-
-  // 处理全选/取消全选
-  const toggleAll = () => {
-    if (isAllSelected) {
-      onChange([]);
-    } else {
-      onChange([...groups]);
-    }
-  };
-
-  // 处理选择/取消选择
   const toggleGroup = (group: string) => {
     if (selected.includes(group)) {
       onChange(selected.filter(g => g !== group));
     } else {
       onChange([...selected, group]);
     }
-  };
-
-  // 拖拽排序处理
-  const handleDragStart = (index: number) => {
-    dragIndexRef.current = index;
-  };
-
-  const handleDragOver = (e: React.DragEvent, index: number) => {
-    e.preventDefault();
-    if (dragIndexRef.current === null || dragIndexRef.current === index) return;
-
-    const newSelected = [...selected];
-    const draggedItem = newSelected[dragIndexRef.current];
-    newSelected.splice(dragIndexRef.current, 1);
-    newSelected.splice(index, 0, draggedItem);
-
-    dragIndexRef.current = index;
-    onChange(newSelected);
-  };
-
-  const handleDragEnd = () => {
-    dragIndexRef.current = null;
   };
 
   // 点击外部关闭
@@ -344,135 +302,45 @@ function GroupMultiSelect({ groups, selected, onChange, placeholder = "选择分
 
   return (
     <div ref={containerRef} className="relative">
-      {/* 触发按钮（标签内嵌显示） */}
+      {/* 输入框：仅展示第一个已选分组 + "+N" */}
       <button
+        type="button"
         onClick={() => setOpen(!open)}
-        className="flex min-h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm hover:bg-muted/40 transition-colors"
+        className="flex h-9 w-full items-center justify-between rounded-md border border-input bg-background px-3 text-sm hover:border-primary/40 transition-colors"
       >
-        <div className="flex flex-wrap gap-1.5 flex-1 items-center overflow-hidden">
+        <div className="flex items-center gap-1.5 flex-1 overflow-hidden">
           {selected.length === 0 ? (
             <span className="text-muted-foreground">{placeholder}</span>
-          ) : isAllSelected ? (
-            <span className="inline-flex items-center px-2 py-0.5 rounded bg-muted border border-border text-muted-foreground text-xs">
-              全部分组（{groups.length}）
-            </span>
-          ) : selected.length <= 2 ? (
-            selected.map((group) => (
-              <span
-                key={group}
-                className="inline-flex items-center px-1.5 py-0.5 rounded bg-muted border border-border text-muted-foreground text-xs whitespace-nowrap"
-              >
-                {group}
-              </span>
-            ))
           ) : (
             <>
-              {selected.slice(0, 2).map((group) => (
-                <span
-                  key={group}
-                  className="inline-flex items-center px-1.5 py-0.5 rounded bg-muted border border-border text-muted-foreground text-xs whitespace-nowrap"
-                >
-                  {group}
-                </span>
-              ))}
-              <TooltipProvider delayDuration={200}>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <span
-                      className="inline-flex items-center px-1.5 py-0.5 rounded bg-gray-100 border border-gray-200 text-gray-500 text-xs cursor-pointer hover:bg-gray-200"
-                      onClick={(e) => e.stopPropagation()}
-                    >
-                      +{selected.length - 2}
-                    </span>
-                  </TooltipTrigger>
-                  <TooltipContent side="top" sideOffset={8} avoidCollisions={false} className="max-w-md p-3 z-[100]">
-                    <div className="flex flex-wrap gap-2 max-w-[320px]">
-                      {selected.map((group) => (
-                        <span
-                          key={group}
-                          className="inline-flex items-center px-2 py-1 rounded bg-muted border border-border text-muted-foreground text-xs whitespace-nowrap"
-                        >
-                          {group}
-                        </span>
-                      ))}
-                    </div>
-                  </TooltipContent>
-                </Tooltip>
-              </TooltipProvider>
+              <span className="truncate">{selected[0]}</span>
+              {selected.length > 1 && (
+                <span className="text-muted-foreground text-xs shrink-0">+{selected.length - 1}</span>
+              )}
             </>
           )}
         </div>
-        <ChevronDown className={`w-4 h-4 opacity-50 shrink-0 ml-2 transition-transform ${open ? "rotate-180" : ""}`} />
+        <ChevronDown className={`w-4 h-4 opacity-50 shrink-0 transition-transform ${open ? "rotate-180" : ""}`} />
       </button>
 
       {/* 下拉选择面板 */}
       {open && (
         <div className="absolute z-50 mt-1 w-full bg-popover border rounded-md shadow-md">
-          {/* 搜索框 */}
-          <div className="p-2 border-b">
-            <div className="relative">
-              <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-              <input
-                type="text"
-                placeholder="搜索分组..."
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                className="w-full h-8 pl-8 pr-2 text-sm bg-transparent border-0 focus:outline-none focus:ring-0"
-                autoFocus
-              />
-            </div>
-          </div>
-          {/* 全选选项 */}
-          <div className="px-2 py-1.5 border-b bg-muted/20">
-            <label className="flex items-center gap-2 px-2 py-1.5 text-sm hover:bg-muted cursor-pointer rounded">
-              <input
-                type="checkbox"
-                checked={isAllSelected}
-                onChange={toggleAll}
-                className="rounded border-gray-300"
-              />
-              <span className="font-medium">全部分组</span>
-            </label>
-          </div>
-
           {/* 分组列表 */}
           <div className="max-h-60 overflow-auto p-1">
-            {filteredGroups.length === 0 ? (
-              <div className="py-4 text-center text-sm text-muted-foreground">未找到分组</div>
-            ) : (
-              filteredGroups.map(group => {
-                const modelCount = getGroupModelCount(group);
-                return (
-                <label
+            {groups.map(group => {
+              const isSelected = selected.includes(group);
+              return (
+                <div
                   key={group}
-                  className="flex items-center gap-2 px-2 py-1.5 text-sm hover:bg-muted cursor-pointer rounded"
+                  onClick={() => toggleGroup(group)}
+                  className="flex items-center justify-between px-2 py-1.5 text-sm hover:bg-muted cursor-pointer rounded"
                 >
-                  <input
-                    type="checkbox"
-                    checked={selected.includes(group)}
-                    onChange={() => toggleGroup(group)}
-                    className="rounded border-gray-300"
-                  />
-                  <span className="flex-1">{group}</span>
-                  <TooltipProvider delayDuration={200}>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <span className="text-xs text-blue-500 cursor-help">{modelCount}个模型</span>
-                      </TooltipTrigger>
-                      <TooltipContent side="right" className="max-w-xs z-[100]">
-                        <p className="text-xs font-medium mb-1">该分组支持的模型：</p>
-                        <div className="flex flex-wrap gap-1 max-w-[200px]">
-                          {(GROUP_MODEL_MAP[groupLabelToValue(group)] || []).map(m => (
-                            <span key={m} className="text-[10px] bg-muted px-1 py-0.5 rounded">{m}</span>
-                          ))}
-                        </div>
-                      </TooltipContent>
-                    </Tooltip>
-                  </TooltipProvider>
-                </label>
-                );
-              })
-            )}
+                  <span className="flex-1 truncate">{group}</span>
+                  {isSelected && <Check className="w-4 h-4 text-primary shrink-0 ml-2" />}
+                </div>
+              );
+            })}
           </div>
           {/* 底部操作 */}
           <div className="p-2 border-t flex justify-between items-center text-xs text-muted-foreground">
@@ -725,6 +593,7 @@ export default function ApiKeys({ enterprise, role }: Props) {
   // Form fields
   const [formName, setFormName] = useState("");
   const [formGroups, setFormGroups] = useState<string[]>([]);
+  const [formGroupMode, setFormGroupMode] = useState<"system" | "custom">("system");
   const [formExpires, setFormExpires] = useState("");
   const [formQuota, setFormQuota] = useState("");
   const [formUnlimited, setFormUnlimited] = useState(true);
@@ -962,6 +831,7 @@ Key 配置信息
   const openCreate = async () => {
     setEditingKey(null);
     setFormName("");
+    setFormGroupMode("system");
     // 新建个人 Key 使用完整配置表单，默认带入所属部门模板
     let cfg: KeyTemplateConfig = DEFAULT_TEMPLATE_CONFIG;
     try {
@@ -986,6 +856,7 @@ Key 配置信息
   const openCreateProd = async () => {
     setEditingKey(null);
     setFormName("");
+    setFormGroupMode("system");
     setFormBudgetType("monthly");
     setCreatingProd(true);
     // admin/org_admin 在部门 Tab 建 Key：加载所选部门模板
@@ -1029,7 +900,9 @@ Key 配置信息
   const openEdit = (k: ApiKey) => {
     setEditingKey(k);
     setFormName(k.name);
-    setFormGroups(k.groups && k.groups.length > 0 ? k.groups : k.group_name ? [k.group_name] : []);
+    const existingGroups = k.groups && k.groups.length > 0 ? k.groups : k.group_name ? [k.group_name] : [];
+    setFormGroups(existingGroups);
+    setFormGroupMode(existingGroups.length > 0 ? "custom" : "system");
     setFormExpires(k.expires_at ? format(new Date(k.expires_at), "yyyy-MM-dd'T'HH:mm") : "");
     setFormNeverExpires(!k.expires_at);
     setFormUnlimited(k.total_quota === null);
@@ -1056,7 +929,7 @@ Key 配置信息
     const commonPayload = {
       p_phone: phone,
       p_name: formName.trim(),
-      p_group_name: formGroups.length > 0 ? formGroups[0] : null,
+      p_group_name: formGroupMode === "custom" && formGroups.length > 0 ? formGroups[0] : null,
       p_expires_at: formNeverExpires ? null : (formExpires ? new Date(formExpires).toISOString() : null),
       p_total_quota: formUnlimited ? null : (parseFloat(formQuota) || 0),
       p_allowed_models: followGroupRange ? null : (formModels.length > 0 ? formModels : null),
@@ -2385,12 +2258,76 @@ Key 配置信息
               </div>
             </div>
             )}
+
+            {/* 企业模式高级设置：个人模式使用独立 PersonalApiKeys 表单，不展示此入口 */}
+            {!(previewRole === "member" && editingKey) && (
+              <div className="space-y-4">
+                <div className="mb-4 pb-2 border-b border-border">
+                  <span className="text-sm font-semibold text-foreground">高级设置</span>
+                </div>
+                <div className="grid grid-cols-[100px_1fr] items-start gap-3">
+                  <Label className="text-right text-muted-foreground text-sm pt-2.5">
+                    资源配置
+                  </Label>
+                  <div className="space-y-2 pt-2">
+                    <div className="flex items-center gap-4">
+                      <button
+                        type="button"
+                        onClick={() => setFormGroupMode("system")}
+                        className="flex items-center gap-2 text-sm cursor-pointer"
+                      >
+                        <span className={cn(
+                          "h-3.5 w-3.5 rounded-full border flex items-center justify-center transition-colors",
+                          formGroupMode === "system" ? "border-primary" : "border-muted-foreground/50"
+                        )}>
+                          {formGroupMode === "system" && <span className="h-2 w-2 rounded-full bg-primary" />}
+                        </span>
+                        全部资源
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setFormGroupMode("custom")}
+                        className="flex items-center gap-2 text-sm cursor-pointer"
+                      >
+                        <span className={cn(
+                          "h-3.5 w-3.5 rounded-full border flex items-center justify-center transition-colors",
+                          formGroupMode === "custom" ? "border-primary" : "border-muted-foreground/50"
+                        )}>
+                          {formGroupMode === "custom" && <span className="h-2 w-2 rounded-full bg-primary" />}
+                        </span>
+                        自定义资源
+                      </button>
+                    </div>
+
+                    {formGroupMode === "system" ? (
+                      <p className="text-xs text-muted-foreground leading-relaxed flex items-start gap-1.5">
+                        <Info className="h-3.5 w-3.5 mt-0.5 shrink-0 text-muted-foreground/60" />
+                        <span>使用全部可用资源，后台新增资源后自动生效。同一模型存在多个可用资源时按默认优先级调用，如需指定请选自定义资源。</span>
+                      </p>
+                    ) : (
+                      <>
+                        <GroupMultiSelect
+                          groups={GROUP_OPTIONS}
+                          selected={formGroups}
+                          onChange={setFormGroups}
+                          placeholder="请选择至少一个分组"
+                        />
+                        <p className="text-xs text-muted-foreground leading-relaxed flex items-start gap-1.5">
+                          <Info className="h-3.5 w-3.5 mt-0.5 shrink-0 text-muted-foreground/60" />
+                          <span>可自定义选择一个或多个可用资源，并设置调用优先级；未设置时，按后台默认优先级调用。</span>
+                        </p>
+                      </>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* 底部固定按钮 */}
           <div className="shrink-0 px-6 py-4 border-t border-border flex justify-end gap-3 bg-background">
             <Button variant="outline" className="w-24" onClick={() => setSheetOpen(false)} disabled={saving}>取消</Button>
-            <Button className="w-24" onClick={handleSave} disabled={saving || !formName.trim() || (!followGroupRange && formModels.length === 0)}>
+            <Button className="w-24" onClick={handleSave} disabled={saving || !formName.trim() || (!followGroupRange && formModels.length === 0) || (formGroupMode === "custom" && formGroups.length === 0)}>
               {saving ? "保存中..." : "确定"}
             </Button>
           </div>
@@ -2415,13 +2352,13 @@ Key 配置信息
         </AlertDialogContent>
       </AlertDialog>
 
-      {/* Simple create dialog for member role */}
-      <Dialog open={simpleDialogOpen} onOpenChange={open => { setSimpleDialogOpen(open); if (!open) setFormName(""); }}>
-        <DialogContent className="max-w-sm">
-          <DialogHeader>
-            <DialogTitle>{editingKey ? "编辑 API Key" : "新增 API Key"}</DialogTitle>
-          </DialogHeader>
-          <div className="py-2 space-y-4">
+      {/* Simple create Sheet for member role */}
+      <Sheet open={simpleDialogOpen} onOpenChange={open => { setSimpleDialogOpen(open); if (!open) setFormName(""); }}>
+        <SheetContent className="!w-[640px] !max-w-[640px] flex flex-col p-0 overflow-hidden">
+          <SheetHeader className="px-6 pt-6 pb-4 border-b border-border shrink-0">
+            <SheetTitle>{editingKey ? "编辑 API Key" : "新增 API Key"}</SheetTitle>
+          </SheetHeader>
+          <div className="flex-1 overflow-y-auto px-6 py-5 space-y-4">
             <div>
               <Label className="text-sm text-muted-foreground mb-1.5 block">
                 <span className="text-destructive mr-0.5">*</span>名称
@@ -2456,16 +2393,15 @@ Key 配置信息
               </div>
             </div>
           </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => { setSimpleDialogOpen(false); setFormName(""); }} disabled={saving}>
-              取消
-            </Button>
-            <Button onClick={handleSave} disabled={saving || !formName.trim()}>
+          {/* 底部固定按钮 */}
+          <div className="shrink-0 px-6 py-4 border-t border-border flex justify-end gap-3 bg-background">
+            <Button variant="outline" className="w-24" onClick={() => { setSimpleDialogOpen(false); setFormName(""); }} disabled={saving}>取消</Button>
+            <Button className="w-24" onClick={handleSave} disabled={saving || !formName.trim()}>
               {saving ? "保存中..." : "确定"}
             </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+          </div>
+        </SheetContent>
+      </Sheet>
 
       {/* Key Template Manager Sheet */}
       <Sheet open={tplOpen} onOpenChange={setTplOpen}>
