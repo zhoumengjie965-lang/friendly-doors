@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Building2, ImagePlus, Plus, Search, Trash2 } from "lucide-react";
+import { Building2, ChevronDown, ImagePlus, Plus, Search, Trash2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -9,7 +9,24 @@ import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { DemoReseller, fundReseller, getResellerDemoState, setResellerCredit, setResellerStatus, upsertReseller } from "@/lib/resellerDemo";
 
-const blankForm = { name: "", code: "", domain: "", remark: "", logoDataUrl: "", status: "enabled" as const };
+const blankForm = { name: "", code: "", domain: "", remark: "", logoDataUrl: "", modelAccess: ["国际"], status: "enabled" as const };
+
+const MODEL_ACCESS_OPTIONS = ["国内", "国际"];
+
+function ModelAccessSelect({ value, onChange }: { value: string[]; onChange: (value: string[]) => void }) {
+  const [open, setOpen] = useState(false);
+  const toggle = (access: string) => onChange(value.includes(access) ? value.filter((item) => item !== access) : [...value, access]);
+
+  return <div className="relative">
+    <button type="button" onClick={() => setOpen((current) => !current)} className="w-full min-h-10 px-3 py-2 border rounded-md bg-background flex items-center justify-between gap-2 hover:border-gray-400 transition-colors">
+      <div className="flex flex-wrap gap-1.5 flex-1">
+        {value.length === 0 ? <span className="text-sm text-muted-foreground">请选择模型访问权限</span> : value.map((access) => <Badge key={access} className="bg-blue-600 hover:bg-blue-700 text-white px-2 py-0.5 text-xs flex items-center gap-1">{access}<X className="w-3 h-3" onClick={(event) => { event.stopPropagation(); toggle(access); }} /></Badge>)}
+      </div>
+      <ChevronDown className={`w-4 h-4 text-muted-foreground transition-transform ${open ? "rotate-180" : ""}`} />
+    </button>
+    {open && <><div className="fixed inset-0 z-40" onClick={() => setOpen(false)} /><div className="absolute z-50 w-full mt-1 bg-background border rounded-md shadow-lg py-1">{MODEL_ACCESS_OPTIONS.map((access) => <div key={access} className={`px-3 py-2 cursor-pointer hover:bg-muted flex items-center justify-between ${value.includes(access) ? "bg-blue-50/50" : ""}`} onClick={() => toggle(access)}><span className="text-sm">{access}</span>{value.includes(access) && <span className="w-4 h-4 bg-blue-600 rounded-sm flex items-center justify-center text-white text-xs">✓</span>}</div>)}</div></>}
+  </div>;
+}
 
 export default function AdminResellers() {
   const { toast } = useToast();
@@ -34,12 +51,16 @@ export default function AdminResellers() {
   const openCreate = () => { setEditingId(undefined); setForm(blankForm); setDialogOpen(true); };
   const openEdit = (item: DemoReseller) => {
     setEditingId(item.id);
-    setForm({ name: item.name, code: item.code, domain: item.domain, remark: item.remark, logoDataUrl: item.logoDataUrl || "", status: item.status });
+    setForm({ name: item.name, code: item.code, domain: item.domain, remark: item.remark, logoDataUrl: item.logoDataUrl || "", modelAccess: item.modelAccess || ["国际"], status: item.status });
     setDialogOpen(true);
   };
   const save = () => {
     if (!form.name.trim() || !form.domain.trim()) {
       toast({ title: "请填写名称和域名", variant: "destructive" });
+      return;
+    }
+    if (form.modelAccess.length === 0) {
+      toast({ title: "请至少选择一项模型访问权限", variant: "destructive" });
       return;
     }
     try {
@@ -64,15 +85,15 @@ export default function AdminResellers() {
         <span className="text-sm text-muted-foreground ml-auto">共 {filteredResellers.length} 家代理商</span>
       </div>
       <div className="border rounded-xl bg-card overflow-hidden">
-        <div className="grid grid-cols-[45px_1.5fr_1.2fr_105px_55px_55px_150px_70px_260px] gap-3 px-4 py-3 border-b bg-muted/30 text-xs font-medium text-muted-foreground"><span>ID</span><span>代理商</span><span>专属域名</span><span>账户余额</span><span>用户</span><span>企业</span><span>创建时间</span><span>状态</span><span className="text-right">操作</span></div>
+        <div className="grid grid-cols-[45px_1.5fr_1.2fr_110px_110px_55px_55px_150px_70px_260px] gap-3 px-4 py-3 border-b bg-muted/30 text-xs font-medium text-muted-foreground"><span>ID</span><span>代理商</span><span>专属域名</span><span>可用余额</span><span>历史消耗</span><span>用户</span><span>企业</span><span>创建时间</span><span>状态</span><span className="text-right">操作</span></div>
         {filteredResellers.map((item, index) => {
           const userCount = state.users.filter((user) => user.resellerId === item.id).length;
           const enterpriseCount = state.enterprises.filter((enterprise) => enterprise.resellerId === item.id).length;
           return (
-            <div key={item.id} className="grid grid-cols-[45px_1.5fr_1.2fr_105px_55px_55px_150px_70px_260px] gap-3 px-4 py-3 border-b last:border-0 items-center text-sm hover:bg-muted/20">
+            <div key={item.id} className="grid grid-cols-[45px_1.5fr_1.2fr_110px_110px_55px_55px_150px_70px_260px] gap-3 px-4 py-3 border-b last:border-0 items-center text-sm hover:bg-muted/20">
               <span className="text-muted-foreground tabular-nums">{index + 1}</span>
               <div className="flex items-center gap-2 min-w-0"><span className="font-medium truncate">{item.name}</span>{item.remark && <span className="inline-flex items-center gap-1.5 px-2 py-0.5 bg-green-50 text-green-600 text-xs rounded whitespace-nowrap"><span className="w-1.5 h-1.5 bg-green-500 rounded-full" />{item.remark}</span>}</div>
-              <span className="text-muted-foreground truncate">{item.domain}</span><span className="font-medium tabular-nums">¥{(item.balance || 0).toLocaleString("zh-CN", { minimumFractionDigits: 2 })}</span>
+              <span className="text-muted-foreground truncate">{item.domain}</span><span className="font-medium tabular-nums">¥{((item.balance || 0) + (item.creditBalance || 0)).toLocaleString("zh-CN", { minimumFractionDigits: 2 })}</span><span className="text-muted-foreground tabular-nums">¥{(item.actualCustomerConsumed || 0).toLocaleString("zh-CN", { minimumFractionDigits: 2 })}</span>
               <span className="tabular-nums">{userCount}</span><span className="tabular-nums">{enterpriseCount}</span><span className="text-muted-foreground text-xs tabular-nums whitespace-nowrap">{new Date(item.createdAt).toLocaleString("zh-CN", { hour12: false })}</span>
               <Badge variant={item.status === "enabled" ? "outline" : "secondary"} className="w-fit">{item.status === "enabled" ? "已启用" : "已停用"}</Badge>
               <div className="flex justify-end gap-1"><Button size="sm" onClick={() => navigate(`/admin/console/resellers/${item.id}`)}>管理</Button><Button variant="outline" size="sm" onClick={() => { setFundingTarget(item); setFundingType("balance"); setFundingAmount(""); setFundingRemark(""); }}>充值</Button><Button variant="outline" size="sm" onClick={() => openEdit(item)}>编辑</Button><Button variant="ghost" size="sm" onClick={() => { setResellerStatus(item.id, item.status === "enabled" ? "disabled" : "enabled"); refresh(); }}>{item.status === "enabled" ? "停用" : "启用"}</Button></div>
@@ -84,6 +105,11 @@ export default function AdminResellers() {
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}><DialogContent><DialogHeader><DialogTitle>{editingId ? "编辑代理商" : "新增代理商"}</DialogTitle></DialogHeader>
         <div className="space-y-4"><div><Label>代理商名称 *</Label><Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} /></div><div><Label>专属域名 *</Label><Input placeholder="agent.example.com" value={form.domain} onChange={(e) => setForm({ ...form, domain: e.target.value })} /></div><div className="space-y-1.5"><Label>品牌 Logo（选填）</Label><div className="flex items-center gap-3"><div className="w-14 h-14 rounded-lg border bg-blue-50 text-blue-600 flex items-center justify-center overflow-hidden shrink-0">{form.logoDataUrl ? <img src={form.logoDataUrl} alt="Logo 预览" className="w-full h-full object-cover" /> : <Building2 className="w-6 h-6" />}</div><label className="inline-flex h-9 items-center rounded-md border bg-background px-3 text-sm cursor-pointer hover:bg-accent"><ImagePlus className="w-4 h-4 mr-2" />上传图片<input type="file" accept="image/png,image/jpeg,image/webp,image/svg+xml" className="hidden" onChange={(event) => { const file = event.target.files?.[0]; if (!file) return; if (file.size > 2 * 1024 * 1024) { toast({ title: "图片不能超过 2MB", variant: "destructive" }); return; } const reader = new FileReader(); reader.onload = () => setForm((current) => ({ ...current, logoDataUrl: String(reader.result || "") })); reader.readAsDataURL(file); event.target.value = ""; }} /></label>{form.logoDataUrl && <Button type="button" variant="ghost" size="sm" className="text-destructive" onClick={() => setForm((current) => ({ ...current, logoDataUrl: "" }))}><Trash2 className="w-4 h-4 mr-1" />移除</Button>}</div><p className="text-xs text-muted-foreground">支持 PNG、JPG、WebP、SVG，最大 2MB；未上传时使用默认图标。</p></div><div><Label>备注</Label><Input placeholder="例如：重点合作伙伴、华东区域" value={form.remark} onChange={(e) => setForm({ ...form, remark: e.target.value })} /></div></div>
+        <div className="space-y-1.5">
+          <Label>模型访问权限 *</Label>
+          <ModelAccessSelect value={form.modelAccess} onChange={(modelAccess) => setForm((current) => ({ ...current, modelAccess }))} />
+          <p className="text-xs text-muted-foreground">代理商名下的用户和企业自动继承该权限，代理商不可自行修改。</p>
+        </div>
         <DialogFooter><Button variant="outline" onClick={() => setDialogOpen(false)}>取消</Button><Button onClick={save}>保存</Button></DialogFooter>
       </DialogContent></Dialog>
       <Dialog open={!!fundingTarget} onOpenChange={(open) => !open && setFundingTarget(undefined)}>

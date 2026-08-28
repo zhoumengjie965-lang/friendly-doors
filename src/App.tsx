@@ -12,6 +12,7 @@ import Workspace from "./pages/Workspace";
 import NotFound from "./pages/NotFound";
 import AdminLogin from "./pages/admin/AdminLogin";
 import AdminLayout from "./pages/admin/AdminLayout";
+import ResellerWorkspace from "./pages/ResellerWorkspace";
 
 const queryClient = new QueryClient();
 
@@ -28,6 +29,7 @@ const App = () => (
           <Route path="/invitations" element={<Invitations />} />
           <Route path="/no-enterprise" element={<NoEnterprise />} />
           <Route path="/workspace/*" element={<Workspace />} />
+          <Route path="/reseller/*" element={<ResellerWorkspace />} />
           <Route path="/invite/:id" element={<InvitePage />} />
           {/* Admin routes */}
           <Route path="/admin/login" element={<AdminLogin />} />

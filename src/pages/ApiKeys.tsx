@@ -2282,7 +2282,7 @@ Key 配置信息
                         )}>
                           {formGroupMode === "system" && <span className="h-2 w-2 rounded-full bg-primary" />}
                         </span>
-                        全部资源
+                        跟随平台默认配置
                       </button>
                       <button
                         type="button"
@@ -2310,7 +2310,7 @@ Key 配置信息
                           groups={GROUP_OPTIONS}
                           selected={formGroups}
                           onChange={setFormGroups}
-                          placeholder="请选择至少一个分组"
+                          placeholder="请选择至少一个资源"
                         />
                         <p className="text-xs text-muted-foreground leading-relaxed flex items-start gap-1.5">
                           <Info className="h-3.5 w-3.5 mt-0.5 shrink-0 text-muted-foreground/60" />

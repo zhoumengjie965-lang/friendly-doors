@@ -97,6 +97,22 @@ All colors MUST be HSL.
   }
 }
 
+/* 官 Key 数据管理：突出账号行中的核心映射操作 */
+td button:has(> svg.lucide-key-round) {
+  background-color: hsl(var(--primary));
+  color: hsl(var(--primary-foreground));
+}
+
+td button:has(> svg.lucide-key-round):hover {
+  background-color: hsl(var(--primary) / 0.9);
+  color: hsl(var(--primary-foreground));
+}
+
+/* 客户选择器：输入关键词后再展示模糊匹配结果 */
+[cmdk-root]:has(input[placeholder="搜索客户名称..."]:placeholder-shown) [cmdk-list] {
+  display: none;
+}
+
 @layer base {
   * {
     @apply border-border;

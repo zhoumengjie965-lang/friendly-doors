@@ -8,7 +8,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Eye, EyeOff } from "lucide-react";
 
 type LoginMode = "username" | "phone" | "email";
-type MockScenario = "none" | "admin" | "member";
+type MockScenario = "none" | "admin" | "member" | "reseller";
 
 export default function Login() {
   const [loginMode, setLoginMode] = useState<LoginMode>("username");
@@ -26,7 +26,7 @@ export default function Login() {
   const [email, setEmail] = useState("");
 
   // shared
-  const [code, setCode] = useState("");
+  const [code, setCode] = useState("123456");
   const [agreed, setAgreed] = useState(false);
   const [countdown, setCountdown] = useState(0);
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -89,7 +89,7 @@ export default function Login() {
       if (mockScenario !== "none") {
         sessionStorage.setItem("first_login_guide_scenario", mockScenario);
       }
-      navigate(inviteParam ? `/invite/${inviteParam}` : "/workspace");
+      navigate(mockScenario === "reseller" ? "/reseller/enterprises" : inviteParam ? `/invite/${inviteParam}` : "/workspace");
     } catch {
       toast({ title: "登录失败", variant: "destructive" });
     } finally {
@@ -294,7 +294,7 @@ export default function Login() {
           {/* Mock 场景选择 */}
           <div className="pt-2 border-t border-border/60 space-y-2">
             <p className="text-xs text-muted-foreground text-center">模拟首次登录场景（登录后弹窗）</p>
-            <div className="flex gap-1.5">
+            <div className="grid grid-cols-2 gap-1.5">
               <button
                 type="button"
                 onClick={() => setMockScenario("admin")}
@@ -327,6 +327,17 @@ export default function Login() {
                 }`}
               >
                 不模拟
+              </button>
+              <button
+                type="button"
+                onClick={() => setMockScenario("reseller")}
+                className={`px-2 py-1.5 rounded-md text-xs font-medium transition-colors ${
+                  mockScenario === "reseller"
+                    ? "bg-primary text-primary-foreground"
+                    : "bg-muted text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                代理商身份登录
               </button>
             </div>
           </div>

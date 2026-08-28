@@ -37,6 +37,7 @@ interface GroupConfig {
   configurable: boolean;
   description: string;
   category: GroupCategory;
+  resourceType?: "common" | "specified";
   status: "active" | "disabled";
   boundChannelCount: number;
   userCount: number;
@@ -86,11 +87,11 @@ function stringifyJson(obj: unknown) {
 
 const DEFAULT_GROUPS: GroupConfig[] = [
   // ── 基础令牌分组 ──
-  { id: genId(), name: "openai-fast", rate: 1, userSelectable: true, configurable: false, description: "OpenAI 高速通道", category: "base", status: "active", boundChannelCount: 3, userCount: 0 },
-  { id: genId(), name: "gemini-fast", rate: 1, userSelectable: true, configurable: false, description: "Gemini 高速通道", category: "base", status: "active", boundChannelCount: 2, userCount: 0 },
-  { id: genId(), name: "claude-fast", rate: 1, userSelectable: true, configurable: false, description: "Claude 高速通道", category: "base", status: "active", boundChannelCount: 2, userCount: 0 },
-  { id: genId(), name: "claude-basic", rate: 1, userSelectable: true, configurable: false, description: "Claude 基础通道", category: "base", status: "active", boundChannelCount: 1, userCount: 0 },
-  { id: genId(), name: "grok-fast", rate: 1, userSelectable: true, configurable: false, description: "Grok 高速通道", category: "base", status: "active", boundChannelCount: 2, userCount: 0 },
+  { id: genId(), name: "openai-fast", rate: 1, userSelectable: true, configurable: false, description: "OpenAI 高速通道", category: "base", resourceType: "common", status: "active", boundChannelCount: 3, userCount: 0 },
+  { id: genId(), name: "gemini-fast", rate: 1, userSelectable: true, configurable: false, description: "Gemini 高速通道", category: "base", resourceType: "common", status: "active", boundChannelCount: 2, userCount: 0 },
+  { id: genId(), name: "claude-fast", rate: 1, userSelectable: true, configurable: false, description: "Claude 高速通道", category: "base", resourceType: "common", status: "active", boundChannelCount: 2, userCount: 0 },
+  { id: genId(), name: "claude-basic", rate: 1, userSelectable: true, configurable: false, description: "Claude 基础通道", category: "base", resourceType: "specified", status: "active", boundChannelCount: 1, userCount: 0 },
+  { id: genId(), name: "grok-fast", rate: 1, userSelectable: true, configurable: false, description: "Grok 高速通道", category: "base", resourceType: "specified", status: "active", boundChannelCount: 2, userCount: 0 },
   { id: genId(), name: "qwen", rate: 1, userSelectable: true, configurable: false, description: "通义千问通道", category: "base", status: "active", boundChannelCount: 1, userCount: 0 },
   { id: genId(), name: "glm", rate: 1, userSelectable: true, configurable: false, description: "GLM 通道", category: "base", status: "active", boundChannelCount: 1, userCount: 0 },
   { id: genId(), name: "glm-zhipu", rate: 1, userSelectable: true, configurable: false, description: "智谱 GLM 通道", category: "base", status: "active", boundChannelCount: 1, userCount: 0 },
@@ -297,6 +298,7 @@ export default function GroupRateSettings() {
       configurable: activeCategory === "template",
       description: "",
       category: activeCategory === "all" ? "base" : activeCategory,
+      resourceType: activeCategory === "base" ? "common" : undefined,
       status: "active",
       boundChannelCount: 0,
       userCount: 0,
@@ -694,6 +696,7 @@ export default function GroupRateSettings() {
                   <thead className="bg-muted/50">
                     <tr>
                       <th className="px-3 py-1.5 text-left font-medium text-muted-foreground">分组名称</th>
+                      <th className="px-3 py-1.5 text-left font-medium text-muted-foreground w-28">资源类型</th>
                       <th className="px-3 py-1.5 text-left font-medium text-muted-foreground w-16">倍率</th>
                       <th className="px-3 py-1.5 text-center font-medium text-muted-foreground w-20">用户可用</th>
                       <th className="px-3 py-1.5 text-left font-medium text-muted-foreground">描述</th>
@@ -710,6 +713,12 @@ export default function GroupRateSettings() {
                               <>
                                 <td className="px-3 py-1.5">
                                   <Input value={g.name} onChange={(e) => updateGroup(g.id, { name: e.target.value })} className="h-7 text-sm" placeholder="分组名称" />
+                                </td>
+                                <td className="px-3 py-1.5">
+                                  <select value={g.resourceType ?? "common"} onChange={(e) => updateGroup(g.id, { resourceType: e.target.value as "common" | "specified" })} className="h-7 w-full rounded-md border border-input bg-background px-2 text-sm">
+                                    <option value="common">通用资源</option>
+                                    <option value="specified">指定资源</option>
+                                  </select>
                                 </td>
                                 <td className="px-3 py-1.5">
                                   <Input type="number" value={g.rate} onChange={(e) => updateGroupRate(g.id, parseFloat(e.target.value) || 0)} className="h-7 text-sm" step={0.1} />
@@ -730,6 +739,7 @@ export default function GroupRateSettings() {
                             ) : (
                               <>
                                 <td className="px-3 py-1.5 font-medium">{g.name}</td>
+                                <td className="px-3 py-1.5"><span className="rounded-full bg-muted px-2 py-0.5 text-xs">{g.resourceType === "specified" ? "指定资源" : "通用资源"}</span></td>
                                 <td className="px-3 py-1.5">{g.rate}</td>
                                 <td className="px-3 py-1.5 text-center">
                                   {g.userSelectable ? <span className="text-green-600">✓</span> : <span className="text-muted-foreground">—</span>}

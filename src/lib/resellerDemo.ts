@@ -17,6 +17,7 @@ export interface DemoReseller {
   commissionRate?: number;
   creditLimit?: number;
   creditBalance?: number;
+  modelAccess?: string[];
   rebateRates?: {
     text: number;
     video: number;
@@ -74,6 +75,8 @@ export interface DemoUserAssignment {
   locallyCreated?: boolean;
   balance?: number;
   discount?: number;
+  modelAccess?: string[];
+  group?: string;
 }
 
 export interface DemoEnterpriseAssignment {
@@ -153,12 +156,12 @@ const initialState: DemoState = {
   resellerAdmins: [],
   migrations: [],
   ledger: [
-    { id: "ledger-001", resellerId: "agent-001", type: "platform_funding", amount: 100000, balanceBefore: 0, balanceAfter: 100000, operator: "平台管理员", remark: "首期合作款入账", createdAt: "2026-06-01T09:10:00.000Z" },
-    { id: "ledger-002", resellerId: "agent-001", type: "customer_recharge", amount: -13500, balanceBefore: 100000, balanceAfter: 86500, targetType: "enterprise", targetId: "mock-001", targetName: "凯世通企业", operator: "代理商管理员", remark: "客户账户充值", createdAt: "2026-06-05T03:20:18.000Z" },
-    { id: "ledger-005", resellerId: "agent-001", type: "adjustment", amount: -5000, balanceBefore: 86500, balanceAfter: 81500, operator: "平台管理员", remark: "合同额度人工调减", createdAt: "2026-06-08T06:35:42.000Z" },
-    { id: "ledger-006", resellerId: "agent-001", type: "credit_adjustment", amount: 20000, balanceBefore: 0, balanceAfter: 20000, operator: "平台管理员", remark: "合作授信额度调整", createdAt: "2026-06-10T02:18:36.000Z" },
-    { id: "ledger-003", resellerId: "agent-002", type: "platform_funding", amount: 60000, balanceBefore: 0, balanceAfter: 60000, operator: "平台管理员", remark: "合作款充值", createdAt: "2026-06-12T09:20:00.000Z" },
-    { id: "ledger-004", resellerId: "agent-002", type: "customer_recharge", amount: -14300, balanceBefore: 60000, balanceAfter: 45700, targetType: "user", targetId: "13800138002", targetName: "李四", operator: "代理商管理员", remark: "客户测试额度充值", createdAt: "2026-06-15T02:35:26.000Z" },
+    { id: "ledger-001", resellerId: "agent-001", type: "platform_funding", amount: 100000, balanceBefore: 0, balanceAfter: 100000, operator: "admin", remark: "首期合作款入账", createdAt: "2026-06-01T09:10:00.000Z" },
+    { id: "ledger-002", resellerId: "agent-001", type: "customer_recharge", amount: -13500, balanceBefore: 100000, balanceAfter: 86500, targetType: "enterprise", targetId: "mock-001", targetName: "凯世通企业", operator: "agent_a", remark: "客户账户充值", createdAt: "2026-06-05T03:20:18.000Z" },
+    { id: "ledger-005", resellerId: "agent-001", type: "adjustment", amount: -5000, balanceBefore: 86500, balanceAfter: 81500, operator: "finance_zhou", remark: "合同额度人工调减", createdAt: "2026-06-08T06:35:42.000Z" },
+    { id: "ledger-006", resellerId: "agent-001", type: "credit_adjustment", amount: 20000, balanceBefore: 0, balanceAfter: 20000, operator: "admin", remark: "合作授信额度调整", createdAt: "2026-06-10T02:18:36.000Z" },
+    { id: "ledger-003", resellerId: "agent-002", type: "platform_funding", amount: 60000, balanceBefore: 0, balanceAfter: 60000, operator: "admin", remark: "合作款充值", createdAt: "2026-06-12T09:20:00.000Z" },
+    { id: "ledger-004", resellerId: "agent-002", type: "customer_recharge", amount: -14300, balanceBefore: 60000, balanceAfter: 45700, targetType: "user", targetId: "13800138002", targetName: "李四", operator: "agent_b", remark: "客户测试额度充值", createdAt: "2026-06-15T02:35:26.000Z" },
   ],
   bills: [
     { id: "RB202608001", resellerId: "agent-001", customerType: "enterprise", customerName: "凯世通企业", customerId: "mock-001", period: "2026-07", originalAmount: 8600, discount: 0.9, settlementAmount: 7740, actualConsumed: 7428.6, status: "paid", createdAt: "2026-08-01T02:10:00.000Z" },
@@ -206,6 +209,10 @@ export function getResellerDemoState(): DemoState {
     parsed.enterprises = parsed.enterprises || [];
     initialState.enterprises.forEach((item) => { if (!parsed.enterprises.some((saved: DemoEnterpriseAssignment) => saved.enterpriseId === item.enterpriseId)) parsed.enterprises.push({ ...item }); });
     parsed.ledger = parsed.ledger || [];
+    parsed.ledger = parsed.ledger.map((item: DemoLedgerEntry) => ({
+      ...item,
+      operator: item.operator === "平台管理员" ? "admin" : item.operator === "代理商管理员" ? (item.resellerId === "agent-001" ? "agent_a" : "agent_b") : item.operator,
+    }));
     initialState.ledger.forEach((item) => { if (!parsed.ledger.some((saved: DemoLedgerEntry) => saved.id === item.id)) parsed.ledger.push({ ...item }); });
     parsed.bills = parsed.bills || [];
     initialState.bills.forEach((item) => { if (!parsed.bills.some((saved: DemoResellerBill) => saved.id === item.id)) parsed.bills.push({ ...item }); });
@@ -252,7 +259,7 @@ export function getUserAssignment(phone: string) {
   return getResellerDemoState().users.find((item) => item.phone === phone);
 }
 
-export function addDemoUser(input: { phone: string; name: string; resellerId: string | null }) {
+export function addDemoUser(input: { phone: string; name: string; resellerId: string | null; modelAccess?: string[]; group?: string }) {
   const state = getResellerDemoState();
   if (state.users.some((item) => item.phone === input.phone)) throw new Error("该手机号已存在，不能重复添加到其他代理商");
   if (input.resellerId && !state.resellers.some((item) => item.id === input.resellerId && item.status === "enabled")) throw new Error("只能添加到已启用的代理商");
@@ -265,6 +272,12 @@ export function setDemoUserStatus(phone: string, status: "active" | "banned") {
   const existing = state.users.find((item) => item.phone === phone);
   if (existing) existing.status = status;
   else state.users.push({ phone, name: phone, resellerId: null, status, createdAt: new Date().toISOString() });
+  save(state);
+}
+
+export function deleteDemoUser(phone: string) {
+  const state = getResellerDemoState();
+  state.users = state.users.filter((item) => item.phone !== phone);
   save(state);
 }
 
@@ -326,7 +339,7 @@ export function fundReseller(resellerId: string, amount: number, remark: string)
   if (after < 0) throw new Error("调整后余额不能小于 0");
   reseller.balance = after;
   reseller.totalFunded = (reseller.totalFunded || 0) + Math.max(0, amount);
-  state.ledger.unshift({ id: `ledger-${Date.now()}`, resellerId, type: amount > 0 ? "platform_funding" : "adjustment", amount, balanceBefore: before, balanceAfter: after, operator: "平台管理员", remark: remark || (amount > 0 ? "平台入账" : "平台余额调整"), createdAt: new Date().toISOString() });
+  state.ledger.unshift({ id: `ledger-${Date.now()}`, resellerId, type: amount > 0 ? "platform_funding" : "adjustment", amount, balanceBefore: before, balanceAfter: after, operator: "admin", remark: remark || (amount > 0 ? "平台入账" : "平台余额调整"), createdAt: new Date().toISOString() });
   save(state);
 }
 
@@ -350,7 +363,7 @@ export function rechargeCustomer(input: { resellerId: string; amount: number; ta
     const target = state.enterprises.find((item) => item.enterpriseId === input.targetId);
     if (target) target.balance = (target.balance || 0) + input.amount;
   }
-  state.ledger.unshift({ id: `ledger-${Date.now()}`, resellerId: input.resellerId, type: "customer_recharge", amount: -input.amount, balanceBefore: before, balanceAfter: before - input.amount, targetType: input.targetType, targetId: input.targetId, targetName: input.targetName, operator: "代理商管理员", remark: input.remark || "客户账户充值", createdAt: new Date().toISOString() });
+  state.ledger.unshift({ id: `ledger-${Date.now()}`, resellerId: input.resellerId, type: "customer_recharge", amount: -input.amount, balanceBefore: before, balanceAfter: before - input.amount, targetType: input.targetType, targetId: input.targetId, targetName: input.targetName, operator: "agent_operator", remark: input.remark || "客户账户充值", createdAt: new Date().toISOString() });
   save(state);
 }
 
@@ -396,6 +409,6 @@ export function setResellerCredit(resellerId: string, targetBalance: number, rem
   const before = reseller.creditBalance || 0;
   reseller.creditBalance = targetBalance;
   reseller.creditLimit = Math.max(reseller.creditLimit || 0, targetBalance);
-  state.ledger.unshift({ id: `ledger-${Date.now()}`, resellerId, type: "credit_adjustment", amount: targetBalance - before, balanceBefore: before, balanceAfter: targetBalance, operator: "平台管理员", remark: remark || "调整代理商剩余授信额度", createdAt: new Date().toISOString() });
+  state.ledger.unshift({ id: `ledger-${Date.now()}`, resellerId, type: "credit_adjustment", amount: targetBalance - before, balanceBefore: before, balanceAfter: targetBalance, operator: "admin", remark: remark || "调整代理商剩余授信额度", createdAt: new Date().toISOString() });
   save(state);
 }

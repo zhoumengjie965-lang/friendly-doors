@@ -1611,6 +1611,7 @@ function UserBillManagement() {
           <td>${escapeCell(price.unit)}</td>
           <td>${escapeCell(usage.value)}</td>
           <td>${escapeCell(usage.unit)}</td>
+          ${itemIndex === 0 ? `<td rowspan="${getBillingLineItems(detail).length}">${escapeCell((detail.tierDiscount > 0 ? detail.subtotal / detail.tierDiscount : detail.subtotal).toFixed(2))}</td>` : ""}
           ${itemIndex === 0 ? `<td rowspan="${getBillingLineItems(detail).length}">${escapeCell(`${(detail.tierDiscount * 100).toFixed(0)}%`)}</td>` : ""}
           ${itemIndex === 0 ? `<td rowspan="${getBillingLineItems(detail).length}">${escapeCell(detail.subtotal.toFixed(2))}</td>` : ""}
           ${itemIndex === 0 ? `<td rowspan="${getBillingLineItems(detail).length}">${escapeCell((detail.voucherDeduction || 0).toFixed(2))}</td>` : ""}
@@ -1624,7 +1625,7 @@ function UserBillManagement() {
       <table border="1">
         <thead><tr>
           <th>账期</th><th>客户名称</th><th>模型名称</th><th>计费项</th><th>计费单价</th><th>计费单位</th><th>用量</th><th>用量单位</th>
-          <th>阶梯折扣</th><th>实际消费（元）</th><th>代金券抵扣（元）</th><th>充值余额支付（元）</th><th>授信额度支付（元）</th>
+          <th>目录总价（元）</th><th>折扣率</th><th>实际消费（元）</th><th>代金券抵扣（元）</th><th>充值余额支付（元）</th><th>授信额度支付（元）</th>
         </tr></thead><tbody>${rows}</tbody>
       </table>
     </body></html>`;
@@ -2101,7 +2102,8 @@ function UserBillManagement() {
                         <th className="px-3 py-2.5 text-center font-medium text-muted-foreground min-w-[120px]">计费单位</th>
                         <th className="px-3 py-2.5 text-right font-medium text-muted-foreground min-w-[110px]">用量</th>
                         <th className="px-3 py-2.5 text-center font-medium text-muted-foreground min-w-[100px]">用量单位</th>
-                        <th className="px-3 py-2.5 text-center font-medium text-muted-foreground">阶梯折扣</th>
+                        <th className="px-3 py-2.5 text-right font-medium text-muted-foreground">目录总价（元）</th>
+                        <th className="px-3 py-2.5 text-center font-medium text-muted-foreground">折扣率</th>
                         <th className="px-3 py-2.5 text-right font-medium text-muted-foreground">实际消费（元）</th>
                         <th className="px-3 py-2.5 text-right font-medium text-muted-foreground">代金券抵扣（元）</th>
                         <th className="px-3 py-2.5 text-right font-medium text-muted-foreground">充值余额支付（元）</th>
@@ -2135,6 +2137,9 @@ function UserBillManagement() {
                                 <td className="px-3 py-2 text-center text-muted-foreground whitespace-nowrap">{usage.unit}</td>
                                 {itemIndex === 0 && (
                                   <>
+                                    <td rowSpan={lineItems.length} className="px-3 py-2 text-right font-mono align-middle border-l">
+                                      {formatAmount(detail.tierDiscount > 0 ? detail.subtotal / detail.tierDiscount : detail.subtotal)}
+                                    </td>
                                     <td rowSpan={lineItems.length} className="px-3 py-2 text-center align-middle border-l">
                                       <span className="text-green-600">{(detail.tierDiscount * 100).toFixed(0)}%</span>
                                     </td>

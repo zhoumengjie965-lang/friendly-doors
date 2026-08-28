@@ -10,13 +10,20 @@ import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
-import { Search, Plus, X, UserCircle, Eye, EyeOff, Shield, ChevronDown, RotateCcw, Check, Download, GripVertical } from "lucide-react";
+import { Search, Plus, X, UserCircle, Eye, EyeOff, Shield, ChevronDown, RotateCcw, Check, Download, GripVertical, RefreshCw, Copy } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useToast } from "@/hooks/use-toast";
-import { addDemoUser, getResellerDemoState, getResellerName, migrateUser, preflightUserMigration, rechargeCustomer, setCustomerDiscount, setDemoUserStatus } from "@/lib/resellerDemo";
+import { addDemoUser, deleteDemoUser, getResellerDemoState, getResellerName, migrateUser, preflightUserMigration, rechargeCustomer, setCustomerDiscount, setDemoUserStatus } from "@/lib/resellerDemo";
+import { generateRandomPassword } from "@/lib/credentialUtils";
 
 interface EnterpriseRef { id: string; name: string; role: string; enterprise_type?: "formal" | "test"; }
+
+const formatDateTime = (value: string | Date) => {
+  const date = new Date(value);
+  const pad = (part: number) => String(part).padStart(2, "0");
+  return `${date.getFullYear()}/${pad(date.getMonth() + 1)}/${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
+};
 
 interface UserRow {
   id: string;
@@ -154,17 +161,15 @@ const AGENT_OPTIONS = [
 
 // 所有可配置的基础令牌分组
 const ALL_BASE_GROUPS = [
-  { name: "openai-fast", desc: "OpenAI 高速通道", defaultRate: 1 },
-  { name: "gemini-fast", desc: "Gemini 高速通道", defaultRate: 1 },
-  { name: "claude-fast", desc: "Claude 高速通道", defaultRate: 1 },
-  { name: "claude-basic", desc: "Claude 基础通道", defaultRate: 1 },
-  { name: "grok-fast", desc: "Grok 高速通道", defaultRate: 1 },
-  { name: "qwen", desc: "通义千问通道", defaultRate: 1 },
-  { name: "glm", desc: "GLM 通道", defaultRate: 1 },
-  { name: "glm-zhipu", desc: "智谱 GLM 通道", defaultRate: 1 },
-  { name: "deepseek", desc: "DeepSeek 通道", defaultRate: 1 },
-  { name: "kimi", desc: "Kimi 通道", defaultRate: 1 },
-  { name: "minimax", desc: "MiniMax 通道", defaultRate: 1 },
+  { name: "openai-fast", desc: "OpenAI 全系列资源 A", defaultRate: 1, channels: ["OpenAI Official", "Azure OpenAI", "Supplier A"] },
+  { name: "gemini-fast", desc: "Gemini 全系列资源 A", defaultRate: 1, channels: ["Google AI Studio", "Google Vertex", "Supplier A"] },
+  { name: "claude-fast", desc: "Claude 全系列资源 A", defaultRate: 1, channels: ["Anthropic Official", "AWS Bedrock", "Google Vertex", "Supplier A", "Supplier B"] },
+  { name: "grok-fast", desc: "Grok 全系列资源", defaultRate: 1, channels: ["xAI Official", "Supplier A"] },
+  { name: "qwen", desc: "Qwen 全系列资源", defaultRate: 1, channels: ["阿里云百炼", "通义千问高速线路"] },
+  { name: "glm", desc: "GLM 通用模型资源 A", defaultRate: 1, channels: ["智谱官方", "GLM 高速线路"] },
+  { name: "deepseek", desc: "DeepSeek 资源 A", defaultRate: 1, channels: ["DeepSeek 官方", "火山引擎", "DeepSeek 高速线路"] },
+  { name: "kimi", desc: "Kimi 资源 B", defaultRate: 1, channels: ["Moonshot 官方", "Kimi 高速线路"] },
+  { name: "minimax", desc: "MiniMax 资源 A", defaultRate: 1, channels: ["MiniMax 官方", "MiniMax 高速线路"] },
 ];
 
 // 返券配置使用的分组选项（兼容旧格式）
@@ -173,7 +178,7 @@ const VOUCHER_GROUP_OPTIONS = [
 ];
 
 // 自定义分组条目类型
-interface CustomGroupEntry { available: boolean; rate: number; }
+interface CustomGroupEntry { available: boolean; rate: number; routingMode?: "default" | "specified"; selectedChannels?: string[]; channelConfigs?: Record<string, { priority: number; weight: number }>; }
 
 // 历史分组选项（对应 GroupRateSettings 中 category=historical 的分组）
 const HISTORICAL_GROUP_OPTIONS = [
@@ -265,6 +270,7 @@ function GroupConfigSelector({
   setSelectedHistoricalGroup,
   customGroups,
   setCustomGroups,
+  resellerOnly = false,
 }: {
   groupMode: "template" | "custom" | "all";
   setGroupMode: (mode: "template" | "custom" | "all") => void;
@@ -274,6 +280,7 @@ function GroupConfigSelector({
   setSelectedHistoricalGroup: (value: string) => void;
   customGroups: Record<string, CustomGroupEntry>;
   setCustomGroups: (groups: Record<string, CustomGroupEntry>) => void;
+  resellerOnly?: boolean;
 }) {
   // 二级弹窗状态
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -286,6 +293,10 @@ function GroupConfigSelector({
   const [hasImportedTemplate, setHasImportedTemplate] = useState(false);
   const [groupOrder, setGroupOrder] = useState<string[]>([]);
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (resellerOnly && groupMode !== "custom") setGroupMode("custom");
+  }, [groupMode, resellerOnly, setGroupMode]);
 
   const activeTemplate = TEMPLATE_OPTIONS.find((t) => t.value === selectedTemplate);
 
@@ -320,7 +331,7 @@ function GroupConfigSelector({
       const initialGroups = Object.fromEntries(
         ALL_BASE_GROUPS.map((group) => [
           group.name,
-          { available: false, rate: group.defaultRate },
+          { available: resellerOnly, rate: group.defaultRate, routingMode: "default", selectedChannels: [...group.channels] },
         ])
       );
       setEditingCustomGroups(initialGroups);
@@ -359,12 +370,50 @@ function GroupConfigSelector({
     }));
   };
 
+  const toggleAllAvailableInDialog = (checked: boolean) => {
+    setEditingCustomGroups((prev) => {
+      const next = { ...prev };
+      groupOrder.forEach((name) => {
+        const group = ALL_BASE_GROUPS.find((item) => item.name === name);
+        next[name] = {
+          available: checked,
+          rate: group?.defaultRate ?? 1,
+          routingMode: "default",
+          selectedChannels: [...(group?.channels ?? [])],
+          ...prev[name],
+          available: checked,
+        };
+      });
+      return next;
+    });
+  };
+
   // 在弹窗中修改倍率
   const updateRateInDialog = (name: string, val: number) => {
     setEditingCustomGroups((prev) => ({
       ...prev,
       [name]: { ...prev[name], rate: val },
     }));
+  };
+
+  const updateRoutingInDialog = (name: string, mode: "default" | "specified") => {
+    const group = ALL_BASE_GROUPS.find((item) => item.name === name);
+    setEditingCustomGroups((prev) => ({
+      ...prev,
+      [name]: { ...prev[name], routingMode: mode, selectedChannels: prev[name]?.selectedChannels?.length ? prev[name].selectedChannels : [...(group?.channels ?? [])] },
+    }));
+  };
+
+  const toggleChannelInDialog = (name: string, channel: string, checked: boolean) => {
+    setEditingCustomGroups((prev) => {
+      const current = prev[name]?.selectedChannels ?? [];
+      const configs = prev[name]?.channelConfigs ?? {};
+      return { ...prev, [name]: { ...prev[name], selectedChannels: checked ? [...current, channel] : current.filter((item) => item !== channel), channelConfigs: checked && !configs[channel] ? { ...configs, [channel]: { priority: 100, weight: 10 } } : configs } };
+    });
+  };
+
+  const updateChannelConfigInDialog = (name: string, channel: string, field: "priority" | "weight", value: number) => {
+    setEditingCustomGroups((prev) => ({ ...prev, [name]: { ...prev[name], channelConfigs: { ...(prev[name]?.channelConfigs ?? {}), [channel]: { priority: prev[name]?.channelConfigs?.[channel]?.priority ?? 100, weight: prev[name]?.channelConfigs?.[channel]?.weight ?? 10, [field]: value } } } }));
   };
 
   // ── 渲染：模板模式的分组列表（按名称排序） ──
@@ -403,7 +452,7 @@ function GroupConfigSelector({
     <div className="space-y-3">
       {/* 模式切换：Radio 样式 */}
       <div className="flex items-center gap-5">
-        <label className="flex items-center gap-2 cursor-pointer select-none">
+        {!resellerOnly && <label className="flex items-center gap-2 cursor-pointer select-none">
           <span
             className={`w-4 h-4 rounded-full border flex items-center justify-center transition-colors ${
               groupMode === "template"
@@ -422,7 +471,7 @@ function GroupConfigSelector({
           >
             分组模板
           </span>
-        </label>
+        </label>}
 
         <div className="flex items-center gap-2">
           <label className="flex items-center gap-2 cursor-pointer select-none">
@@ -442,7 +491,7 @@ function GroupConfigSelector({
               className={`text-sm ${groupMode === "custom" ? "text-foreground font-medium" : "text-muted-foreground"}`}
               onClick={() => setGroupMode("custom")}
             >
-              自定义分组
+              {resellerOnly ? "模型与折扣配置" : "自定义分组"}
             </span>
           </label>
           {groupMode === "custom" && (
@@ -451,12 +500,12 @@ function GroupConfigSelector({
               onClick={handleOpenDialog}
               className="text-xs text-blue-600 hover:text-blue-700 hover:underline font-medium"
             >
-              去配置
+              {resellerOnly ? "配置" : "去配置"}
             </button>
           )}
         </div>
 
-        <label className="flex items-center gap-2 cursor-pointer select-none">
+        {!resellerOnly && <label className="flex items-center gap-2 cursor-pointer select-none">
           <span
             className={`w-4 h-4 rounded-full border flex items-center justify-center transition-colors ${
               groupMode === "all"
@@ -475,11 +524,11 @@ function GroupConfigSelector({
           >
             全部分组
           </span>
-        </label>
+        </label>}
       </div>
 
       {/* ── 模板模式 ── */}
-      {groupMode === "template" && (
+      {!resellerOnly && groupMode === "template" && (
         <div className="space-y-2">
           <select
             className="w-full h-9 px-3 border border-gray-200 rounded-md bg-white text-sm"
@@ -512,7 +561,7 @@ function GroupConfigSelector({
       )}
 
       {/* ── 全部分组模式：历史分组选择 ── */}
-      {groupMode === "all" && (
+      {!resellerOnly && groupMode === "all" && (
         <div className="space-y-2">
           <select
             className="w-full h-9 px-3 border border-gray-200 rounded-md bg-white text-sm"
@@ -551,7 +600,7 @@ function GroupConfigSelector({
       {groupMode === "custom" && enabledCount > 0 && (
         <div className="border border-gray-200 rounded-md bg-white p-2 max-h-32 overflow-y-auto">
           <p className="text-xs text-muted-foreground mb-1 sticky top-0 bg-white">
-            已自定义配置 {enabledCount} 个令牌分组：
+            {resellerOnly ? `已为客户配置 ${enabledCount} 个模型通道：` : `已自定义配置 ${enabledCount} 个令牌分组：`}
           </p>
           <ul className="space-y-1">
             {customGroupItems.map((g) => (
@@ -567,27 +616,21 @@ function GroupConfigSelector({
       <Dialog open={dialogOpen} onOpenChange={(open) => { if (!open) handleCancelCustomDialog(); }}>
         <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>配置自定义分组</DialogTitle>
+            <DialogTitle>{resellerOnly ? "配置客户模型与折扣" : "配置自定义分组"}</DialogTitle>
           </DialogHeader>
 
-          <p className="text-xs text-muted-foreground mb-3">
-            可选择模板对比当前配置；只有点击“导入模板”才会替换当前表单。
+          <p className="mb-3 text-xs text-muted-foreground">
+            {resellerOnly ? "默认使用模型系列下的全部渠道并按全局权重路由；仅特殊客户需要指定渠道。" : "全局配置会持续跟随平台渠道池；自定义渠道仅设置客户可选择的渠道范围。"}
           </p>
 
-          {showTemplateCopy && (
-          <div className="rounded-lg border border-blue-100 bg-blue-50/60 p-3 mb-3 space-y-2">
-            <div className="flex items-center gap-3">
+          {!resellerOnly && showTemplateCopy && (
+          <div className="mb-3 rounded-lg border border-blue-100 bg-blue-50/60 px-3 py-2">
+            <div className="flex flex-wrap items-center gap-2">
             <div className="shrink-0">
               <p className="text-sm font-medium text-foreground">从模板复制</p>
-              <p className="text-xs text-muted-foreground">
-                基于模板：{customBaseTemplate === "__none__"
-                  ? "未使用"
-                  : `${TEMPLATE_OPTIONS.find((item) => item.value === customBaseTemplate)?.name ?? customBaseTemplate}，差异 ${savedTemplateDiffCount} 项`}
-              </p>
             </div>
-            <span className="ml-auto text-xs text-muted-foreground shrink-0">查看对比</span>
             <select
-              className="h-9 min-w-52 rounded-md border border-input bg-background px-3 text-sm"
+              className="h-9 w-44 rounded-md border border-input bg-background px-3 text-sm"
               value={pendingBaseTemplate}
               onChange={(e) => {
                 const templateValue = e.target.value;
@@ -630,11 +673,14 @@ function GroupConfigSelector({
               <thead className="bg-muted/50">
                 <tr>
                   <th className="px-2 py-1.5 w-[32px]"></th>
-                  <th className="px-3 py-1.5 text-left font-medium text-muted-foreground">基础令牌分组</th>
-                  <th className="px-3 py-1.5 text-center font-medium text-muted-foreground w-[90px]">是否可用</th>
-                  <th className="px-3 py-1.5 text-right font-medium text-muted-foreground w-[90px]">当前倍率</th>
-                  <th className="px-3 py-1.5 text-center font-medium text-muted-foreground w-[90px]">模板配置</th>
-                  <th className="px-3 py-1.5 text-left font-medium text-muted-foreground">描述/模型系列</th>
+                  <th className="px-3 py-1.5 text-left font-medium text-muted-foreground">{resellerOnly ? "模型通道" : "基础令牌分组"}</th>
+                  <th className="px-3 py-1.5 text-center font-medium text-muted-foreground w-[105px]">
+                    <span className="whitespace-nowrap">{resellerOnly ? "开放" : "是否可用"}</span>
+                  </th>
+                  <th className="px-3 py-1.5 text-right font-medium text-muted-foreground w-[90px]">{resellerOnly ? "客户折扣" : "当前倍率"}</th>
+                  {!resellerOnly && <th className="px-3 py-1.5 text-center font-medium text-muted-foreground w-[90px]">模板配置</th>}
+                  <th className="px-3 py-1.5 text-left font-medium text-muted-foreground w-[170px]">渠道策略</th>
+                  {!resellerOnly && <th className="px-3 py-1.5 text-left font-medium text-muted-foreground">描述/模型系列</th>}
                 </tr>
               </thead>
               <tbody className="divide-y">
@@ -663,7 +709,7 @@ function GroupConfigSelector({
                       <td className="px-2 py-1.5 text-center text-muted-foreground/50">
                         <GripVertical className="w-4 h-4 mx-auto" />
                       </td>
-                      <td className="px-3 py-1.5 font-medium">{bg.name}</td>
+                      <td className="px-3 py-1.5 font-medium">{resellerOnly ? bg.desc : bg.name}</td>
                       <td className="px-3 py-1.5 text-center">
                         <Checkbox
                           checked={entry.available}
@@ -684,10 +730,56 @@ function GroupConfigSelector({
                           className={`h-7 text-sm w-full text-right ${!entry.available ? "opacity-40 cursor-not-allowed bg-muted" : ""}`}
                         />
                       </td>
-                      <td className="px-3 py-1.5 text-center text-xs text-muted-foreground">
+                      {!resellerOnly && <td className="px-3 py-1.5 text-center text-xs text-muted-foreground">
                         {!hasImportedTemplate ? "—" : baseline.available ? `×${baseline.rate}` : "未启用"}
+                      </td>}
+                      <td className="px-3 py-1.5">
+                        <Popover>
+                          <PopoverTrigger asChild>
+                            <Button type="button" variant="outline" size="sm" disabled={!entry.available} className="h-7 w-full justify-between px-2 text-xs">
+                              {entry.routingMode === "specified" ? "自定义渠道" : "全局配置"}
+                              <ChevronDown className="h-3 w-3" />
+                            </Button>
+                          </PopoverTrigger>
+                          <PopoverContent className="w-96 p-3" align="start">
+                            <div className="grid grid-cols-2 gap-2">
+                              <button type="button" onClick={() => updateRoutingInDialog(bg.name, "default")} className={`rounded-lg border p-2 text-left ${entry.routingMode !== "specified" ? "border-primary bg-primary/5" : "hover:bg-muted/50"}`}>
+                                <span className="block text-sm font-medium">全局配置</span>
+                              </button>
+                              <button type="button" onClick={() => updateRoutingInDialog(bg.name, "specified")} className={`rounded-lg border p-2 text-left ${entry.routingMode === "specified" ? "border-primary bg-primary/5" : "hover:bg-muted/50"}`}>
+                                <span className="block text-sm font-medium">自定义渠道</span>
+                              </button>
+                            </div>
+                            {entry.routingMode === "specified" && (() => {
+                              const selected = entry.selectedChannels ?? [];
+                              const orderedChannels = [
+                                ...selected.filter((channel) => bg.channels.includes(channel)),
+                                ...bg.channels.filter((channel) => !selected.includes(channel)),
+                              ];
+                              return <div className="mt-3 border-t pt-3">
+                                <div>
+                                  <div className="mb-2 grid grid-cols-[1fr_72px_72px] gap-2 px-2 text-xs font-medium text-muted-foreground">
+                                    <span>渠道</span><span>优先级</span><span>权重</span>
+                                  </div>
+                                  <div className="overflow-hidden rounded-md border">
+                                    {orderedChannels.map((channel) => {
+                                      const checked = selected.includes(channel);
+                                      const config = entry.channelConfigs?.[channel] ?? { priority: 100, weight: 10 };
+                                      return <div key={channel}
+                                        className={`grid grid-cols-[1fr_72px_72px] items-center gap-2 border-b px-2 py-2 text-sm last:border-b-0 ${checked ? "bg-primary/5" : "bg-background text-muted-foreground"}`}>
+                                        <label className="flex min-w-0 items-center gap-2"><Checkbox checked={checked} onCheckedChange={(value) => toggleChannelInDialog(bg.name, channel, value === true)} /><span className="truncate">{channel}</span></label>
+                                        <input type="number" min={0} disabled={!checked} value={config.priority} onChange={(e) => updateChannelConfigInDialog(bg.name, channel, "priority", Number(e.target.value))} className="h-7 rounded-md border bg-background px-2 text-center disabled:opacity-40" />
+                                        <input type="number" min={0} disabled={!checked} value={config.weight} onChange={(e) => updateChannelConfigInDialog(bg.name, channel, "weight", Number(e.target.value))} className="h-7 rounded-md border bg-background px-2 text-center disabled:opacity-40" />
+                                      </div>;
+                                    })}
+                                  </div>
+                                </div>
+                              </div>;
+                            })()}
+                          </PopoverContent>
+                        </Popover>
                       </td>
-                      <td className="px-3 py-1.5 text-muted-foreground text-xs">{bg.desc}</td>
+                      {!resellerOnly && <td className="px-3 py-1.5 text-muted-foreground text-xs">{bg.desc}</td>}
                     </tr>
                   );
                 })}
@@ -795,7 +887,8 @@ function ModelAccessSelect({
   );
 }
 
-export default function AdminUsers({ resellerScopeId }: { resellerScopeId?: string } = {}) {
+export default function AdminUsers({ resellerScopeId, adminScope = false }: { resellerScopeId?: string; adminScope?: boolean } = {}) {
+  const canManageScopedUsers = !resellerScopeId || adminScope;
   const { toast } = useToast();
   const [users, setUsers] = useState<UserRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -839,7 +932,6 @@ export default function AdminUsers({ resellerScopeId }: { resellerScopeId?: stri
   const [rechargeTarget, setRechargeTarget] = useState<UserRow | null>(null);
   const [rechargeType, setRechargeType] = useState<"balance" | "credit">("balance");
   const [rechargeAmount, setRechargeAmount] = useState("");
-  const [rechargeRemark, setRechargeRemark] = useState("");
   const [rechargeLoading, setRechargeLoading] = useState(false);
   const [discountTarget, setDiscountTarget] = useState<UserRow | null>(null);
   const [discountValue, setDiscountValue] = useState("100");
@@ -848,7 +940,6 @@ export default function AdminUsers({ resellerScopeId }: { resellerScopeId?: stri
     setRechargeTarget(user);
     setRechargeType("balance");
     setRechargeAmount("");
-    setRechargeRemark("");
   };
 
   const handleRecharge = async () => {
@@ -859,7 +950,7 @@ export default function AdminUsers({ resellerScopeId }: { resellerScopeId?: stri
       return;
     }
     if (resellerScopeId && inputVal <= 0) {
-      toast({ title: "划拨金额必须大于 0", variant: "destructive" });
+      toast({ title: "充值金额必须大于 0", variant: "destructive" });
       return;
     }
     setRechargeLoading(true);
@@ -868,9 +959,15 @@ export default function AdminUsers({ resellerScopeId }: { resellerScopeId?: stri
       // 授信模式：输入值为目标剩余额度，delta = 目标 - 当前
       const delta = rechargeType === "balance" ? inputVal : inputVal - currentBalance;
       const newBalance = currentBalance + delta;
+      const actionLabel = rechargeType === "balance"
+        ? (resellerScopeId ? "充值金额" : delta >= 0 ? "充值金额" : "扣减金额")
+        : delta >= 0 ? "调增授信" : "调减授信";
+      const systemRemark = rechargeType === "balance"
+        ? `${actionLabel} ¥${Math.abs(delta).toFixed(2)}，余额由 ¥${currentBalance.toFixed(2)} 调整至 ¥${newBalance.toFixed(2)}`
+        : `${actionLabel}至 ¥${newBalance.toFixed(2)}`;
       if (resellerScopeId) {
         if (rechargeType !== "balance") throw new Error("代理商仅可使用账户余额给客户充值");
-        rechargeCustomer({ resellerId: resellerScopeId, amount: inputVal, targetType: "user", targetId: rechargeTarget.phone, targetName: rechargeTarget.name || rechargeTarget.phone, remark: rechargeRemark.trim() });
+        rechargeCustomer({ resellerId: resellerScopeId, amount: inputVal, targetType: "user", targetId: rechargeTarget.phone, targetName: rechargeTarget.name || rechargeTarget.phone, remark: systemRemark });
         setDemoRevision((value) => value + 1);
       }
       await new Promise(resolve => setTimeout(resolve, 400));
@@ -892,7 +989,6 @@ export default function AdminUsers({ resellerScopeId }: { resellerScopeId?: stri
       toast({ title: toastText });
       setRechargeTarget(null);
       setRechargeAmount("");
-      setRechargeRemark("");
     } catch (err: any) {
       toast({ title: "操作失败", description: err.message || "未知错误", variant: "destructive" });
     } finally {
@@ -1023,6 +1119,7 @@ export default function AdminUsers({ resellerScopeId }: { resellerScopeId?: stri
     modelAccess: ["国际"] as string[],
     agentId: "",
   });
+  const [showAddPassword, setShowAddPassword] = useState(false);
   const [addingUser, setAddingUser] = useState(false);
 
   useEffect(() => {
@@ -1031,6 +1128,35 @@ export default function AdminUsers({ resellerScopeId }: { resellerScopeId?: stri
 
   const fetchAll = async () => {
     setLoading(true);
+    if (resellerScopeId) {
+      const demoState = getResellerDemoState();
+      const scopedEnterprises = demoState.bills.filter((item) => item.resellerId === resellerScopeId && item.customerType === "enterprise");
+      const scopedUsers: UserRow[] = demoState.users
+        .filter((item) => item.resellerId === resellerScopeId)
+        .map((item, index) => {
+          const ownedEnterprise = scopedEnterprises[index];
+          return ({
+          id: `demo-${item.phone}`,
+          phone: item.phone,
+          name: item.name,
+          created_at: item.createdAt,
+          status: item.status,
+          enterprises: ownedEnterprise ? [{ id: ownedEnterprise.customerId, name: ownedEnterprise.customerName, role: "member", enterprise_type: "formal" }] : [],
+          personal_balance: item.balance || 0,
+          personal_credit_balance: 0,
+          personal_total: 0,
+          group: item.group || "default",
+          role: ownedEnterprise ? "普通成员" : "普通用户",
+          invite_count: 0,
+          invite_revenue: 0,
+          inviter: null,
+          user_type: "test",
+          reseller_code: item.resellerId,
+        }); });
+      setUsers(scopedUsers);
+      setLoading(false);
+      return;
+    }
     const { data: usersData, error } = await supabase
       .from("users")
       .select("id,phone,name,created_at,status")
@@ -1115,7 +1241,7 @@ export default function AdminUsers({ resellerScopeId }: { resellerScopeId?: stri
           personal_balance: assignment?.balance ?? ownerBal.balance,
           personal_credit_balance: 0,
           personal_total: ownerBal.total,
-          group: "default",
+          group: assignment?.group || "default",
           role: isOwner ? "企业主" : (userEnts.length > 0 ? "成员" : "普通用户"),
           invite_count: 0,
           invite_revenue: 0,
@@ -1186,6 +1312,7 @@ export default function AdminUsers({ resellerScopeId }: { resellerScopeId?: stri
   const openDrawer = (user: UserRow) => {
     setDrawerUser(user);
     setEditBalance("");
+    const demoAssignment = getResellerDemoState().users.find((item) => item.phone === user.phone);
     // 解析备注格式 "类型_输入信息"
     const mockRemark = "正式用户_测试备注"; // 实际应从用户数据中获取
     const parts = mockRemark.split("_");
@@ -1203,7 +1330,7 @@ export default function AdminUsers({ resellerScopeId }: { resellerScopeId?: stri
       selectedHistoricalGroup: "",
       customGroups: {},
       customConfigEnabled: false,
-      modelAccess: ["国际"],
+      modelAccess: demoAssignment?.modelAccess || ["国际"],
       agentId: user.reseller_code || "",
     });
     setShowPassword(false);
@@ -1218,6 +1345,13 @@ export default function AdminUsers({ resellerScopeId }: { resellerScopeId?: stri
     await supabase.from("users").update({ status: newStatus }).eq("id", user.id);
     setDemoUserStatus(user.phone, newStatus);
     toast({ title: newStatus === "active" ? "已启用" : "已禁用", description: `用户 ${user.name || user.phone} 已${newStatus === "active" ? "启用" : "禁用"}` });
+  };
+
+  const handleDeleteDemoUser = (user: UserRow) => {
+    if (!window.confirm(`确认删除用户「${user.name || user.phone}」吗？`)) return;
+    deleteDemoUser(user.phone);
+    setUsers((prev) => prev.filter((item) => item.id !== user.id));
+    toast({ title: "用户已删除", description: `用户 ${user.name || user.phone} 已从当前代理商移除` });
   };
 
   const handlePromote = async (user: UserRow) => {
@@ -1266,11 +1400,7 @@ export default function AdminUsers({ resellerScopeId }: { resellerScopeId?: stri
       toast({ title: "请输入密码", variant: "destructive" });
       return;
     }
-    const effectiveAgentId = resellerScopeId || addForm.agentId;
-    if (!effectiveAgentId) {
-      toast({ title: "请选择用户归属（平台直客或代理商）", variant: "destructive" });
-      return;
-    }
+    const effectiveAgentId = resellerScopeId || "direct";
 
     // 组合备注：类型_输入信息（选填）
     const remark = addForm.remarkName.trim() ? `${addForm.remarkType}_${addForm.remarkName}` : "";
@@ -1281,6 +1411,7 @@ export default function AdminUsers({ resellerScopeId }: { resellerScopeId?: stri
 
       toast({ title: "用户创建成功", description: `用户 ${addForm.username} 已添加` });
       setAddDialogOpen(false);
+      setShowAddPassword(false);
       setAddForm({ username: "", displayName: "", password: "", remarkType: "正式用户", remarkName: "", voucherEnabled: false, groupMode: "template" as const, selectedTemplate: TEMPLATE_OPTIONS[0]?.value || "default", selectedHistoricalGroup: "", customGroups: {}, modelAccess: ["国际"], agentId: "" });
       setDemoRevision((value) => value + 1); fetchAll();
     } catch (err: any) {
@@ -1337,25 +1468,32 @@ export default function AdminUsers({ resellerScopeId }: { resellerScopeId?: stri
   return (
     <div className="p-6 space-y-5">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      {!adminScope && <div className="flex items-center justify-between">
         {!resellerScopeId && <div className="flex items-center gap-3">
           <div>
             <h1 className="text-xl font-semibold text-foreground">用户管理</h1>
             <p className="text-sm text-muted-foreground mt-0.5">共 {filtered.length} 名用户</p>
           </div>
         </div>}
-        <Button
+        {canManageScopedUsers && !adminScope && <Button
           className="h-9 bg-blue-600 hover:bg-blue-700 text-white"
           onClick={() => setAddDialogOpen(true)}
         >
           <Plus className="w-4 h-4 mr-1.5" />
           添加用户
-        </Button>
-      </div>
+        </Button>}
+      </div>}
 
       {/* Search Bar */}
-      <div className="flex items-center gap-3 bg-gray-50/50 p-3 rounded-lg border">
-        <div className="relative flex-1 max-w-md">
+      <div className={adminScope || resellerScopeId ? "flex items-center gap-4" : "flex items-center gap-3 bg-gray-50/50 p-3 rounded-lg border"}>
+        {adminScope && <Button
+          className="h-9 bg-blue-600 hover:bg-blue-700 text-white"
+          onClick={() => setAddDialogOpen(true)}
+        >
+          <Plus className="w-4 h-4 mr-1.5" />
+          添加用户
+        </Button>}
+        <div className={adminScope || resellerScopeId ? "relative ml-auto w-64" : "relative flex-1 max-w-md"}>
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
           <Input
             placeholder="支持搜索用户的ID、用户名、显示名称"
@@ -1364,7 +1502,7 @@ export default function AdminUsers({ resellerScopeId }: { resellerScopeId?: stri
             className="pl-9 h-9 bg-white"
           />
         </div>
-        <Popover>
+        {!resellerScopeId && <><Popover>
           <PopoverTrigger asChild>
             <Button variant="outline" className="w-32 h-9 justify-between bg-white">
               <span className="truncate">{groupFilter === "all" ? "全部用户分组" : groupFilter}</span>
@@ -1456,8 +1594,8 @@ export default function AdminUsers({ resellerScopeId }: { resellerScopeId?: stri
               ))}
             </div>
           </PopoverContent>
-        </Popover>
-        <Select value={tagFilter} onValueChange={setTagFilter}>
+        </Popover></>}
+        {!resellerScopeId && <Select value={tagFilter} onValueChange={setTagFilter}>
           <SelectTrigger className="w-[140px] h-9 bg-white">
             <SelectValue placeholder="标签筛选" />
           </SelectTrigger>
@@ -1468,21 +1606,17 @@ export default function AdminUsers({ resellerScopeId }: { resellerScopeId?: stri
               </SelectItem>
             ))}
           </SelectContent>
-        </Select>
-        {!resellerScopeId && <Select value={resellerFilter} onValueChange={setResellerFilter}>
-          <SelectTrigger className="w-[150px] h-9 bg-white"><SelectValue placeholder="代理商归属" /></SelectTrigger>
-          <SelectContent><SelectItem value="all">全部归属</SelectItem><SelectItem value="direct">平台直客</SelectItem>{demoState.resellers.map((item) => <SelectItem key={item.id} value={item.id}>{item.name}</SelectItem>)}</SelectContent>
         </Select>}
-        <Button variant="outline" className="h-9" onClick={handleSearch}>
+        {!resellerScopeId && <Button variant="outline" className="h-9" onClick={handleSearch}>
           查询
-        </Button>
-        <Button variant="ghost" className="h-9" onClick={handleReset}>
+        </Button>}
+        {!resellerScopeId && <Button variant="ghost" className="h-9" onClick={handleReset}>
           <RotateCcw className="w-4 h-4 mr-1" />
           重置
-        </Button>
+        </Button>}
         <Button
           variant="outline"
-          className="h-9 gap-1.5 bg-white ml-auto"
+          className={`h-9 gap-1.5 bg-white ${resellerScopeId ? "" : "ml-auto"}`}
           onClick={() => {
             if (filtered.length === 0) { toast({ title: "暂无数据可导出", variant: "destructive" }); return; }
             const headers = ["ID","用户名","状态","个人余额(元)","个人总消耗(元)","分组","角色","所属企业","注册时间","邀请人数","邀请收入"];
@@ -1495,7 +1629,7 @@ export default function AdminUsers({ resellerScopeId }: { resellerScopeId?: stri
               u.group,
               u.role,
               u.enterprises.map(e => e.name).join(";"),
-              new Date(u.created_at).toLocaleDateString("zh-CN"),
+              formatDateTime(u.created_at),
               String(u.invite_count),
               formatNumber(u.invite_revenue),
             ]);
@@ -1516,15 +1650,19 @@ export default function AdminUsers({ resellerScopeId }: { resellerScopeId?: stri
 
       {/* Table */}
       <div className="bg-card border rounded-xl overflow-hidden">
-        <div className={`grid ${resellerScopeId ? "grid-cols-[60px_120px_80px_150px_80px_140px_100px_1fr]" : "grid-cols-[60px_100px_80px_110px_150px_70px_70px_120px_90px_1fr]"} text-xs font-medium text-muted-foreground border-b bg-gray-50/50`}>
+        <div className={`grid ${resellerScopeId ? (adminScope ? "grid-cols-[70px_130px_140px_85px_140px_110px_150px_100px_100px_230px]" : "grid-cols-[90px_180px_100px_1.5fr_130px_120px]") : "grid-cols-[55px_90px_75px_100px_130px_65px_65px_110px_90px_minmax(70px,1fr)_230px]"} ${resellerScopeId && !adminScope ? "gap-3 px-5" : ""} text-xs font-medium text-muted-foreground border-b bg-gray-50/50`}>
           <span className="px-3 py-3">ID</span>
           <span className="px-3 py-3">用户名</span>
+          {adminScope && <span className="px-3 py-3">手机号</span>}
           <span className="px-3 py-3">状态</span>
           {!resellerScopeId && <span className="px-3 py-3">代理商归属</span>}
-          <span className="px-3 py-3">个人空间剩余额度/总额度</span>
-          <span className="px-3 py-3">分组</span>
+          {!resellerScopeId && <span className="px-3 py-3">个人空间剩余额度/总额度</span>}
+          {!resellerScopeId && <span className="px-3 py-3">分组</span>}
           {!resellerScopeId && <span className="px-3 py-3">角色</span>}
+          {adminScope && <span className="px-3 py-3">余额/总额度</span>}
+          {adminScope && <span className="px-3 py-3">分组</span>}
           <span className="px-3 py-3">所属企业空间</span>
+          {adminScope && <span className="px-3 py-3">角色</span>}
           <span className="px-3 py-3">注册时间</span>
           {!resellerScopeId && <span className="px-3 py-3">邀请信息</span>}
           <span className="px-3 py-3 text-center">操作</span>
@@ -1538,7 +1676,7 @@ export default function AdminUsers({ resellerScopeId }: { resellerScopeId?: stri
           filtered.map((u, index) => (
             <div
               key={u.id}
-              className={`grid ${resellerScopeId ? "grid-cols-[60px_120px_80px_150px_80px_140px_100px_1fr]" : "grid-cols-[60px_100px_80px_110px_150px_70px_70px_120px_90px_1fr]"} border-b last:border-0 text-sm items-center hover:bg-gray-50/50 ${index % 2 === 1 ? "bg-gray-50/30" : ""}`}
+              className={`grid ${resellerScopeId ? (adminScope ? "grid-cols-[70px_130px_140px_85px_140px_110px_150px_100px_100px_230px]" : "grid-cols-[90px_180px_100px_1.5fr_130px_120px]") : "grid-cols-[55px_90px_75px_100px_130px_65px_65px_110px_90px_minmax(70px,1fr)_230px]"} ${resellerScopeId && !adminScope ? "gap-3 px-5" : ""} border-b last:border-0 text-sm items-center hover:bg-gray-50/50 ${index % 2 === 1 ? "bg-gray-50/30" : ""}`}
             >
               <span className="text-muted-foreground px-3 py-3.5 font-mono text-xs truncate">
                 {u.id.slice(0, 6)}
@@ -1547,6 +1685,7 @@ export default function AdminUsers({ resellerScopeId }: { resellerScopeId?: stri
                 <span className="font-medium">{u.name || u.phone}</span>
                 <GreenTag type={u.user_type} name={u.name || u.phone} />
               </span>
+              {adminScope && <span className="text-muted-foreground px-3 py-3.5 font-mono text-xs truncate">{u.phone}</span>}
               <span className="px-3 py-3.5">
                 {u.status === "active" ? (
                   <Badge variant="outline" className="text-xs text-green-600 border-green-200 bg-green-50">已启用</Badge>
@@ -1555,15 +1694,17 @@ export default function AdminUsers({ resellerScopeId }: { resellerScopeId?: stri
                 )}
               </span>
               {!resellerScopeId && <span className="px-3 py-3.5 text-xs"><Badge variant="secondary" className="font-normal">{getResellerName(u.reseller_code, demoState)}</Badge></span>}
-              <span className="text-muted-foreground tabular-nums px-3 py-3.5 text-xs">
+              {!resellerScopeId && <span className="text-muted-foreground tabular-nums px-3 py-3.5 text-xs">
                 <span className="text-green-600">¥{formatNumber(u.personal_balance)}</span>
                 <span className="text-gray-400"> / </span>
                 <span>¥{formatNumber(u.personal_total)}</span>
-              </span>
-              <span className="px-3 py-3.5">
+              </span>}
+              {!resellerScopeId && <span className="px-3 py-3.5">
                 <Badge variant="secondary" className="text-xs font-normal">{u.group}</Badge>
-              </span>
+              </span>}
               {!resellerScopeId && <span className="text-muted-foreground px-3 py-3.5 text-xs">{u.role}</span>}
+              {adminScope && <span className="text-muted-foreground tabular-nums px-3 py-3.5 text-xs"><span className="text-green-600">¥{formatNumber(u.personal_balance)}</span><span className="text-gray-400"> / </span><span>¥{formatNumber(u.personal_total)}</span></span>}
+              {adminScope && <span className="px-3 py-3.5"><Badge variant="secondary" className="text-xs font-normal">{u.group}</Badge></span>}
               <span className="text-muted-foreground px-3 py-3.5 text-xs truncate">
                 {u.enterprises.length === 0 ? (
                   "-"
@@ -1593,28 +1734,21 @@ export default function AdminUsers({ resellerScopeId }: { resellerScopeId?: stri
                   </TooltipProvider>
                 )}
               </span>
+              {adminScope && <span className="text-muted-foreground px-3 py-3.5 text-xs"><Badge variant="secondary" className="font-normal text-blue-700 bg-blue-50">{u.role}</Badge></span>}
               <span className="text-muted-foreground px-3 py-3.5 text-xs">
-                {new Date(u.created_at).toLocaleDateString("zh-CN")}
+                {formatDateTime(u.created_at)}
               </span>
               {!resellerScopeId && <span className="text-muted-foreground px-3 py-3.5 text-xs truncate">
                 {u.invite_count}人/¥{formatNumber(u.invite_revenue)}
               </span>}
-              <div className="flex items-center justify-center gap-1 px-3 py-3.5">
-                {!resellerScopeId && <Button
+              <div className="flex items-center justify-center gap-1 whitespace-nowrap px-2 py-3.5">
+                {canManageScopedUsers && <Button
                   variant="ghost"
                   size="sm"
                   className="h-7 px-2 text-xs text-blue-600 hover:text-blue-700 hover:bg-blue-50"
                   onClick={() => openRechargeDialog(u)}
                 >
                   充值
-                </Button>}
-                {resellerScopeId && <Button
-                  variant="ghost"
-                  size="sm"
-                  className="h-7 px-2 text-xs text-blue-600 hover:text-blue-700 hover:bg-blue-50"
-                  onClick={() => openRechargeDialog(u)}
-                >
-                  划拨
                 </Button>}
                 <Button
                   variant="ghost"
@@ -1624,14 +1758,22 @@ export default function AdminUsers({ resellerScopeId }: { resellerScopeId?: stri
                 >
                   {u.status === "banned" ? "启用" : "禁用"}
                 </Button>
-                <Button
+                {canManageScopedUsers && <Button
                   variant="ghost"
                   size="sm"
                   className="h-7 px-2 text-xs text-blue-600 hover:text-blue-700"
                   onClick={() => openDrawer(u)}
                 >
                   编辑
-                </Button>
+                </Button>}
+                {adminScope && <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 px-2 text-xs text-red-600 hover:text-red-700 hover:bg-red-50"
+                  onClick={() => handleDeleteDemoUser(u)}
+                >
+                  删除
+                </Button>}
                 {!resellerScopeId && <Button
                   variant="ghost"
                   size="sm"
@@ -1695,7 +1837,7 @@ export default function AdminUsers({ resellerScopeId }: { resellerScopeId?: stri
                 </div>
 
                 <div className="border rounded-lg p-4 space-y-4 bg-gray-50/30">
-                  <div className="space-y-1.5">
+                  {!resellerScopeId && <div className="space-y-1.5">
                     <Label className="text-sm">
                       用户名 <span className="text-red-500">*</span>
                     </Label>
@@ -1715,7 +1857,7 @@ export default function AdminUsers({ resellerScopeId }: { resellerScopeId?: stri
                         </button>
                       )}
                     </div>
-                  </div>
+                  </div>}
 
                   <div className="space-y-1.5">
                     <Label className="text-sm">密码</Label>
@@ -1777,13 +1919,6 @@ export default function AdminUsers({ resellerScopeId }: { resellerScopeId?: stri
                 </div>
               </div>
 
-              {/* 代理商归属 */}
-              {!resellerScopeId && <div className="space-y-1.5">
-                <Label className="text-sm">代理商归属</Label>
-                <div className="h-10 px-3 border rounded-md bg-gray-50 flex items-center justify-between"><span className="text-sm">{getResellerName(drawerUser.reseller_code, demoState)}</span><Button type="button" variant="outline" size="sm" onClick={() => { setMigrationTarget(drawerUser); setMigrationResellerId("direct"); setMigrationReason(""); setMigrationChecked(false); }}>迁移归属</Button></div>
-                <p className="text-xs text-gray-400">归属不可直接编辑；有企业关系的用户需从企业整体迁移。</p>
-              </div>}
-
               {/* Section B: 权限设置 */}
               <div className="space-y-4">
                 <div className="flex items-center gap-3">
@@ -1791,8 +1926,8 @@ export default function AdminUsers({ resellerScopeId }: { resellerScopeId?: stri
                     <Shield className="w-5 h-5 text-green-500" />
                   </div>
                   <div>
-                    <p className="text-sm font-medium text-foreground">权限设置</p>
-                    <p className="text-xs text-muted-foreground">用户分组和额度管理</p>
+                    <p className="text-sm font-medium text-foreground">{resellerScopeId ? "客户模型与折扣" : "权限设置"}</p>
+                    <p className="text-xs text-muted-foreground">{resellerScopeId ? "选择客户可用模型并设置折扣" : "用户分组和额度管理"}</p>
                   </div>
                 </div>
 
@@ -1800,15 +1935,15 @@ export default function AdminUsers({ resellerScopeId }: { resellerScopeId?: stri
                   <div className="space-y-1.5">
                     <div className="flex items-center justify-between">
                       <Label className="text-sm">
-                        分组 <span className="text-red-500">*</span>
+                        {resellerScopeId ? "模型与折扣" : "分组"} <span className="text-red-500">*</span>
                       </Label>
-                      <div className="flex items-center gap-2">
+                      {!resellerScopeId && <div className="flex items-center gap-2">
                         <span className="text-xs text-muted-foreground">开放客户端配置</span>
                         <Switch
                           checked={editForm.customConfigEnabled}
                           onCheckedChange={(checked) => setEditForm((prev) => ({ ...prev, customConfigEnabled: checked }))}
                         />
-                      </div>
+                      </div>}
                     </div>
 
                     <GroupConfigSelector
@@ -1820,10 +1955,11 @@ export default function AdminUsers({ resellerScopeId }: { resellerScopeId?: stri
                       setSelectedHistoricalGroup={(value) => setEditForm((prev) => ({ ...prev, selectedHistoricalGroup: value }))}
                       customGroups={editForm.customGroups}
                       setCustomGroups={(groups) => setEditForm((prev) => ({ ...prev, customGroups: groups }))}
+                      resellerOnly={!!resellerScopeId}
                     />
                   </div>
 
-                  <div className="space-y-1.5">
+                  {!resellerScopeId && <div className="space-y-1.5">
                     <Label className="text-sm">
                       模型访问权限 <span className="text-red-500">*</span>
                     </Label>
@@ -1831,7 +1967,7 @@ export default function AdminUsers({ resellerScopeId }: { resellerScopeId?: stri
                       value={editForm.modelAccess}
                       onChange={(access) => setEditForm((prev) => ({ ...prev, modelAccess: access }))}
                     />
-                  </div>
+                  </div>}
                 </div>
               </div>
 
@@ -2026,13 +2162,27 @@ export default function AdminUsers({ resellerScopeId }: { resellerScopeId?: stri
                 <Label className="text-sm">
                   密码 <span className="text-red-500">*</span>
                 </Label>
-                <Input
-                  type="password"
-                  placeholder="请输入密码"
-                  value={addForm.password}
-                  onChange={(e) => setAddForm((prev) => ({ ...prev, password: e.target.value }))}
-                  className="h-10 bg-gray-50/50 border-gray-200"
-                />
+                <div className="flex gap-2">
+                  <div className="relative flex-1">
+                    <Input
+                      type={showAddPassword ? "text" : "password"}
+                      placeholder="请输入或随机生成密码"
+                      value={addForm.password}
+                      onChange={(e) => setAddForm((prev) => ({ ...prev, password: e.target.value }))}
+                      className="h-10 pr-10 bg-gray-50/50 border-gray-200"
+                    />
+                    <button type="button" onClick={() => setShowAddPassword((value) => !value)} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground" aria-label={showAddPassword ? "隐藏密码" : "显示密码"}>
+                      {showAddPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    </button>
+                  </div>
+                  {canManageScopedUsers && <><Button type="button" variant="outline" className="h-10 px-3" onClick={() => { const password = generateRandomPassword(); setAddForm((prev) => ({ ...prev, password })); setShowAddPassword(true); }}>
+                    <RefreshCw className="mr-1.5 h-4 w-4" />随机生成
+                  </Button>
+                  <Button type="button" variant="outline" size="icon" className="h-10 w-10" disabled={!addForm.password} onClick={async () => { await navigator.clipboard.writeText(addForm.password); toast({ title: "密码已复制" }); }} aria-label="复制密码">
+                    <Copy className="h-4 w-4" />
+                  </Button></>}
+                </div>
+                {canManageScopedUsers && <p className="text-xs text-muted-foreground">随机密码为 14 位，包含大小写字母、数字和符号。</p>}
               </div>
 
               <div className="space-y-1.5">
@@ -2040,7 +2190,7 @@ export default function AdminUsers({ resellerScopeId }: { resellerScopeId?: stri
                 <div className="flex gap-2">
                   <Select
                     value={addForm.remarkType}
-                    disabled={!!resellerScopeId}
+                    disabled={!canManageScopedUsers}
                     onValueChange={(value) => setAddForm((prev) => ({ ...prev, remarkType: value }))}
                   >
                     <SelectTrigger className="w-[130px] h-10 bg-gray-50/50 border-gray-200">
@@ -2064,31 +2214,7 @@ export default function AdminUsers({ resellerScopeId }: { resellerScopeId?: stri
                 <p className="text-xs text-gray-400">备注格式：类型_输入信息</p>
               </div>
 
-              {!resellerScopeId && <div className="space-y-1.5">
-                <Label className="text-sm">所属代理商</Label>
-                <Select value={resellerScopeId || addForm.agentId || undefined} disabled={!!resellerScopeId} onValueChange={(v) => setAddForm((prev) => ({ ...prev, agentId: v }))}>
-                  <SelectTrigger className="w-full h-10 bg-gray-50/50 border-gray-200 [&>span:not(.sr-only)]:line-clamp-none">
-                    <SelectValue placeholder="" style={{ display: 'none' }} />
-                    {addForm.agentId ? (
-                      <span
-                        role="button"
-                        className="inline-flex items-center gap-[2px] px-[6px] py-[1px] rounded-[4px] bg-blue-50 text-blue-600 text-xs leading-[18px] whitespace-nowrap"
-                        onPointerDown={(e) => { e.preventDefault(); e.stopPropagation(); }}
-                        onClick={(e) => { e.stopPropagation(); setAddForm(prev => ({ ...prev, agentId: "" })); }}
-                      >
-                        {addForm.agentId === "direct" ? "平台直客" : getResellerName(addForm.agentId, demoState)}
-                        <X className="h-3 w-3" />
-                      </span>
-                    ) : null}
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="direct">平台直客</SelectItem>
-                    {enabledResellers.map((a) => <SelectItem key={a.id} value={a.id}>{a.name}</SelectItem>)}
-                  </SelectContent>
-                </Select>
-              </div>}
-
-              <div className="space-y-1.5">
+              {canManageScopedUsers && <div className="space-y-1.5">
                 <Label className="text-sm">
                   模型访问权限 <span className="text-red-500">*</span>
                 </Label>
@@ -2096,7 +2222,7 @@ export default function AdminUsers({ resellerScopeId }: { resellerScopeId?: stri
                   value={addForm.modelAccess}
                   onChange={(access) => setAddForm((prev) => ({ ...prev, modelAccess: access }))}
                 />
-              </div>
+              </div>}
             </div>
           </div>
 
@@ -2106,6 +2232,7 @@ export default function AdminUsers({ resellerScopeId }: { resellerScopeId?: stri
               className="h-9 px-4"
               onClick={() => {
                 setAddDialogOpen(false);
+                setShowAddPassword(false);
                 setAddForm({ username: "", displayName: "", password: "", remarkType: "正式用户", remarkName: "", voucherEnabled: false, groupMode: "template" as const, selectedTemplate: TEMPLATE_OPTIONS[0]?.value || "default", selectedHistoricalGroup: "", customGroups: {}, modelAccess: ["国际"], agentId: "" });
               }}
             >
@@ -2304,7 +2431,7 @@ export default function AdminUsers({ resellerScopeId }: { resellerScopeId?: stri
       <Dialog open={!!rechargeTarget} onOpenChange={(open) => { if (!open) setRechargeTarget(null); }}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>{resellerScopeId ? "客户划拨" : "添加金额"}</DialogTitle>
+            <DialogTitle>{resellerScopeId ? "客户充值" : "添加金额"}</DialogTitle>
           </DialogHeader>
           {rechargeTarget && (() => {
             const currentBalance = rechargeType === "balance" ? rechargeTarget.personal_balance : (rechargeTarget.personal_credit_balance || 0);
@@ -2326,7 +2453,7 @@ export default function AdminUsers({ resellerScopeId }: { resellerScopeId?: stri
                   </p>
                 </div>
                 <div className="space-y-4">
-                  {resellerScopeId && (() => { const current = demoState.resellers.find((item) => item.id === resellerScopeId); return <div className="rounded-md border border-blue-200 bg-blue-50 px-3 py-2 text-sm text-blue-700">本次划拨将从代理商可用额度扣除。当前可用总额度：<span className="font-semibold tabular-nums">¥{((current?.balance || 0) + (current?.creditBalance || 0)).toFixed(2)}</span></div>; })()}
+                  {resellerScopeId && (() => { const current = demoState.resellers.find((item) => item.id === resellerScopeId); return <div className="rounded-md border border-blue-200 bg-blue-50 px-3 py-2 text-sm text-blue-700">本次充值将从代理商可用额度扣除。当前可用总额度：<span className="font-semibold tabular-nums">¥{((current?.balance || 0) + (current?.creditBalance || 0)).toFixed(2)}</span></div>; })()}
                   {!resellerScopeId && <div className="space-y-2">
                     <Label>充值类型</Label>
                     <div className="flex gap-3">
@@ -2362,13 +2489,13 @@ export default function AdminUsers({ resellerScopeId }: { resellerScopeId?: stri
                   </div>}
                   {rechargeType === "balance" ? (
                     <div className="space-y-1.5">
-                      <Label>{resellerScopeId ? "划拨金额" : "充值金额"} <span className="text-red-500">*</span></Label>
+                      <Label>充值金额 <span className="text-red-500">*</span></Label>
                       <div className="relative">
                         <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">¥</span>
                         <Input
                           type="number"
                           step="0.01"
-                          placeholder={resellerScopeId ? "请输入划拨金额" : "请输入充值金额（支持负数）"}
+                          placeholder={resellerScopeId ? "请输入充值金额" : "请输入充值金额（支持负数）"}
                           value={rechargeAmount}
                           onChange={(e) => setRechargeAmount(e.target.value)}
                           className="pl-7"
@@ -2424,29 +2551,17 @@ export default function AdminUsers({ resellerScopeId }: { resellerScopeId?: stri
                       </p>
                     </div>
                   )}
-                  <div className="space-y-1.5">
-                    <Label>附加备注（可选）</Label>
-                    <Textarea
-                      placeholder="可补充业务原因，例如：客户续费、测试账号充值…"
-                      rows={2}
-                      value={rechargeRemark}
-                      onChange={(e) => setRechargeRemark(e.target.value)}
-                    />
-                  </div>
-                  {delta !== 0 && (() => {
+                  {(() => {
                     const actionLabel = rechargeType === "balance"
-                      ? (delta >= 0 ? "充值" : "扣减")
+                      ? (resellerScopeId ? "充值金额" : delta >= 0 ? "充值金额" : "扣减金额")
                       : (delta >= 0 ? "调增授信" : "调减授信");
-                    const subject = rechargeType === "balance" ? "余额" : "授信额度";
                     const systemRemark = rechargeType === "balance"
-                      ? `${actionLabel} ¥${Math.abs(delta).toFixed(2)}，${subject}由 ¥${currentBalance.toFixed(2)} 调整至 ¥${newBalance.toFixed(2)}`
+                      ? `${actionLabel} ¥${Math.abs(delta).toFixed(2)}，余额由 ¥${currentBalance.toFixed(2)} 调整至 ¥${newBalance.toFixed(2)}`
                       : `${actionLabel}至 ¥${newBalance.toFixed(2)}`;
-                    const extra = rechargeRemark.trim();
-                    const finalRemark = extra ? `${systemRemark} | ${extra}` : systemRemark;
                     return (
-                      <div className="rounded-md bg-muted/50 border px-3 py-2 space-y-1">
-                        <p className="text-xs text-muted-foreground">客户端备注预览</p>
-                        <p className="text-xs text-foreground break-words">{finalRemark}</p>
+                      <div className="rounded-md bg-muted/50 px-3 py-3 space-y-1">
+                        <p className="text-xs text-muted-foreground">备注预览</p>
+                        <p className="text-sm text-foreground break-words">{systemRemark}</p>
                       </div>
                     );
                   })()}
@@ -2454,7 +2569,7 @@ export default function AdminUsers({ resellerScopeId }: { resellerScopeId?: stri
                 <DialogFooter>
                   <Button variant="outline" onClick={() => setRechargeTarget(null)}>取消</Button>
                   <Button onClick={handleRecharge} disabled={rechargeLoading || rechargeAmount === "" || isNaN(amountNum)}>
-                    {rechargeLoading ? "处理中…" : resellerScopeId ? "确认划拨" : "确认保存"}
+                    {rechargeLoading ? "处理中…" : resellerScopeId ? "确认充值" : "确认保存"}
                   </Button>
                 </DialogFooter>
               </>

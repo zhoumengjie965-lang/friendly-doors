@@ -57,7 +57,7 @@ import AdminEntitlementManagement from "./AdminEntitlementManagement";
 import AdminEntitlementDetail from "./AdminEntitlementDetail";
 import AdminResellers from "./AdminResellers";
 import AdminResellerDetail from "./AdminResellerDetail";
-import AdminResellerPortal from "./AdminResellerPortal";
+import AdminOfficialKeyData from "./AdminOfficialKeyData";
 
 // 一级菜单页面（空页面）
 function AdminHome() {
@@ -181,12 +181,6 @@ const CONSOLE_NAV_GROUPS = [
     ],
   },
   {
-    label: "代理商",
-    items: [
-      { label: "代理商视图", icon: Monitor, path: "reseller-view/agent-001/funds" },
-    ],
-  },
-  {
     label: "运营管理",
     items: [
       { label: "企业管理", icon: Building2, path: "enterprises" },
@@ -202,6 +196,7 @@ const CONSOLE_NAV_GROUPS = [
     label: "财务与权益",
     items: [
       { label: "账单管理", icon: Calculator, path: "reconciliation" },
+      { label: "官 Key 数据管理", icon: Key, path: "official-key-data" },
       { label: "代金券管理", icon: Ticket, path: "voucher-records" },
       { label: "商品配置", icon: Target, path: "products" },
       { label: "订阅管理", icon: Repeat, path: "subscription-management" },
@@ -221,24 +216,12 @@ const CONSOLE_NAV_GROUPS = [
   },
 ];
 
-const RESELLER_NAV_GROUPS = [
-  { label: "代理商视图", items: [
-    { label: "资金账户", icon: Wallet, path: "funds" },
-    { label: "用户管理", icon: Users, path: "users" },
-    { label: "企业管理", icon: Building2, path: "enterprises" },
-    { label: "账单管理", icon: Calculator, path: "bills" },
-    { label: "调用日志", icon: FileText, path: "logs" },
-  ] },
-];
-
 // 控制台布局（带左侧边栏）
 function ConsoleLayout() {
   const location = useLocation();
   const navigate = useNavigate();
   const session = getAdminSession();
-  const resellerViewMatch = location.pathname.match(/\/admin\/console\/reseller-view\/([^/]+)/);
-  const resellerViewId = resellerViewMatch?.[1];
-  const navGroups = resellerViewId ? RESELLER_NAV_GROUPS : CONSOLE_NAV_GROUPS;
+  const navGroups = CONSOLE_NAV_GROUPS;
 
   const handleLogout = () => {
     adminLogout();
@@ -251,13 +234,12 @@ function ConsoleLayout() {
       <aside className="w-56 shrink-0 bg-card border-r flex flex-col">
         {/* Nav */}
         <nav className="flex-1 p-3 overflow-y-auto space-y-4">
-          {resellerViewId && <div className="mx-1 mb-3 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2"><p className="text-xs font-medium text-blue-700">代理商 A 工作台</p><p className="text-[11px] text-blue-600 mt-0.5">当前为代理商登录视角</p></div>}
           {navGroups.map((group) => (
             <div key={group.label}>
               <p className="px-3 mb-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/60">{group.label}</p>
               <div className="space-y-0.5">
                 {group.items.map((item) => {
-                  const targetPath = resellerViewId ? `/admin/console/reseller-view/${resellerViewId}/${item.path}` : `/admin/console/${item.path}`;
+                  const targetPath = `/admin/console/${item.path}`;
                   const active = location.pathname === targetPath;
                   return (
                     <NavLink
@@ -288,10 +270,9 @@ function ConsoleLayout() {
             </div>
             <div className="min-w-0 flex-1">
               <p className="text-xs font-medium text-foreground truncate">{session?.name || session?.phone}</p>
-              <p className="text-xs text-muted-foreground">{resellerViewId ? "代理商管理员" : "管理员"}</p>
+              <p className="text-xs text-muted-foreground">管理员</p>
             </div>
           </div>
-          {resellerViewId && <Button variant="outline" size="sm" className="w-full mb-1" onClick={() => navigate("/admin/console/resellers")}>返回平台后台</Button>}
           <Button
             variant="ghost"
             size="sm"
@@ -316,12 +297,6 @@ function ConsoleLayout() {
           <Route path="users" element={<AdminUsers />} />
           <Route path="resellers" element={<AdminResellers />} />
           <Route path="resellers/:id" element={<AdminResellerDetail />} />
-          <Route path="reseller-view/:id" element={<Navigate to="funds" replace />} />
-          <Route path="reseller-view/:id/users" element={<AdminResellerPortal section="users" />} />
-          <Route path="reseller-view/:id/enterprises" element={<AdminResellerPortal section="enterprises" />} />
-          <Route path="reseller-view/:id/funds" element={<AdminResellerPortal section="funds" />} />
-          <Route path="reseller-view/:id/bills" element={<AdminResellerPortal section="bills" />} />
-          <Route path="reseller-view/:id/logs" element={<AdminResellerPortal section="logs" />} />
           <Route path="consumption-trends" element={<AdminConsumptionTrends />} />
           <Route path="products" element={<AdminSubscriptionManagement />} />
           <Route path="subscription-management" element={<AdminSubscriptionList />} />
@@ -340,6 +315,7 @@ function ConsoleLayout() {
           <Route path="channel-monitor" element={<AdminChannelMonitor />} />
           <Route path="service-availability" element={<AdminServiceAvailability />} />
           <Route path="reconciliation" element={<AdminReconciliation />} />
+          <Route path="official-key-data" element={<AdminOfficialKeyData />} />
           <Route path="voucher-records" element={<AdminVoucherRecords />} />
           <Route path="data-dashboard" element={<AdminDataDashboard />} />
           <Route path="token-management" element={<AdminTokenManagement />} />
