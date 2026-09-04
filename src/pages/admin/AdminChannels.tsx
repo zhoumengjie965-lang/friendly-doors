@@ -45,6 +45,13 @@ import {
 } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Switch } from "@/components/ui/switch";
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 
 // ─── Types ───────────────────────────────────────────────────────────────
 
@@ -129,6 +136,19 @@ const GROUP_OPTIONS: Record<string, { color: string }> = {
 // ─── Mock Data ───────────────────────────────────────────────────────────
 
 const MOCK_CHANNELS: Channel[] = [
+  {
+    id: 58,
+    name: "Anthropic Official",
+    groups: ["claude-basic", "claude-fast"],
+    type: "anthropic",
+    status: "enabled",
+    responseTime: "1.28秒",
+    usedQuota: "¥8,631.24",
+    remainingQuota: "¥21,368.76",
+    priority: 110,
+    weight: 20,
+    monitoring: true,
+  },
   {
     id: 40,
     name: "oracle-xai",
@@ -316,6 +336,31 @@ export default function AdminChannels() {
   const [currentPage, setCurrentPage] = useState(1);
   const [statusFilter, setStatusFilter] = useState("all");
   const [channels, setChannels] = useState<Channel[]>(MOCK_CHANNELS);
+  const [disableChannel, setDisableChannel] = useState<Channel | null>(null);
+
+  const affectedUsers = [
+    { id: "ent_441", subjectType: "企业", subject: "凯世通企业" },
+    { id: "ent_442", subjectType: "企业", subject: "远航研发中心" },
+    { id: "ent_443", subjectType: "企业", subject: "星海科技" },
+    { id: "u_2216", subjectType: "用户", subject: "王敏" },
+    { id: "u_2217", subjectType: "用户", subject: "张三" },
+    { id: "res_101", subjectType: "代理商", subject: "代理商 A" },
+    { id: "res_102", subjectType: "代理商", subject: "云启科技" },
+  ];
+  const affectedSubjectGroups = ["企业", "用户", "代理商"].map((subjectType) => ({
+    subjectType,
+    subjects: affectedUsers.filter((item) => item.subjectType === subjectType),
+  })).filter((group) => group.subjects.length > 0);
+
+  const openDisableDialog = (channel: Channel) => {
+    setDisableChannel(channel);
+  };
+
+  const confirmDisable = () => {
+    if (!disableChannel) return;
+    setChannels((prev) => prev.map((channel) => channel.id === disableChannel.id ? { ...channel, status: "disabled" } : channel));
+    setDisableChannel(null);
+  };
 
   const pageSize = 10;
 
@@ -573,6 +618,13 @@ export default function AdminChannels() {
                           ? "text-emerald-500 hover:text-emerald-600 hover:bg-emerald-50"
                           : "text-red-500 hover:text-red-600 hover:bg-red-50"
                       }`}
+                      onClick={() => {
+                        if (channel.status === "disabled") {
+                          setChannels((prev) => prev.map((item) => item.id === channel.id ? { ...item, status: "enabled" } : item));
+                        } else {
+                          openDisableDialog(channel);
+                        }
+                      }}
                     >
                       <Ban className="w-3 h-3 mr-0.5" />
                       {channel.status === "disabled" ? "启用" : "禁用"}
@@ -603,6 +655,39 @@ export default function AdminChannels() {
           </TableBody>
         </Table>
       </div>
+
+      <Dialog open={Boolean(disableChannel)} onOpenChange={(open) => !open && setDisableChannel(null)}>
+        <DialogContent className="sm:max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>确认禁用渠道？</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="rounded-lg border border-amber-200 bg-amber-50 p-4">
+              <div className="flex items-start gap-3">
+                <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-amber-600" />
+                <div>
+                  <p className="font-medium text-amber-900">禁用后，以下已在特殊渠道策略中启用该渠道的用户、企业和代理商将无法继续使用该渠道，请确认影响范围。</p>
+                </div>
+              </div>
+            </div>
+            <div className="overflow-hidden rounded-lg border">
+              <div className="grid grid-cols-[120px_1fr] bg-muted/50 px-4 py-2 text-xs text-muted-foreground">
+                <span>主体类型</span><span>主体</span>
+              </div>
+              {affectedSubjectGroups.map((group) => (
+                <div key={group.subjectType} className="grid grid-cols-[120px_1fr] items-start border-t px-4 py-3 text-sm">
+                  <span><Badge variant="secondary" className="font-normal">{group.subjectType}</Badge></span>
+                  <div className="flex flex-wrap gap-1.5">{group.subjects.map((item) => <Badge key={item.id} variant="outline" className="font-normal">{item.subject}</Badge>)}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDisableChannel(null)}>取消</Button>
+            <Button variant="destructive" onClick={confirmDisable}>确认禁用</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Pagination */}
       <div className="flex items-center justify-between">

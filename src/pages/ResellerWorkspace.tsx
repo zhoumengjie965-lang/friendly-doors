@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 const resellerId = "agent-001";
 
 const navItems = [
-  { label: "资金账户", icon: Wallet, path: "funds" },
+  { label: "账户余额", icon: Wallet, path: "funds" },
   { label: "企业管理", icon: Building2, path: "enterprises" },
   { label: "用户管理", icon: Users, path: "users" },
   { label: "账单管理", icon: Calculator, path: "bills" },

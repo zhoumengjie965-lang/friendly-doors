@@ -18,6 +18,11 @@ export interface DemoReseller {
   creditLimit?: number;
   creditBalance?: number;
   modelAccess?: string[];
+  groupMode?: "template" | "custom" | "all";
+  groupTemplate?: string;
+  enabledGroups?: string[];
+  settlementRates?: Record<string, number>;
+  groupChannelStrategies?: Record<string, { mode: "global" | "custom"; selectedChannels: string[] }>;
   rebateRates?: {
     text: number;
     video: number;
@@ -82,8 +87,18 @@ export interface DemoUserAssignment {
 export interface DemoEnterpriseAssignment {
   enterpriseId: string;
   resellerId: string | null;
+  name?: string;
+  ownerPhone?: string;
+  enterpriseCode?: string;
+  createdAt?: string;
+  status?: "enabled" | "disabled";
+  groupMode?: "template" | "custom" | "all";
+  groupTemplate?: string;
   balance?: number;
   discount?: number;
+  consumedBudget?: number;
+  actualConsumed?: number;
+  groupDiscounts?: Record<string, number>;
 }
 
 export interface DemoMigration {
@@ -112,7 +127,7 @@ const STORAGE_KEY = "friendly_doors_reseller_demo_v1";
 
 const initialState: DemoState = {
   resellers: [
-    { id: "agent-001", code: "AGENT-A", name: "代理商A", domain: "a.friendlydoors.cn", status: "enabled", remark: "重点合作伙伴", createdAt: "2026-06-01T09:00:00.000Z", balance: 86500, creditLimit: 20000, creditBalance: 20000, totalFunded: 120000, totalCustomerRecharge: 33500, actualCustomerConsumed: 18760, customerDiscount: 0.92, commissionRate: 0.08 },
+    { id: "agent-001", code: "AGENT-A", name: "代理商A", domain: "a.friendlydoors.cn", status: "enabled", remark: "重点合作伙伴", createdAt: "2026-06-01T09:00:00.000Z", balance: 86500, creditLimit: 20000, creditBalance: 20000, totalFunded: 120000, totalCustomerRecharge: 33500, actualCustomerConsumed: 18760, customerDiscount: 0.92, commissionRate: 0.08, modelAccess: ["国内", "国际"], groupMode: "template", groupTemplate: "default", enabledGroups: ["claude-fast", "deepseek", "gemini-fast", "glm", "grok-fast", "openai-fast", "qwen", "minimax"], settlementRates: { "claude-fast": 0.6, deepseek: 0.75, "gemini-fast": 0.68, glm: 0.75, "grok-fast": 0.75, "openai-fast": 0.65, qwen: 0.75, minimax: 0.75 } },
     { id: "agent-002", code: "AGENT-B", name: "代理商B", domain: "b.friendlydoors.cn", status: "enabled", remark: "华东区域", createdAt: "2026-06-12T09:00:00.000Z", balance: 42800, totalFunded: 60000, totalCustomerRecharge: 17200, actualCustomerConsumed: 9420, customerDiscount: 0.95, commissionRate: 0.05 },
     { id: "agent-003", code: "AGENT-C", name: "代理商C", domain: "c.friendlydoors.cn", status: "disabled", remark: "暂停合作", createdAt: "2026-07-01T09:00:00.000Z", balance: 0, totalFunded: 10000, totalCustomerRecharge: 10000, customerDiscount: 1, commissionRate: 0 },
     { id: "agent-004", code: "AGENT-D", name: "云启科技", domain: "yunqi.friendlydoors.cn", status: "enabled", remark: "华南区域", createdAt: "2026-07-08T09:00:00.000Z" },
@@ -202,12 +217,24 @@ export function getResellerDemoState(): DemoState {
       creditLimit: item.id === "agent-001" && !parsed.ledger?.some((entry: DemoLedgerEntry) => entry.id === "ledger-006") ? 20000 : (item.creditLimit ?? 0),
       creditBalance: item.id === "agent-001" && !parsed.ledger?.some((entry: DemoLedgerEntry) => entry.id === "ledger-006") ? 20000 : (item.creditBalance ?? 0),
       rebateRates: item.rebateRates ?? { text: 0.1, video: 0.5, audio: 0.4, music: 0.4 },
+      groupMode: item.groupMode ?? "template",
+      groupTemplate: item.groupTemplate ?? "default",
+      enabledGroups: item.enabledGroups ?? ["claude-fast", "deepseek", "gemini-fast", "glm", "grok-fast", "openai-fast", "qwen", "minimax"],
+      settlementRates: item.settlementRates ?? { "claude-fast": 0.6, deepseek: 0.75, "gemini-fast": 0.68, glm: 0.75, "grok-fast": 0.75, "openai-fast": 0.65, qwen: 0.75, minimax: 0.75 },
     }));
     initialState.resellers.forEach((item) => { if (!parsed.resellers.some((saved: DemoReseller) => saved.id === item.id)) parsed.resellers.push({ ...item }); });
     parsed.users = parsed.users || [];
     initialState.users.forEach((item) => { if (!parsed.users.some((saved: DemoUserAssignment) => saved.phone === item.phone)) parsed.users.push({ ...item }); });
     parsed.enterprises = parsed.enterprises || [];
     initialState.enterprises.forEach((item) => { if (!parsed.enterprises.some((saved: DemoEnterpriseAssignment) => saved.enterpriseId === item.enterpriseId)) parsed.enterprises.push({ ...item }); });
+    parsed.enterprises = parsed.enterprises.map((item: DemoEnterpriseAssignment, index: number) => ({
+      ...item,
+      balance: item.balance ?? 30000 - index * 1800,
+      discount: item.discount ?? 0.72,
+      consumedBudget: item.consumedBudget ?? 5200 + index * 730,
+      actualConsumed: item.actualConsumed ?? 4400 + index * 610,
+      groupDiscounts: item.groupDiscounts ?? { OpenAI: 0.75, Claude: 0.7, Gemini: 0.78, 国内模型: 0.82 },
+    }));
     parsed.ledger = parsed.ledger || [];
     parsed.ledger = parsed.ledger.map((item: DemoLedgerEntry) => ({
       ...item,
@@ -289,6 +316,14 @@ export function setEnterpriseAssignment(enterpriseId: string, resellerId: string
   save(state);
 }
 
+export function updateDemoEnterprise(enterpriseId: string, changes: Partial<Omit<DemoEnterpriseAssignment, "enterpriseId">>) {
+  const state = getResellerDemoState();
+  const existing = state.enterprises.find((item) => item.enterpriseId === enterpriseId);
+  if (existing) Object.assign(existing, changes);
+  else state.enterprises.push({ enterpriseId, resellerId: changes.resellerId ?? null, ...changes });
+  save(state);
+}
+
 export function preflightEnterpriseMigration(input: { enterpriseId: string; memberPhones: string[]; linkedEnterprises: Array<{ phone: string; enterpriseId: string; enterpriseName: string }> }) {
   const conflicts = input.linkedEnterprises.filter((item) => item.enterpriseId !== input.enterpriseId);
   return { ok: conflicts.length === 0, conflicts, affectedPhones: [...new Set(input.memberPhones)] };
@@ -344,17 +379,11 @@ export function fundReseller(resellerId: string, amount: number, remark: string)
 }
 
 export function rechargeCustomer(input: { resellerId: string; amount: number; targetType: "user" | "enterprise"; targetId: string; targetName: string; remark?: string }) {
-  if (!Number.isFinite(input.amount) || input.amount <= 0) throw new Error("充值金额必须大于 0");
+  if (!Number.isFinite(input.amount) || input.amount <= 0) throw new Error("发放点数必须大于 0");
   const state = getResellerDemoState();
   const reseller = state.resellers.find((item) => item.id === input.resellerId);
   if (!reseller) throw new Error("代理商不存在");
-  const cashBefore = reseller.balance || 0;
-  const creditBefore = reseller.creditBalance || 0;
-  const before = cashBefore + creditBefore;
-  if (before < input.amount) throw new Error(`代理商可用总额度不足，当前可用 ¥${before.toFixed(2)}`);
-  const cashUsed = Math.min(cashBefore, input.amount);
-  reseller.balance = cashBefore - cashUsed;
-  reseller.creditBalance = creditBefore - (input.amount - cashUsed);
+  // 客户点数只用于客户侧用量管理，不占用或冻结代理商真实资金。
   reseller.totalCustomerRecharge = (reseller.totalCustomerRecharge || 0) + input.amount;
   if (input.targetType === "user") {
     const target = state.users.find((item) => item.phone === input.targetId);
@@ -363,7 +392,6 @@ export function rechargeCustomer(input: { resellerId: string; amount: number; ta
     const target = state.enterprises.find((item) => item.enterpriseId === input.targetId);
     if (target) target.balance = (target.balance || 0) + input.amount;
   }
-  state.ledger.unshift({ id: `ledger-${Date.now()}`, resellerId: input.resellerId, type: "customer_recharge", amount: -input.amount, balanceBefore: before, balanceAfter: before - input.amount, targetType: input.targetType, targetId: input.targetId, targetName: input.targetName, operator: "agent_operator", remark: input.remark || "客户账户充值", createdAt: new Date().toISOString() });
   save(state);
 }
 

@@ -31,6 +31,13 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import {
+  Sheet,
+  SheetContent,
+  SheetFooter,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
+import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
@@ -59,6 +66,7 @@ import {
 } from "@/components/ui/table";
 import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import DeptModelPolicyDialog from "@/components/DeptModelPolicyDialog";
 import {
   Tooltip,
@@ -121,9 +129,33 @@ interface Org {
   // 预算设置相关字段
   default_monthly_budget?: number;
   budget_override?: number;
+  budget_type?: "unlimited" | "one_time" | "monthly";
+  one_time_budget?: number;
+  budget_used?: number;
   alert_enabled?: boolean;
   alert_threshold?: number;
 }
+
+type DepartmentBudgetType = "unlimited" | "one_time" | "monthly";
+
+const budgetTypeLabel: Record<DepartmentBudgetType, string> = {
+  unlimited: "不限制",
+  one_time: "一次性",
+  monthly: "按月",
+};
+
+const formatBudgetAmount = (amount: number) =>
+  `¥${amount.toLocaleString("zh-CN", { maximumFractionDigits: 2 })}`;
+
+const getDepartmentBudgetType = (org: Org): DepartmentBudgetType =>
+  org.budget_type || "monthly";
+
+const getDepartmentBudgetLimit = (org: Org) => {
+  const type = getDepartmentBudgetType(org);
+  if (type === "unlimited") return "不限制";
+  if (type === "one_time") return formatBudgetAmount(org.one_time_budget || 0);
+  return `${formatBudgetAmount(org.budget_override || org.default_monthly_budget || org.monthly_budget || 0)}/月`;
+};
 
 interface DeptManagementProps {
   enterprise: {
@@ -244,7 +276,6 @@ export default function DeptManagement({ enterprise, role }: DeptManagementProps
   // Dialog states
   const [createOrgOpen, setCreateOrgOpen] = useState(false);
   const [newOrgName, setNewOrgName] = useState("");
-  const [newOrgBudget, setNewOrgBudget] = useState("");
   const [newOrgAdmins, setNewOrgAdmins] = useState<string[]>([]);
   const [adminSearchQuery, setAdminSearchQuery] = useState("");
 
@@ -254,6 +285,8 @@ export default function DeptManagement({ enterprise, role }: DeptManagementProps
 
   const [editBudgetOpen, setEditBudgetOpen] = useState(false);
   const [budgetForm, setBudgetForm] = useState({
+    budget_type: "monthly" as DepartmentBudgetType,
+    one_time_budget: 0,
     default_monthly_budget: 0,
     budget_override: 0,
     alert_enabled: false,
@@ -282,7 +315,7 @@ export default function DeptManagement({ enterprise, role }: DeptManagementProps
 
   const [budgetDialogOpen, setBudgetDialogOpen] = useState(false);
   const [budgetValue, setBudgetValue] = useState("");
-  const [budgetType, setBudgetType] = useState<"unlimited" | "daily" | "monthly">("daily");
+  const [budgetType, setBudgetType] = useState<DepartmentBudgetType>("monthly");
 
   // 部门模型访问策略
   const [modelPolicyOpen, setModelPolicyOpen] = useState(false);
@@ -331,11 +364,18 @@ export default function DeptManagement({ enterprise, role }: DeptManagementProps
     const orgsWithStats = orgsData.map((org) => {
       const orgMembers = mockData.members.filter((m) => m.organization_id === org.id);
       const childCount = orgsData.filter((o) => o.parent_id === org.id).length;
+      const fallbackBudgetScenarios: Record<string, Partial<Org>> = {
+        org_tech: { budget_type: "unlimited", monthly_budget: 0, budget_used: 0 },
+        org_product: { budget_type: "one_time", one_time_budget: 200000, budget_used: 50000 },
+        org_market: { budget_type: "monthly", monthly_budget: 50000, default_monthly_budget: 50000, budget_used: 12000 },
+      };
+      const fallbackBudget = org.budget_type ? {} : (fallbackBudgetScenarios[org.id] || { budget_type: "monthly" as const });
       return {
         ...org,
+        ...fallbackBudget,
         memberCount: orgMembers.length,
         childCount,
-        consumed_budget: 0, // mock
+        consumed_budget: org.budget_used ?? fallbackBudget.budget_used ?? 0,
       };
     });
 
@@ -427,6 +467,24 @@ export default function DeptManagement({ enterprise, role }: DeptManagementProps
     };
   }, [selectedOrg, members, childOrgs]);
 
+  const consumptionBreakdown = useMemo(() => {
+    const directMembers = members.reduce((sum, member) => sum + (member.month_consumed || 0), 0);
+    const departments = 0;
+    const apiKeys = 0;
+    const total = directMembers + departments + apiKeys;
+
+    return { directMembers, departments, apiKeys, total };
+  }, [members]);
+
+  const selectedBudgetUsageRate = useMemo(() => {
+    if (!selectedOrg || getDepartmentBudgetType(selectedOrg) === "unlimited") return null;
+    const limit = getDepartmentBudgetType(selectedOrg) === "one_time"
+      ? selectedOrg.one_time_budget || 0
+      : selectedOrg.budget_override || selectedOrg.default_monthly_budget || selectedOrg.monthly_budget || 0;
+    const used = selectedOrg.consumed_budget || selectedOrg.budget_used || 0;
+    return limit > 0 ? (used / limit) * 100 : 0;
+  }, [selectedOrg]);
+
   // Filtered members
   const filteredMembers = useMemo(() => {
     if (!memberSearch.trim()) return members;
@@ -460,7 +518,6 @@ export default function DeptManagement({ enterprise, role }: DeptManagementProps
     
     try {
       const newOrg = await createOrganization(currentEnterprise.id, newOrgName.trim(), parentId, {
-        monthly_budget: newOrgBudget ? Number(newOrgBudget) : null,
         status: "active",
       });
       // Add admin members if selected
@@ -474,7 +531,6 @@ export default function DeptManagement({ enterprise, role }: DeptManagementProps
       }
       toast({ title: "创建成功", description: `部门「${newOrgName}」已创建` });
       setNewOrgName("");
-      setNewOrgBudget("");
       setNewOrgAdmins([]);
       setAdminSearchQuery("");
       setCreateOrgOpen(false);
@@ -499,13 +555,25 @@ export default function DeptManagement({ enterprise, role }: DeptManagementProps
 
   const handleEditBudget = async () => {
     if (!editOrg) return;
+    if (budgetForm.budget_type === "one_time" && budgetForm.one_time_budget <= 0) {
+      toast({ title: "请输入有效的一次性预算额度", variant: "destructive" });
+      return;
+    }
+    if (budgetForm.budget_type === "monthly" && budgetForm.default_monthly_budget <= 0) {
+      toast({ title: "请输入有效的默认月预算", variant: "destructive" });
+      return;
+    }
     try {
       await updateOrganization(editOrg.id, {
+        budget_type: budgetForm.budget_type,
+        one_time_budget: budgetForm.budget_type === "one_time" ? budgetForm.one_time_budget : null,
         default_monthly_budget: budgetForm.default_monthly_budget,
         budget_override: budgetForm.budget_override,
         alert_enabled: budgetForm.alert_enabled,
         alert_threshold: budgetForm.alert_threshold,
-        monthly_budget: budgetForm.budget_override || budgetForm.default_monthly_budget,
+        monthly_budget: budgetForm.budget_type === "monthly"
+          ? budgetForm.budget_override || budgetForm.default_monthly_budget
+          : null,
       });
       toast({ title: "预算设置已更新" });
       setEditOrg(null);
@@ -630,20 +698,33 @@ export default function DeptManagement({ enterprise, role }: DeptManagementProps
   };
 
   const handleBatchBudget = async () => {
-    if (!budgetValue || !selectedOrg) return;
+    if (!selectedOrg) return;
+    if (budgetType !== "unlimited" && (!budgetValue || Number(budgetValue) <= 0)) {
+      toast({ title: "请输入有效的预算额度", variant: "destructive" });
+      return;
+    }
     const val = Number(budgetValue);
-    const mockData = getMockData();
-    members.forEach((m) => {
-      const idx = mockData.members.findIndex((mem) => mem.id === m.id);
-      if (idx !== -1) {
-        mockData.members[idx].daily_limit = val;
-      }
-    });
-    localStorage.setItem("ai_gateway_mock_data", JSON.stringify(mockData));
-    toast({ title: "批量设置成功" });
-    setBudgetDialogOpen(false);
-    setBudgetValue("");
-    fetchMembers(selectedOrg.id);
+    const targetDepartments = isEnterpriseLevel
+      ? rootOrgs
+      : childOrgs.length > 0
+        ? childOrgs
+        : [selectedOrg];
+
+    try {
+      await Promise.all(targetDepartments.map((org) => updateOrganization(org.id, {
+        budget_type: budgetType,
+        one_time_budget: budgetType === "one_time" ? val : null,
+        default_monthly_budget: budgetType === "monthly" ? val : null,
+        budget_override: budgetType === "monthly" ? val : null,
+        monthly_budget: budgetType === "monthly" ? val : null,
+      })));
+      toast({ title: "批量设置成功", description: `已更新 ${targetDepartments.length} 个部门的预算` });
+      setBudgetDialogOpen(false);
+      setBudgetValue("");
+      loadInitialData();
+    } catch {
+      toast({ title: "批量设置失败", variant: "destructive" });
+    }
   };
 
 
@@ -787,41 +868,50 @@ export default function DeptManagement({ enterprise, role }: DeptManagementProps
                       </div>
                       <span className="font-medium text-gray-900">企业余额</span>
                     </div>
-                    <div className="space-y-3">
-                      <div className="flex justify-between items-center">
-                        <span className="text-sm text-gray-500">累计消耗</span>
-                        <span className="text-lg font-semibold text-gray-900">¥0.00</span>
+                    <div className="grid grid-cols-2 gap-8 border-t pt-4">
+                      <div>
+                        <div className="text-sm text-gray-500">累计消耗</div>
+                        <div className="mt-2 text-2xl font-bold text-gray-900">¥0.00</div>
                       </div>
-                      <div className="flex justify-between items-center">
-                        <span className="text-sm text-gray-500">剩余可用</span>
-                        <span className="text-lg font-semibold text-green-600">¥0.00</span>
+                      <div>
+                        <div className="text-sm text-gray-500">剩余可用余额</div>
+                        <div className="mt-2 text-2xl font-bold text-green-600">¥0.00</div>
                       </div>
                     </div>
                   </CardContent>
                 </Card>
 
-                {/* Monthly Budget Card */}
+                {/* Budget Configuration Card */}
                 <Card className="bg-white border-0 shadow-sm">
                   <CardContent className="p-6">
                     <div className="flex items-center gap-3 mb-4">
                       <div className="w-10 h-10 bg-purple-50 rounded-xl flex items-center justify-center">
                         <TrendingUp className="h-5 w-5 text-purple-500" />
                       </div>
-                      <span className="font-medium text-gray-900">本月预算</span>
+                      <span className="font-medium text-gray-900">预算配置</span>
                     </div>
-                    <div className="space-y-3">
-                      <div className="flex justify-between items-center">
-                        <span className="text-sm text-gray-500">本月已分配</span>
-                        <span className="text-lg font-semibold text-gray-900">¥100.00</span>
+                    <div className="grid grid-cols-3 gap-4 border-t pt-4">
+                      <div>
+                        <div className="text-sm text-gray-500">按月</div>
+                        <div className="mt-2 text-2xl font-bold text-gray-900">
+                          {rootOrgs.filter((org) => getDepartmentBudgetType(org) === "monthly").length}个
+                        </div>
                       </div>
-                      <div className="flex justify-between items-center">
-                        <span className="text-sm text-gray-500">本月已消耗</span>
-                        <span className="text-lg font-semibold text-red-500">¥0.00</span>
+                      <div>
+                        <div className="text-sm text-gray-500">一次性</div>
+                        <div className="mt-2 text-2xl font-bold text-gray-900">
+                          {rootOrgs.filter((org) => getDepartmentBudgetType(org) === "one_time").length}个
+                        </div>
+                      </div>
+                      <div>
+                        <div className="text-sm text-gray-500">不限制</div>
+                        <div className="mt-2 text-2xl font-bold text-orange-500">
+                          {rootOrgs.filter((org) => getDepartmentBudgetType(org) === "unlimited").length}个
+                        </div>
                       </div>
                     </div>
                   </CardContent>
                 </Card>
-
                 {/* Enterprise Assets Card */}
                 <Card className="bg-white border-0 shadow-sm">
                   <CardContent className="p-6">
@@ -831,20 +921,20 @@ export default function DeptManagement({ enterprise, role }: DeptManagementProps
                       </div>
                       <span className="font-medium text-gray-900">企业资产</span>
                     </div>
-                    <div className="grid grid-cols-3 gap-4">
-                      <div className="text-center">
-                        <div className="text-2xl font-bold text-gray-900">{rootOrgs.length}个</div>
-                        <div className="text-xs text-gray-500 mt-1">部门</div>
+                    <div className="grid grid-cols-3 gap-4 border-t pt-4">
+                      <div>
+                        <div className="text-sm text-gray-500">部门</div>
+                        <div className="mt-2 text-2xl font-bold text-gray-900">{rootOrgs.length}个</div>
                       </div>
-                      <div className="text-center">
-                        <div className="text-2xl font-bold text-gray-900">
+                      <div>
+                        <div className="text-sm text-gray-500">成员</div>
+                        <div className="mt-2 text-2xl font-bold text-gray-900">
                           {enterpriseMemberCount}人
                         </div>
-                        <div className="text-xs text-gray-500 mt-1">成员</div>
                       </div>
-                      <div className="text-center">
-                        <div className="text-2xl font-bold text-gray-900">0个</div>
-                        <div className="text-xs text-gray-500 mt-1">API Key</div>
+                      <div>
+                        <div className="text-sm text-gray-500">API Key</div>
+                        <div className="mt-2 text-2xl font-bold text-gray-900">0个</div>
                       </div>
                     </div>
                   </CardContent>
@@ -853,94 +943,77 @@ export default function DeptManagement({ enterprise, role }: DeptManagementProps
             ) : (
               /* Department Level Stats Cards */
               <div className="grid grid-cols-3 gap-6">
-                {/* Budget Planning Card */}
+                {/* Department Budget Information Card */}
                 <Card className="bg-white border-0 shadow-sm">
                   <CardContent className="p-6">
-                    <div className="flex items-center gap-3 mb-6">
+                    <div className="flex items-center gap-3 mb-4">
                       <div className="w-10 h-10 bg-blue-50 rounded-xl flex items-center justify-center">
                         <Wallet className="h-5 w-5 text-blue-500" />
                       </div>
-                      <span className="font-medium text-gray-900">预算规划</span>
+                      <span className="font-medium text-gray-900">预算信息</span>
                     </div>
-                    <div className="grid grid-cols-2 gap-4 mb-4">
-                      <div>
-                        <div className="text-xs text-gray-500 mb-1">本月已分配</div>
-                        <div className="space-y-1 text-xs">
-                          <div className="flex justify-between">
-                            <span className="text-gray-500">直属成员</span>
-                            <span className="text-gray-900">¥0.00</span>
-                          </div>
-                          <div className="flex justify-between">
-                            <span className="text-gray-500">子部门</span>
-                            <span className="text-gray-900">¥0.00</span>
-                          </div>
-                          <div className="flex justify-between">
-                            <span className="text-gray-500">业务Key</span>
-                            <span className="text-gray-900">¥0.00</span>
-                          </div>
-                        </div>
+                    <div className="space-y-4 border-t pt-4">
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm text-gray-500">预算类型</span>
+                        <span className="text-lg font-semibold text-gray-900">
+                          {budgetTypeLabel[getDepartmentBudgetType(selectedOrg)]}
+                        </span>
                       </div>
-                      <div className="text-right">
-                        <div className="text-2xl font-bold text-gray-900">¥0.00</div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm text-gray-500">预算上限</span>
+                        <span className="text-lg font-semibold text-gray-900">
+                          {getDepartmentBudgetLimit(selectedOrg)}
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm text-gray-500">已使用额度</span>
+                        <span className="text-lg font-semibold text-red-500">
+                          {formatBudgetAmount(selectedOrg.consumed_budget || selectedOrg.budget_used || 0)}
+                        </span>
                       </div>
                     </div>
-                    <div className="pt-4 border-t flex justify-between items-center">
-                      <span className="text-sm text-gray-500">本月预算上限</span>
+                    <div className="mt-4 flex items-center justify-between border-t pt-4">
+                      <span className="text-sm text-gray-500">预算使用率</span>
                       <span className="text-lg font-semibold text-gray-900">
-                        ¥{orgStats.budget.toFixed(2)}
+                        {selectedBudgetUsageRate === null ? "—" : `${selectedBudgetUsageRate.toFixed(2)}%`}
                       </span>
                     </div>
                   </CardContent>
                 </Card>
 
-                {/* Real-time Consumption Card */}
+                {/* Consumption Breakdown Card */}
                 <Card className="bg-white border-0 shadow-sm">
                   <CardContent className="p-6">
-                    <div className="flex items-center gap-3 mb-6">
+                    <div className="flex items-center gap-3 mb-4">
                       <div className="w-10 h-10 bg-purple-50 rounded-xl flex items-center justify-center">
                         <TrendingUp className="h-5 w-5 text-purple-500" />
                       </div>
-                      <span className="font-medium text-gray-900">实时消耗</span>
+                      <span className="font-medium text-gray-900">月度消耗</span>
                     </div>
-                    <div className="grid grid-cols-2 gap-4 mb-4">
-                      <div>
-                        <div className="text-xs text-gray-500 mb-1">本月已消耗</div>
-                        <div className="space-y-1 text-xs">
-                          <div className="flex justify-between">
-                            <span className="text-gray-500">直属成员</span>
-                            <span className="text-gray-900">¥0.00</span>
-                          </div>
-                          <div className="flex justify-between">
-                            <span className="text-gray-500">子部门</span>
-                            <span className="text-gray-900">¥0.00</span>
-                          </div>
-                          <div className="flex justify-between">
-                            <span className="text-gray-500">业务Key</span>
-                            <span className="text-gray-900">¥0.00</span>
-                          </div>
-                        </div>
+                    <div className="space-y-3 border-t pt-4">
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm text-gray-500">直属成员</span>
+                        <span className="text-sm font-medium text-gray-900">{formatBudgetAmount(consumptionBreakdown.directMembers)}</span>
                       </div>
-                      <div className="text-right">
-                        <div className="text-2xl font-bold text-gray-900">¥0.00</div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm text-gray-500">子部门</span>
+                        <span className="text-sm font-medium text-gray-900">{formatBudgetAmount(consumptionBreakdown.departments)}</span>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm text-gray-500">业务 Key</span>
+                        <span className="text-sm font-medium text-gray-900">{formatBudgetAmount(consumptionBreakdown.apiKeys)}</span>
                       </div>
                     </div>
-                    <div className="pt-4 border-t space-y-2">
-                      <div className="flex justify-between items-center">
-                        <span className="text-sm text-gray-500">剩余可用预算</span>
-                        <span className="text-lg font-semibold text-gray-900">
-                          ¥{orgStats.remaining.toFixed(2)}
-                        </span>
-                      </div>
-                      <div className="flex justify-between items-center">
-                        <span className="text-sm text-gray-500">预算使用率</span>
-                        <span className="text-lg font-semibold text-gray-900">
-                          {orgStats.usageRate}%
-                        </span>
-                      </div>
+                    <div className="mt-4 flex items-center justify-between border-t pt-4">
+                      <span className="text-sm text-gray-500">
+                        本月合计
+                      </span>
+                      <span className="text-lg font-semibold text-gray-900">
+                        {formatBudgetAmount(consumptionBreakdown.total)}
+                      </span>
                     </div>
                   </CardContent>
                 </Card>
-
                 {/* Department Assets Card */}
                 <Card className="bg-white border-0 shadow-sm">
                   <CardContent className="p-6">
@@ -1012,12 +1085,12 @@ export default function DeptManagement({ enterprise, role }: DeptManagementProps
                     <Table>
                       <TableHeader>
                         <TableRow className="border-b border-gray-100 hover:bg-transparent">
-                          <TableHead className="text-gray-500 font-normal">部门名称</TableHead>
+                          <TableHead className="text-gray-500 font-normal min-w-[180px]">部门名称</TableHead>
                           <TableHead className="text-gray-500 font-normal">部门管理员</TableHead>
                           <TableHead className="text-gray-500 font-normal">成员数</TableHead>
-                          <TableHead className="text-gray-500 font-normal">本月预算上限</TableHead>
-                          <TableHead className="text-gray-500 font-normal">本月消耗预算</TableHead>
-                          <TableHead className="text-gray-500 font-normal">使用率</TableHead>
+                          <TableHead className="text-gray-500 font-normal w-[100px]">预算类型</TableHead>
+                          <TableHead className="text-gray-500 font-normal min-w-[150px]">预算上限</TableHead>
+                          <TableHead className="text-gray-500 font-normal min-w-[130px]">已使用额度</TableHead>
                           <TableHead className="text-gray-500 font-normal">状态</TableHead>
                           <TableHead className="text-gray-500 font-normal text-right">操作</TableHead>
                         </TableRow>
@@ -1080,13 +1153,18 @@ export default function DeptManagement({ enterprise, role }: DeptManagementProps
                             <TableCell className="text-sm text-gray-600">
                               {org.memberCount || 0}
                             </TableCell>
-                            <TableCell className="text-sm text-gray-600">
+                            <TableCell className="text-sm text-gray-600 whitespace-nowrap">
+                              {budgetTypeLabel[getDepartmentBudgetType(org)]}
+                            </TableCell>
+                            <TableCell className="text-sm text-gray-600 whitespace-nowrap">
                               <div className="flex items-center gap-2">
-                                {org.monthly_budget ? `¥${org.monthly_budget.toFixed(2)}` : "¥0.00"}
+                                {getDepartmentBudgetLimit(org)}
                                 <button
                                   onClick={() => {
                                     setEditOrg(org);
                                     setBudgetForm({
+                                      budget_type: getDepartmentBudgetType(org),
+                                      one_time_budget: org.one_time_budget || 0,
                                       default_monthly_budget: org.default_monthly_budget || 0,
                                       budget_override: org.budget_override || org.monthly_budget || 0,
                                       alert_enabled: org.alert_enabled || false,
@@ -1101,22 +1179,10 @@ export default function DeptManagement({ enterprise, role }: DeptManagementProps
                                 </button>
                               </div>
                             </TableCell>
-                            <TableCell className="text-sm text-red-500">
-                              ¥{(org.consumed_budget || 0).toFixed(2)}
-                            </TableCell>
-                            <TableCell>
-                              <div className="flex items-center gap-2">
-                                <Progress
-                                  value={org.monthly_budget ? ((org.consumed_budget || 0) / org.monthly_budget) * 100 : 0}
-                                  className="w-16 h-1.5"
-                                />
-                                <span className="text-xs text-gray-500">
-                                  {org.monthly_budget
-                                    ? Math.round(((org.consumed_budget || 0) / org.monthly_budget) * 100)
-                                    : 0}
-                                  %
-                                </span>
-                              </div>
+                            <TableCell className="text-sm text-red-500 whitespace-nowrap">
+                              {getDepartmentBudgetType(org) === "unlimited"
+                                ? "-"
+                                : formatBudgetAmount(org.consumed_budget || 0)}
                             </TableCell>
                             <TableCell>
                               {org.status === "active" ? (
@@ -1434,12 +1500,12 @@ export default function DeptManagement({ enterprise, role }: DeptManagementProps
                       <Table>
                         <TableHeader>
                           <TableRow className="border-b border-gray-100 hover:bg-transparent">
-                            <TableHead className="text-gray-500 font-normal">部门名称</TableHead>
+                            <TableHead className="text-gray-500 font-normal min-w-[180px]">部门名称</TableHead>
                             <TableHead className="text-gray-500 font-normal">部门管理员</TableHead>
                             <TableHead className="text-gray-500 font-normal">成员数</TableHead>
-                            <TableHead className="text-gray-500 font-normal">本月预算上限</TableHead>
-                            <TableHead className="text-gray-500 font-normal">本月消耗预算</TableHead>
-                            <TableHead className="text-gray-500 font-normal">使用率</TableHead>
+                            <TableHead className="text-gray-500 font-normal w-[100px]">预算类型</TableHead>
+                            <TableHead className="text-gray-500 font-normal min-w-[150px]">预算上限</TableHead>
+                            <TableHead className="text-gray-500 font-normal min-w-[130px]">已使用额度</TableHead>
                             <TableHead className="text-gray-500 font-normal">状态</TableHead>
                             <TableHead className="text-gray-500 font-normal text-right">操作</TableHead>
                           </TableRow>
@@ -1502,13 +1568,18 @@ export default function DeptManagement({ enterprise, role }: DeptManagementProps
                               <TableCell className="text-sm text-gray-600">
                                 {org.memberCount || 0}
                               </TableCell>
-                              <TableCell className="text-sm text-gray-600">
+                              <TableCell className="text-sm text-gray-600 whitespace-nowrap">
+                                {budgetTypeLabel[getDepartmentBudgetType(org)]}
+                              </TableCell>
+                              <TableCell className="text-sm text-gray-600 whitespace-nowrap">
                                 <div className="flex items-center gap-2">
-                                  {org.monthly_budget ? `¥${org.monthly_budget.toFixed(2)}` : "¥0.00"}
+                                  {getDepartmentBudgetLimit(org)}
                                   <button
                                     onClick={() => {
                                       setEditOrg(org);
                                       setBudgetForm({
+                                        budget_type: getDepartmentBudgetType(org),
+                                        one_time_budget: org.one_time_budget || 0,
                                         default_monthly_budget: org.default_monthly_budget || 0,
                                         budget_override: org.budget_override || org.monthly_budget || 0,
                                         alert_enabled: org.alert_enabled || false,
@@ -1523,22 +1594,10 @@ export default function DeptManagement({ enterprise, role }: DeptManagementProps
                                   </button>
                                 </div>
                               </TableCell>
-                              <TableCell className="text-sm text-red-500">
-                                ¥{(org.consumed_budget || 0).toFixed(2)}
-                              </TableCell>
-                              <TableCell>
-                                <div className="flex items-center gap-2">
-                                  <Progress
-                                    value={org.monthly_budget ? ((org.consumed_budget || 0) / org.monthly_budget) * 100 : 0}
-                                    className="w-16 h-1.5"
-                                  />
-                                  <span className="text-xs text-gray-500">
-                                    {org.monthly_budget
-                                      ? Math.round(((org.consumed_budget || 0) / org.monthly_budget) * 100)
-                                      : 0}
-                                    %
-                                  </span>
-                                </div>
+                              <TableCell className="text-sm text-red-500 whitespace-nowrap">
+                                {getDepartmentBudgetType(org) === "unlimited"
+                                  ? "-"
+                                  : formatBudgetAmount(org.consumed_budget || 0)}
                               </TableCell>
                               <TableCell>
                                 {org.status === "active" ? (
@@ -1898,8 +1957,7 @@ export default function DeptManagement({ enterprise, role }: DeptManagementProps
       <Dialog open={createOrgOpen} onOpenChange={(open) => {
         if (!open) {
           setNewOrgName("");
-          setNewOrgBudget("");
-          setNewOrgAdmins([]);
+              setNewOrgAdmins([]);
           setAdminSearchQuery("");
         }
         setCreateOrgOpen(open);
@@ -1924,16 +1982,7 @@ export default function DeptManagement({ enterprise, role }: DeptManagementProps
                 onChange={(e) => setNewOrgName(e.target.value)}
               />
             </div>
-            <div className="space-y-2">
-              <Label>默认月预算（元/月）</Label>
-              <Input
-                type="number"
-                placeholder="留空表示不限制"
-                value={newOrgBudget}
-                onChange={(e) => setNewOrgBudget(e.target.value)}
-                min={0}
-              />
-            </div>
+
             <div className="space-y-2">
               <Label>设置{viewMode === "enterprise" ? "部门" : "子部门"}管理员</Label>
               {(() => {
@@ -2033,8 +2082,7 @@ export default function DeptManagement({ enterprise, role }: DeptManagementProps
           <DialogFooter>
             <Button variant="outline" onClick={() => {
               setNewOrgName("");
-              setNewOrgBudget("");
-              setNewOrgAdmins([]);
+                      setNewOrgAdmins([]);
               setAdminSearchQuery("");
               setCreateOrgOpen(false);
             }}>
@@ -2066,81 +2114,96 @@ export default function DeptManagement({ enterprise, role }: DeptManagementProps
         </DialogContent>
       </Dialog>
 
-      {/* Edit Budget Dialog */}
-      <Dialog open={editBudgetOpen} onOpenChange={setEditBudgetOpen}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>设置预算</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-6 py-2">
-            {/* 默认月预算 */}
-            <div className="space-y-2">
-              <Label>默认月预算（元/月）</Label>
-              <Input
-                type="number"
-                value={budgetForm.default_monthly_budget}
-                onChange={(e) => setBudgetForm({ ...budgetForm, default_monthly_budget: Number(e.target.value) })}
-                min={0}
-                step={0.01}
-              />
-              <p className="text-xs text-gray-400">每月1日根据默认月预算自动重置</p>
-            </div>
-
-            {/* 当前月预算覆盖 */}
-            <div className="space-y-2">
-              <Label>当前月预算覆盖（元/月）</Label>
-              <Input
-                type="number"
-                value={budgetForm.budget_override}
-                onChange={(e) => setBudgetForm({ ...budgetForm, budget_override: Number(e.target.value) })}
-                min={0}
-                step={0.01}
-              />
-              <p className="text-xs text-gray-400">仅本月生效，优先级高于默认月预算</p>
-            </div>
-
-            {/* 分隔线 */}
-            <div className="border-t border-gray-100" />
-
-            {/* 开启紧急预警通知 */}
-            <div className="flex items-center justify-between">
-              <Label className="cursor-pointer">开启紧急预警通知</Label>
-              <Switch
-                checked={budgetForm.alert_enabled}
-                onCheckedChange={(checked) => setBudgetForm({ ...budgetForm, alert_enabled: checked })}
-              />
-            </div>
-
-            {/* 预警阈值 */}
+      {/* Edit Budget Drawer */}
+      <Sheet open={editBudgetOpen} onOpenChange={setEditBudgetOpen}>
+        <SheetContent side="right" className="flex w-full flex-col p-0 sm:max-w-md">
+          <SheetHeader className="border-b px-6 py-5">
+            <SheetTitle>设置预算</SheetTitle>
+          </SheetHeader>
+          <div className="flex-1 space-y-6 overflow-y-auto px-6 py-5">
             <div className="space-y-3">
-              <Label>预警阈值</Label>
-              <Slider
-                value={[budgetForm.alert_threshold]}
-                onValueChange={(value) => setBudgetForm({ ...budgetForm, alert_threshold: value[0] })}
-                min={50}
-                max={100}
-                step={5}
-                disabled={!budgetForm.alert_enabled}
-              />
-              <div className="flex justify-between text-xs text-gray-400">
-                <span>50%</span>
-                <span>75%</span>
-                <span>100%</span>
-              </div>
-              <p className="text-xs text-gray-400">
-                当月实际消耗达到预算阈值比例时，将通过短信通知管理员
-              </p>
+              <Label>预算类型</Label>
+              <RadioGroup
+                value={budgetForm.budget_type}
+                onValueChange={(value) => setBudgetForm({ ...budgetForm, budget_type: value as DepartmentBudgetType })}
+                className="grid grid-cols-3 gap-3"
+              >
+                {(["unlimited", "one_time", "monthly"] as DepartmentBudgetType[]).map((type) => (
+                  <Label key={type} htmlFor={`department-budget-${type}`} className={`flex cursor-pointer items-center gap-2 rounded-md border px-3 py-2.5 font-normal transition-colors ${budgetForm.budget_type === type ? "border-blue-500 bg-blue-50 text-blue-600" : "border-gray-200"}`}>
+                    <RadioGroupItem value={type} id={`department-budget-${type}`} />
+                    {budgetTypeLabel[type]}
+                  </Label>
+                ))}
+              </RadioGroup>
             </div>
+
+            {budgetForm.budget_type === "unlimited" && (
+              <p className="rounded-md bg-gray-50 px-3 py-2.5 text-sm text-gray-500">该部门当前不做预算额度限制</p>
+            )}
+
+            {budgetForm.budget_type === "one_time" && (
+              <div className="space-y-2">
+                <Label>一次性预算额度（元）</Label>
+                <Input type="number" value={budgetForm.one_time_budget} onChange={(e) => setBudgetForm({ ...budgetForm, one_time_budget: Number(e.target.value) })} min={0} step={0.01} />
+                <p className="text-xs text-gray-400">额度不会按月重置</p>
+              </div>
+            )}
+
+            {budgetForm.budget_type === "monthly" && (
+              <div className="space-y-6">
+                <div className="space-y-2">
+                  <Label>默认月预算（元/月）</Label>
+                  <Input type="number" value={budgetForm.default_monthly_budget} onChange={(e) => setBudgetForm({ ...budgetForm, default_monthly_budget: Number(e.target.value) })} min={0} step={0.01} />
+                  <p className="text-xs text-gray-400">每月1日根据默认月预算自动重置</p>
+                </div>
+                <div className="space-y-2">
+                  <Label>当前月预算覆盖（元/月）</Label>
+                  <Input type="number" value={budgetForm.budget_override} onChange={(e) => setBudgetForm({ ...budgetForm, budget_override: Number(e.target.value) })} min={0} step={0.01} />
+                  <p className="text-xs text-gray-400">仅本月生效，优先级高于默认月预算</p>
+                </div>
+              </div>
+            )}
+
+            {budgetForm.budget_type !== "unlimited" && (
+              <div className="space-y-6">
+                <div className="border-t border-gray-100" />
+                <div className="flex items-center justify-between">
+                  <Label className="cursor-pointer">开启紧急预警通知</Label>
+                  <Switch
+                    checked={budgetForm.alert_enabled}
+                    onCheckedChange={(checked) => setBudgetForm({ ...budgetForm, alert_enabled: checked })}
+                  />
+                </div>
+                <div className="space-y-3">
+                  <Label>预警阈值</Label>
+                  <Slider
+                    value={[budgetForm.alert_threshold]}
+                    onValueChange={(value) => setBudgetForm({ ...budgetForm, alert_threshold: value[0] })}
+                    min={50}
+                    max={100}
+                    step={5}
+                    disabled={!budgetForm.alert_enabled}
+                  />
+                  <div className="flex justify-between text-xs text-gray-400">
+                    <span>50%</span>
+                    <span>75%</span>
+                    <span>100%</span>
+                  </div>
+                  <p className="text-xs text-gray-400">
+                    当月实际消耗达到预算阈值比例时，将通过短信通知管理员
+                  </p>
+                </div>
+              </div>
+            )}
           </div>
-          <DialogFooter>
+          <SheetFooter className="border-t px-6 py-4">
             <Button variant="outline" onClick={() => setEditBudgetOpen(false)}>
               取消
             </Button>
             <Button onClick={handleEditBudget}>保存</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
+          </SheetFooter>
+        </SheetContent>
+      </Sheet>
       {/* Delete Org Dialog */}
       <Dialog open={!!deleteOrgConfirm} onOpenChange={() => setDeleteOrgConfirm(null)}>
         <DialogContent className="sm:max-w-md">
@@ -2708,7 +2771,7 @@ export default function DeptManagement({ enterprise, role }: DeptManagementProps
       <Dialog open={budgetDialogOpen} onOpenChange={setBudgetDialogOpen}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>一键配置成员预算</DialogTitle>
+            <DialogTitle>一键配置部门预算</DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
             {/* 预算类型 */}
@@ -2730,12 +2793,12 @@ export default function DeptManagement({ enterprise, role }: DeptManagementProps
                   <input
                     type="radio"
                     name="budgetType"
-                    value="daily"
-                    checked={budgetType === "daily"}
-                    onChange={() => setBudgetType("daily")}
+                    value="one_time"
+                    checked={budgetType === "one_time"}
+                    onChange={() => setBudgetType("one_time")}
                     className="w-4 h-4 text-blue-600"
                   />
-                  <span className="text-sm text-gray-700">按天</span>
+                  <span className="text-sm text-gray-700">一次性</span>
                 </label>
                 <label className="flex items-center gap-1.5 cursor-pointer">
                   <input
@@ -2764,13 +2827,13 @@ export default function DeptManagement({ enterprise, role }: DeptManagementProps
                   disabled={budgetType === "unlimited"}
                   className={`pr-12 ${budgetType === "unlimited" ? "bg-gray-100 cursor-not-allowed" : ""}`}
                 />
-                <span className="absolute right-3 text-sm text-gray-500">{budgetType === "daily" ? "元/天" : budgetType === "monthly" ? "元/月" : ""}</span>
+                <span className="absolute right-3 text-sm text-gray-500">{budgetType === "one_time" ? "元" : budgetType === "monthly" ? "元/月" : ""}</span>
               </div>
             </div>
 
             {/* 说明文字 */}
             <p className="text-xs text-gray-400 leading-relaxed">
-              当前共 {members.length} 位成员，设置后将统一应用此预算规则。若成员已有预算配置，将被本次配置覆盖。
+              当前共 {isEnterpriseLevel ? rootOrgs.length : childOrgs.length || 1} 个部门，设置后将统一应用此预算规则。若部门已有预算配置，将被本次配置覆盖。
             </p>
           </div>
           <DialogFooter>

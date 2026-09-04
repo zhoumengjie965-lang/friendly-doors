@@ -43,6 +43,9 @@ export interface MockOrganization {
   // 预算设置相关字段
   default_monthly_budget?: number | null;
   budget_override?: number | null;
+  budget_type?: "unlimited" | "one_time" | "monthly";
+  one_time_budget?: number | null;
+  budget_used?: number | null;
   alert_enabled?: boolean;
   alert_threshold?: number;
   key_template_id?: string | null;
@@ -374,8 +377,10 @@ const initialData: MockData = {
       level: 2,
       path: "org_root.org_tech",
       status: "active",
-      monthly_budget: 20000,
+      monthly_budget: null,
       current_month_budget: 8000,
+      budget_type: "unlimited",
+      budget_used: 0,
       admin_phone: "13800138001",
       key_template_id: "tpl_tech",
       created_at: getNow(),
@@ -389,8 +394,11 @@ const initialData: MockData = {
       level: 2,
       path: "org_root.org_product",
       status: "active",
-      monthly_budget: 15000,
+      monthly_budget: null,
       current_month_budget: 3000,
+      budget_type: "one_time",
+      one_time_budget: 200000,
+      budget_used: 50000,
       admin_phone: "13800138002",
       key_template_id: "tpl_biz",
       created_at: getNow(),
@@ -404,8 +412,11 @@ const initialData: MockData = {
       level: 2,
       path: "org_root.org_market",
       status: "active",
-      monthly_budget: 10000,
+      monthly_budget: 50000,
       current_month_budget: 500,
+      budget_type: "monthly",
+      default_monthly_budget: 50000,
+      budget_used: 12000,
       admin_phone: "13800138003",
       key_template_id: "tpl_biz",
       created_at: getNow(),
@@ -1397,7 +1408,7 @@ export async function createOrganization(
 
 export async function updateOrganization(
   id: string,
-  updates: Partial<Pick<MockOrganization, "name" | "parent_id" | "status" | "monthly_budget" | "admin_phone" | "default_monthly_budget" | "budget_override" | "alert_enabled" | "alert_threshold">>
+  updates: Partial<Pick<MockOrganization, "name" | "parent_id" | "status" | "monthly_budget" | "admin_phone" | "default_monthly_budget" | "budget_override" | "budget_type" | "one_time_budget" | "budget_used" | "alert_enabled" | "alert_threshold">>
 ): Promise<MockOrganization> {
   await delay(200);
   const data = getMockData();
@@ -1420,6 +1431,13 @@ export async function updateOrganization(
   if (updates.status !== undefined) org.status = updates.status;
   if (updates.monthly_budget !== undefined) org.monthly_budget = updates.monthly_budget;
   if (updates.admin_phone !== undefined) org.admin_phone = updates.admin_phone;
+  if (updates.default_monthly_budget !== undefined) org.default_monthly_budget = updates.default_monthly_budget;
+  if (updates.budget_override !== undefined) org.budget_override = updates.budget_override;
+  if (updates.budget_type !== undefined) org.budget_type = updates.budget_type;
+  if (updates.one_time_budget !== undefined) org.one_time_budget = updates.one_time_budget;
+  if (updates.budget_used !== undefined) org.budget_used = updates.budget_used;
+  if (updates.alert_enabled !== undefined) org.alert_enabled = updates.alert_enabled;
+  if (updates.alert_threshold !== undefined) org.alert_threshold = updates.alert_threshold;
   
   org.updated_at = getNow();
   data.organizations[index] = org;

@@ -1,4 +1,4 @@
-﻿import { useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -21,9 +21,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Search, ExternalLink, ChevronDown, Plus, X, Pencil, Trash2, Power, Download, Check, GripVertical, RefreshCw, Copy, Eye, EyeOff } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { getAdminSession } from "@/lib/adminAuth";
-import { addDemoUser, getResellerDemoState, getResellerName, migrateEnterprise, rechargeCustomer, setCustomerDiscount, setEnterpriseAssignment } from "@/lib/resellerDemo";
+import { addDemoUser, getResellerDemoState, getResellerName, migrateEnterprise, rechargeCustomer, setCustomerDiscount, setEnterpriseAssignment, updateDemoEnterprise } from "@/lib/resellerDemo";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { generateRandomPassword } from "@/lib/credentialUtils";
+import { SubjectChannelConfig, createDefaultSubjectChannels } from "@/components/admin/SubjectChannelConfig";
 
 const MODEL_ACCESS_OPTIONS = [
   { value: "国内", label: "国内" },
@@ -149,6 +150,9 @@ const RESELLER_VISIBLE_GROUPS = new Set([
   "minimax-hailuo", "mimo", "doubao", "hy",
 ]);
 
+// 原型数据：模拟平台渠道已被禁用，但仍保留在客户原有自定义配置中。
+const DISABLED_CHANNELS = new Set(["Anthropic Official"]);
+
 // 返券配置使用的分组选项（兼容旧格式）
 const VOUCHER_GROUP_OPTIONS = [
   ...ALL_BASE_GROUPS.map((g) => ({ value: g.name, name: g.name, remark: g.desc, models: [g.desc], discountChannels: `${g.desc} (x1)`, rebateEnabled: false })),
@@ -156,6 +160,27 @@ const VOUCHER_GROUP_OPTIONS = [
 
 // 自定义分组条目类型
 interface CustomGroupEntry { available: boolean; rate: number; routingMode?: "default" | "specified"; selectedChannels?: string[]; channelConfigs?: Record<string, { priority: number; weight: number }>; }
+interface EnterpriseChannelConfig { enabled: boolean; mode: "global" | "custom"; priority: number; weight: number; }
+interface EnterpriseChannelOption { id: number; name: string; groups: string[]; models: string[]; type: string; status: "enabled" | "disabled" | "testing"; priority: number; weight: number; }
+
+// 与全局渠道管理页保持同一份演示口径。
+const ENTERPRISE_CHANNEL_OPTIONS: EnterpriseChannelOption[] = [
+  { id: 58, name: "Anthropic Official", models: ["claude-3-5-sonnet", "claude-3-opus", "claude-3-haiku"], groups: ["claude-basic", "claude-fast"], type: "Anthropic Claude", status: "enabled", priority: 110, weight: 20 },
+  { id: 40, name: "oracle-xai", models: ["claude-3-5-sonnet", "gemini-1.5-pro", "gpt-4o"], groups: ["basic", "claude-fast", "gemini-fast", "gpt4-fast", "openai-fast", "vip-dp"], type: "Anthropic Claude", status: "testing", priority: 0, weight: 0 },
+  { id: 45, name: "polo-nano", models: ["gemini-1.5-flash", "gemini-1.5-pro"], groups: ["default", "basic", "gemini-slow"], type: "Google Gemini", status: "enabled", priority: 0, weight: 0 },
+  { id: 53, name: "aliyun-glm", models: ["glm-4-plus", "glm-4-air"], groups: ["default"], type: "智谱 GLM-4V", status: "enabled", priority: 0, weight: 0 },
+  { id: 54, name: "aliyun-deepseek", models: ["deepseek-chat", "deepseek-reasoner"], groups: ["default"], type: "DeepSeek", status: "enabled", priority: 0, weight: 0 },
+  { id: 52, name: "aliyun-qwen", models: ["qwen-max", "qwen-plus", "qwen-turbo"], groups: ["default"], type: "阿里通义千问", status: "enabled", priority: 0, weight: 0 },
+  { id: 31, name: "测试Suno", models: ["suno-v3.5"], groups: ["default", "suno"], type: "Suno", status: "enabled", priority: 0, weight: 0 },
+  { id: 28, name: "kingai", models: ["gpt-4o", "gpt-4o-mini"], groups: ["default"], type: "OpenAI", status: "enabled", priority: 0, weight: 0 },
+  { id: 32, name: "mock-error", models: ["gpt-4o", "claude-3-5-sonnet"], groups: ["default", "claude-basic", "claude-fast", "openai-basic", "openai-fast"], type: "OpenAI", status: "enabled", priority: 0, weight: 0 },
+  { id: 33, name: "polo-gpt4", models: ["gpt-4-turbo", "gpt-4o"], groups: ["default"], type: "OpenAI", status: "disabled", priority: 0, weight: 0 },
+  { id: 27, name: "siliconflow", models: ["deepseek-v3", "qwen2.5-72b"], groups: ["default"], type: "SiliconCloud", status: "enabled", priority: 0, weight: 0 },
+];
+const ENTERPRISE_CHANNEL_GROUPS = [...new Set(ENTERPRISE_CHANNEL_OPTIONS.flatMap((channel) => channel.groups))].sort((a, b) => a.localeCompare(b, "en"));
+const createDefaultEnterpriseChannels = (): Record<string, EnterpriseChannelConfig> => Object.fromEntries(
+  ENTERPRISE_CHANNEL_OPTIONS.map((channel) => [channel.name, { enabled: true, mode: "global", priority: channel.priority, weight: channel.weight }])
+);
 
 // 历史分组选项（对应 GroupRateSettings 中 category=historical 的分组）
 const HISTORICAL_GROUP_OPTIONS = [
@@ -379,29 +404,6 @@ function GroupConfigSelector({
     }));
   };
 
-  const updateRoutingInDialog = (name: string, mode: "default" | "specified") => {
-    const group = ALL_BASE_GROUPS.find((item) => item.name === name);
-    setEditingCustomGroups((prev) => ({
-      ...prev,
-      [name]: {
-        ...prev[name],
-        routingMode: mode,
-        selectedChannels: prev[name]?.selectedChannels?.length ? prev[name].selectedChannels : [...(group?.channels ?? [])],
-      },
-    }));
-  };
-
-  const toggleChannelInDialog = (name: string, channel: string, checked: boolean) => {
-    setEditingCustomGroups((prev) => {
-      const selected = prev[name]?.selectedChannels ?? [];
-      const configs = prev[name]?.channelConfigs ?? {};
-      return { ...prev, [name]: { ...prev[name], selectedChannels: checked ? [...selected, channel] : selected.filter((item) => item !== channel), channelConfigs: checked && !configs[channel] ? { ...configs, [channel]: { priority: 100, weight: 10 } } : configs } };
-    });
-  };
-
-  const updateChannelConfigInDialog = (name: string, channel: string, field: "priority" | "weight", value: number) => {
-    setEditingCustomGroups((prev) => ({ ...prev, [name]: { ...prev[name], channelConfigs: { ...(prev[name]?.channelConfigs ?? {}), [channel]: { priority: prev[name]?.channelConfigs?.[channel]?.priority ?? 100, weight: prev[name]?.channelConfigs?.[channel]?.weight ?? 10, [field]: value } } } }));
-  };
 
   // ── 渲染：模板模式的分组列表（按名称排序） ──
   const templateGroupItems = activeTemplate
@@ -597,7 +599,7 @@ function GroupConfigSelector({
           </DialogHeader>
 
           {!resellerOnly && <p className="mb-3 text-xs text-muted-foreground">
-            全局配置会持续跟随平台渠道范围、优先级和权重；自定义渠道仅设置客户可选择的渠道范围。
+            配置客户可用的基础令牌分组及对应倍率。
           </p>}
 
           {!resellerOnly && showTemplateCopy && (
@@ -655,7 +657,6 @@ function GroupConfigSelector({
                     <span className="whitespace-nowrap">是否可用</span>
                   </th>
                   <th className="px-3 py-1.5 text-right font-medium text-muted-foreground w-[90px]">{resellerOnly ? "客户折扣" : "当前倍率"}</th>
-                  {!resellerOnly && <th className="px-3 py-1.5 text-left font-medium text-muted-foreground w-[170px]">渠道策略</th>}
                   {!resellerOnly && <th className="px-3 py-1.5 text-center font-medium text-muted-foreground w-[90px]">模板配置</th>}
                   {!resellerOnly && <th className="px-3 py-1.5 text-left font-medium text-muted-foreground">描述/模型系列</th>}
                 </tr>
@@ -707,52 +708,6 @@ function GroupConfigSelector({
                           className={`h-7 text-sm w-full text-right ${!entry.available ? "opacity-40 cursor-not-allowed bg-muted" : ""}`}
                         />
                       </td>
-                      {!resellerOnly && <td className="px-3 py-1.5">
-                        <Popover>
-                          <PopoverTrigger asChild>
-                            <Button type="button" variant="outline" size="sm" disabled={!entry.available} className="h-7 w-full justify-between px-2 font-normal">
-                              <span className="truncate">{entry.routingMode === "specified" ? "自定义渠道" : "全局配置"}</span>
-                              <ChevronDown className="h-3.5 w-3.5 shrink-0" />
-                            </Button>
-                          </PopoverTrigger>
-                          <PopoverContent align="start" className="w-96 p-3">
-                            <div className="grid grid-cols-2 gap-2">
-                              <button type="button" onClick={() => updateRoutingInDialog(bg.name, "default")} className={`rounded-lg border p-2 text-left ${entry.routingMode !== "specified" ? "border-primary bg-primary/5" : "hover:bg-muted/50"}`}>
-                                <span className="block text-sm font-medium">全局配置</span>
-                              </button>
-                              <button type="button" onClick={() => updateRoutingInDialog(bg.name, "specified")} className={`rounded-lg border p-2 text-left ${entry.routingMode === "specified" ? "border-primary bg-primary/5" : "hover:bg-muted/50"}`}>
-                                <span className="block text-sm font-medium">自定义渠道</span>
-                              </button>
-                            </div>
-                            {entry.routingMode === "specified" && (() => {
-                              const selected = entry.selectedChannels ?? [];
-                              const orderedChannels = [
-                                ...selected.filter((channel) => bg.channels.includes(channel)),
-                                ...bg.channels.filter((channel) => !selected.includes(channel)),
-                              ];
-                              return <div className="mt-3 border-t pt-3">
-                                <div>
-                                  <div className="mb-2 grid grid-cols-[1fr_72px_72px] gap-2 px-2 text-xs font-medium text-muted-foreground">
-                                    <span>渠道</span><span>优先级</span><span>权重</span>
-                                  </div>
-                                  <div className="overflow-hidden rounded-md border">
-                                    {orderedChannels.map((channel) => {
-                                      const checked = selected.includes(channel);
-                                      const config = entry.channelConfigs?.[channel] ?? { priority: 100, weight: 10 };
-                                      return <div key={channel}
-                                        className={`grid grid-cols-[1fr_72px_72px] items-center gap-2 border-b px-2 py-2 text-sm last:border-b-0 ${checked ? "bg-primary/5" : "bg-background text-muted-foreground"}`}>
-                                        <label className="flex min-w-0 items-center gap-2"><Checkbox checked={checked} onCheckedChange={(value) => toggleChannelInDialog(bg.name, channel, value === true)} /><span className="truncate">{channel}</span></label>
-                                        <input type="number" min={0} disabled={!checked} value={config.priority} onChange={(e) => updateChannelConfigInDialog(bg.name, channel, "priority", Number(e.target.value))} className="h-7 rounded-md border bg-background px-2 text-center disabled:opacity-40" />
-                                        <input type="number" min={0} disabled={!checked} value={config.weight} onChange={(e) => updateChannelConfigInDialog(bg.name, channel, "weight", Number(e.target.value))} className="h-7 rounded-md border bg-background px-2 text-center disabled:opacity-40" />
-                                      </div>;
-                                    })}
-                                  </div>
-                                </div>
-                              </div>;
-                            })()}
-                          </PopoverContent>
-                        </Popover>
-                      </td>}
                       {!resellerOnly && <td className="px-3 py-1.5 text-center text-xs text-muted-foreground">
                         {!hasImportedTemplate ? "—" : baseline.available ? `×${baseline.rate}` : "未启用"}
                       </td>}
@@ -882,6 +837,7 @@ interface Enterprise {
   credit_balance: number;
   credit_limit: number;
   total_consumed: number;
+  actual_consumed?: number;
   org_count: number;
   member_count: number;
   api_key_count: number;
@@ -1247,6 +1203,7 @@ export default function AdminEnterprises({ resellerScopeId, adminScope = false }
     selectedTemplate: TEMPLATE_OPTIONS[0]?.value || "default",
     selectedHistoricalGroup: "",
     customGroups: {} as Record<string, CustomGroupEntry>,
+    channelConfigs: {},
     agentId: "",
   });
   const [showOwnerPassword, setShowOwnerPassword] = useState(false);
@@ -1270,6 +1227,7 @@ export default function AdminEnterprises({ resellerScopeId, adminScope = false }
     selectedHistoricalGroup: "",
     customGroups: {} as Record<string, CustomGroupEntry>,
     customConfigEnabled: false,
+    channelConfigs: {},
     modelAccess: ["国际"] as string[],
     remarkType: "正式用户",
     remarkName: "",
@@ -1277,6 +1235,40 @@ export default function AdminEnterprises({ resellerScopeId, adminScope = false }
   });
 
   // ...
+  // 企业级渠道配置，仅在编辑企业时生效。
+  const [enterpriseChannelDialogOpen, setEnterpriseChannelDialogOpen] = useState(false);
+  const [enterpriseChannelDraft, setEnterpriseChannelDraft] = useState<Record<string, EnterpriseChannelConfig>>(createDefaultEnterpriseChannels());
+  const [enterpriseChannelKeyword, setEnterpriseChannelKeyword] = useState("");
+  const [enterpriseChannelModelKeyword, setEnterpriseChannelModelKeyword] = useState("");
+  const [enterpriseChannelGroup, setEnterpriseChannelGroup] = useState("all");
+  const matchesEnterpriseChannelFilters = (channel: EnterpriseChannelOption) => {
+    const channelKeyword = enterpriseChannelKeyword.trim().toLowerCase();
+    const modelKeyword = enterpriseChannelModelKeyword.trim().toLowerCase();
+    return (!channelKeyword || channel.name.toLowerCase().includes(channelKeyword) || String(channel.id).includes(channelKeyword))
+      && (!modelKeyword || channel.models.some((model) => model.toLowerCase().includes(modelKeyword)))
+      && (enterpriseChannelGroup === "all" || channel.groups.includes(enterpriseChannelGroup));
+  };
+  const [enterpriseChannelStore, setEnterpriseChannelStore] = useState<Record<string, Record<string, EnterpriseChannelConfig>>>({});
+  const openEnterpriseChannelDialog = () => {
+    setEnterpriseChannelDraft(Object.fromEntries(Object.entries(editForm.channelConfigs).map(([channel, config]) => [channel, { ...config }])));
+    setEnterpriseChannelKeyword("");
+    setEnterpriseChannelModelKeyword("");
+    setEnterpriseChannelGroup("all");
+    setEnterpriseChannelDialogOpen(true);
+  };
+  const saveEnterpriseChannelDialog = () => {
+    const enabledChannels = Object.values(enterpriseChannelDraft).filter((config) => config.enabled);
+    if (!enabledChannels.length) {
+      toast({ title: "请至少启用一个渠道", variant: "destructive" });
+      return;
+    }
+    if (enabledChannels.some((config) => config.mode === "custom" && (!Number.isFinite(config.priority) || config.priority < 0 || !Number.isFinite(config.weight) || config.weight < 0))) {
+      toast({ title: "请填写有效的优先级和权重", description: "优先级和权重不能小于 0", variant: "destructive" });
+      return;
+    }
+    setEditForm((prev) => ({ ...prev, channelConfigs: enterpriseChannelDraft }));
+    setEnterpriseChannelDialogOpen(false);
+  };
   const [savingEnterprise, setSavingEnterprise] = useState(false);
   const [migrationTarget, setMigrationTarget] = useState<Enterprise | null>(null);
   const [migrationResellerId, setMigrationResellerId] = useState("direct");
@@ -1379,10 +1371,46 @@ export default function AdminEnterprises({ resellerScopeId, adminScope = false }
     if (useMockData) {
       setTimeout(() => {
         const demoAssignments = getResellerDemoState().enterprises;
-        setEnterprises(MOCK_ENTERPRISES.map((enterprise) => {
+        const hydratedEnterprises = MOCK_ENTERPRISES.map((enterprise) => {
           const assignment = demoAssignments.find((item) => item.enterpriseId === enterprise.id);
-          return { ...enterprise, balance: assignment?.balance ?? enterprise.balance };
-        }));
+          return {
+            ...enterprise,
+            name: assignment?.name ?? enterprise.name,
+            owner_phone: assignment?.ownerPhone ?? enterprise.owner_phone,
+            enterprise_code: assignment?.enterpriseCode ?? enterprise.enterprise_code,
+            created_at: assignment?.createdAt ?? enterprise.created_at,
+            status: assignment?.status ?? enterprise.status,
+            group: assignment?.groupTemplate ?? enterprise.group,
+            balance: assignment?.balance ?? enterprise.balance,
+            total_consumed: assignment?.consumedBudget ?? enterprise.total_consumed,
+            actual_consumed: assignment?.actualConsumed ?? enterprise.total_consumed * .84,
+          };
+        });
+        const addedEnterprises: Enterprise[] = demoAssignments
+          .filter((assignment) => assignment.name && !MOCK_ENTERPRISES.some((enterprise) => enterprise.id === assignment.enterpriseId))
+          .map((assignment) => ({
+            id: assignment.enterpriseId,
+            name: assignment.name || "未命名企业",
+            owner_phone: assignment.ownerPhone || "-",
+            enterprise_code: assignment.enterpriseCode || `ENT${assignment.enterpriseId.slice(-8)}`,
+            created_at: assignment.createdAt || new Date().toISOString(),
+            cert_status: "uncertified",
+            status: assignment.status || "enabled",
+            balance: assignment.balance || 0,
+            credit_balance: 0,
+            credit_limit: 0,
+            total_consumed: assignment.consumedBudget || 0,
+            actual_consumed: assignment.actualConsumed || 0,
+            org_count: 0,
+            member_count: 1,
+            api_key_count: 0,
+            admins: [{ phone: assignment.ownerPhone || "-", name: assignment.ownerPhone || "-", user_type: "formal" }],
+            enterprise_type: "formal",
+            group: assignment.groupTemplate || "default",
+            has_business_data: false,
+            reseller_code: assignment.resellerId,
+          }));
+        setEnterprises([...addedEnterprises, ...hydratedEnterprises]);
         setLoading(false);
       }, 500);
       return;
@@ -1494,12 +1522,14 @@ export default function AdminEnterprises({ resellerScopeId, adminScope = false }
       if (rechargeType === "balance") {
         const inputVal = parseFloat(rechargeAmount);
         if (isNaN(inputVal) || inputVal === 0 || (resellerScopeId && inputVal <= 0)) {
-          toast({ title: "请输入有效金额", variant: "destructive" });
+          toast({ title: resellerScopeId ? "请输入有效点数" : "请输入有效金额", variant: "destructive" });
           setRechargeLoading(false);
           return;
         }
         const delta = inputVal;
-        const systemRemark = `${resellerScopeId ? "充值金额" : delta >= 0 ? "充值金额" : "扣减金额"} ¥${Math.abs(delta).toFixed(2)}，余额由 ¥${currentBalance.toFixed(2)} 调整至 ¥${(currentBalance + delta).toFixed(2)}`;
+        const systemRemark = resellerScopeId
+          ? `发放 ${Math.abs(delta).toFixed(2)} 点，点数余额由 ${currentBalance.toFixed(2)} 点调整至 ${(currentBalance + delta).toFixed(2)} 点`
+          : `${delta >= 0 ? "充值金额" : "扣减金额"} ¥${Math.abs(delta).toFixed(2)}，余额由 ¥${currentBalance.toFixed(2)} 调整至 ¥${(currentBalance + delta).toFixed(2)}`;
         if (resellerScopeId) {
           rechargeCustomer({ resellerId: resellerScopeId, amount: inputVal, targetType: "enterprise", targetId: rechargeTarget.id, targetName: rechargeTarget.name, remark: systemRemark });
         }
@@ -1518,7 +1548,7 @@ export default function AdminEnterprises({ resellerScopeId, adminScope = false }
           });
           if (error) throw error;
         }
-        toast({ title: resellerScopeId ? `已向「${rechargeTarget.name}」划拨 ¥${delta.toFixed(2)}` : `已为「${rechargeTarget.name}」充值余额 ¥${delta.toFixed(2)}` });
+        toast({ title: resellerScopeId ? `已向「${rechargeTarget.name}」发放 ${delta.toFixed(2)} 点` : `已为「${rechargeTarget.name}」充值 ¥${delta.toFixed(2)}`, description: resellerScopeId ? "企业点数余额已增加，不占用代理商资金。" : undefined });
       } else {
         const newLimitVal = parseFloat(limitDraft);
         const newBalanceVal = parseFloat(creditBalanceDraft);
@@ -1672,6 +1702,9 @@ export default function AdminEnterprises({ resellerScopeId, adminScope = false }
       toast({ title: addForm.ownerMode === "new" ? "请输入企业拥有者用户名" : "请输入企业管理员手机号/用户ID", variant: "destructive" });
       return;
     }
+    if (addForm.groupMode === "template" && !addForm.selectedTemplate.trim()) { toast({ title: "请选择分组模板", variant: "destructive" }); return; }
+    if (addForm.groupMode === "custom" && Object.keys(addForm.customGroups).length === 0) { toast({ title: "请至少配置一个令牌分组", variant: "destructive" }); return; }
+    if (addForm.groupMode === "all" && !addForm.selectedHistoricalGroup.trim()) { toast({ title: "请选择历史分组", variant: "destructive" }); return; }
     if (addForm.ownerMode === "new" && !addForm.ownerPassword.trim()) {
       toast({ title: "请填写或随机生成初始密码", variant: "destructive" });
       return;
@@ -1735,14 +1768,26 @@ export default function AdminEnterprises({ resellerScopeId, adminScope = false }
         reseller_code: ownerResellerId,
       };
       setEnterpriseAssignment(enterpriseId, ownerResellerId);
+      updateDemoEnterprise(enterpriseId, {
+        resellerId: ownerResellerId,
+        name: newEnterprise.name,
+        ownerPhone: newEnterprise.owner_phone,
+        enterpriseCode: newEnterprise.enterprise_code,
+        createdAt: newEnterprise.created_at,
+        status: newEnterprise.status,
+        groupMode: addForm.groupMode,
+        groupTemplate: addForm.selectedTemplate,
+        groupDiscounts: Object.fromEntries(Object.entries(addForm.customGroups).map(([group, config]) => [group, config.rate])),
+      });
       setEnterprises((items) => [newEnterprise, ...items]);
+      if (Object.keys(addForm.channelConfigs).length) setEnterpriseChannelStore((current) => ({ ...current, [enterpriseId]: addForm.channelConfigs }));
 
       toast({ title: "企业创建成功", description: `企业「${addForm.enterpriseName}」已添加` });
       if (addForm.ownerMode === "new") {
         setCreatedCredentials({ enterprise: addForm.enterpriseName.trim(), username: ownerPhone, password: addForm.ownerPassword });
       }
       setAddDialogOpen(false);
-      setAddForm({ enterpriseName: "", adminPhone: "", ownerMode: "existing", ownerUsername: "", ownerName: "", ownerPassword: "", modelAccess: ["国际"], remarkType: "正式用户", remarkName: "", voucherEnabled: false, groupMode: "template" as const, selectedTemplate: TEMPLATE_OPTIONS[0]?.value || "default", selectedHistoricalGroup: "", customGroups: {}, agentId: "" });
+      setAddForm({ enterpriseName: "", adminPhone: "", ownerMode: "existing", ownerUsername: "", ownerName: "", ownerPassword: "", modelAccess: ["国际"], remarkType: "正式用户", remarkName: "", voucherEnabled: false, groupMode: "template" as const, selectedTemplate: TEMPLATE_OPTIONS[0]?.value || "default", selectedHistoricalGroup: "", customGroups: {}, channelConfigs: {}, agentId: "" });
     } catch (err: unknown) {
       toast({ title: "创建失败", description: err instanceof Error ? err.message : "未知错误", variant: "destructive" });
     } finally {
@@ -1759,7 +1804,7 @@ export default function AdminEnterprises({ resellerScopeId, adminScope = false }
   const COLS = resellerScopeId
     ? adminScope
       ? "grid-cols-[110px_1.6fr_190px_1.4fr_80px_110px_110px_100px_100px_110px_240px]"
-      : "grid-cols-[2fr_1.5fr_90px_1fr_1fr_110px_150px]"
+      : "grid-cols-[1.7fr_1.3fr_90px_120px_120px_130px_210px]"
     : "grid-cols-[2fr_1.5fr_80px_1fr_1.2fr_1fr_80px_100px_88px]";
 
   return (
@@ -1901,8 +1946,20 @@ export default function AdminEnterprises({ resellerScopeId, adminScope = false }
             className="h-9 gap-1.5 bg-white"
             onClick={() => {
               if (filtered.length === 0) { toast({ title: "暂无数据可导出", variant: "destructive" }); return; }
-              const headers = ["企业名称","企业管理员","状态","认证状态","余额(元)","历史消耗(元)","部门数","成员数","API Key 数","注册时间"];
-              const rows = filtered.map(e => [
+              const headers = resellerScopeId
+                ? ["企业名称", "企业拥有者", "状态", "剩余点数", "历史消耗点数", "部门数", "成员数", "API Key 数", "注册时间"]
+                : ["企业名称","企业管理员","状态","认证状态","余额(元)","历史消耗(元)","部门数","成员数","API Key 数","注册时间"];
+              const rows = filtered.map(e => resellerScopeId ? [
+                e.name,
+                e.admins.map(a => a.name || a.phone).join(";"),
+                e.status === "enabled" ? "已启用" : "已禁用",
+                e.balance.toFixed(2),
+                e.total_consumed.toFixed(2),
+                String(e.org_count),
+                String(e.member_count),
+                String(e.api_key_count),
+                formatDateTime(e.created_at),
+              ] : [
                 e.name,
                 e.admins.map(a => a.name || a.phone).join(";"),
                 e.status === "enabled" ? "已启用" : "已禁用",
@@ -1964,8 +2021,8 @@ export default function AdminEnterprises({ resellerScopeId, adminScope = false }
           </DropdownMenu>}
           {resellerScopeId ? (
             <>
-              <span>充值余额</span>
-              <span>历史消耗</span>
+              <span>剩余点数</span>
+              <span>历史消耗点数</span>
             </>
           ) : (
             <span>余额 / 历史消耗</span>
@@ -2028,8 +2085,8 @@ export default function AdminEnterprises({ resellerScopeId, adminScope = false }
                 {/* 余额 / 总消耗 */}
                 {resellerScopeId ? (
                   <>
-                    <div className="text-xs font-medium text-foreground tabular-nums">¥{e.balance.toFixed(2)}</div>
-                    <div className="text-xs text-muted-foreground tabular-nums">¥{e.total_consumed.toFixed(2)}</div>
+                    <div className="text-xs font-medium text-foreground tabular-nums">{e.balance.toFixed(2)}</div>
+                    <div className="text-xs text-muted-foreground tabular-nums">{e.total_consumed.toFixed(2)}</div>
                   </>
                 ) : (
                   <div className="text-xs leading-5">
@@ -2065,7 +2122,7 @@ export default function AdminEnterprises({ resellerScopeId, adminScope = false }
                     className={`${adminScope ? "order-3" : ""} h-7 px-2 text-xs text-blue-600 hover:text-blue-700 hover:bg-blue-50`}
                     onClick={() => openRechargeDialog(e)}
                   >
-                    充值
+                    发放点数
                   </Button>
                   {(!resellerScopeId || adminScope) && (
                     <Button
@@ -2085,20 +2142,43 @@ export default function AdminEnterprises({ resellerScopeId, adminScope = false }
                     title="编辑企业"
                     onClick={() => {
                       setEditTarget(e);
+                      const savedAssignment = getResellerDemoState().enterprises.find((item) => item.enterpriseId === e.id);
                       // 解析备注格式 "类型_输入信息"
                       const mockRemark = "正式用户_测试备注"; // 实际应从企业数据中获取
                       const parts = mockRemark.split("_");
                       const type = parts[0] && REMARK_TYPE_OPTIONS.includes(parts[0]) ? parts[0] : "正式用户";
                       const name = parts.slice(1).join("_") || "";
+                      const showDisabledChannelMock = !resellerScopeId &&
+                        (e.id === "mock-001" || e.enterprise_code === "TX2024001" || e.name === "腾讯科技");
+                      const savedChannelConfig = enterpriseChannelStore[e.id];
                       setEditForm((prev) => ({
                         ...prev,
                         name: e.name,
                         ownerPhone: e.owner_phone,
                         voucherEnabled: false,
-                        groupMode: "template" as const,
-                        selectedTemplate: e.group && TEMPLATE_OPTIONS.some(t => t.value === e.group) ? (e.group as string) : "default",
-                        customGroups: {},
+                        groupMode: savedAssignment?.groupMode || (showDisabledChannelMock ? "custom" as const : "template" as const),
+                        selectedTemplate: savedAssignment?.groupTemplate || (e.group && TEMPLATE_OPTIONS.some(t => t.value === e.group) ? (e.group as string) : "default"),
+                        customGroups: savedAssignment?.groupMode === "custom" && savedAssignment.groupDiscounts
+                          ? Object.fromEntries(Object.entries(savedAssignment.groupDiscounts).map(([group, rate]) => [group, { available: true, rate, routingMode: "default" as const, selectedChannels: [] }]))
+                          : showDisabledChannelMock ? {
+                          "claude-fast": {
+                            available: true,
+                            rate: 1,
+                            routingMode: "specified",
+                            selectedChannels: ["Anthropic Official", "AWS Bedrock"],
+                            channelConfigs: {
+                              "Anthropic Official": { priority: 110, weight: 20 },
+                              "AWS Bedrock": { priority: 100, weight: 10 },
+                            },
+                          },
+                          "default": { available: true, rate: 1 },
+                          "gemini-fast": { available: true, rate: 0.9 },
+                          "openai-fast": { available: true, rate: 0.95 },
+                          "deepseek": { available: true, rate: 0.88 },
+                          "glm": { available: true, rate: 0.92 },
+                        } : {},
                         customConfigEnabled: false,
+                        channelConfigs: savedChannelConfig || {},
                         modelAccess: ["国际"],
                         remarkType: resellerScopeId ? "正式用户" : type,
                         remarkName: name,
@@ -2154,7 +2234,7 @@ export default function AdminEnterprises({ resellerScopeId, adminScope = false }
       <Dialog open={!!rechargeTarget} onOpenChange={(open) => { if (!open) setRechargeTarget(null); }}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>{resellerScopeId ? "客户充值" : "手动充值"}</DialogTitle>
+            <DialogTitle>{resellerScopeId ? "发放企业点数" : "手动充值"}</DialogTitle>
           </DialogHeader>
           {rechargeTarget && (() => {
             const currentBalance = rechargeType === "balance" ? rechargeTarget.balance : rechargeTarget.credit_balance;
@@ -2176,8 +2256,9 @@ export default function AdminEnterprises({ resellerScopeId, adminScope = false }
             let previewRemark: string | null = null;
             if (rechargeType === "balance") {
               submitDisabled = submitDisabled || rechargeAmount === "" || isNaN(amountNum) || amountNum === 0;
-              const actionLabel = resellerScopeId ? "充值金额" : delta >= 0 ? "充值金额" : "扣减金额";
-              previewRemark = `${actionLabel} ¥${Math.abs(delta).toFixed(2)}，余额由 ¥${currentBalance.toFixed(2)} 调整至 ¥${newBalance.toFixed(2)}`;
+              previewRemark = resellerScopeId
+                ? `发放 ${Math.abs(delta).toFixed(2)} 点，点数余额由 ${currentBalance.toFixed(2)} 点调整至 ${newBalance.toFixed(2)} 点`
+                : `${delta >= 0 ? "充值金额" : "扣减金额"} ¥${Math.abs(delta).toFixed(2)}，余额由 ¥${currentBalance.toFixed(2)} 调整至 ¥${newBalance.toFixed(2)}`;
             } else {
               if (isFirstTime) {
                 submitDisabled = submitDisabled || limitDraft === "" || isNaN(newLimitDraft) || newLimitDraft < 0;
@@ -2205,8 +2286,8 @@ export default function AdminEnterprises({ resellerScopeId, adminScope = false }
                   </p>
                   {rechargeType === "balance" ? (
                     <p className="text-muted-foreground">
-                      当前余额：
-                      <span className="text-foreground font-medium tabular-nums">¥{currentBalance.toFixed(2)}</span>
+                      {resellerScopeId ? "当前点数：" : "当前余额："}
+                      <span className="text-foreground font-medium tabular-nums">{resellerScopeId ? currentBalance.toFixed(2) : `¥${currentBalance.toFixed(2)}`}</span>
                     </p>
                   ) : (
                     <p className="text-muted-foreground">
@@ -2216,7 +2297,7 @@ export default function AdminEnterprises({ resellerScopeId, adminScope = false }
                   )}
                 </div>
                 <div className="space-y-4">
-                  {resellerScopeId && (() => { const current = getResellerDemoState().resellers.find((item) => item.id === resellerScopeId); return <div className="rounded-md border border-blue-200 bg-blue-50 px-3 py-2 text-sm text-blue-700">本次充值将从代理商可用额度扣除。当前可用总额度：<span className="font-semibold tabular-nums">¥{((current?.balance || 0) + (current?.creditBalance || 0)).toFixed(2)}</span></div>; })()}
+                  {resellerScopeId && <div className="rounded-md border border-blue-200 bg-blue-50 px-3 py-2 text-sm text-blue-700">本次发放仅增加企业可用点数，不涉及账户资金扣减。</div>}
                   {!resellerScopeId && <div className="space-y-2">
                     <Label>充值类型</Label>
                     <div className="flex gap-3">
@@ -2265,35 +2346,35 @@ export default function AdminEnterprises({ resellerScopeId, adminScope = false }
                   </div>}
                   {rechargeType === "balance" ? (
                     <div className="space-y-1.5">
-                      <Label>充值金额 <span className="text-red-500">*</span></Label>
+                      <Label>{resellerScopeId ? "发放点数" : "充值金额"} <span className="text-red-500">*</span></Label>
                       <div className="relative">
-                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">¥</span>
+                        {!resellerScopeId && <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">¥</span>}
                         <Input
                           type="number"
                           step="0.01"
-                          placeholder={resellerScopeId ? "请输入充值金额" : "请输入充值金额（支持负数）"}
+                          placeholder={resellerScopeId ? "请输入发放点数" : "请输入充值金额（支持负数）"}
                           value={rechargeAmount}
                           onChange={(e) => setRechargeAmount(e.target.value)}
-                          className="pl-7"
+                          className={resellerScopeId ? undefined : "pl-7"}
                         />
                       </div>
                       <p className="text-sm text-muted-foreground tabular-nums">
-                        新余额：
-                        <span className="text-foreground">¥{currentBalance.toFixed(2)}</span>
+                        {resellerScopeId ? "新点数余额：" : "新余额："}
+                        <span className="text-foreground">{resellerScopeId ? currentBalance.toFixed(2) : `¥${currentBalance.toFixed(2)}`}</span>
                         {delta !== 0 && (
                           <>
                             <span className="mx-1">{delta >= 0 ? "+" : "-"}</span>
-                            <span className="text-foreground">¥{Math.abs(delta).toFixed(2)}</span>
+                            <span className="text-foreground">{resellerScopeId ? Math.abs(delta).toFixed(2) : `¥${Math.abs(delta).toFixed(2)}`}</span>
                             <span className="mx-1">=</span>
-                            <span className={`font-semibold ${newBalance < 0 ? "text-red-600" : "text-foreground"}`}>¥{newBalance.toFixed(2)}</span>
+                            <span className={`font-semibold ${newBalance < 0 ? "text-red-600" : "text-foreground"}`}>{resellerScopeId ? newBalance.toFixed(2) : `¥${newBalance.toFixed(2)}`}</span>
                           </>
                         )}
                         {delta === 0 && rechargeAmount !== "" && (
                           <>
                             <span className="mx-1">+</span>
-                            <span className="text-foreground">¥0.00</span>
+                            <span className="text-foreground">{resellerScopeId ? "0.00" : "¥0.00"}</span>
                             <span className="mx-1">=</span>
-                            <span className="text-foreground font-semibold">¥{newBalance.toFixed(2)}</span>
+                            <span className="text-foreground font-semibold">{resellerScopeId ? newBalance.toFixed(2) : `¥${newBalance.toFixed(2)}`}</span>
                           </>
                         )}
                       </p>
@@ -2435,7 +2516,7 @@ export default function AdminEnterprises({ resellerScopeId, adminScope = false }
                 <DialogFooter>
                   <Button variant="outline" onClick={() => setRechargeTarget(null)} disabled={rechargeLoading}>取消</Button>
                   <Button onClick={handleRecharge} disabled={submitDisabled}>
-                    {rechargeLoading ? "处理中…" : resellerScopeId ? "确认充值" : "确认保存"}
+                    {rechargeLoading ? "处理中…" : resellerScopeId ? "确认发放" : "确认保存"}
                   </Button>
                 </DialogFooter>
               </>
@@ -2513,19 +2594,6 @@ export default function AdminEnterprises({ resellerScopeId, adminScope = false }
                 </div>
                 <p className="text-xs text-blue-700/80">账号备注类型将与企业保持一致（{addForm.remarkType}），个人备注信息留空。</p>
               </div>}
-
-              {/* 模型访问权限由平台在代理商层统一配置 */}
-              {!resellerScopeId && <div className="space-y-1.5">
-                <Label className="text-sm">
-                  模型访问权限 <span className="text-red-500">*</span>
-                </Label>
-                <ModelAccessSelect
-                  value={addForm.modelAccess}
-                  onChange={(access) => setAddForm((prev) => ({ ...prev, modelAccess: access }))}
-                />
-                <p className="text-xs text-muted-foreground">此处配置仅作用于企业。快捷创建的拥有者个人账号默认使用“国内”标签，个人分组默认使用“测试折扣”模板。</p>
-              </div>}
-
               {/* 备注 */}
               <div className="space-y-1.5">
                 <Label className="text-sm">备注</Label>
@@ -2557,6 +2625,27 @@ export default function AdminEnterprises({ resellerScopeId, adminScope = false }
                 <p className="text-xs text-gray-400">备注格式：类型_输入信息</p>
               </div>
 
+
+            <div className="-mx-6 border-t" />
+
+            {/* 模型访问权限由平台在代理商层统一配置 */}
+              {!resellerScopeId && <div className="space-y-1.5">
+                <Label className="text-sm">
+                  模型访问权限 <span className="text-red-500">*</span>
+                </Label>
+                <ModelAccessSelect
+                  value={addForm.modelAccess}
+                  onChange={(access) => setAddForm((prev) => ({ ...prev, modelAccess: access }))}
+                />
+                <p className="text-xs text-muted-foreground">此处配置仅作用于企业。快捷创建的拥有者个人账号默认使用“国内”标签，个人分组默认使用“测试折扣”模板。</p>
+              </div>}
+
+
+              <div className="space-y-1.5">
+                <Label className="text-sm">分组 <span className="text-red-500">*</span></Label>
+                <GroupConfigSelector groupMode={addForm.groupMode} setGroupMode={(mode) => setAddForm((prev) => ({ ...prev, groupMode: mode }))} selectedTemplate={addForm.selectedTemplate} setSelectedTemplate={(value) => setAddForm((prev) => ({ ...prev, selectedTemplate: value }))} selectedHistoricalGroup={addForm.selectedHistoricalGroup} setSelectedHistoricalGroup={(value) => setAddForm((prev) => ({ ...prev, selectedHistoricalGroup: value }))} customGroups={addForm.customGroups} setCustomGroups={(customGroups) => setAddForm((prev) => ({ ...prev, customGroups }))} resellerOnly={!!resellerScopeId} />
+              </div>
+              {!resellerScopeId && <SubjectChannelConfig subjectLabel="企业" activeGroups={addForm.groupMode === "custom" ? Object.entries(addForm.customGroups).filter(([, config]) => config.available).map(([group]) => group) : addForm.groupMode === "template" ? (TEMPLATE_OPTIONS.find((item) => item.value === addForm.selectedTemplate)?.availableGroups || []).map((group) => group.name) : undefined} value={addForm.channelConfigs} onChange={(channelConfigs) => setAddForm((prev) => ({ ...prev, channelConfigs }))} />}
             </div>
           </div>
 
@@ -2567,7 +2656,7 @@ export default function AdminEnterprises({ resellerScopeId, adminScope = false }
               className="h-9 px-4"
               onClick={() => {
                 setAddDialogOpen(false);
-                setAddForm({ enterpriseName: "", adminPhone: "", ownerMode: "existing", ownerUsername: "", ownerName: "", ownerPassword: "", modelAccess: ["国际"], remarkType: "正式用户", remarkName: "", voucherEnabled: false, groupMode: "template" as const, selectedTemplate: TEMPLATE_OPTIONS[0]?.value || "default", selectedHistoricalGroup: "", customGroups: {}, agentId: "" });
+                setAddForm({ enterpriseName: "", adminPhone: "", ownerMode: "existing", ownerUsername: "", ownerName: "", ownerPassword: "", modelAccess: ["国际"], remarkType: "正式用户", remarkName: "", voucherEnabled: false, groupMode: "template" as const, selectedTemplate: TEMPLATE_OPTIONS[0]?.value || "default", selectedHistoricalGroup: "", customGroups: {}, channelConfigs: {}, agentId: "" });
               }}
             >
               取消
@@ -2638,45 +2727,6 @@ export default function AdminEnterprises({ resellerScopeId, adminScope = false }
               {resellerScopeId && <p className="text-xs text-gray-400">仅可设置当前代理商名下的用户。</p>}
             </div>
 
-            {/* 模型配置 / 分组 */}
-            <div className="space-y-1.5">
-              <div className="flex items-center justify-between">
-                <Label className="text-sm">
-                  {resellerScopeId ? "模型配置" : "分组"} <span className="text-red-500">*</span>
-                </Label>
-                {!resellerScopeId && <div className="flex items-center gap-2">
-                  <span className="text-xs text-muted-foreground">开放客户端配置</span>
-                  <Switch
-                    checked={editForm.customConfigEnabled}
-                    onCheckedChange={(checked) => setEditForm((prev) => ({ ...prev, customConfigEnabled: checked }))}
-                  />
-                </div>}
-              </div>
-
-              <GroupConfigSelector
-                groupMode={editForm.groupMode}
-                setGroupMode={(mode) => setEditForm((prev) => ({ ...prev, groupMode: mode }))}
-                selectedTemplate={editForm.selectedTemplate}
-                setSelectedTemplate={(value) => setEditForm((prev) => ({ ...prev, selectedTemplate: value }))}
-                selectedHistoricalGroup={editForm.selectedHistoricalGroup || ""}
-                setSelectedHistoricalGroup={(value) => setEditForm((prev) => ({ ...prev, selectedHistoricalGroup: value }))}
-                customGroups={editForm.customGroups}
-                setCustomGroups={(groups) => setEditForm((prev) => ({ ...prev, customGroups: groups }))}
-                resellerOnly={!!resellerScopeId}
-              />
-            </div>
-
-            {/* 模型访问权限由平台在代理商层统一配置 */}
-            {!resellerScopeId && <div className="space-y-1.5">
-              <Label className="text-sm">
-                模型访问权限 <span className="text-red-500">*</span>
-              </Label>
-              <ModelAccessSelect
-                value={editForm.modelAccess}
-                onChange={(access) => setEditForm((prev) => ({ ...prev, modelAccess: access }))}
-              />
-            </div>}
-
             {/* 备注 */}
             <div className="space-y-1.5">
               <Label className="text-sm">备注</Label>
@@ -2684,37 +2734,35 @@ export default function AdminEnterprises({ resellerScopeId, adminScope = false }
                 {resellerScopeId ? (
                   <div className="w-[130px] h-10 px-3 rounded-md border border-gray-200 bg-gray-100 text-sm text-gray-500 flex items-center">正式用户</div>
                 ) : (
-                  <Select
-                    value={editForm.remarkType}
-                    onValueChange={(value) => setEditForm((prev) => ({ ...prev, remarkType: value }))}
-                  >
-                    <SelectTrigger className="w-[130px] h-10 bg-gray-50/50 border-gray-200">
-                      <SelectValue placeholder="选择类型" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {REMARK_TYPE_OPTIONS.map((type) => (
-                        <SelectItem key={type} value={type}>{type}</SelectItem>
-                      ))}
-                    </SelectContent>
+                  <Select value={editForm.remarkType} onValueChange={(value) => setEditForm((prev) => ({ ...prev, remarkType: value }))}>
+                    <SelectTrigger className="w-[130px] h-10 bg-gray-50/50 border-gray-200"><SelectValue placeholder="选择类型" /></SelectTrigger>
+                    <SelectContent>{REMARK_TYPE_OPTIONS.map((type) => <SelectItem key={type} value={type}>{type}</SelectItem>)}</SelectContent>
                   </Select>
                 )}
-                <Input
-                  placeholder="请输入信息（仅管理员可见）"
-                  value={editForm.remarkName}
-                  onChange={(e) => setEditForm((prev) => ({ ...prev, remarkName: e.target.value }))}
-                  className="h-10 bg-gray-50/50 border-gray-200 flex-1"
-                />
+                <Input placeholder="请输入信息（仅管理员可见）" value={editForm.remarkName} onChange={(e) => setEditForm((prev) => ({ ...prev, remarkName: e.target.value }))} className="h-10 bg-gray-50/50 border-gray-200 flex-1" />
               </div>
               <p className="text-xs text-gray-400">备注格式：类型_输入信息</p>
             </div>
 
-            {!resellerScopeId && (
-              <div className="space-y-1.5">
-                <Label className="text-sm">代理商归属</Label>
-                <div className="h-10 px-3 rounded-md border bg-gray-50 flex items-center justify-between text-sm"><span>{getResellerName(editTarget?.reseller_code, getResellerDemoState())}</span><Button type="button" variant="outline" size="sm" onClick={() => { if (!editTarget) return; setMigrationTarget(editTarget); setMigrationResellerId("direct"); setMigrationReason(""); setMigrationChecked(false); }}>整体迁移</Button></div>
-                <p className="text-xs text-gray-400">企业归属不可直接编辑，需通过独立的企业整体迁移流程处理。</p>
+            <div className="-mx-6 border-t" />
+
+            {/* 模型访问权限由平台在代理商层统一配置 */}
+            {!resellerScopeId && <div className="space-y-1.5">
+              <Label className="text-sm">模型访问权限 <span className="text-red-500">*</span></Label>
+              <ModelAccessSelect value={editForm.modelAccess} onChange={(access) => setEditForm((prev) => ({ ...prev, modelAccess: access }))} />
+            </div>}
+
+            {/* 模型配置 / 分组 */}
+            <div className="space-y-1.5">
+              <div className="flex items-center justify-between">
+                <Label className="text-sm">{resellerScopeId ? "模型配置" : "分组"} <span className="text-red-500">*</span></Label>
+                {!resellerScopeId && <div className="flex items-center gap-2"><span className="text-xs text-muted-foreground">开放客户端配置</span><Switch checked={editForm.customConfigEnabled} onCheckedChange={(checked) => setEditForm((prev) => ({ ...prev, customConfigEnabled: checked }))} /></div>}
               </div>
-            )}
+              <GroupConfigSelector groupMode={editForm.groupMode} setGroupMode={(mode) => setEditForm((prev) => ({ ...prev, groupMode: mode }))} selectedTemplate={editForm.selectedTemplate} setSelectedTemplate={(value) => setEditForm((prev) => ({ ...prev, selectedTemplate: value }))} selectedHistoricalGroup={editForm.selectedHistoricalGroup || ""} setSelectedHistoricalGroup={(value) => setEditForm((prev) => ({ ...prev, selectedHistoricalGroup: value }))} customGroups={editForm.customGroups} setCustomGroups={(groups) => setEditForm((prev) => ({ ...prev, customGroups: groups }))} resellerOnly={!!resellerScopeId} />
+              {resellerScopeId && (() => { const rates = getResellerDemoState().resellers.find((item) => item.id === resellerScopeId)?.settlementRates || {}; const resources = Object.entries(rates); return <div className="pt-1"><p className="text-sm text-foreground">已配置 {resources.length} 个模型资源：</p><div className="mt-2 flex flex-wrap gap-1.5">{resources.map(([resource, rate]) => <Badge key={resource} variant="secondary" className="border-0 bg-blue-100 px-2.5 py-1 font-normal text-blue-700 hover:bg-blue-100">{resource} ({Number(rate.toFixed(2))})</Badge>)}</div></div>; })()}
+            </div>
+
+            {!resellerScopeId && <SubjectChannelConfig subjectLabel="企业" activeGroups={editForm.groupMode === "custom" ? Object.entries(editForm.customGroups).filter(([, config]) => config.available).map(([group]) => group) : editForm.groupMode === "template" ? (TEMPLATE_OPTIONS.find((item) => item.value === editForm.selectedTemplate)?.availableGroups || []).map((group) => group.name) : undefined} value={editForm.channelConfigs} onChange={(channelConfigs) => setEditForm((prev) => ({ ...prev, channelConfigs }))} />}
           </div>
 
           {/* 底部按钮 */}
@@ -2767,7 +2815,30 @@ export default function AdminEnterprises({ resellerScopeId, adminScope = false }
                 // 组合备注：类型_输入信息
                 const remark = `${resellerScopeId ? "正式用户" : editForm.remarkType}_${editForm.remarkName}`;
                 setSavingEnterprise(true);
+                if (!resellerScopeId) setEnterpriseChannelStore((prev) => { const next = { ...prev }; if (Object.keys(editForm.channelConfigs).length) next[editTarget.id] = editForm.channelConfigs; else delete next[editTarget.id]; return next; });
                 try {
+                  if (resellerScopeId) {
+                    const templateRates = TEMPLATE_OPTIONS.find((item) => item.value === editForm.selectedTemplate)?.availableGroups || [];
+                    const groupDiscounts = editForm.groupMode === "custom"
+                      ? Object.fromEntries(Object.entries(editForm.customGroups).map(([group, config]) => [group, config.rate]))
+                      : Object.fromEntries(templateRates.map((group) => [group.name, group.rate]));
+                    const configuredRates = Object.values(groupDiscounts);
+                    updateDemoEnterprise(editTarget.id, {
+                      resellerId: resellerScopeId,
+                      name: editForm.name.trim(),
+                      ownerPhone: editForm.ownerPhone.trim(),
+                      status: editTarget.status,
+                      groupMode: editForm.groupMode,
+                      groupTemplate: editForm.selectedTemplate,
+                      groupDiscounts,
+                      discount: configuredRates.length ? configuredRates.reduce((sum, rate) => sum + rate, 0) / configuredRates.length : 1,
+                    });
+                    setEnterprises((items) => items.map((item) => item.id === editTarget.id ? { ...item, name: editForm.name.trim(), owner_phone: editForm.ownerPhone.trim(), group: editForm.selectedTemplate } : item));
+                    toast({ title: "保存成功", description: `企业「${editForm.name}」的资料、模型与折扣配置已更新` });
+                    setEditSheetOpen(false);
+                    setEditTarget(null);
+                    return;
+                  }
                   const { error } = await supabase
                     .from("enterprises")
                     .update({
@@ -2805,7 +2876,37 @@ export default function AdminEnterprises({ resellerScopeId, adminScope = false }
         </SheetContent>
       </Sheet>
 
-      {/* Voucher Config Dialog */}
+      {/* 企业级自定义渠道配置弹窗 */}
+      <Dialog open={enterpriseChannelDialogOpen} onOpenChange={setEnterpriseChannelDialogOpen}>
+        <DialogContent className="max-w-6xl">
+          <DialogHeader><DialogTitle>渠道配置</DialogTitle></DialogHeader>
+          <p className="text-xs text-muted-foreground">勾选决定企业是否可用该渠道。每条渠道可跟随全局参数，或切换为企业自定义优先级和权重。</p>
+          <div className="flex items-center gap-2">
+            <Input className="w-56" value={enterpriseChannelKeyword} onChange={(event) => setEnterpriseChannelKeyword(event.target.value)} placeholder="搜索渠道名称 / ID" />
+            <Input className="w-56" value={enterpriseChannelModelKeyword} onChange={(event) => setEnterpriseChannelModelKeyword(event.target.value)} placeholder="搜索模型名称" />
+            <Select value={enterpriseChannelGroup} onValueChange={setEnterpriseChannelGroup}><SelectTrigger className="w-48"><SelectValue placeholder="选择分组" /></SelectTrigger><SelectContent><SelectItem value="all">全部分组</SelectItem>{ENTERPRISE_CHANNEL_GROUPS.map((group) => <SelectItem key={group} value={group}>{group}</SelectItem>)}</SelectContent></Select>
+            {(enterpriseChannelKeyword || enterpriseChannelModelKeyword || enterpriseChannelGroup !== "all") && <Button variant="ghost" onClick={() => { setEnterpriseChannelKeyword(""); setEnterpriseChannelModelKeyword(""); setEnterpriseChannelGroup("all"); }}>重置</Button>}
+          </div>
+          <div className="max-h-[55vh] overflow-auto rounded-lg border">
+            <div className="sticky top-0 z-10 grid grid-cols-[84px_minmax(150px,1fr)_110px_minmax(200px,1.35fr)_135px_100px_100px] gap-3 border-b bg-muted px-4 py-2 text-xs font-medium text-muted-foreground"><span>ID</span><span>渠道名称</span><span>配置模式</span><span>分组</span><span>类型</span><span>优先级</span><span>权重</span></div>
+            {ENTERPRISE_CHANNEL_OPTIONS.filter(matchesEnterpriseChannelFilters).map((channel) => {
+              const config = enterpriseChannelDraft[channel.name] || { enabled: true, mode: "global" as const, priority: channel.priority, weight: channel.weight };
+              const followsGlobal = config.mode === "global";
+              return <div key={channel.name} className="grid grid-cols-[84px_minmax(150px,1fr)_110px_minmax(200px,1.35fr)_135px_100px_100px] items-center gap-3 border-b px-4 py-3 last:border-b-0">
+                <label className="flex items-center gap-2 text-sm"><Checkbox checked={config.enabled} disabled={channel.status === "disabled"} onCheckedChange={(checked) => setEnterpriseChannelDraft((prev) => ({ ...prev, [channel.name]: { ...config, enabled: checked === true } }))} /><span className="text-muted-foreground">{channel.id}</span></label>
+                <div className="flex min-w-0 items-center gap-2 text-sm"><span className="truncate">{channel.name}</span>{channel.status === "disabled" && <Badge variant="destructive" className="font-normal">已禁用</Badge>}</div>
+                <Select disabled={!config.enabled || channel.status === "disabled"} value={config.mode} onValueChange={(mode: "global" | "custom") => setEnterpriseChannelDraft((prev) => ({ ...prev, [channel.name]: { ...config, mode, priority: mode === "global" ? channel.priority : config.priority, weight: mode === "global" ? channel.weight : config.weight } }))}><SelectTrigger className="h-9"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="global">全局</SelectItem><SelectItem value="custom">自定义</SelectItem></SelectContent></Select>
+                <div className="flex flex-wrap gap-1">{channel.groups.map((group) => <Badge key={group} variant="secondary" className="font-normal">{group}</Badge>)}</div>
+                <Badge variant="outline" className="w-fit font-normal">{channel.type}</Badge>
+                <Input type="number" min="0" step="1" value={followsGlobal ? channel.priority : config.priority} disabled={!config.enabled || followsGlobal || channel.status === "disabled"} onChange={(event) => setEnterpriseChannelDraft((prev) => ({ ...prev, [channel.name]: { ...config, priority: Number(event.target.value) } }))} />
+                <Input type="number" min="0" step="1" value={followsGlobal ? channel.weight : config.weight} disabled={!config.enabled || followsGlobal || channel.status === "disabled"} onChange={(event) => setEnterpriseChannelDraft((prev) => ({ ...prev, [channel.name]: { ...config, weight: Number(event.target.value) } }))} />
+              </div>;
+            })}
+            {!ENTERPRISE_CHANNEL_OPTIONS.some(matchesEnterpriseChannelFilters) && <div className="py-10 text-center text-sm text-muted-foreground">暂无匹配渠道</div>}
+          </div>
+          <DialogFooter><Button variant="outline" onClick={() => setEnterpriseChannelDialogOpen(false)}>取消</Button><Button onClick={saveEnterpriseChannelDialog}>保存配置</Button></DialogFooter>
+        </DialogContent>
+      </Dialog>{/* Voucher Config Dialog */}
       <Dialog open={voucherConfigOpen} onOpenChange={setVoucherConfigOpen}>
         <DialogContent className="sm:max-w-[560px] p-0 overflow-hidden">
           <DialogHeader className="px-6 pt-5 pb-4 border-b">
@@ -3071,6 +3172,7 @@ export default function AdminEnterprises({ resellerScopeId, adminScope = false }
               onClick={() => {
                 const newStatus = toggleStatusTarget!.status === "enabled" ? "disabled" as const : "enabled" as const;
                 // 更新本地状态（mock 模式）
+                if (resellerScopeId) updateDemoEnterprise(toggleStatusTarget!.id, { resellerId: resellerScopeId, status: newStatus });
                 setEnterprises((prev) =>
                   prev.map((ent) =>
                     ent.id === toggleStatusTarget!.id ? { ...ent, status: newStatus } : ent
