@@ -1,15 +1,21 @@
 import { useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
+import { ChevronDown, ChevronRight } from "lucide-react";
 
-export type SubjectChannelConfigValue = Record<string, { group: string; channels: Record<string, { enabled: boolean; priority: number; weight: number }> }>;
+type ChannelMode = "global" | "custom";
+type ChannelConfig = { enabled: boolean; mode: ChannelMode; priority: number; weight: number };
+
+export type SubjectChannelConfigValue = Record<string, {
+  group: string;
+  channels: Record<string, ChannelConfig>;
+}>;
 
 const CHANNELS = [
   { id: 58, name: "Anthropic Official", models: ["claude-3-5-sonnet", "claude-3-opus"], groups: ["claude-basic", "claude-fast"], type: "Anthropic Claude", status: "enabled", priority: 110, weight: 20 },
@@ -25,53 +31,249 @@ const CHANNELS = [
   { id: 27, name: "siliconflow", models: ["deepseek-v3", "qwen2.5-72b"], groups: ["default"], type: "SiliconCloud", status: "enabled", priority: 0, weight: 0 },
 ] as const;
 
-
 export const createDefaultSubjectChannels = (): SubjectChannelConfigValue => ({});
 
-export function SubjectChannelConfig({ value, onChange, subjectLabel, activeGroups }: { value: SubjectChannelConfigValue; onChange: (value: SubjectChannelConfigValue) => void; subjectLabel: string; activeGroups?: string[] }) {
+export function SubjectChannelConfig({
+  value,
+  onChange,
+  subjectLabel,
+  activeGroups,
+}: {
+  value: SubjectChannelConfigValue;
+  onChange: (value: SubjectChannelConfigValue) => void;
+  subjectLabel: string;
+  activeGroups?: string[];
+}) {
   const { toast } = useToast();
   const [open, setOpen] = useState(false);
-  const [editorOpen, setEditorOpen] = useState(false);
   const [draft, setDraft] = useState<SubjectChannelConfigValue>(value);
-  const [editingKey, setEditingKey] = useState<string | null>(null);
-  const [policyGroup, setPolicyGroup] = useState("");
-  const [policyChannels, setPolicyChannels] = useState<Record<string, { enabled: boolean; priority: number; weight: number }>>({});
-  const allChannelGroups = [...new Set(CHANNELS.flatMap((channel) => [...channel.groups]))].sort();
-  const groups = (activeGroups || allChannelGroups).filter((group) => allChannelGroups.includes(group)).sort();
-  const customEnabled = Object.keys(value).length > 0;
-  const isActive = (group: string) => !activeGroups || activeGroups.includes(group);
-  const allPolicies = Object.entries(draft).filter(([key, policy]) => key !== "__enabled" && Boolean(policy.group));
-  const policies = allPolicies;
-  const channelsForGroup = CHANNELS.filter((channel) => (channel.groups as readonly string[]).includes(policyGroup));
-  const setGroup = (group: string) => {
-    setPolicyGroup(group);
-    setPolicyChannels(Object.fromEntries(CHANNELS.filter((channel) => (channel.groups as readonly string[]).includes(group)).map((channel) => [channel.name, { enabled: channel.status !== "disabled", priority: channel.priority, weight: channel.weight }])));
+  const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
+  const [groupKeyword, setGroupKeyword] = useState("");
+
+  const allGroups = [...new Set(CHANNELS.flatMap((channel) => [...channel.groups]))].sort();
+  const groups = (activeGroups || allGroups).filter((group) => allGroups.includes(group)).sort();
+  const filteredGroups = groups.filter((group) => group.toLowerCase().includes(groupKeyword.trim().toLowerCase()));
+
+  const channelsForGroup = (group: string) =>
+    CHANNELS.filter((channel) => (channel.groups as readonly string[]).includes(group));
+
+  const createDraft = (): SubjectChannelConfigValue => Object.fromEntries(
+    groups.map((group) => [
+      group,
+      {
+        group,
+        channels: Object.fromEntries(channelsForGroup(group).map((channel) => {
+          const saved = value[group]?.channels[channel.name];
+          return [channel.name, {
+            enabled: saved?.enabled ?? channel.status !== "disabled",
+            mode: saved?.mode ?? "global",
+            priority: saved?.priority ?? channel.priority,
+            weight: saved?.weight ?? channel.weight,
+          }];
+        })),
+      },
+    ]),
+  );
+
+  const openDialog = () => {
+    setDraft(createDraft());
+    setExpandedGroups(new Set());
+    setGroupKeyword("");
+    setOpen(true);
   };
-  const editPolicy = (key?: string) => {
-    if (key) { const policy = draft[key]; setEditingKey(key); setPolicyGroup(policy.group); setPolicyChannels(structuredClone(policy.channels)); }
-    else { setEditingKey(null); setPolicyGroup(""); setPolicyChannels({}); }
-    setEditorOpen(true);
+
+  const toggleGroup = (group: string) => {
+    setExpandedGroups((current) => {
+      const next = new Set(current);
+      if (next.has(group)) next.delete(group);
+      else next.add(group);
+      return next;
+    });
   };
-  const savePolicy = () => {
-    if (!policyGroup) return toast({ title: "请选择分组", variant: "destructive" });
-    if (!Object.values(policyChannels).some((channel) => channel.enabled)) return toast({ title: "请至少保留一个渠道", variant: "destructive" });
-    if (Object.values(policyChannels).some((channel) => channel.priority < 0 || channel.weight < 0)) return toast({ title: "优先级和权重不能小于 0", variant: "destructive" });
-    const key = editingKey || policyGroup;
-    setDraft((current) => { const next = { ...current }; if (editingKey && editingKey !== key) delete next[editingKey]; next[key] = { group: policyGroup, channels: policyChannels }; return next; });
-    setEditorOpen(false);
+
+  const updateChannel = (group: string, channelName: string, patch: Partial<ChannelConfig>) => {
+    setDraft((current) => ({
+      ...current,
+      [group]: {
+        ...current[group],
+        channels: {
+          ...current[group].channels,
+          [channelName]: { ...current[group].channels[channelName], ...patch },
+        },
+      },
+    }));
   };
-  return <div className="space-y-2">
-    <div className="flex items-center gap-2"><Label>渠道配置</Label><button type="button" onClick={() => { setDraft(structuredClone(value)); setOpen(true); }} className="text-xs font-medium text-blue-600 hover:underline">去配置</button></div>
-    <div className="rounded-md border bg-background p-2 text-xs text-muted-foreground">{Object.keys(value).filter((key) => key !== "__enabled").length ? `已配置 ${Object.keys(value).filter((key) => key !== "__enabled").length} 条分组渠道策略` : "暂无特殊策略，跟随平台全局渠道配置"}</div>
-    <Dialog open={open} onOpenChange={setOpen}><DialogContent className="max-w-3xl"><DialogHeader><DialogTitle>渠道配置</DialogTitle></DialogHeader>
-      <div className="flex items-center justify-between"><p className="text-xs text-muted-foreground">仅为有特殊路由要求的分组新增策略；未配置策略的分组继续跟随全局。</p><Button type="button" onClick={() => editPolicy()}>新增策略</Button></div>
-      {!policies.length ? <div className="rounded-lg border border-dashed py-12 text-center text-sm text-muted-foreground">暂无特殊渠道策略</div> : <div className="overflow-hidden rounded-lg border"><div className="grid grid-cols-[minmax(130px,0.7fr)_minmax(260px,1.3fr)_110px] bg-muted/50 px-4 py-2 text-xs text-muted-foreground"><span>分组</span><span>启用渠道</span><span>操作</span></div>{policies.map(([key, policy]) => { const active = isActive(policy.group); return <div key={key} className={`grid grid-cols-[minmax(130px,0.7fr)_minmax(260px,1.3fr)_110px] items-center border-t px-4 py-3 text-sm ${active ? "" : "bg-muted/40 text-muted-foreground"}`}><div><span className="font-medium">{policy.group}</span>{!active && <Badge variant="secondary" className="ml-2">分组已取消</Badge>}</div><div className="flex min-w-0 flex-wrap gap-1.5">{Object.entries(policy.channels).filter(([, channel]) => channel.enabled).map(([name]) => <Badge key={name} variant="secondary" className="font-normal">{name}</Badge>)}{!Object.values(policy.channels).some((channel) => channel.enabled) && <span className="text-xs text-muted-foreground">无</span>}</div><div className="flex gap-2"><button type="button" disabled={!active} className={active ? "text-blue-600 hover:underline" : "cursor-not-allowed text-muted-foreground opacity-50"} onClick={() => active && editPolicy(key)}>修改</button><button type="button" className="text-red-600 hover:underline" onClick={() => setDraft((current) => { const next = { ...current }; delete next[key]; return next; })}>删除</button></div></div>; })}</div>}
-      <DialogFooter><Button variant="outline" onClick={() => setOpen(false)}>取消</Button><Button onClick={() => { onChange(draft); setOpen(false); }}>确认配置</Button></DialogFooter>
-      <Dialog open={editorOpen} onOpenChange={setEditorOpen}><DialogContent className="sm:max-w-2xl"><DialogHeader><DialogTitle>{editingKey ? "修改渠道策略" : "新增渠道策略"}</DialogTitle></DialogHeader>
-        <div className="space-y-2"><Label>分组 *</Label><Select value={policyGroup} onValueChange={setGroup} disabled={Boolean(editingKey)}><SelectTrigger><SelectValue placeholder="请选择分组" /></SelectTrigger><SelectContent>{groups.filter((group) => !draft[group] || group === editingKey).map((group) => <SelectItem key={group} value={group}>{group}</SelectItem>)}</SelectContent></Select></div>
-        {policyGroup && <div className="max-h-[48vh] overflow-auto rounded-lg border"><div className="sticky top-0 grid grid-cols-[70px_1fr_100px_100px] bg-muted px-4 py-2 text-xs text-muted-foreground"><span>渠道 ID</span><span>渠道</span><span>优先级</span><span>权重</span></div>{channelsForGroup.map((channel) => { const config = policyChannels[channel.name] || { enabled: false, priority: channel.priority, weight: channel.weight }; return <div key={channel.name} className="grid grid-cols-[70px_1fr_100px_100px] items-center border-t px-4 py-3"><span className="text-sm text-muted-foreground">{channel.id}</span><label className="flex items-center gap-2"><Checkbox checked={config.enabled} disabled={channel.status === "disabled"} onCheckedChange={(checked) => setPolicyChannels((current) => ({ ...current, [channel.name]: { ...config, enabled: checked === true } }))} /><span>{channel.name}</span>{channel.status === "disabled" && <Badge variant="destructive">已禁用</Badge>}</label><Input type="number" min="0" disabled={!config.enabled || channel.status === "disabled"} value={config.priority} onChange={(event) => setPolicyChannels((current) => ({ ...current, [channel.name]: { ...config, priority: Number(event.target.value) } }))} /><Input type="number" min="0" disabled={!config.enabled || channel.status === "disabled"} value={config.weight} onChange={(event) => setPolicyChannels((current) => ({ ...current, [channel.name]: { ...config, weight: Number(event.target.value) } }))} /></div>; })}</div>}
-        <DialogFooter><Button variant="outline" onClick={() => setEditorOpen(false)}>取消</Button><Button onClick={savePolicy}>保存策略</Button></DialogFooter>
-      </DialogContent></Dialog>
-    </DialogContent></Dialog>
-  </div>;
+
+  const save = () => {
+    const configs = Object.values(draft).flatMap((group) => Object.values(group.channels));
+    if (configs.some((config) => config.mode === "custom" && (config.priority < 0 || config.weight < 0))) {
+      toast({ title: "优先级和权重不能小于 0", variant: "destructive" });
+      return;
+    }
+    onChange(draft);
+    setOpen(false);
+  };
+
+  const configuredGroupCount = Object.keys(value).filter((key) => key !== "__enabled").length;
+  const enabledChannelCount = Object.values(value).reduce(
+    (total, group) => total + Object.values(group.channels).filter((channel) => channel.enabled).length,
+    0,
+  );
+
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center gap-2">
+        <Label>渠道配置</Label>
+        <button type="button" onClick={openDialog} className="text-xs font-medium text-blue-600 hover:underline">去配置</button>
+      </div>
+      <div className="rounded-md border bg-background p-2 text-xs text-muted-foreground">
+        {configuredGroupCount > 0
+          ? `已配置 ${configuredGroupCount} 个分组、启用 ${enabledChannelCount} 个渠道`
+          : `暂未配置${subjectLabel}渠道，默认跟随全局配置`}
+      </div>
+
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent className="max-w-5xl">
+          <DialogHeader>
+            <DialogTitle>渠道配置</DialogTitle>
+          </DialogHeader>
+          <p className="text-xs text-muted-foreground">
+            按分组配置可用渠道。启用渠道后可跟随全局参数，或自定义优先级和权重。
+          </p>
+          <Input
+            className="w-64"
+            value={groupKeyword}
+            onChange={(event) => setGroupKeyword(event.target.value)}
+            placeholder="搜索分组名称"
+          />
+
+          <div className="max-h-[62vh] overflow-auto rounded-lg border">
+            <div className="sticky top-0 z-10 grid grid-cols-[minmax(150px,0.55fr)_minmax(480px,1.8fr)] gap-4 border-b bg-muted px-4 py-2 text-xs font-medium text-muted-foreground">
+              <span>分组</span>
+              <span>启用渠道</span>
+            </div>
+
+            {filteredGroups.map((group) => {
+              const expanded = expandedGroups.has(group);
+              const channels = channelsForGroup(group);
+              const groupConfig = draft[group];
+              const enabledChannels = channels.filter((channel) =>
+                groupConfig?.channels[channel.name]?.enabled,
+              );
+
+              return (
+                <div key={group} className="border-b last:border-b-0">
+                  <button
+                    type="button"
+                    className="grid w-full grid-cols-[minmax(150px,0.55fr)_minmax(480px,1.8fr)] items-center gap-4 px-4 py-3 text-left hover:bg-muted/30"
+                    onClick={() => toggleGroup(group)}
+                  >
+                    <span className="flex items-center gap-2 text-sm font-medium">
+                      {expanded ? <ChevronDown className="h-4 w-4 text-muted-foreground" /> : <ChevronRight className="h-4 w-4 text-muted-foreground" />}
+                      {group}
+                    </span>
+                    <span className="flex min-w-0 flex-wrap gap-1.5">
+                      {enabledChannels.map((channel) => {
+                        const config = groupConfig.channels[channel.name];
+                        const custom = config.mode === "custom";
+                        const globallyDisabled = channel.status === "disabled";
+                        return (
+                          <Badge
+                            key={channel.name}
+                            variant="outline"
+                            className={globallyDisabled
+                              ? "border-red-200 bg-red-50 font-normal text-red-600"
+                              : custom
+                                ? "border-purple-200 bg-purple-50 font-normal text-purple-600"
+                                : "border-gray-200 bg-gray-50 font-normal text-gray-600"}
+                          >
+                            {channel.name}
+                            {globallyDisabled
+                              ? <span className="ml-1 opacity-70">· 禁用</span>
+                              : custom && <span className="ml-1 opacity-70">· 自定义</span>}
+                          </Badge>
+                        );
+                      })}
+                      {enabledChannels.length === 0 && <span className="text-xs text-muted-foreground">暂无启用渠道</span>}
+                    </span>
+                  </button>
+                  {expanded && (
+                    <div className="border-t bg-muted/10 px-4 pb-3">
+                      <div className="grid grid-cols-[70px_minmax(180px,1fr)_80px_120px_100px_100px] gap-3 px-3 py-2 text-xs text-muted-foreground">
+                        <span>ID</span><span>渠道</span><span>启用</span><span>配置方式</span><span>优先级</span><span>权重</span>
+                      </div>
+                      {channels.map((channel) => {
+                        const config = groupConfig?.channels[channel.name] || {
+                          enabled: channel.status !== "disabled",
+                          mode: "global" as const,
+                          priority: channel.priority,
+                          weight: channel.weight,
+                        };
+                        const disabled = channel.status === "disabled";
+                        const custom = config.mode === "custom";
+
+                        return (
+                          <div key={channel.name} className="grid grid-cols-[70px_minmax(180px,1fr)_80px_120px_100px_100px] items-center gap-3 border-t px-3 py-2.5">
+                            <span className="text-sm text-muted-foreground">{channel.id}</span>
+                            <div className="flex min-w-0 items-center gap-2 text-sm">
+                              <span className="truncate">{channel.name}</span>
+                              {disabled && <Badge variant="destructive" className="font-normal">全局禁用</Badge>}
+                            </div>
+                            <Switch
+                              checked={config.enabled}
+                              onCheckedChange={(enabled) => updateChannel(group, channel.name, { enabled })}
+                            />
+                            <Select
+                              value={config.mode}
+                              disabled={!config.enabled}
+                              onValueChange={(mode: ChannelMode) => updateChannel(group, channel.name, {
+                                mode,
+                                priority: mode === "global" ? channel.priority : config.priority,
+                                weight: mode === "global" ? channel.weight : config.weight,
+                              })}
+                            >
+                              <SelectTrigger className="h-8"><SelectValue /></SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="global">全局</SelectItem>
+                                <SelectItem value="custom">自定义</SelectItem>
+                              </SelectContent>
+                            </Select>
+                            <Input
+                              className="h-8"
+                              type="number"
+                              min={0}
+                              value={custom ? config.priority : channel.priority}
+                              disabled={!config.enabled || !custom}
+                              onChange={(event) => updateChannel(group, channel.name, { priority: Number(event.target.value) })}
+                            />
+                            <Input
+                              className="h-8"
+                              type="number"
+                              min={0}
+                              value={custom ? config.weight : channel.weight}
+                              disabled={!config.enabled || !custom}
+                              onChange={(event) => updateChannel(group, channel.name, { weight: Number(event.target.value) })}
+                            />
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+
+            {filteredGroups.length === 0 && (
+              <div className="py-12 text-center text-sm text-muted-foreground">暂无匹配分组</div>
+            )}
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setOpen(false)}>取消</Button>
+            <Button onClick={save}>保存配置</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
 }

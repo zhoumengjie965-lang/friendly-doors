@@ -2145,7 +2145,7 @@ export default function DeptManagement({ enterprise, role }: DeptManagementProps
               <div className="space-y-2">
                 <Label>一次性预算额度（元）</Label>
                 <Input type="number" value={budgetForm.one_time_budget} onChange={(e) => setBudgetForm({ ...budgetForm, one_time_budget: Number(e.target.value) })} min={0} step={0.01} />
-                <p className="text-xs text-gray-400">额度不会按月重置</p>
+                <p className="text-xs text-gray-400">已使用额度从本次预算生效时开始累计，切换至其他预算类型后一次性预算的占用额度将清零。</p>
               </div>
             )}
 
